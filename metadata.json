@@ -1,0 +1,7 @@
+{
+  "name": "모두의카풀 (Modu Carpool)",
+  "description": "운전자와 탑승자를 잇는 스마트 카풀 매칭 및 데이터 수집 플랫폼입니다. 세련된 디자인과 편리한 지역 기반 검색을 제공합니다.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
