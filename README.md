@@ -23,3 +23,8 @@
 npm install
 npm run dev
 ```
+
+## meter/ — 모카 미터기
+
+`meter/` 폴더는 별도 앱인 모카 미터기(https://moca-meter.vercel.app)의 소스다.
+Vercel의 `moca-meter` 프로젝트가 Root Directory를 `meter`로 두고 배포한다.
