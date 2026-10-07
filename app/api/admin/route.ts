@@ -1,26 +1,39 @@
-import { body, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, setAdminSession } from "@/lib/server";
+import { body, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, setAdminSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+const denied = () => json({ error: "관리자 로그인이 필요합니다." }, 401);
+
+/** 현황, 최근 글, 회원 목록(?q= 로 이메일·닉네임 검색) */
+export async function GET(req: Request) {
   if (!(await isAdmin())) return json({ admin: false });
-  if (!hasDb()) return json({ admin: true, db: false, stats: null, posts: [] });
+  if (!hasDb()) return json({ admin: true, db: false, stats: null, posts: [], users: [] });
+  const q = text(new URL(req.url).searchParams.get("q"), 60);
+  const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   try {
     await ensureSchema();
     const sql = db();
     const s = await sql`select
       (select count(*)::int from users) as users,
+      (select count(*)::int from users where blocked) as blocked,
       (select count(*)::int from posts) as posts,
       (select count(*)::int from requests) as requests,
       (select count(*)::int from requests where status = 'accepted') as accepted`;
     const posts = await sql`
-      select p.id, p.origin, p.dest, p.depart_at, p.role, p.kind, p.cost, p.status, u.email, u.name
-      from posts p join users u on u.id = p.user_id order by p.created_at desc limit 100`;
+      select p.id, p.origin, p.dest, p.depart_at, p.role, p.kind, p.cost, p.price, p.regular, p.days, p.time_go, p.status, p.note, u.email, u.name, u.blocked
+      from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
+    const users = await sql`
+      select u.id, u.email, u.name, u.blocked, u.created_at,
+             (select count(*)::int from posts where user_id = u.id) as posts
+      from users u
+      where ${q} = '' or u.email ilike ${like} or u.name ilike ${like}
+      order by u.created_at desc limit 200`;
     return json({
       admin: true,
       db: true,
       stats: s[0],
       posts: posts.map((p) => ({ ...p, depart_at: new Date(p.depart_at as string).getTime() })),
+      users: users.map((u) => ({ ...u, created_at: new Date(u.created_at as string).getTime() })),
     });
   } catch (e) {
     return fail(e);
@@ -57,6 +70,32 @@ export async function POST(req: Request) {
   return json({ ok: true });
 }
 
+/** 회원 차단·해제({userId, blocked}) 또는 글 수정({postId, origin, dest, note, status}) */
+export async function PATCH(req: Request) {
+  if (!(await isAdmin())) return denied();
+  if (!hasDb()) return json({ error: "DB가 연결되지 않았습니다." }, 503);
+  const b = await body(req);
+  try {
+    await ensureSchema();
+    const sql = db();
+    if (isUuid(b.userId)) {
+      await sql`update users set blocked = ${b.blocked === true} where id = ${b.userId}`;
+      return json({ ok: true });
+    }
+    if (isUuid(b.postId)) {
+      const origin = text(b.origin, 60);
+      const dest = text(b.dest, 60);
+      if (origin.length < 2 || dest.length < 2) return json({ error: "출발지와 도착지를 입력해 주세요." }, 400);
+      const status = b.status === "closed" ? "closed" : "open";
+      await sql`update posts set origin = ${origin}, dest = ${dest}, note = ${text(b.note, 300)}, status = ${status} where id = ${b.postId}`;
+      return json({ ok: true });
+    }
+    return json({ error: "잘못된 요청입니다." }, 400);
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 /** ?post=ID 가 있으면 글 삭제, 없으면 관리자 로그아웃 */
 export async function DELETE(req: Request) {
   const post = new URL(req.url).searchParams.get("post");
@@ -64,7 +103,7 @@ export async function DELETE(req: Request) {
     await clearCookie("admin");
     return json({ ok: true });
   }
-  if (!(await isAdmin())) return json({ error: "관리자 로그인이 필요합니다." }, 401);
+  if (!(await isAdmin())) return denied();
   if (!isUuid(post) || !hasDb()) return json({ error: "잘못된 요청입니다." }, 400);
   try {
     await ensureSchema();

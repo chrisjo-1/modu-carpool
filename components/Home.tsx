@@ -113,6 +113,7 @@ export function PostDetail({
   openChat,
   toast,
   onEditCommute,
+  onEdit,
 }: {
   post: Post;
   user: User | null;
@@ -124,6 +125,7 @@ export function PostDetail({
   openChat: (th: Thread) => void;
   toast: (m: string) => void;
   onEditCommute: (p: Post) => void;
+  onEdit: (p: Post) => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -211,7 +213,7 @@ export function PostDetail({
                 {th.status === "accepted" && <button className={`${btnGhost} py-3 text-[15px]`} onClick={() => openChat(th)}>{t("대화하기")}</button>}
               </div>
             ))}
-            {post.regular && <button data-block-id="B015" data-block-name="출퇴근 정보 수정" className={`${btnPrimary} py-3 text-[15px]`} onClick={() => onEditCommute(post)}>{t("출퇴근 정보 수정")}</button>}
+            <button data-block-id="B015" data-block-name="글 수정" className={`${btnPrimary} py-3 text-[15px]`} onClick={() => (post.regular ? onEditCommute(post) : onEdit(post))}>{post.regular ? t("출퇴근 정보 수정") : t("글 수정")}</button>
             <div className="flex gap-2 pt-1">
               <button disabled={busy} className={`${btnGhost} py-3 text-[15px]`} onClick={() => run("/api/posts", "PATCH", { id: post.id, status: post.status === "open" ? "closed" : "open" }, post.status === "open" ? "마감했어요." : "다시 열었어요.")}>
                 {post.status === "open" ? t("모집 마감") : t("다시 열기")}

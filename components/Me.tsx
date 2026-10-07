@@ -238,6 +238,10 @@ export default function Me({
         </a>
       </Card>
 
+      <a data-block-id="B048" data-block-name="관리자 페이지" href="/admin" className="flex items-center justify-between rounded-2xl border border-line bg-white px-5 text-[15px] text-sub">
+        {t("관리자 페이지")} {Icon.arrow()}
+      </a>
+
       <p className="px-1 text-[13px] leading-relaxed text-sub">
         {t("모두의카풀은 무료 운행을 원칙으로 하며, 출퇴근 카풀에 한해 실비 분담을 돕습니다. 영리 목적의 유상운송은 「여객자동차 운수사업법」에 따라 금지되어 있습니다. 만남과 이동에 대한 책임은 당사자에게 있으니 공개된 장소에서 만나 주세요.")}
       </p>

@@ -7,7 +7,7 @@ import CommuteSheet from "./Commute";
 import Home, { PostDetail } from "./Home";
 import Me from "./Me";
 import PostForm from "./PostForm";
-import { Icon, LangContext, api } from "./ui";
+import { Icon, LangContext, Sheet, api } from "./ui";
 
 type Tab = "home" | "post" | "chat" | "me";
 const LANG_KEY = "modu.lang";
@@ -23,6 +23,7 @@ export default function App() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [open, setOpen] = useState<Post | null>(null);
   const [room, setRoom] = useState<Thread | null>(null);
+  const [editing, setEditing] = useState<Post | null>(null);
   const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean } | null>(null);
   const [toastMsg, setToastMsg] = useState("");
   const [version, setVersion] = useState(0);
@@ -167,7 +168,12 @@ export default function App() {
           </ul>
         </nav>
 
-        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} />}
+        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} onEdit={(p) => { setOpen(null); setEditing(p); }} />}
+        {editing && (
+          <Sheet title={t("글 수정")} blockId="S070" onClose={() => setEditing(null)}>
+            <PostForm initial={editing} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { setEditing(null); refresh(); }} />
+          </Sheet>
+        )}
         {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => setRoom(null)} toast={setToastMsg} />}
         {toastMsg && (

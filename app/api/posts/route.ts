@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v from posts p join users u on u.id = p.user_id
                   where p.user_id = ${me} order by p.regular desc, p.depart_at desc limit 100`
       : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v from posts p join users u on u.id = p.user_id
-                  where p.status = 'open' and (p.regular or p.depart_at > now() - interval '2 hours')
+                  where p.status = 'open' and not u.blocked and (p.regular or p.depart_at > now() - interval '2 hours')
                   order by p.depart_at asc limit 300`;
     const now = Date.now();
     const posts = rows.map((r) => ({
@@ -73,11 +73,8 @@ export async function GET(req: Request) {
   }
 }
 
-/** 한 번짜리 카풀 등록 */
-export async function POST(req: Request) {
-  const me = await currentUserId();
-  if (!me) return needLogin();
-  const b = await body(req);
+/** 한 번짜리 글의 입력을 검사해 저장할 값으로 정리한다. 등록과 수정이 함께 쓴다. */
+function oneTime(b: Record<string, unknown>) {
   const role = b.role === "rider" ? "rider" : "driver";
   const kind = b.kind === "trip" ? "trip" : "commute";
   const origin = text(b.origin, 60);
@@ -86,12 +83,22 @@ export async function POST(req: Request) {
   const seats = Math.round(Number(b.seats));
   const [oLat, oLng] = coord(b.originLat, b.originLng);
   const [dLat, dLng] = coord(b.destLat, b.destLng);
-  if (origin.length < 2 || dest.length < 2) return json({ error: "출발지와 도착지를 입력해 주세요." }, 400);
+  if (origin.length < 2 || dest.length < 2) return { error: "출발지와 도착지를 입력해 주세요." };
   if (Number.isNaN(departAt.getTime()) || departAt.getTime() < Date.now() - 3600_000 || departAt.getTime() > Date.now() + 90 * 86400_000)
-    return json({ error: "출발 일시를 확인해 주세요." }, 400);
-  if (!(seats >= 1 && seats <= 6)) return json({ error: "인원은 1~6명으로 입력해 주세요." }, 400);
+    return { error: "출발 일시를 확인해 주세요." };
+  if (!(seats >= 1 && seats <= 6)) return { error: "인원은 1~6명으로 입력해 주세요." };
   const c = costOf(b, kind === "commute", priceAllowedAt(departAt.getTime()));
-  if (c.error) return json({ error: c.error }, 400);
+  if (c.error) return { error: c.error };
+  return { v: { role, kind, origin, dest, at: departAt.toISOString(), seats, oLat, oLng, dLat, dLng, cost: c.cost, price: c.price, note: text(b.note, 300) } };
+}
+
+/** 한 번짜리 카풀 등록 */
+export async function POST(req: Request) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const r = oneTime(await body(req));
+  if (!r.v) return json({ error: r.error }, 400);
+  const v = r.v;
   try {
     await ensureSchema();
     const sql = db();
@@ -99,8 +106,8 @@ export async function POST(req: Request) {
     if ((open[0].n as number) >= 10) return json({ error: "진행 중인 글은 10개까지 올릴 수 있습니다." }, 429);
     const rows = await sql`
       insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng)
-      values (${me}, ${role}, ${kind}, ${c.cost}, ${c.price}, ${origin}, ${dest}, ${departAt.toISOString()}, ${seats}, ${text(b.note, 300)},
-              ${oLat}, ${oLng}, ${dLat}, ${dLng})
+      values (${me}, ${v.role}, ${v.kind}, ${v.cost}, ${v.price}, ${v.origin}, ${v.dest}, ${v.at}, ${v.seats}, ${v.note},
+              ${v.oLat}, ${v.oLng}, ${v.dLat}, ${v.dLng})
       returning id`;
     return json({ id: rows[0].id });
   } catch (e) {
@@ -152,16 +159,30 @@ export async function PUT(req: Request) {
   }
 }
 
-/** 마감 처리 */
+/** 내 글 수정(내용이 함께 오면) 또는 마감·다시 열기(status 만 오면) */
 export async function PATCH(req: Request) {
   const me = await currentUserId();
   if (!me) return needLogin();
   const b = await body(req);
   if (!isUuid(b.id)) return json({ error: "잘못된 요청입니다." }, 400);
-  const status = b.status === "open" ? "open" : "closed";
   try {
     await ensureSchema();
-    await db()`update posts set status = ${status} where id = ${b.id} and user_id = ${me}`;
+    const sql = db();
+    if (typeof b.origin === "string") {
+      const r = oneTime(b);
+      if (!r.v) return json({ error: r.error }, 400);
+      const v = r.v;
+      // 정기카풀은 출퇴근 정보 창(PUT)에서 고친다.
+      const rows = await sql`
+        update posts set role = ${v.role}, kind = ${v.kind}, cost = ${v.cost}, price = ${v.price}, origin = ${v.origin}, dest = ${v.dest},
+          depart_at = ${v.at}, seats = ${v.seats}, note = ${v.note},
+          origin_lat = ${v.oLat}, origin_lng = ${v.oLng}, dest_lat = ${v.dLat}, dest_lng = ${v.dLng}
+        where id = ${b.id} and user_id = ${me} and not regular returning id`;
+      if (!rows.length) return json({ error: "권한이 없습니다." }, 403);
+      return json({ ok: true });
+    }
+    const status = b.status === "open" ? "open" : "closed";
+    await sql`update posts set status = ${status} where id = ${b.id} and user_id = ${me}`;
     return json({ ok: true });
   } catch (e) {
     return fail(e);

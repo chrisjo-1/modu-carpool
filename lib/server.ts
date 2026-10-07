@@ -51,6 +51,7 @@ export function ensureSchema(): Promise<void> {
       await sql`create unique index if not exists posts_regular_uniq on posts (user_id) where regular`;
       await sql`alter table users add column if not exists photo text not null default ''`;
       await sql`alter table users add column if not exists photo_v integer not null default 0`;
+      await sql`alter table users add column if not exists blocked boolean not null default false`;
       await sql`create table if not exists admin_attempts (ip text not null, at timestamptz not null default now())`;
       await sql`create index if not exists admin_attempts_at_idx on admin_attempts (at)`;
       await sql`create table if not exists requests (
@@ -106,11 +107,20 @@ export async function clearCookie(which: "user" | "admin") {
   (await cookies()).delete(which === "user" ? USER_COOKIE : ADMIN_COOKIE);
 }
 
-/** 로그인한 회원의 id. 없으면 null. */
+/** 로그인한 회원의 id. 로그인하지 않았거나 차단·삭제된 회원이면 null. */
 export async function currentUserId(): Promise<string | null> {
   if (!authEnabled()) return null;
   const p = await readCookie(USER_COOKIE);
-  return p && p.role === "user" && typeof p.sub === "string" ? p.sub : null;
+  const id = p && p.role === "user" && typeof p.sub === "string" ? p.sub : null;
+  if (!id) return null;
+  try {
+    await ensureSchema();
+    const rows = await db()`select blocked from users where id = ${id}`;
+    return rows.length && !rows[0].blocked ? id : null;
+  } catch (e) {
+    console.error("[auth]", e);
+    return null;
+  }
 }
 
 export async function isAdmin(): Promise<boolean> {

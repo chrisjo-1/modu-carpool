@@ -42,9 +42,10 @@ export async function POST(req: Request) {
       return json({ user: await profile(String(rows[0].id)) });
     }
     if (b.action === "login") {
-      const rows = await sql`select id, pw from users where email = ${email}`;
+      const rows = await sql`select id, pw, blocked from users where email = ${email}`;
       const ok = rows.length > 0 && (await bcrypt.compare(password, String(rows[0].pw)));
       if (!ok) return json({ error: "이메일 또는 비밀번호가 맞지 않습니다." }, 401);
+      if (rows[0].blocked) return json({ error: "이용이 정지된 계정입니다. 문의가 필요하면 운영자에게 연락해 주세요." }, 403);
       await setUserSession(String(rows[0].id));
       return json({ user: await profile(String(rows[0].id)) });
     }

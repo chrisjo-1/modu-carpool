@@ -188,6 +188,10 @@ const D: Record<string, [string, string, string]> = {
   "정기카풀(출퇴근)": ["Regular carpool (commute)", "定期カープール（通勤）", "固定拼车（通勤）"],
   "1회 출퇴근": ["One-time commute", "1回だけの通勤", "单次通勤"],
   "고르면 가입하자마자 출퇴근 정보를 입력해 정기카풀로 바로 등록됩니다.": ["Pick this to enter your commute right after signing up and post it as a regular carpool.", "選ぶと、登録後すぐ通勤情報を入力して定期カープールとして掲載されます。", "选择后，注册完成即可填写通勤信息并立即发布为固定拼车。"],
+  "글 수정": ["Edit post", "投稿を編集", "修改发布"],
+  "글을 수정했어요.": ["Post updated.", "投稿を更新しました。", "已修改。"],
+  "관리자 페이지": ["Admin page", "管理者ページ", "管理页面"],
+  "이용이 정지된 계정입니다. 문의가 필요하면 운영자에게 연락해 주세요.": ["This account has been suspended. Please contact the operator if you have questions.", "このアカウントは利用停止中です。お問い合わせは運営者までご連絡ください。", "该账号已被停用，如有疑问请联系运营方。"],
   // 서버 오류 문구
   "요청을 처리하지 못했습니다.": ["Couldn't complete the request.", "リクエストを処理できませんでした。", "无法处理请求。"],
   "네트워크 연결을 확인해 주세요.": ["Check your network connection.", "ネットワーク接続を確認してください。", "请检查网络连接。"],
