@@ -1,4 +1,5 @@
-import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, text } from "@/lib/server";
+import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, photoUrl, text } from "@/lib/server";
+import { nextOccurrence } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,8 @@ export async function GET() {
     await ensureSchema();
     const rows = await db()`
       select r.id, r.status, r.message, r.created_at, r.user_id as req_id,
-             p.id as post_id, p.origin, p.dest, p.depart_at, p.cost, p.user_id as owner_id,
+             p.id as post_id, p.origin, p.dest, p.depart_at, p.cost, p.price, p.regular, p.days, p.time_go, p.time_back, p.user_id as owner_id,
+             ou.photo_v as owner_pv, ru.photo_v as req_pv,
              ou.name as owner_name, ou.contact as owner_contact, ou.contact_type as owner_ctype,
              ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio
       from requests r
@@ -28,8 +30,14 @@ export async function GET() {
           postId: r.post_id,
           origin: r.origin,
           dest: r.dest,
-          departAt: new Date(r.depart_at as string).getTime(),
+          departAt: r.regular ? nextOccurrence(String(r.days), String(r.time_go)) : new Date(r.depart_at as string).getTime(),
           cost: r.cost,
+          price: r.price,
+          regular: r.regular,
+          days: r.days,
+          timeGo: r.time_go,
+          timeBack: r.time_back,
+          otherPhoto: iAmOwner ? photoUrl(r.req_id, r.req_pv) : photoUrl(r.owner_id, r.owner_pv),
           status: r.status,
           message: r.message,
           iAmOwner,

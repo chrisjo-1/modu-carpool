@@ -1,8 +1,22 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
-import { Card, Icon, Segment, Tag, api, btnGhost, btnPrimary, field, useLang, useT, when } from "./ui";
+import { Avatar, Card, Icon, Segment, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
+
+/** 고른 사진을 가운데 정사각형으로 잘라 240px JPEG로 줄인다. */
+async function shrink(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 240;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, 240, 240);
+  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 240, 240);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
 
 export default function Me({
   user,
@@ -12,6 +26,7 @@ export default function Me({
   onOpen,
   version,
   toast,
+  onCommute,
 }: {
   user: User | null;
   enabled: boolean;
@@ -20,6 +35,8 @@ export default function Me({
   onOpen: (p: Post) => void;
   version: number;
   toast: (m: string) => void;
+  /** 출퇴근 정보 입력 창을 연다. 가입 직후면 onboarding 이 true. */
+  onCommute: (post: Post | null, onboarding: boolean) => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -32,6 +49,28 @@ export default function Me({
   const [contactType, setContactType] = useState("");
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
+  const file = useRef<HTMLInputElement>(null);
+  const regular = mine.find((p) => p.regular) ?? null;
+
+  const savePhoto = async (photo: string) => {
+    setBusy(true);
+    const r = await api<{ user: User }>("/api/auth", "PUT", { photo });
+    setBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    setUser(r.data.user);
+    toast(t(photo ? "사진을 등록했어요." : "사진을 삭제했어요."));
+  };
+
+  const pickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    try {
+      await savePhoto(await shrink(f));
+    } catch {
+      toast(t("사진을 읽지 못했어요. 다른 사진으로 시도해 주세요."));
+    }
+  };
 
   useEffect(() => {
     setName(user?.name ?? "");
@@ -53,6 +92,8 @@ export default function Me({
     if (!r.ok) return toast(t(r.error));
     setPassword("");
     setUser(r.data.user);
+    // 가입 직후에는 출퇴근 정보를 바로 받는다.
+    if (mode === "signup") onCommute(null, true);
   };
 
   const saveProfile = async (e: React.FormEvent) => {
@@ -81,7 +122,17 @@ export default function Me({
         <Card data-block-id="C040" data-block-name="계정" className="p-5">
           {user ? (
             <form onSubmit={saveProfile} className="space-y-3">
-              <p className="break-all text-sm text-sub">{user.email}</p>
+              <div data-block-id="C042" data-block-name="프로필 사진" className="flex items-center gap-4">
+                <Avatar src={user.photo} name={user.name} size={72} />
+                <div className="min-w-0 space-y-1">
+                  <p className="break-all text-sm text-sub">{user.email}</p>
+                  <div className="flex flex-wrap gap-x-4">
+                    <button type="button" data-block-id="B044" data-block-name="사진 등록" disabled={busy} className="min-h-0 py-1 text-[15px] font-semibold text-accent" onClick={() => file.current?.click()}>{user.photo ? t("사진 변경") : t("사진 등록")}</button>
+                    {user.photo && <button type="button" data-block-id="B045" data-block-name="사진 삭제" disabled={busy} className="min-h-0 py-1 text-[15px] text-sub underline" onClick={() => savePhoto("")}>{t("사진 삭제")}</button>}
+                  </div>
+                  <input ref={file} data-block-id="F046" type="file" accept="image/*" className="hidden" aria-label={t("프로필 사진")} onChange={pickPhoto} />
+                </div>
+              </div>
               <label className="block text-sm text-sub">
                 {t("닉네임")}
                 <input data-block-id="F040" className={`${field} mt-1`} required minLength={2} maxLength={20} value={name} onChange={(e) => setName(e.target.value)} />
@@ -133,6 +184,23 @@ export default function Me({
 
       {user && (
         <div>
+          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 출퇴근 정보")}</h2>
+          <Card data-block-id="C043" data-block-name="내 출퇴근 정보" className="space-y-3 p-5">
+            {regular ? (
+              <div>
+                <p className="font-semibold">{regular.origin} → {regular.dest}</p>
+                <p className="num text-[14px] text-sub">{scheduleText(regular, lang)}</p>
+              </div>
+            ) : (
+              <p className="text-[15px] text-sub">{t("아직 출퇴근 정보를 입력하지 않았어요.")}</p>
+            )}
+            <button type="button" data-block-id="B046" data-block-name="출퇴근 정보" className={`${btnGhost} py-3 text-[15px]`} onClick={() => onCommute(regular, false)}>{regular ? t("출퇴근 정보 수정") : t("출퇴근 정보 입력")}</button>
+          </Card>
+        </div>
+      )}
+
+      {user && (
+        <div>
           <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내가 올린 카풀")}</h2>
           {mine.length === 0 ? (
             <Card className="px-6 py-8 text-center text-sub">{t("아직 올린 글이 없어요.")}</Card>
@@ -142,7 +210,7 @@ export default function Me({
                 <button key={p.id} onClick={() => onOpen(p)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{p.origin} → {p.dest}</p>
-                    <p className="num text-[13px] text-sub">{when(p.departAt, lang)}</p>
+                    <p className="num text-[13px] text-sub">{p.regular ? `${t("정기카풀")} · ` : ""}{scheduleText(p, lang)}</p>
                   </div>
                   <Tag tone={p.status === "open" ? "accent" : "plain"}>{p.status === "open" ? t("모집 중") : t("마감")}</Tag>
                 </button>

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { translate, type Lang } from "@/lib/i18n";
 import type { Post, Thread, User } from "@/lib/types";
 import Chat, { ChatRoom } from "./Chat";
+import CommuteSheet from "./Commute";
 import Home, { PostDetail } from "./Home";
 import Me from "./Me";
 import PostForm from "./PostForm";
@@ -22,6 +23,7 @@ export default function App() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [open, setOpen] = useState<Post | null>(null);
   const [room, setRoom] = useState<Thread | null>(null);
+  const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean } | null>(null);
   const [toastMsg, setToastMsg] = useState("");
   const [version, setVersion] = useState(0);
   const t = (ko: string) => translate(lang, ko);
@@ -139,7 +141,7 @@ export default function App() {
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onDone={() => { refresh(); setTab("home"); }} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
@@ -159,10 +161,11 @@ export default function App() {
           </ul>
         </nav>
 
-        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} />}
+        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} />}
+        {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); }} />}
         {room && <ChatRoom thread={room} onClose={() => setRoom(null)} toast={setToastMsg} />}
         {toastMsg && (
-          <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl bg-ink px-4 py-3 text-center text-sm text-white shadow-card">{toastMsg}</div>
+          <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-medium text-ink shadow-card">{toastMsg}</div>
         )}
       </div>
     </LangContext.Provider>

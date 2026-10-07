@@ -144,6 +144,47 @@ const D: Record<string, [string, string, string]> = {
   "예: 010-1234-5678": ["e.g. 010-1234-5678", "例：010-1234-5678", "例：010-1234-5678"],
   "ID 또는 번호": ["ID or number", "IDまたは番号", "ID 或号码"],
   "잠시 후 다시 시도해 주세요.": ["Please try again shortly.", "しばらくしてからもう一度お試しください。", "请稍后再试。"],
+  "정기카풀": ["Regular carpool", "定期カープール", "固定拼车"],
+  "정기카풀만 보기": ["Regular carpools only", "定期カープールのみ", "只看固定拼车"],
+  "평일": ["Weekdays", "平日", "工作日"],
+  "매일": ["Every day", "毎日", "每天"],
+  "출근": ["To work", "出勤", "上班"],
+  "퇴근": ["From work", "退勤", "下班"],
+  "일정": ["Schedule", "スケジュール", "日程"],
+  "1인 금액": ["Per person", "1人あたり", "每人金额"],
+  "금액 입력": ["Set amount", "金額を入力", "输入金额"],
+  "1인 금액 (원)": ["Amount per person (KRW)", "1人あたりの金額（ウォン）", "每人金额（韩元）"],
+  "예: 3000": ["e.g. 3000", "例：3000", "例：3000"],
+  "평일 오전 7~9시, 오후 6~8시에 출발하는 출퇴근 카풀만 금액을 적을 수 있어요.": ["Only commute carpools leaving on weekdays 7–9 am or 6–8 pm can set an amount.", "平日の午前7〜9時・午後6〜8時に出発する通勤カープールのみ金額を入力できます。", "只有工作日上午7–9点、下午6–8点出发的通勤拼车可以填写金额。"],
+  "금액은 기름값·통행료 같은 실비를 나누는 범위에서 정해 주세요. 영리 목적의 운송은 법으로 금지되어 있습니다.": ["Keep the amount within a share of real costs such as fuel and tolls. For-profit rides are prohibited by law.", "金額は燃料代・通行料などの実費を分ける範囲で決めてください。営利目的の運送は法律で禁止されています。", "金额请控制在分摊油费、过路费等实际成本的范围内。法律禁止以营利为目的的载客。"],
+  "운전자가 정한 1인 금액입니다. 출퇴근 실비를 나누는 용도이며 결제는 당사자끼리 직접 합니다.": ["This is the per-person amount set by the driver to share commute costs. Payment is settled directly between you.", "運転者が決めた1人あたりの金額です。通勤の実費を分けるためのもので、支払いは当事者同士で直接行います。", "这是司机设定的每人金额，用于分摊通勤成本，费用由双方自行结算。"],
+  "출퇴근 정보를 알려 주세요": ["Tell us about your commute", "通勤情報を教えてください", "请填写您的通勤信息"],
+  "입력하면 정기카풀로 바로 게시되어 같은 방향 이웃이 찾을 수 있어요.": ["Once you fill it in, it's posted right away as a regular carpool so neighbours going your way can find you.", "入力するとすぐ定期カープールとして掲載され、同じ方向の人に見つけてもらえます。", "填写后会立即发布为固定拼车，同路的人就能找到您。"],
+  "내 출퇴근 정보": ["My commute", "自分の通勤情報", "我的通勤信息"],
+  "출퇴근 정보 수정": ["Edit commute", "通勤情報を編集", "修改通勤信息"],
+  "출퇴근 정보 입력": ["Add commute", "通勤情報を入力", "填写通勤信息"],
+  "아직 출퇴근 정보를 입력하지 않았어요.": ["You haven't added your commute yet.", "まだ通勤情報を入力していません。", "还没有填写通勤信息。"],
+  "집 (출발지)": ["Home (origin)", "自宅（出発地）", "家（出发地）"],
+  "회사 (도착지)": ["Work (destination)", "職場（到着地）", "公司（目的地）"],
+  "출퇴근 요일": ["Commute days", "通勤する曜日", "通勤日"],
+  "출근 출발 시각": ["Leave for work at", "出勤の出発時刻", "上班出发时间"],
+  "퇴근 출발 시각": ["Leave work at", "退勤の出発時刻", "下班出发时间"],
+  "퇴근길도 함께": ["Also share the ride home", "帰りもいっしょに", "下班也一起"],
+  "정기카풀로 게시하기": ["Post as regular carpool", "定期カープールとして掲載", "发布为固定拼车"],
+  "나중에 할게요": ["Maybe later", "あとで", "以后再说"],
+  "정기카풀로 게시했어요.": ["Posted as a regular carpool.", "定期カープールとして掲載しました。", "已发布为固定拼车。"],
+  "출퇴근 정보를 고쳤어요.": ["Commute updated.", "通勤情報を更新しました。", "通勤信息已更新。"],
+  "프로필 사진": ["Profile photo", "プロフィール写真", "头像"],
+  "사진 등록": ["Add photo", "写真を登録", "上传照片"],
+  "사진 변경": ["Change photo", "写真を変更", "更换照片"],
+  "사진 삭제": ["Remove", "写真を削除", "删除照片"],
+  "사진을 등록했어요.": ["Photo saved.", "写真を登録しました。", "照片已保存。"],
+  "사진을 삭제했어요.": ["Photo removed.", "写真を削除しました。", "照片已删除。"],
+  "사진을 읽지 못했어요. 다른 사진으로 시도해 주세요.": ["Couldn't read that photo. Please try another one.", "写真を読み込めませんでした。別の写真でお試しください。", "无法读取该照片，请换一张试试。"],
+  "사진 파일을 확인해 주세요.": ["Please check the photo file.", "写真ファイルを確認してください。", "请检查照片文件。"],
+  "출퇴근 요일을 하나 이상 골라 주세요.": ["Pick at least one commute day.", "通勤する曜日を1つ以上選んでください。", "请至少选择一个通勤日。"],
+  "출발 시각을 확인해 주세요.": ["Check the departure time.", "出発時刻を確認してください。", "请检查出发时间。"],
+  "금액은 500원에서 50,000원 사이로 입력해 주세요.": ["Enter an amount between ₩500 and ₩50,000.", "金額は500〜50,000ウォンの範囲で入力してください。", "金额请填写500至50,000韩元。"],
   // 서버 오류 문구
   "요청을 처리하지 못했습니다.": ["Couldn't complete the request.", "リクエストを処理できませんでした。", "无法处理请求。"],
   "네트워크 연결을 확인해 주세요.": ["Check your network connection.", "ネットワーク接続を確認してください。", "请检查网络连接。"],
@@ -174,3 +215,19 @@ export function translate(lang: Lang, ko: string): string {
 }
 
 export const dictionaryKeys = () => Object.keys(D);
+
+const DAYS: Record<Lang, string[]> = {
+  ko: ["일", "월", "화", "수", "목", "금", "토"],
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  ja: ["日", "月", "火", "水", "木", "金", "土"],
+  zh: ["日", "一", "二", "三", "四", "五", "六"],
+};
+export const dayName = (lang: Lang, i: number) => DAYS[lang][i];
+
+/** 요일 문자열("12345")을 읽기 좋은 말로 바꾼다. */
+export function dayLabel(lang: Lang, days: string): string {
+  if (days === "12345") return translate(lang, "평일");
+  if (days === "0123456") return translate(lang, "매일");
+  const names = [...days].map((c) => DAYS[lang][Number(c)]);
+  return lang === "zh" ? `周${names.join("、")}` : names.join(lang === "en" ? " " : "·");
+}

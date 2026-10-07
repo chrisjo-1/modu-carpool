@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { METER_URL, contactLabel, type Thread, type User } from "@/lib/types";
-import { Card, Icon, Sheet, Tag, api, btnPrimary, field, useLang, useT, when } from "./ui";
+import { Avatar, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
 type Msg = { id: number; mine: boolean; body: string; at: number };
 
@@ -27,10 +27,11 @@ export default function Chat({ user, enabled, threads, goLogin, openChat }: { us
         <Card className="divide-y divide-line">
           {threads.map((th) => (
             <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status !== "accepted"} onClick={() => openChat(th)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
-              <div className="min-w-0">
+              <Avatar src={th.otherPhoto} name={th.other} size={44} />
+              <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{th.other} <span className="font-normal text-sub">· {th.iAmOwner ? t("받은 신청") : t("보낸 신청")}</span></p>
                 <p className="truncate text-[14px] text-sub">{th.origin} → {th.dest}</p>
-                <p className="num text-[13px] text-sub">{when(th.departAt, lang)}</p>
+                <p className="num text-[13px] text-sub">{scheduleText(th, lang)}</p>
               </div>
               <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>
             </button>
@@ -43,6 +44,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat }: { us
 
 export function ChatRoom({ thread, onClose, toast }: { thread: Thread; onClose: () => void; toast: (m: string) => void }) {
   const t = useT();
+  const lang = useLang();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -85,6 +87,7 @@ export function ChatRoom({ thread, onClose, toast }: { thread: Thread; onClose: 
       <div className="space-y-3">
         <div className="space-y-2 rounded-2xl bg-bg p-4 text-[14px]">
           <p><span className="text-sub">{t("상대 연락 수단")}: </span><b className="break-all">{thread.contact ? `${thread.contactType ? `${t(contactLabel(thread.contactType))} · ` : ""}${thread.contact}` : t("등록된 연락 수단이 없어요.")}</b></p>
+          {thread.cost === "fixed" && <p><span className="text-sub">{t("1인 금액")}: </span><b className="num">{money(thread.price ?? 0, lang)}</b></p>}
           {thread.cost === "meter" && (
             <a href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-0 items-center gap-1 font-semibold text-accent">{t("모카 미터기로 비용 나누기")} {Icon.arrow()}</a>
           )}

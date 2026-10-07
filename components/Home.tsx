@@ -1,18 +1,20 @@
 "use client";
 import { useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
-import { Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, useLang, useT, when } from "./ui";
+import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, money, scheduleText, useLang, useT, when } from "./ui";
 
 type Role = "all" | "driver" | "rider";
 type Kind = "all" | "commute" | "trip";
 
 function PostTags({ post }: { post: Post }) {
   const t = useT();
+  const lang = useLang();
   return (
     <div className="flex flex-wrap gap-1.5">
-      <Tag tone="accent">{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
-      <Tag>{post.kind === "commute" ? t("출퇴근") : t("나들이·관광")}</Tag>
-      <Tag tone={post.cost === "meter" ? "warn" : "plain"}>{post.cost === "meter" ? t("비용 나눔") : t("무료")}</Tag>
+      {post.regular && <Tag tone="accent">{t("정기카풀")}</Tag>}
+      <Tag tone={post.regular ? "plain" : "accent"}>{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
+      {!post.regular && <Tag>{post.kind === "commute" ? t("출퇴근") : t("나들이·관광")}</Tag>}
+      <Tag tone={post.cost === "free" ? "plain" : "warn"}>{post.cost === "fixed" ? money(post.price ?? 0, lang) : post.cost === "meter" ? t("비용 나눔") : t("무료")}</Tag>
     </div>
   );
 }
@@ -39,6 +41,7 @@ export default function Home({ posts, sample, onOpen }: { posts: Post[]; sample:
   const [role, setRole] = useState<Role>("all");
   const [kind, setKind] = useState<Kind>("all");
   const [q, setQ] = useState("");
+  const [regularOnly, setRegularOnly] = useState(false);
 
   const list = useMemo(() => {
     const k = q.trim().toLowerCase();
@@ -46,9 +49,13 @@ export default function Home({ posts, sample, onOpen }: { posts: Post[]; sample:
       (p) =>
         (role === "all" || p.role === role) &&
         (kind === "all" || p.kind === kind) &&
-        (!k || `${p.origin} ${p.dest} ${p.note}`.toLowerCase().includes(k)),
+        (!regularOnly || !!p.regular) &&
+        // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
+        (!k || `${p.origin} ${p.dest} ${p.note} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
     );
-  }, [posts, role, kind, q]);
+    // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posts, role, kind, q, regularOnly, lang]);
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-4">
@@ -61,6 +68,9 @@ export default function Home({ posts, sample, onOpen }: { posts: Post[]; sample:
         <input data-block-id="F001" className={field} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
         <Segment label={t("종류")} value={kind} onChange={setKind} options={[["all", t("전체")], ["commute", t("출퇴근")], ["trip", t("나들이·관광")]]} />
         <Segment label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
+        <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`rounded-full border px-4 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+          {t("정기카풀만 보기")}
+        </button>
       </div>
 
       {sample && <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] text-ink">{t("지금 보이는 글은 화면 확인용 예시입니다.")}</p>}
@@ -79,8 +89,8 @@ export default function Home({ posts, sample, onOpen }: { posts: Post[]; sample:
                   </div>
                   <Route origin={p.origin} dest={p.dest} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
-                    <span className="num">{when(p.departAt, lang)}</span>
-                    <span>{p.owner} · {p.role === "driver" ? t("남은 자리") : t("인원")} {p.seats}</span>
+                    <span className="num">{scheduleText(p, lang)}</span>
+                    <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} size={24} />{p.owner} · {p.role === "driver" ? t("남은 자리") : t("인원")} {p.seats}</span>
                   </div>
                 </Card>
               </button>
@@ -102,6 +112,7 @@ export function PostDetail({
   goLogin,
   openChat,
   toast,
+  onEditCommute,
 }: {
   post: Post;
   user: User | null;
@@ -112,6 +123,7 @@ export function PostDetail({
   goLogin: () => void;
   openChat: (th: Thread) => void;
   toast: (m: string) => void;
+  onEditCommute: (p: Post) => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -131,7 +143,7 @@ export function PostDetail({
 
   const share = async () => {
     const url = `${location.origin}/?p=${post.id}`;
-    const text = `${post.origin} → ${post.dest} · ${when(post.departAt, lang)}`;
+    const text = `${post.origin} → ${post.dest} · ${scheduleText(post, lang)}`;
     try {
       if (navigator.share) await navigator.share({ title: t("모두의카풀"), text, url });
       else {
@@ -151,9 +163,11 @@ export function PostDetail({
         <PostTags post={post} />
         <Route origin={post.origin} dest={post.dest} />
         <dl className="space-y-2 text-[16px]">
+          {post.regular && <div className="flex justify-between"><dt className="text-sub">{t("일정")}</dt><dd className="num font-semibold">{scheduleText(post, lang)}</dd></div>}
           <div className="flex justify-between"><dt className="text-sub">{t("출발")}</dt><dd className="num font-semibold">{when(post.departAt, lang)}</dd></div>
+          {post.cost === "fixed" && <div className="flex justify-between"><dt className="text-sub">{t("1인 금액")}</dt><dd className="num font-semibold text-warn">{money(post.price ?? 0, lang)}</dd></div>}
           <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("남은 자리") : t("인원")}</dt><dd className="num font-semibold">{post.seats}</dd></div>
-          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd className="font-semibold">{post.owner}</dd></div>
+          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} size={28} />{post.owner}</dd></div>
         </dl>
         {post.originLat != null && post.originLng != null && (
           <a data-block-id="B014" data-block-name="출발 위치 지도" href={`https://map.kakao.com/link/map/${encodeURIComponent(post.origin)},${post.originLat},${post.originLng}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl bg-bg px-4 text-[15px] font-semibold text-ink">
@@ -163,7 +177,9 @@ export function PostDetail({
         {post.ownerBio && <p className="rounded-2xl bg-bg px-4 py-3 text-[15px] text-sub">{post.ownerBio}</p>}
         {post.note && <p className="whitespace-pre-wrap text-[16px] leading-relaxed">{post.note}</p>}
 
-        {post.cost === "meter" ? (
+        {post.cost === "fixed" ? (
+          <p className="rounded-2xl border border-[#F6D9C4] bg-warnSoft p-4 text-[14px] leading-relaxed text-[#7C2D12]">{t("운전자가 정한 1인 금액입니다. 출퇴근 실비를 나누는 용도이며 결제는 당사자끼리 직접 합니다.")}</p>
+        ) : post.cost === "meter" ? (
           <div className="space-y-2 rounded-2xl border border-[#F6D9C4] bg-warnSoft p-4 text-[14px] leading-relaxed text-[#7C2D12]">
             <p>{t("비용 나눔은 출퇴근 카풀에 한해 실비를 나누는 용도입니다. 영리 목적의 운송은 법으로 금지되어 있습니다.")}</p>
             <a data-block-id="B010" data-block-name="미터기 열기" href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-xl bg-white px-4 font-semibold text-ink">
@@ -181,7 +197,7 @@ export function PostDetail({
             {incoming.map((th) => (
               <div key={th.id} className="space-y-2 rounded-2xl border border-line p-4">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold">{th.other}</p>
+                  <p className="flex items-center gap-2 font-semibold"><Avatar src={th.otherPhoto} name={th.other} size={28} />{th.other}</p>
                   <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>
                 </div>
                 {th.otherBio && <p className="text-[14px] text-sub">{th.otherBio}</p>}
@@ -195,6 +211,7 @@ export function PostDetail({
                 {th.status === "accepted" && <button className={`${btnGhost} py-3 text-[15px]`} onClick={() => openChat(th)}>{t("대화하기")}</button>}
               </div>
             ))}
+            {post.regular && <button data-block-id="B015" data-block-name="출퇴근 정보 수정" className={`${btnPrimary} py-3 text-[15px]`} onClick={() => onEditCommute(post)}>{t("출퇴근 정보 수정")}</button>}
             <div className="flex gap-2 pt-1">
               <button disabled={busy} className={`${btnGhost} py-3 text-[15px]`} onClick={() => run("/api/posts", "PATCH", { id: post.id, status: post.status === "open" ? "closed" : "open" }, post.status === "open" ? "마감했어요." : "다시 열었어요.")}>
                 {post.status === "open" ? t("모집 마감") : t("다시 열기")}

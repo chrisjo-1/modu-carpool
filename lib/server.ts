@@ -43,6 +43,16 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table posts add column if not exists origin_lng double precision`;
       await sql`alter table posts add column if not exists dest_lat double precision`;
       await sql`alter table posts add column if not exists dest_lng double precision`;
+      await sql`alter table posts add column if not exists price integer not null default 0`;
+      await sql`alter table posts add column if not exists regular boolean not null default false`;
+      await sql`alter table posts add column if not exists days text not null default ''`;
+      await sql`alter table posts add column if not exists time_go text not null default ''`;
+      await sql`alter table posts add column if not exists time_back text not null default ''`;
+      await sql`create unique index if not exists posts_regular_uniq on posts (user_id) where regular`;
+      await sql`alter table users add column if not exists photo text not null default ''`;
+      await sql`alter table users add column if not exists photo_v integer not null default 0`;
+      await sql`create table if not exists admin_attempts (ip text not null, at timestamptz not null default now())`;
+      await sql`create index if not exists admin_attempts_at_idx on admin_attempts (at)`;
       await sql`create table if not exists requests (
         id uuid primary key default gen_random_uuid(),
         post_id uuid not null references posts(id) on delete cascade,
@@ -133,3 +143,7 @@ export const fail = (e?: unknown) => {
   return json({ error: "일시적인 오류입니다. 잠시 후 다시 시도해 주세요." }, 500);
 };
 export const needLogin = () => json({ error: "로그인이 필요합니다." }, 401);
+
+/** 프로필 사진 주소. 사진이 없으면 빈 문자열. v는 캐시를 새로 고치기 위한 번호다. */
+export const photoUrl = (userId: unknown, v: unknown) => (Number(v) > 0 ? `/api/photo?u=${userId}&v=${Number(v)}` : "");
+export const clientIp = (req: Request) => (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";

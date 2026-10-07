@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
+import { priceAllowedAt } from "@/lib/time";
 import type { Place, User } from "@/lib/types";
+import { CostField } from "./Commute";
 import PlaceField from "./PlaceField";
 import { Card, Segment, api, btnPrimary, field, useT } from "./ui";
 
@@ -17,7 +19,8 @@ export default function PostForm({ user, enabled, goLogin, onDone, toast }: { us
   const t = useT();
   const [role, setRole] = useState<"driver" | "rider">("driver");
   const [kind, setKind] = useState<"commute" | "trip">("commute");
-  const [cost, setCost] = useState<"free" | "meter">("free");
+  const [cost, setCost] = useState<"free" | "meter" | "fixed">("free");
+  const [price, setPrice] = useState("");
   const empty: Place = { name: "", lat: null, lng: null };
   const [origin, setOrigin] = useState<Place>(empty);
   const [dest, setDest] = useState<Place>(empty);
@@ -26,10 +29,13 @@ export default function PostForm({ user, enabled, goLogin, onDone, toast }: { us
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시) 출발일 때만 금액을 적을 수 있다.
+  const allowed = kind === "commute" && priceAllowedAt(new Date(at).getTime());
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api("/api/posts", "POST", { role, kind, cost: kind === "commute" ? cost : "free", origin: origin.name, dest: dest.name, originLat: origin.lat, originLng: origin.lng, destLat: dest.lat, destLng: dest.lng, departAt: new Date(at).getTime(), seats, note });
+    const r = await api("/api/posts", "POST", { role, kind, cost: kind !== "commute" || (cost === "fixed" && !allowed) ? "free" : cost, price: Number(price), origin: origin.name, dest: dest.name, originLat: origin.lat, originLng: origin.lng, destLat: dest.lat, destLng: dest.lng, departAt: new Date(at).getTime(), seats, note });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setOrigin(empty);
@@ -81,10 +87,7 @@ export default function PostForm({ user, enabled, goLogin, onDone, toast }: { us
           <Card className="space-y-3 p-5">
             <p className="text-sm text-sub">{t("비용")}</p>
             {kind === "commute" ? (
-              <>
-                <Segment label={t("비용")} value={cost} onChange={setCost} options={[["free", t("무료")], ["meter", t("미터기로 비용 나눔")]]} />
-                {cost === "meter" && <p className="text-[14px] leading-relaxed text-warn">{t("비용 나눔은 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시) 카풀에서 실비를 나누는 경우에만 허용됩니다.")}</p>}
-              </>
+              <CostField cost={cost} setCost={setCost} price={price} setPrice={setPrice} allowed={allowed} />
             ) : (
               <p className="text-[15px] leading-relaxed text-sub">{t("나들이·관광 카풀은 무료 운행만 등록할 수 있어요.")}</p>
             )}

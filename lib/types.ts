@@ -4,7 +4,15 @@ export type Post = {
   ownerBio: string;
   role: "driver" | "rider";
   kind: "commute" | "trip";
-  cost: "free" | "meter";
+  cost: "free" | "meter" | "fixed";
+  /** cost 가 fixed 일 때 1인 금액(원) */
+  price?: number;
+  /** 정기카풀 여부와 일정 */
+  regular?: boolean;
+  days?: string;
+  timeGo?: string;
+  timeBack?: string;
+  ownerPhoto?: string;
   origin: string;
   dest: string;
   originLat?: number | null;
@@ -24,7 +32,13 @@ export type Thread = {
   origin: string;
   dest: string;
   departAt: number;
-  cost: "free" | "meter";
+  cost: "free" | "meter" | "fixed";
+  price?: number;
+  regular?: boolean;
+  days?: string;
+  timeGo?: string;
+  timeBack?: string;
+  otherPhoto?: string;
   status: "pending" | "accepted" | "declined";
   message: string;
   iAmOwner: boolean;
@@ -34,7 +48,7 @@ export type Thread = {
   contactType: string;
 };
 
-export type User = { id: string; email: string; name: string; bio: string; contact: string; contactType: string };
+export type User = { id: string; email: string; name: string; bio: string; contact: string; contactType: string; photo: string };
 
 /** 연락 방법 종류. 값은 DB에 저장되는 키, 표시는 번역해서 보여준다. */
 export const CONTACT_TYPES: [string, string][] = [

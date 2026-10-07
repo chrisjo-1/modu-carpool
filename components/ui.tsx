@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useEffect, type ReactNode } from "react";
-import { translate, type Lang } from "@/lib/i18n";
+import { dayLabel, translate, type Lang } from "@/lib/i18n";
 
 export const LangContext = createContext<Lang>("ko");
 /** 현재 언어의 번역 함수. 한국어 문구를 키로 쓴다. */
@@ -15,6 +15,25 @@ export function useLang() {
 const LOCALE: Record<Lang, string> = { ko: "ko-KR", en: "en-US", ja: "ja-JP", zh: "zh-CN" };
 export const when = (ms: number, lang: Lang) =>
   new Date(ms).toLocaleString(LOCALE[lang], { month: "short", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+
+export const money = (n: number, lang: Lang) => (lang === "ko" ? `${n.toLocaleString("ko-KR")}원` : `₩${n.toLocaleString("en-US")}`);
+
+/** 정기카풀이면 "평일 07:30 / 18:30", 아니면 출발 일시 */
+export function scheduleText(p: { regular?: boolean; days?: string; timeGo?: string; timeBack?: string; departAt: number }, lang: Lang) {
+  if (!p.regular) return when(p.departAt, lang);
+  return `${dayLabel(lang, p.days ?? "")} ${p.timeGo ?? ""}${p.timeBack ? ` / ${p.timeBack}` : ""}`;
+}
+
+/** 프로필 사진. 없으면 닉네임 첫 글자를 보여준다. */
+export function Avatar({ src, name, size = 40 }: { src?: string; name: string; size?: number }) {
+  const style = { width: size, height: size, fontSize: Math.round(size * 0.42) };
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" loading="lazy" style={style} className="shrink-0 rounded-full border border-line object-cover" />
+  ) : (
+    <span aria-hidden style={style} className="grid shrink-0 place-items-center rounded-full bg-accentSoft font-semibold text-accent">{[...name][0] ?? "?"}</span>
+  );
+}
 
 export async function api<T = Record<string, unknown>>(url: string, method = "GET", data?: unknown): Promise<{ ok: boolean; data: T; error: string }> {
   try {

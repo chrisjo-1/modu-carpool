@@ -1,12 +1,12 @@
 import bcrypt from "bcryptjs";
 import { CONTACT_TYPES } from "@/lib/types";
-import { authEnabled, body, clearCookie, currentUserId, db, ensureSchema, fail, json, needLogin, setUserSession, text } from "@/lib/server";
+import { authEnabled, body, clearCookie, currentUserId, db, ensureSchema, fail, json, needLogin, photoUrl, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact, contact_type from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type } : null;
+  const rows = await db()`select email, name, bio, contact, contact_type, photo_v from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v) } : null;
 }
 
 export async function GET() {
@@ -65,6 +65,30 @@ export async function PATCH(req: Request) {
   try {
     await ensureSchema();
     await db()`update users set name = ${name}, bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType} where id = ${id}`;
+    return json({ user: await profile(id) });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 프로필 사진 등록·삭제. 화면에서 240px JPEG로 줄여서 보낸다. 빈 값이면 삭제. */
+export async function PUT(req: Request) {
+  const id = await currentUserId();
+  if (!id) return needLogin();
+  const b = await body(req);
+  const raw = typeof b.photo === "string" ? b.photo : "";
+  let data = "";
+  if (raw) {
+    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
+    if (!m || m[1].length > 110_000) return json({ error: "사진 파일을 확인해 주세요." }, 400);
+    const head = Buffer.from(m[1].slice(0, 8), "base64");
+    // JPEG 파일은 FF D8 FF 로 시작한다.
+    if (head[0] !== 0xff || head[1] !== 0xd8 || head[2] !== 0xff) return json({ error: "사진 파일을 확인해 주세요." }, 400);
+    data = m[1];
+  }
+  try {
+    await ensureSchema();
+    await db()`update users set photo = ${data}, photo_v = ${data ? Math.floor(Date.now() / 1000) : 0} where id = ${id}`;
     return json({ user: await profile(id) });
   } catch (e) {
     return fail(e);

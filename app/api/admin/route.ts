@@ -1,4 +1,4 @@
-import { body, checkAdminPassword, clearCookie, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, setAdminSession } from "@/lib/server";
+import { body, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, setAdminSession } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,29 @@ export async function GET() {
 export async function POST(req: Request) {
   const b = await body(req);
   await new Promise((r) => setTimeout(r, 400)); // 무차별 대입 완화
-  if (!checkAdminPassword(typeof b.password === "string" ? b.password : "")) return json({ error: "비밀번호가 맞지 않습니다." }, 401);
+  const ip = clientIp(req);
+  // 틀린 시도를 DB에 기록해, 같은 곳에서 15분에 5번 또는 전체 30번을 넘으면 잠근다.
+  let record: ((ok: boolean) => Promise<void>) | null = null;
+  if (hasDb()) {
+    try {
+      await ensureSchema();
+      const sql = db();
+      const n = await sql`select
+        (select count(*)::int from admin_attempts where ip = ${ip} and at > now() - interval '15 minutes') as mine,
+        (select count(*)::int from admin_attempts where at > now() - interval '15 minutes') as everyone`;
+      if ((n[0].mine as number) >= 5 || (n[0].everyone as number) >= 30)
+        return json({ error: "로그인 시도가 너무 많습니다. 15분 뒤에 다시 시도해 주세요." }, 429);
+      record = async (ok) => {
+        if (ok) await sql`delete from admin_attempts where ip = ${ip} or at < now() - interval '1 day'`;
+        else await sql`insert into admin_attempts (ip) values (${ip})`;
+      };
+    } catch (e) {
+      return fail(e);
+    }
+  }
+  const ok = checkAdminPassword(typeof b.password === "string" ? b.password : "");
+  await record?.(ok).catch((e) => console.error("[admin]", e));
+  if (!ok) return json({ error: "비밀번호가 맞지 않습니다." }, 401);
   await setAdminSession();
   return json({ ok: true });
 }
