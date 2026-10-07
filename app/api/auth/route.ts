@@ -5,8 +5,8 @@ import { authEnabled, body, clearCookie, currentUserId, db, ensureSchema, fail, 
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true } : null;
+  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false } : null;
 }
 
 export async function GET() {
@@ -60,6 +60,15 @@ export async function PATCH(req: Request) {
   const id = await currentUserId();
   if (!id) return needLogin();
   const b = await body(req);
+  if (typeof b.notify === "boolean" && b.name === undefined) {
+    try {
+      await ensureSchema();
+      await db()`update users set notify = ${b.notify} where id = ${id}`;
+      return json({ user: await profile(id) });
+    } catch (e) {
+      return fail(e);
+    }
+  }
   const name = text(b.name, 20);
   if (name.length < 2) return json({ error: "닉네임을 2자 이상 입력해 주세요." }, 400);
   const contactType = CONTACT_TYPES.some(([k]) => k === b.contactType) ? String(b.contactType) : "";

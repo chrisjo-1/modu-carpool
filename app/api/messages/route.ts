@@ -1,3 +1,4 @@
+import { notify } from "@/lib/mail";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,15 @@ export async function POST(req: Request) {
   try {
     await ensureSchema();
     if (!(await canChat(b.requestId, me))) return json({ error: "수락된 뒤에 대화할 수 있습니다." }, 403);
-    await db()`insert into messages (request_id, user_id, body) values (${b.requestId}, ${me}, ${msg})`;
+    const sql = db();
+    await sql`insert into messages (request_id, user_id, body) values (${b.requestId}, ${me}, ${msg})`;
+    // 이 대화에서 내가 보낸 첫 메시지일 때만 상대에게 메일로 알린다.
+    const n = await sql`select count(*)::int as n from messages where request_id = ${b.requestId} and user_id = ${me}`;
+    if (n[0].n === 1) {
+      const r = await sql`select r.user_id as req_id, p.user_id as owner_id, p.origin, p.dest, (select name from users where id = ${me}) as name
+                          from requests r join posts p on p.id = r.post_id where r.id = ${b.requestId}`;
+      if (r.length) await notify(String(r[0].owner_id === me ? r[0].req_id : r[0].owner_id), "hello", String(r[0].name ?? ""), `${r[0].origin} → ${r[0].dest}`, msg);
+    }
     return json({ ok: true });
   } catch (e) {
     return fail(e);

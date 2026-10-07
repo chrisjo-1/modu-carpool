@@ -178,6 +178,15 @@ export default function Me({
               </div>
               <p className="text-[13px] text-sub">{t("연락 수단은 신청이 수락된 상대에게만 보입니다.")}</p>
               <button data-block-id="B040" data-block-name="프로필 저장" className={btnPrimary} disabled={busy}>{t("저장")}</button>
+              <label data-block-id="F045" data-block-name="메일 알림" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 text-[15px]">
+                <span>{t("메일 알림")}<span className="block text-[13px] text-sub">{t("카풀 신청, 수락, 첫 메시지를 가입 메일로 알려 드려요.")}</span></span>
+                <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={user.notify !== false} onChange={async (e) => {
+                  const r = await api<{ user: User }>("/api/auth", "PATCH", { notify: e.target.checked });
+                  if (!r.ok) return toast(t(r.error));
+                  setUser(r.data.user);
+                  toast(t(r.data.user.notify ? "메일 알림을 켰어요." : "메일 알림을 껐어요."));
+                }} />
+              </label>
               <button type="button" data-block-id="B041" data-block-name="로그아웃" className={btnGhost} onClick={async () => { await api("/api/auth", "DELETE"); setUser(null); }}>{t("로그아웃")}</button>
             </form>
           ) : !enabled ? (

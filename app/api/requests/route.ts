@@ -1,3 +1,4 @@
+import { notify } from "@/lib/mail";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, photoUrl, text } from "@/lib/server";
 import { nextOccurrence } from "@/lib/time";
 
@@ -68,14 +69,18 @@ export async function POST(req: Request) {
   try {
     await ensureSchema();
     const sql = db();
-    const post = await sql`select user_id, status from posts where id = ${b.postId}`;
+    const post = await sql`select user_id, status, origin, dest from posts where id = ${b.postId}`;
     if (post.length && post[0].status === "progress") return json({ error: "이미 카풀이 진행 중인 글이라 신청할 수 없습니다." }, 409);
     if (!post.length || post[0].status !== "open") return json({ error: "마감되었거나 없는 글입니다." }, 404);
     if (post[0].user_id === me) return json({ error: "내가 올린 글에는 신청할 수 없습니다." }, 400);
     const cut = await sql`select 1 from blocks where (blocker = ${me} and blocked = ${post[0].user_id}) or (blocker = ${post[0].user_id} and blocked = ${me})`;
     if (cut.length) return json({ error: "신청할 수 없는 글입니다." }, 403);
-    await sql`insert into requests (post_id, user_id, message) values (${b.postId}, ${me}, ${text(b.message, 300)})
-              on conflict (post_id, user_id) do nothing`;
+    const made = await sql`insert into requests (post_id, user_id, message) values (${b.postId}, ${me}, ${text(b.message, 300)})
+              on conflict (post_id, user_id) do nothing returning id`;
+    if (made.length) {
+      const who = await sql`select name from users where id = ${me}`;
+      await notify(String(post[0].user_id), "request", String(who[0]?.name ?? ""), `${post[0].origin} → ${post[0].dest}`, text(b.message, 300));
+    }
     return json({ ok: true });
   } catch (e) {
     return fail(e);
@@ -90,10 +95,16 @@ export async function PATCH(req: Request) {
   if (!isUuid(b.id) || (b.status !== "accepted" && b.status !== "declined")) return json({ error: "잘못된 요청입니다." }, 400);
   try {
     await ensureSchema();
-    const rows = await db()`
+    const sql = db();
+    const before = await sql`select status from requests where id = ${b.id}`;
+    const rows = await sql`
       update requests r set status = ${b.status} from posts p
-      where r.id = ${b.id} and p.id = r.post_id and p.user_id = ${me} returning r.id`;
+      where r.id = ${b.id} and p.id = r.post_id and p.user_id = ${me} returning r.id, r.user_id, p.origin, p.dest`;
     if (!rows.length) return json({ error: "권한이 없습니다." }, 403);
+    if (b.status === "accepted" && before[0]?.status !== "accepted") {
+      const who = await sql`select name from users where id = ${me}`;
+      await notify(String(rows[0].user_id), "accepted", String(who[0]?.name ?? ""), `${rows[0].origin} → ${rows[0].dest}`);
+    }
     return json({ ok: true });
   } catch (e) {
     return fail(e);
