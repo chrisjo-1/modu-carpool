@@ -252,8 +252,8 @@ export function PostDetail({
             ))}
             <button data-block-id="B015" data-block-name="글 수정" className={`${btnPrimary} py-3 text-[15px]`} onClick={() => (post.regular ? onEditCommute(post) : onEdit(post))}>{post.regular ? t("출퇴근 정보 수정") : t("글 수정")}</button>
             <div className="flex gap-2 pt-1">
-              <button disabled={busy} className={`${btnGhost} py-3 text-[15px]`} onClick={() => run("/api/posts", "PATCH", { id: post.id, status: post.status === "open" ? "closed" : "open" }, post.status === "open" ? "마감했어요." : "다시 열었어요.")}>
-                {post.status === "open" ? t("모집 마감") : t("다시 열기")}
+              <button disabled={busy} className={`${btnGhost} py-3 text-[15px]`} onClick={() => run("/api/posts", "PATCH", { id: post.id, status: post.status === "open" ? "closed" : "open" }, post.status === "open" ? (post.role === "rider" ? "종료했어요." : "마감했어요.") : "다시 열었어요.")}>
+                {post.status === "open" ? (post.role === "rider" ? t("진행 중") : t("모집 마감")) : t("다시 열기")}
               </button>
               <button
                 disabled={busy}

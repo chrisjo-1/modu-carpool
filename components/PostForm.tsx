@@ -37,7 +37,7 @@ export default function PostForm({
   user: User | null;
   enabled: boolean;
   goLogin: () => void;
-  onDone: () => void;
+  onDone: (id?: string) => void;
   toast: (m: string) => void;
   /** 정기카풀(출퇴근) 입력 창을 연다. */
   onRegular: () => void;
@@ -86,7 +86,7 @@ export default function PostForm({
       setNote("");
     }
     toast(t(initial ? "글을 수정했어요." : "카풀을 등록했어요."));
-    onDone();
+    onDone(initial ? undefined : (r.data as { id?: string }).id);
   };
 
   const form = (

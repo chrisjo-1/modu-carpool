@@ -28,6 +28,7 @@ export default function Me({
   toast,
   onCommute,
   onChanged,
+  onEdit,
   onProfile,
 }: {
   user: User | null;
@@ -41,6 +42,7 @@ export default function Me({
   onCommute: (post: Post | null, onboarding: boolean) => void;
   /** 차단을 풀어 글 목록을 다시 받아야 할 때 */
   onChanged: () => void;
+  onEdit: (p: Post) => void;
   onProfile: (id: string) => void;
 }) {
   const t = useT();
@@ -242,13 +244,24 @@ export default function Me({
           ) : (
             <Card className="divide-y divide-line">
               {mine.map((p) => (
-                <button key={p.id} onClick={() => onOpen(p)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
+                <div key={p.id} data-block-id="C045" data-block-name="내 글">
+                <button onClick={() => onOpen(p)} className="flex w-full items-center justify-between gap-3 px-5 pb-1 pt-4 text-left">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{p.origin} → {p.dest}</p>
                     <p className="num text-[13px] text-sub">{p.regular ? `${t("정기카풀")} · ` : ""}{scheduleText(p, lang)}</p>
                   </div>
-                  <Tag tone={p.status === "open" ? "accent" : "plain"}>{p.status === "open" ? t("모집 중") : t("마감")}</Tag>
+                  <Tag tone={p.status === "open" ? "accent" : "plain"}>{p.status === "open" ? (p.role === "rider" ? t("진행 중") : t("모집 중")) : p.role === "rider" ? t("종료") : t("마감")}</Tag>
                 </button>
+                <div className="flex gap-4 px-5 pb-3 text-[14px]">
+                  <button data-block-id="B051" data-block-name="글 수정" className="min-h-0 py-1 font-semibold text-accent underline" onClick={() => onEdit(p)}>{t("수정")}</button>
+                  <button data-block-id="B052" data-block-name="글 삭제" className="min-h-0 py-1 text-warn underline" onClick={async () => {
+                    if (!window.confirm(t("이 글을 삭제할까요?"))) return;
+                    const r = await api(`/api/posts?id=${p.id}`, "DELETE");
+                    toast(t(r.ok ? "삭제했어요." : r.error));
+                    onChanged();
+                  }}>{t("삭제")}</button>
+                </div>
+                </div>
               ))}
             </Card>
           )}
