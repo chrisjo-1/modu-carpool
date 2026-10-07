@@ -15,7 +15,7 @@ function defaultWhen() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function PostForm({ user, enabled, goLogin, onDone, toast }: { user: User | null; enabled: boolean; goLogin: () => void; onDone: () => void; toast: (m: string) => void }) {
+export default function PostForm({ user, enabled, goLogin, onDone, toast, onRegular }: { user: User | null; enabled: boolean; goLogin: () => void; onDone: () => void; toast: (m: string) => void; /** 정기카풀(출퇴근) 입력 창을 연다. */ onRegular: () => void }) {
   const t = useT();
   const [role, setRole] = useState<"driver" | "rider">("driver");
   const [kind, setKind] = useState<"commute" | "trip">("commute");
@@ -66,7 +66,8 @@ export default function PostForm({ user, enabled, goLogin, onDone, toast }: { us
             </div>
             <div className="space-y-1.5">
               <p className="text-sm text-sub">{t("종류")}</p>
-              <Segment label={t("종류")} value={kind} onChange={setKind} options={[["commute", t("출퇴근")], ["trip", t("나들이·관광")]]} />
+              {/* 정기카풀(출퇴근)을 고르면 출퇴근 정보 창이 바로 열리고, 거기서 저장하면 곧바로 게시된다. */}
+              <Segment<"regular" | "commute" | "trip"> label={t("종류")} value={kind} onChange={(v) => (v === "regular" ? onRegular() : setKind(v))} options={[["regular", t("정기카풀(출퇴근)")], ["commute", t("1회 출퇴근")], ["trip", t("나들이·관광")]]} />
             </div>
             <PlaceField blockId="F020" label={t("출발지")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
             <PlaceField blockId="F021" label={t("도착지")} placeholder={t("예: 강남역")} value={dest} onChange={setDest} toast={toast} />

@@ -48,6 +48,8 @@ export default function Me({
   const [contact, setContact] = useState("");
   const [contactType, setContactType] = useState("");
   const [busy, setBusy] = useState(false);
+  // 가입할 때 "정기카풀(출퇴근)"을 고르면 가입 직후 출퇴근 정보를 받아 바로 게시한다.
+  const [wantRegular, setWantRegular] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
   const file = useRef<HTMLInputElement>(null);
   const regular = mine.find((p) => p.regular) ?? null;
@@ -92,8 +94,7 @@ export default function Me({
     if (!r.ok) return toast(t(r.error));
     setPassword("");
     setUser(r.data.user);
-    // 가입 직후에는 출퇴근 정보를 바로 받는다.
-    if (mode === "signup") onCommute(null, true);
+    if (mode === "signup" && wantRegular) onCommute(null, true);
   };
 
   const saveProfile = async (e: React.FormEvent) => {
@@ -176,6 +177,14 @@ export default function Me({
                 {t("비밀번호 (8자 이상)")}
                 <input data-block-id="F044" className={`${field} mt-1`} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} />
               </label>
+              {mode === "signup" && (
+                <div className="space-y-1.5">
+                  <button type="button" data-block-id="B047" data-block-name="정기카풀 키워드" role="switch" aria-checked={wantRegular} onClick={() => setWantRegular((v) => !v)} className={`rounded-full border px-4 text-[15px] ${wantRegular ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+                    {wantRegular ? "✓ " : "+ "}{t("정기카풀(출퇴근)")}
+                  </button>
+                  <p className="text-[13px] text-sub">{t("고르면 가입하자마자 출퇴근 정보를 입력해 정기카풀로 바로 등록됩니다.")}</p>
+                </div>
+              )}
               <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
             </form>
           )}

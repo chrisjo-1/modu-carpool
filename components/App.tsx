@@ -108,6 +108,12 @@ export default function App() {
     setOpen((now) => (now && now.id === cur.id ? next : now));
   };
 
+  /** 등록 탭에서 정기카풀(출퇴근)을 고르면, 이미 올린 정기카풀이 있는지 확인해 입력 창을 연다. */
+  const openRegular = async () => {
+    const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
+    setCommute({ post: (r.ok && r.data.posts.find((p) => p.regular)) || null, onboarding: false });
+  };
+
   const goLogin = () => {
     setOpen(null);
     setTab("me");
@@ -139,7 +145,7 @@ export default function App() {
         <main className="flex-1 px-4 pb-28 pt-3">
           {tab === "home" &&
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
-          {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onDone={() => { refresh(); setTab("home"); }} />}
+          {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { refresh(); setTab("home"); }} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} />}
           {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} />}
         </main>
@@ -162,7 +168,7 @@ export default function App() {
         </nav>
 
         {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} />}
-        {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); }} />}
+        {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => setRoom(null)} toast={setToastMsg} />}
         {toastMsg && (
           <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-medium text-ink shadow-card">{toastMsg}</div>
