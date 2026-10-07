@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body { background: #F5F7FA; color: #10141C; }
+body { font-family: "Pretendard", system-ui, sans-serif; font-size: 16px; line-height: 1.5; -webkit-tap-highlight-color: transparent; word-break: keep-all; }
+button, a, [role="button"] { min-height: 44px; }
+.num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+:focus-visible { outline: 2px solid #2F6BFF; outline-offset: 2px; border-radius: 12px; }
+.safe-b { padding-bottom: env(safe-area-inset-bottom); }
+@keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet { animation: rise .22s ease-out; }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.live { animation: pulse-dot 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .sheet, .live { animation: none; } }
