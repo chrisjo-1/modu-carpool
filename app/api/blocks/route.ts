@@ -1,4 +1,4 @@
-import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, photoUrl } from "@/lib/server";
+import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, photoUrl, reasonOf } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,8 @@ export async function POST(req: Request) {
   if (!me) return needLogin();
   const b = await body(req);
   if (!isUuid(b.userId) || b.userId === me) return json({ error: "잘못된 요청입니다." }, 400);
+  const why = reasonOf(b);
+  if ("error" in why) return json({ error: why.error }, 400);
   try {
     await ensureSchema();
     const sql = db();
@@ -30,7 +32,8 @@ export async function POST(req: Request) {
     if (!target.length) return json({ error: "잘못된 요청입니다." }, 400);
     const n = await sql`select count(*)::int as n from blocks where blocker = ${me}`;
     if ((n[0].n as number) >= 200) return json({ error: "차단은 200명까지 할 수 있습니다." }, 429);
-    await sql`insert into blocks (blocker, blocked) values (${me}, ${b.userId}) on conflict do nothing`;
+    await sql`insert into blocks (blocker, blocked, reason, detail) values (${me}, ${b.userId}, ${why.reason}, ${why.detail})
+              on conflict (blocker, blocked) do update set reason = excluded.reason, detail = excluded.detail`;
     // 두 사람 사이에 아직 수락되지 않은 신청은 지운다.
     await sql`
       delete from requests r using posts p

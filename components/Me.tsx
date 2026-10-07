@@ -28,6 +28,7 @@ export default function Me({
   toast,
   onCommute,
   onChanged,
+  onProfile,
 }: {
   user: User | null;
   enabled: boolean;
@@ -40,6 +41,7 @@ export default function Me({
   onCommute: (post: Post | null, onboarding: boolean) => void;
   /** 차단을 풀어 글 목록을 다시 받아야 할 때 */
   onChanged: () => void;
+  onProfile: (id: string) => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -208,6 +210,12 @@ export default function Me({
           )}
         </Card>
       </div>
+
+      {user && (
+        <button data-block-id="B050" data-block-name="내 프로필" onClick={() => onProfile(user.id)} className="flex w-full items-center justify-between rounded-2xl border border-line bg-white px-5 text-left text-[16px] font-semibold shadow-card">
+          {t("내 별점 · 지난 카풀 보기")} <span className="text-sub">{Icon.arrow()}</span>
+        </button>
+      )}
 
       {user && (
         <div>

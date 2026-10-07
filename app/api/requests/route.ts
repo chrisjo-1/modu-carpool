@@ -14,8 +14,10 @@ export async function GET() {
              p.id as post_id, p.origin, p.dest, p.depart_at, p.cost, p.price, p.regular, p.days, p.time_go, p.time_back, p.user_id as owner_id,
              ou.photo_v as owner_pv, ru.photo_v as req_pv,
              ou.name as owner_name, ou.contact as owner_contact, ou.contact_type as owner_ctype,
-             ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio
+             ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio,
+             coalesce(rv.stars, 0) as my_stars, (p.regular or p.depart_at < now()) as passed
       from requests r
+      left join reviews rv on rv.request_id = r.id and rv.rater = ${me}
       join posts p on p.id = r.post_id
       join users ou on ou.id = p.user_id
       join users ru on ru.id = r.user_id
@@ -47,6 +49,8 @@ export async function GET() {
           otherBio: iAmOwner ? r.req_bio : "",
           contact: accepted ? (iAmOwner ? r.req_contact : r.owner_contact) : null,
           contactType: accepted ? (iAmOwner ? r.req_ctype : r.owner_ctype) : "",
+          canRate: accepted && !!r.passed,
+          myStars: r.my_stars,
         };
       }),
     });

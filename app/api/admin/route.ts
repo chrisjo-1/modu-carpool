@@ -7,7 +7,7 @@ const denied = () => json({ error: "관리자 로그인이 필요합니다." }, 
 /** 현황, 최근 글, 회원 목록(?q= 로 이메일·닉네임 검색) */
 export async function GET(req: Request) {
   if (!(await isAdmin())) return json({ admin: false });
-  if (!hasDb()) return json({ admin: true, db: false, stats: null, posts: [], users: [] });
+  if (!hasDb()) return json({ admin: true, db: false, stats: null, posts: [], users: [], reports: [], blocks: [] });
   const q = text(new URL(req.url).searchParams.get("q"), 60);
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   try {
@@ -18,7 +18,8 @@ export async function GET(req: Request) {
       (select count(*)::int from users where blocked) as blocked,
       (select count(*)::int from posts) as posts,
       (select count(*)::int from requests) as requests,
-      (select count(*)::int from requests where status = 'accepted') as accepted`;
+      (select count(*)::int from requests where status = 'accepted') as accepted,
+      (select count(*)::int from reports where status = 'open') as reports`;
     const posts = await sql`
       select p.id, p.origin, p.dest, p.depart_at, p.role, p.kind, p.cost, p.price, p.regular, p.days, p.time_go, p.status, p.note, u.email, u.name, u.blocked
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
@@ -28,9 +29,22 @@ export async function GET(req: Request) {
       from users u
       where ${q} = '' or u.email ilike ${like} or u.name ilike ${like}
       order by u.created_at desc limit 200`;
+    const reports = await sql`
+      select r.id, r.reason, r.detail, r.status, r.created_at,
+             a.name as reporter_name, a.email as reporter_email, b.id as target_id, b.name as target_name, b.email as target_email, b.blocked as target_blocked
+      from reports r join users a on a.id = r.reporter join users b on b.id = r.target
+      order by (r.status = 'open') desc, r.created_at desc limit 200`;
+    const blocks = await sql`
+      select k.reason, k.detail, k.created_at,
+             a.name as blocker_name, a.email as blocker_email, b.id as target_id, b.name as target_name, b.email as target_email, b.blocked as target_blocked
+      from blocks k join users a on a.id = k.blocker join users b on b.id = k.blocked
+      order by k.created_at desc limit 200`;
+    const ms = (rows: Record<string, unknown>[]) => rows.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() }));
     return json({
       admin: true,
       db: true,
+      reports: ms(reports),
+      blocks: ms(blocks),
       stats: s[0],
       posts: posts.map((p) => ({ ...p, depart_at: new Date(p.depart_at as string).getTime() })),
       users: users.map((u) => ({ ...u, created_at: new Date(u.created_at as string).getTime() })),
@@ -80,6 +94,10 @@ export async function PATCH(req: Request) {
     const sql = db();
     if (isUuid(b.userId)) {
       await sql`update users set blocked = ${b.blocked === true} where id = ${b.userId}`;
+      return json({ ok: true });
+    }
+    if (isUuid(b.reportId)) {
+      await sql`update reports set status = ${b.status === "open" ? "open" : "done"} where id = ${b.reportId}`;
       return json({ ok: true });
     }
     if (isUuid(b.postId)) {

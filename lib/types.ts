@@ -49,6 +49,9 @@ export type Thread = {
   otherBio: string;
   contact: string | null;
   contactType: string;
+  /** 별점을 남길 수 있는지(수락됐고 출발 시각이 지났거나 정기카풀)와 내가 준 별점(없으면 0) */
+  canRate?: boolean;
+  myStars?: number;
 };
 
 export type User = { id: string; email: string; name: string; bio: string; contact: string; contactType: string; photo: string };
@@ -64,6 +67,28 @@ export const CONTACT_TYPES: [string, string][] = [
   ["etc", "기타"],
 ];
 export const contactLabel = (type: string) => CONTACT_TYPES.find(([k]) => k === type)?.[1] ?? "";
+
+/** 신고·차단 사유. 값은 DB에 저장되는 키. "기타"는 직접 적은 내용이 함께 저장된다. */
+export const REASONS: [string, string][] = [
+  ["noshow", "노쇼"],
+  ["rude", "비매너"],
+  ["promo", "홍보성"],
+  ["illegal", "불법"],
+  ["etc", "기타"],
+];
+export const reasonLabel = (key: string) => REASONS.find(([k]) => k === key)?.[1] ?? "";
+
+/** 다른 회원에게 보이는 프로필 */
+export type Member = {
+  id: string;
+  name: string;
+  bio: string;
+  photo: string;
+  me: boolean;
+  blockedByMe: boolean;
+  rating: { avg: number; count: number };
+  history: { origin: string; dest: string; at: number; regular: boolean; role: "driver" | "rider" }[];
+};
 
 export type Place = { name: string; lat: number | null; lng: number | null };
 

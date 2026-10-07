@@ -143,6 +143,8 @@ export function PostDetail({
   toast,
   onEditCommute,
   onEdit,
+  onProfile,
+  onBlock,
 }: {
   post: Post;
   user: User | null;
@@ -155,6 +157,9 @@ export function PostDetail({
   toast: (m: string) => void;
   onEditCommute: (p: Post) => void;
   onEdit: (p: Post) => void;
+  /** 회원 프로필 열기, 사유를 받아 차단하기 */
+  onProfile: (id: string) => void;
+  onBlock: (id: string, name: string) => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -188,13 +193,6 @@ export function PostDetail({
 
   const statusText = { pending: t("수락 대기 중"), accepted: t("수락됨"), declined: t("거절됨") };
 
-  /** 회원 차단. close 가 true 면 상세 창도 닫는다(글 작성자를 차단한 경우). */
-  const block = async (userId: string, close: boolean) => {
-    if (!window.confirm(t("이 회원을 차단할까요? 서로의 글과 신청, 대화가 보이지 않게 됩니다."))) return;
-    await run("/api/blocks", "POST", { userId }, "차단했어요.");
-    if (close) onClose();
-  };
-
   return (
     <Sheet title={t("카풀 상세")} blockId="S010" onClose={onClose}>
       <div className="space-y-4">
@@ -205,7 +203,7 @@ export function PostDetail({
           <div className="flex justify-between"><dt className="text-sub">{t("출발")}</dt><dd className="num font-semibold">{when(post.departAt, lang)}</dd></div>
           {post.cost === "fixed" && <div className="flex justify-between"><dt className="text-sub">{t("1인 금액")}</dt><dd className="num font-semibold text-warn">{money(post.price ?? 0, lang)}</dd></div>}
           <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("남은 자리") : t("인원")}</dt><dd className="num font-semibold">{post.seats}</dd></div>
-          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} size={28} />{post.owner}</dd></div>
+          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><Avatar src={post.ownerPhoto} name={post.owner} size={28} />{post.owner}</button> : <span className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} size={28} />{post.owner}</span>}</dd></div>
         </dl>
         {post.originLat != null && post.originLng != null && (
           <a data-block-id="B014" data-block-name="출발 위치 지도" href={`https://map.kakao.com/link/map/${encodeURIComponent(post.origin)},${post.originLat},${post.originLng}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl bg-bg px-4 text-[15px] font-semibold text-ink">
@@ -235,9 +233,9 @@ export function PostDetail({
             {incoming.map((th) => (
               <div key={th.id} className="space-y-2 rounded-2xl border border-line p-4">
                 <div className="flex items-center justify-between">
-                  <p className="flex items-center gap-2 font-semibold"><Avatar src={th.otherPhoto} name={th.other} size={28} />{th.other}</p>
+                  <button className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => th.otherId && onProfile(th.otherId)}><Avatar src={th.otherPhoto} name={th.other} size={28} />{th.other}</button>
                   <span className="flex items-center gap-2">
-                    {th.otherId && <button className="min-h-0 text-[13px] text-sub underline" disabled={busy} onClick={() => block(th.otherId as string, false)}>{t("차단")}</button>}
+                    {th.otherId && <button className="min-h-0 text-[13px] text-sub underline" disabled={busy} onClick={() => onBlock(th.otherId as string, th.other)}>{t("차단")}</button>}
                     <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>
                   </span>
                 </div>
@@ -308,7 +306,7 @@ export function PostDetail({
 
         <button data-block-id="B013" data-block-name="공유" className="w-full text-[15px] text-sub underline" onClick={share}>{t("이 카풀 공유하기")}</button>
         {user && !sample && !post.mine && post.ownerId && (
-          <button data-block-id="B016" data-block-name="회원 차단" disabled={busy} className="w-full text-[14px] text-sub underline" onClick={() => block(post.ownerId as string, true)}>{t("이 회원 차단")}</button>
+          <button data-block-id="B016" data-block-name="회원 차단" disabled={busy} className="w-full text-[14px] text-sub underline" onClick={() => onBlock(post.ownerId as string, post.owner)}>{t("이 회원 차단")}</button>
         )}
       </div>
     </Sheet>

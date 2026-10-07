@@ -2,6 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { timingSafeEqual } from "crypto";
+import { REASONS } from "./types";
 
 export const hasDb = () => !!process.env.DATABASE_URL;
 export const authEnabled = () => hasDb() && !!process.env.SESSION_SECRET;
@@ -58,6 +59,18 @@ export function ensureSchema(): Promise<void> {
         created_at timestamptz not null default now(),
         primary key (blocker, blocked))`;
       await sql`create index if not exists blocks_blocked_idx on blocks (blocked)`;
+      await sql`alter table blocks add column if not exists reason text not null default ''`;
+      await sql`alter table blocks add column if not exists detail text not null default ''`;
+      await sql`create table if not exists reports (
+        id uuid primary key default gen_random_uuid(),
+        reporter uuid not null references users(id) on delete cascade,
+        target uuid not null references users(id) on delete cascade,
+        reason text not null,
+        detail text not null default '',
+        request_id uuid,
+        status text not null default 'open',
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists reports_created_idx on reports (created_at)`;
       await sql`create table if not exists admin_attempts (ip text not null, at timestamptz not null default now())`;
       await sql`create index if not exists admin_attempts_at_idx on admin_attempts (at)`;
       await sql`create table if not exists requests (
@@ -75,6 +88,14 @@ export function ensureSchema(): Promise<void> {
         body text not null,
         created_at timestamptz not null default now())`;
       await sql`create index if not exists messages_req_idx on messages (request_id, id)`;
+      await sql`create table if not exists reviews (
+        request_id uuid not null references requests(id) on delete cascade,
+        rater uuid not null references users(id) on delete cascade,
+        ratee uuid not null references users(id) on delete cascade,
+        stars integer not null,
+        created_at timestamptz not null default now(),
+        primary key (request_id, rater))`;
+      await sql`create index if not exists reviews_ratee_idx on reviews (ratee)`;
     })().catch((e) => {
       ready = null;
       throw e;
@@ -163,3 +184,12 @@ export const needLogin = () => json({ error: "로그인이 필요합니다." }, 
 /** 프로필 사진 주소. 사진이 없으면 빈 문자열. v는 캐시를 새로 고치기 위한 번호다. */
 export const photoUrl = (userId: unknown, v: unknown) => (Number(v) > 0 ? `/api/photo?u=${userId}&v=${Number(v)}` : "");
 export const clientIp = (req: Request) => (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+
+/** 신고·차단 사유를 검사한다. "기타"는 내용을 직접 적어야 한다. */
+export function reasonOf(b: Record<string, unknown>): { reason: string; detail: string } | { error: string } {
+  const reason = REASONS.some(([k]) => k === b.reason) ? String(b.reason) : "";
+  const detail = text(b.detail, 300);
+  if (!reason) return { error: "사유를 선택해 주세요." };
+  if (reason === "etc" && detail.length < 2) return { error: "기타 사유를 적어 주세요." };
+  return { reason, detail };
+}

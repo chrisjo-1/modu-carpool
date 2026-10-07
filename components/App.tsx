@@ -6,6 +6,7 @@ import Chat, { ChatRoom } from "./Chat";
 import CommuteSheet from "./Commute";
 import Home, { PostDetail } from "./Home";
 import Me from "./Me";
+import { MemberSheet, ReasonSheet } from "./Member";
 import PostForm from "./PostForm";
 import { Icon, LangContext, Sheet, api } from "./ui";
 
@@ -24,6 +25,8 @@ export default function App() {
   const [open, setOpen] = useState<Post | null>(null);
   const [room, setRoom] = useState<Thread | null>(null);
   const [editing, setEditing] = useState<Post | null>(null);
+  const [member, setMember] = useState<string | null>(null);
+  const [why, setWhy] = useState<{ mode: "report" | "block"; userId: string; name: string; requestId?: string } | null>(null);
   const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean } | null>(null);
   const [toastMsg, setToastMsg] = useState("");
   const [version, setVersion] = useState(0);
@@ -115,6 +118,21 @@ export default function App() {
     setCommute({ post: (r.ok && r.data.posts.find((p) => p.regular)) || null, onboarding: false });
   };
 
+  /** 사유 창에서 제출: 신고는 접수만 하고, 차단은 관련 창을 닫고 목록을 새로 받는다. */
+  const submitWhy = async (reason: string, detail: string) => {
+    if (!why) return;
+    const r = await api(why.mode === "report" ? "/api/reports" : "/api/blocks", "POST", { userId: why.userId, reason, detail, requestId: why.requestId });
+    if (!r.ok) return setToastMsg(t(r.error));
+    setToastMsg(t(why.mode === "report" ? "신고를 접수했어요. 운영자가 확인합니다." : "차단했어요."));
+    if (why.mode === "block") {
+      setMember(null);
+      setRoom(null);
+      setOpen(null);
+      await refresh();
+    }
+    setWhy(null);
+  };
+
   const goLogin = () => {
     setOpen(null);
     setTab("me");
@@ -148,7 +166,7 @@ export default function App() {
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { refresh(); setTab("home"); }} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
@@ -168,14 +186,16 @@ export default function App() {
           </ul>
         </nav>
 
-        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} onEdit={(p) => { setOpen(null); setEditing(p); }} />}
+        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} onEdit={(p) => { setOpen(null); setEditing(p); }} onProfile={setMember} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {editing && (
           <Sheet title={t("글 수정")} blockId="S070" onClose={() => setEditing(null)}>
             <PostForm initial={editing} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { setEditing(null); refresh(); }} />
           </Sheet>
         )}
         {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); setTab("home"); }} />}
-        {room && <ChatRoom thread={room} onClose={() => setRoom(null)} toast={setToastMsg} onChanged={refresh} />}
+        {room && <ChatRoom thread={room} onClose={() => setRoom(null)} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
+        {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
+        {why && <ReasonSheet mode={why.mode} name={why.name} onClose={() => setWhy(null)} onSubmit={submitWhy} />}
         {toastMsg && (
           <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-medium text-ink shadow-card">{toastMsg}</div>
         )}
