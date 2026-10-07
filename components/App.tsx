@@ -153,6 +153,12 @@ export default function App() {
   return (
     <LangContext.Provider value={lang}>
       <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+        {user?.test && (
+          <p data-block-id="C090" data-block-name="테스트 회원 안내" className="flex items-center justify-between gap-3 border-b border-line bg-accentSoft px-5 py-2 text-[13px] text-ink">
+            <span>테스트 회원 <b>{user.name}</b> 화면으로 보는 중</span>
+            <a href="/admin" className="shrink-0 font-semibold text-accent underline">관리자로 돌아가기</a>
+          </p>
+        )}
         <header className="flex items-center gap-3 px-5 pb-2 pt-5">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-white">{Icon.car(1.8)}</span>
           <div>

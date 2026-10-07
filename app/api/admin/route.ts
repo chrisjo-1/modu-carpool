@@ -1,4 +1,4 @@
-import { body, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, setAdminSession, text } from "@/lib/server";
+import { authEnabled, body, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, setAdminSession, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +24,11 @@ export async function GET(req: Request) {
       select p.id, p.origin, p.dest, p.depart_at, p.role, p.kind, p.cost, p.price, p.regular, p.days, p.time_go, p.status, p.note, u.email, u.name, u.blocked
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
     const users = await sql`
-      select u.id, u.email, u.name, u.blocked, u.created_at,
+      select u.id, u.email, u.name, u.blocked, u.test, u.created_at,
              (select count(*)::int from posts where user_id = u.id) as posts
       from users u
       where ${q} = '' or u.email ilike ${like} or u.name ilike ${like}
-      order by u.created_at desc limit 200`;
+      order by u.test desc, u.created_at desc limit 200`;
     const reports = await sql`
       select r.id, r.reason, r.detail, r.status, r.created_at,
              a.name as reporter_name, a.email as reporter_email, b.id as target_id, b.name as target_name, b.email as target_email, b.blocked as target_blocked
@@ -56,6 +56,32 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const b = await body(req);
+  // 테스트 회원 만들기 / 테스트 회원 화면으로 들어가기 (관리자만, 테스트 회원에게만)
+  if (b.action === "testUser" || b.action === "enter") {
+    if (!(await isAdmin())) return denied();
+    if (!authEnabled()) return json({ error: "DB가 연결되지 않았습니다." }, 503);
+    try {
+      await ensureSchema();
+      const sql = db();
+      if (b.action === "testUser") {
+        const n = await sql`select count(*)::int as n from users where test`;
+        if ((n[0].n as number) >= 30) return json({ error: "테스트 회원은 30명까지 만들 수 있습니다. 안 쓰는 회원을 삭제해 주세요." }, 400);
+        const tag = crypto.randomUUID().slice(0, 8);
+        const name = text(b.name, 20) || `테스트${tag.slice(0, 4)}`;
+        // 비밀번호 칸에는 맞출 수 없는 값을 넣어, 관리자 화면을 통해서만 들어갈 수 있게 한다.
+        const rows = await sql`insert into users (email, pw, name, test) values (${`test-${tag}@test.invalid`}, ${`!${crypto.randomUUID()}`}, ${name}, true) returning id`;
+        return json({ ok: true, id: rows[0].id });
+      }
+      if (!isUuid(b.userId)) return json({ error: "잘못된 요청입니다." }, 400);
+      const u = await sql`select test, blocked from users where id = ${b.userId}`;
+      if (!u.length || !u[0].test) return json({ error: "테스트 회원으로만 들어갈 수 있습니다." }, 403);
+      if (u[0].blocked) return json({ error: "차단된 회원입니다. 차단을 풀고 들어가 주세요." }, 400);
+      await setUserSession(b.userId);
+      return json({ ok: true });
+    } catch (e) {
+      return fail(e);
+    }
+  }
   await new Promise((r) => setTimeout(r, 400)); // 무차별 대입 완화
   const ip = clientIp(req);
   // 틀린 시도를 DB에 기록해, 같은 곳에서 15분에 5번 또는 전체 30번을 넘으면 잠근다.
@@ -117,6 +143,18 @@ export async function PATCH(req: Request) {
 /** ?post=ID 가 있으면 글 삭제, 없으면 관리자 로그아웃 */
 export async function DELETE(req: Request) {
   const post = new URL(req.url).searchParams.get("post");
+  const user = new URL(req.url).searchParams.get("user");
+  if (user) {
+    if (!(await isAdmin())) return denied();
+    if (!isUuid(user) || !hasDb()) return json({ error: "잘못된 요청입니다." }, 400);
+    try {
+      await ensureSchema();
+      const gone = await db()`delete from users where id = ${user} and test returning id`;
+      return gone.length ? json({ ok: true }) : json({ error: "테스트 회원만 삭제할 수 있습니다." }, 403);
+    } catch (e) {
+      return fail(e);
+    }
+  }
   if (!post) {
     await clearCookie("admin");
     return json({ ok: true });

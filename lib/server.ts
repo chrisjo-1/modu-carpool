@@ -53,6 +53,7 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists photo text not null default ''`;
       await sql`alter table users add column if not exists photo_v integer not null default 0`;
       await sql`alter table users add column if not exists blocked boolean not null default false`;
+      await sql`alter table users add column if not exists test boolean not null default false`;
       await sql`create table if not exists blocks (
         blocker uuid not null references users(id) on delete cascade,
         blocked uuid not null references users(id) on delete cascade,

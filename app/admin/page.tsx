@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean };
-type UserRow = { id: string; email: string; name: string; blocked: boolean; created_at: number; posts: number };
+type UserRow = { id: string; email: string; name: string; blocked: boolean; test: boolean; created_at: number; posts: number };
 type Flag = { id: string; reason: string; detail: string; status?: string; created_at: number; target_id: string; target_name: string; target_email: string; target_blocked: boolean };
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
@@ -23,6 +23,7 @@ export default function Admin() {
   const [tab, setTab] = useState<TabId>("posts");
   const [q, setQ] = useState("");
   const [edit, setEdit] = useState<PostRow | null>(null);
+  const [testName, setTestName] = useState("");
 
   const refresh = useCallback(async (query = "") => {
     const a = await fetch(`/api/admin?q=${encodeURIComponent(query)}`).then((r) => r.json()).catch(() => ({ admin: false }));
@@ -58,6 +59,19 @@ export default function Admin() {
   const who = (name: string, email: string) => (<>{name || "—"} <span className="block text-xs text-sub">{email}</span></>);
   const why = (f: Flag) => (<><b>{REASON[f.reason] ?? (f.reason || "사유 없음")}</b>{f.detail && <span className="block max-w-[280px] whitespace-pre-wrap text-xs text-sub">{f.detail}</span>}</>);
   const stop = (f: Flag) => f.target_blocked ? <span className="text-warn">정지됨</span> : <button data-block-id="B095" data-block-name="이용 정지" className="min-h-0 text-warn underline" onClick={() => blockTarget(f)}>이용 정지</button>;
+  const makeTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await act(call("POST", "/api/admin", { action: "testUser", name: testName }), "테스트 회원을 만들었습니다.");
+    setTestName("");
+  };
+  const enter = async (u: UserRow) => {
+    const r = await call("POST", "/api/admin", { action: "enter", userId: u.id });
+    if (r.ok) window.location.href = "/";
+    else setMsg((await r.json().catch(() => ({}))).error ?? "들어가지 못했습니다.");
+  };
+  const removeUser = (u: UserRow) => {
+    if (window.confirm(`테스트 회원 ${u.name}을(를) 삭제할까요? 이 회원의 글·신청·대화도 함께 지워집니다.`)) act(call("DELETE", `/api/admin?user=${u.id}`), "테스트 회원을 삭제했습니다.");
+  };
   const toggleBlock = (u: UserRow) => {
     const next = !u.blocked;
     if (window.confirm(next ? `${u.name || u.email} 회원을 차단할까요? 로그인과 글쓰기가 막히고 올린 글이 목록에서 사라집니다.` : `${u.name || u.email} 회원의 차단을 풀까요?`))
@@ -164,20 +178,28 @@ export default function Admin() {
               <button className="rounded-lg bg-bg px-4 text-sm">검색</button>
             </form>
           </div>
+          <form onSubmit={makeTest} data-block-id="S097" data-block-name="테스트 회원 만들기" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-bg p-3">
+            <span className="text-sm font-semibold">테스트 회원</span>
+            <input data-block-id="F091" className={`${input} w-48`} maxLength={20} placeholder="닉네임 (비우면 자동)" aria-label="테스트 회원 닉네임" value={testName} onChange={(e) => setTestName(e.target.value)} />
+            <button data-block-id="B096" data-block-name="테스트 회원 만들기" className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">만들기</button>
+            <span className="text-xs text-sub">테스트 회원의 글은 테스트 회원끼리만 보이고, 실제 회원에게는 보이지 않습니다.</span>
+          </form>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="text-sub">
                 <tr>{["닉네임", "이메일", "가입일", "글", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {(info?.users ?? []).map((u) => (
                   <tr key={u.id}>
-                    <td className="px-2 py-2 font-medium">{u.name || "—"}</td>
+                    <td className="px-2 py-2 font-medium">{u.name || "—"}{u.test && <span className="ml-2 rounded-full bg-accentSoft px-2 py-0.5 text-xs font-semibold text-accent">테스트</span>}</td>
                     <td className="px-2 py-2">{u.email}</td>
                     <td className="num px-2 py-2">{new Date(u.created_at).toLocaleDateString("ko-KR")}</td>
                     <td className="num px-2 py-2">{u.posts}</td>
                     <td className="px-2 py-2">{u.blocked ? <span className="font-semibold text-warn">차단됨</span> : "정상"}</td>
-                    <td className="px-2 py-2">
+                    <td className="whitespace-nowrap px-2 py-2">
+                      {u.test && <button data-block-id="B097" data-block-name="이 회원으로 들어가기" className="mr-3 min-h-0 font-semibold text-accent underline" onClick={() => enter(u)}>이 회원으로 들어가기</button>}
+                      {u.test && <button data-block-id="B098" data-block-name="테스트 회원 삭제" className="mr-3 min-h-0 text-sub underline" onClick={() => removeUser(u)}>삭제</button>}
                       <button data-block-id="B093" data-block-name="차단" className={`min-h-0 underline ${u.blocked ? "text-accent" : "text-warn"}`} onClick={() => toggleBlock(u)}>{u.blocked ? "차단 해제" : "차단"}</button>
                     </td>
                   </tr>

@@ -5,8 +5,8 @@ import { authEnabled, body, clearCookie, currentUserId, db, ensureSchema, fail, 
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact, contact_type, photo_v from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v) } : null;
+  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true } : null;
 }
 
 export async function GET() {
