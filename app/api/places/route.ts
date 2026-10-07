@@ -66,12 +66,73 @@ async function osmSearch(q: string, lang: string): Promise<Item[]> {
   });
 }
 
+/** 두 좌표 사이 거리(m) */
+function meters(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const r = Math.PI / 180;
+  const x = (lng2 - lng1) * r * Math.cos(((lat1 + lat2) / 2) * r);
+  const y = (lat2 - lat1) * r;
+  return Math.sqrt(x * x + y * y) * 6371000;
+}
+
+const NEAR: Record<string, (n: string) => string> = {
+  ko: (n) => `${n} 근처`,
+  en: (n) => `Near ${n}`,
+  ja: (n) => `${n}付近`,
+  zh: (n) => `${n}附近`,
+};
+
+/** 주변 150m 안에서 이름 있는 건물·시설·역 가운데 가장 가까운 것을 찾는다. 실패하면 null. */
+async function osmLandmark(lat: number, lng: number, lang: string): Promise<{ name: string; dist: number } | null> {
+  const q =
+    `[out:json][timeout:4];(` +
+    `nwr(around:150,${lat},${lng})[name][building];` +
+    `nwr(around:150,${lat},${lng})[name][amenity];` +
+    `nwr(around:150,${lat},${lng})[name][shop];` +
+    `nwr(around:150,${lat},${lng})[name][leisure];` +
+    `nwr(around:150,${lat},${lng})[name][tourism];` +
+    `nwr(around:150,${lat},${lng})[name][office];` +
+    `nwr(around:150,${lat},${lng})[name][landuse=residential];` +
+    `nwr(around:250,${lat},${lng})[name][railway=station];` +
+    `);out tags center 60;`;
+  try {
+    const d = await get(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`, { "User-Agent": UA });
+    let best: { name: string; score: number; dist: number } | null = null;
+    for (const e of (d.elements ?? []) as { lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }[]) {
+      const t = e.tags ?? {};
+      const la = e.lat ?? e.center?.lat;
+      const lo = e.lon ?? e.center?.lon;
+      const name = (lang !== "ko" && t[`name:${lang}`]) || t["name:ko"] || t.name;
+      if (la == null || lo == null || !name) continue;
+      const dist = meters(lat, lng, la, lo);
+      // 역·아파트 단지·큰 건물은 조금 멀어도 알아보기 쉬우므로 우선한다.
+      const known = t.railway === "station" || t.building === "apartments" || t.landuse === "residential" || t.amenity === "school" || t.amenity === "hospital" || t.leisure === "park";
+      const score = dist * (known ? 0.5 : 1);
+      if (!best || score < best.score) best = { name, score, dist };
+    }
+    return best ? { name: best.name, dist: best.dist } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 좌표를 "건물·시설 이름 (동 도로명 번지)" 꼴로 바꾼다.
+ * 도로명만으로는 어디인지 알기 어려워, 그 자리의 건물 이름이나 가장 가까운 시설 이름을 앞에 둔다.
+ */
 async function osmReverse(lat: number, lng: number, lang: string): Promise<string> {
-  const d = await get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&lat=${lat}&lon=${lng}`, { "User-Agent": UA, "Accept-Language": lang });
+  const [d, mark] = await Promise.all([
+    get(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&lat=${lat}&lon=${lng}`, { "User-Agent": UA, "Accept-Language": lang }),
+    osmLandmark(lat, lng, lang),
+  ]);
   const a = (d.address ?? {}) as Record<string, string>;
-  const area = a.neighbourhood || a.quarter || a.suburb || a.borough || a.city_district || "";
+  const dong = a.quarter || a.neighbourhood || a.suburb || a.village || a.town || "";
   const road = [a.road, a.house_number].filter(Boolean).join(" ");
-  return d.name || [area, road].filter(Boolean).join(" ") || String(d.display_name ?? "").split(",").slice(0, 2).join(" ").trim();
+  const base = [dong, road].filter(Boolean).join(" ") || String(d.display_name ?? "").split(",").slice(0, 2).join(" ").trim();
+  // 그 자리 자체가 이름 있는 건물·시설이면 그 이름을 쓰고(도로 이름은 제외), 아니면 가까운 시설을 쓴다.
+  const here = d.name && d.category !== "highway" && d.name !== a.road ? String(d.name) : "";
+  const main = here || (mark ? (mark.dist <= 35 ? mark.name : (NEAR[lang] ?? NEAR.ko)(mark.name)) : "");
+  const label = main && base && !base.includes(main) ? `${main} (${base})` : main || base;
+  return label.slice(0, 60);
 }
 
 export async function GET(req: Request) {
