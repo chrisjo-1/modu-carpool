@@ -24,6 +24,7 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists name text not null default ''`;
       await sql`alter table users add column if not exists bio text not null default ''`;
       await sql`alter table users add column if not exists contact text not null default ''`;
+      await sql`alter table users add column if not exists contact_type text not null default ''`;
       await sql`create table if not exists posts (
         id uuid primary key default gen_random_uuid(),
         user_id uuid not null references users(id) on delete cascade,
@@ -38,6 +39,10 @@ export function ensureSchema(): Promise<void> {
         status text not null default 'open',
         created_at timestamptz not null default now())`;
       await sql`create index if not exists posts_depart_idx on posts (status, depart_at)`;
+      await sql`alter table posts add column if not exists origin_lat double precision`;
+      await sql`alter table posts add column if not exists origin_lng double precision`;
+      await sql`alter table posts add column if not exists dest_lat double precision`;
+      await sql`alter table posts add column if not exists dest_lng double precision`;
       await sql`create table if not exists requests (
         id uuid primary key default gen_random_uuid(),
         post_id uuid not null references posts(id) on delete cascade,

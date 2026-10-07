@@ -11,8 +11,8 @@ export async function GET() {
     const rows = await db()`
       select r.id, r.status, r.message, r.created_at, r.user_id as req_id,
              p.id as post_id, p.origin, p.dest, p.depart_at, p.cost, p.user_id as owner_id,
-             ou.name as owner_name, ou.contact as owner_contact,
-             ru.name as req_name, ru.contact as req_contact, ru.bio as req_bio
+             ou.name as owner_name, ou.contact as owner_contact, ou.contact_type as owner_ctype,
+             ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio
       from requests r
       join posts p on p.id = r.post_id
       join users ou on ou.id = p.user_id
@@ -36,6 +36,7 @@ export async function GET() {
           other: (iAmOwner ? r.req_name : r.owner_name) || "회원",
           otherBio: iAmOwner ? r.req_bio : "",
           contact: accepted ? (iAmOwner ? r.req_contact : r.owner_contact) : null,
+          contactType: accepted ? (iAmOwner ? r.req_ctype : r.owner_ctype) : "",
         };
       }),
     });

@@ -155,6 +155,11 @@ export function PostDetail({
           <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("남은 자리") : t("인원")}</dt><dd className="num font-semibold">{post.seats}</dd></div>
           <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd className="font-semibold">{post.owner}</dd></div>
         </dl>
+        {post.originLat != null && post.originLng != null && (
+          <a data-block-id="B014" data-block-name="출발 위치 지도" href={`https://map.kakao.com/link/map/${encodeURIComponent(post.origin)},${post.originLat},${post.originLng}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl bg-bg px-4 text-[15px] font-semibold text-ink">
+            {t("출발 위치 지도에서 보기")} {Icon.arrow()}
+          </a>
+        )}
         {post.ownerBio && <p className="rounded-2xl bg-bg px-4 py-3 text-[15px] text-sub">{post.ownerBio}</p>}
         {post.note && <p className="whitespace-pre-wrap text-[16px] leading-relaxed">{post.note}</p>}
 

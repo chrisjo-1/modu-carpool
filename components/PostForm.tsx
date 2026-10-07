@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import type { User } from "@/lib/types";
+import type { Place, User } from "@/lib/types";
+import PlaceField from "./PlaceField";
 import { Card, Segment, api, btnPrimary, field, useT } from "./ui";
 
 /** datetime-local 입력의 기본값: 내일 오전 8시 */
@@ -17,8 +18,9 @@ export default function PostForm({ user, enabled, goLogin, onDone, toast }: { us
   const [role, setRole] = useState<"driver" | "rider">("driver");
   const [kind, setKind] = useState<"commute" | "trip">("commute");
   const [cost, setCost] = useState<"free" | "meter">("free");
-  const [origin, setOrigin] = useState("");
-  const [dest, setDest] = useState("");
+  const empty: Place = { name: "", lat: null, lng: null };
+  const [origin, setOrigin] = useState<Place>(empty);
+  const [dest, setDest] = useState<Place>(empty);
   const [at, setAt] = useState(defaultWhen);
   const [seats, setSeats] = useState(2);
   const [note, setNote] = useState("");
@@ -27,11 +29,11 @@ export default function PostForm({ user, enabled, goLogin, onDone, toast }: { us
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api("/api/posts", "POST", { role, kind, cost: kind === "commute" ? cost : "free", origin, dest, departAt: new Date(at).getTime(), seats, note });
+    const r = await api("/api/posts", "POST", { role, kind, cost: kind === "commute" ? cost : "free", origin: origin.name, dest: dest.name, originLat: origin.lat, originLng: origin.lng, destLat: dest.lat, destLng: dest.lng, departAt: new Date(at).getTime(), seats, note });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
-    setOrigin("");
-    setDest("");
+    setOrigin(empty);
+    setDest(empty);
     setNote("");
     toast(t("카풀을 등록했어요."));
     onDone();
@@ -60,14 +62,8 @@ export default function PostForm({ user, enabled, goLogin, onDone, toast }: { us
               <p className="text-sm text-sub">{t("종류")}</p>
               <Segment label={t("종류")} value={kind} onChange={setKind} options={[["commute", t("출퇴근")], ["trip", t("나들이·관광")]]} />
             </div>
-            <label className="block text-sm text-sub">
-              {t("출발지")}
-              <input data-block-id="F020" className={`${field} mt-1`} required minLength={2} maxLength={60} placeholder={t("예: 수원 영통역")} value={origin} onChange={(e) => setOrigin(e.target.value)} />
-            </label>
-            <label className="block text-sm text-sub">
-              {t("도착지")}
-              <input data-block-id="F021" className={`${field} mt-1`} required minLength={2} maxLength={60} placeholder={t("예: 강남역")} value={dest} onChange={(e) => setDest(e.target.value)} />
-            </label>
+            <PlaceField blockId="F020" label={t("출발지")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
+            <PlaceField blockId="F021" label={t("도착지")} placeholder={t("예: 강남역")} value={dest} onChange={setDest} toast={toast} />
             <label className="block text-sm text-sub">
               {t("출발 일시")}
               <input data-block-id="F022" className={`${field} num mt-1`} type="datetime-local" required value={at} onChange={(e) => setAt(e.target.value)} />

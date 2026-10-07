@@ -3,6 +3,14 @@ import { samplePosts } from "@/lib/sample";
 
 export const dynamic = "force-dynamic";
 
+/** 한국 주변 범위의 좌표만 받는다. 아니면 둘 다 null. */
+function coord(lat: unknown, lng: unknown): [number | null, number | null] {
+  const a = Number(lat);
+  const o = Number(lng);
+  const ok = lat != null && lng != null && Number.isFinite(a) && Number.isFinite(o) && a > 32 && a < 40 && o > 123 && o < 133;
+  return ok ? [a, o] : [null, null];
+}
+
 export async function GET(req: Request) {
   if (!hasDb()) return json({ sample: true, posts: samplePosts() });
   try {
@@ -28,6 +36,10 @@ export async function GET(req: Request) {
         cost: r.cost,
         origin: r.origin,
         dest: r.dest,
+        originLat: r.origin_lat,
+        originLng: r.origin_lng,
+        destLat: r.dest_lat,
+        destLng: r.dest_lng,
         departAt: new Date(r.depart_at as string).getTime(),
         seats: r.seats,
         note: r.note,
@@ -52,6 +64,8 @@ export async function POST(req: Request) {
   const dest = text(b.dest, 60);
   const departAt = new Date(Number(b.departAt));
   const seats = Math.round(Number(b.seats));
+  const [oLat, oLng] = coord(b.originLat, b.originLng);
+  const [dLat, dLng] = coord(b.destLat, b.destLng);
   if (origin.length < 2 || dest.length < 2) return json({ error: "출발지와 도착지를 입력해 주세요." }, 400);
   if (Number.isNaN(departAt.getTime()) || departAt.getTime() < Date.now() - 3600_000 || departAt.getTime() > Date.now() + 90 * 86400_000)
     return json({ error: "출발 일시를 확인해 주세요." }, 400);
@@ -62,8 +76,9 @@ export async function POST(req: Request) {
     const open = await sql`select count(*)::int as n from posts where user_id = ${me} and status = 'open' and depart_at > now()`;
     if ((open[0].n as number) >= 10) return json({ error: "진행 중인 글은 10개까지 올릴 수 있습니다." }, 429);
     const rows = await sql`
-      insert into posts (user_id, role, kind, cost, origin, dest, depart_at, seats, note)
-      values (${me}, ${role}, ${kind}, ${cost}, ${origin}, ${dest}, ${departAt.toISOString()}, ${seats}, ${text(b.note, 300)})
+      insert into posts (user_id, role, kind, cost, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng)
+      values (${me}, ${role}, ${kind}, ${cost}, ${origin}, ${dest}, ${departAt.toISOString()}, ${seats}, ${text(b.note, 300)},
+              ${oLat}, ${oLng}, ${dLat}, ${dLng})
       returning id`;
     return json({ id: rows[0].id });
   } catch (e) {

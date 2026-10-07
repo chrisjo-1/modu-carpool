@@ -1,11 +1,12 @@
 import bcrypt from "bcryptjs";
+import { CONTACT_TYPES } from "@/lib/types";
 import { authEnabled, body, clearCookie, currentUserId, db, ensureSchema, fail, json, needLogin, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact } : null;
+  const rows = await db()`select email, name, bio, contact, contact_type from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type } : null;
 }
 
 export async function GET() {
@@ -60,9 +61,10 @@ export async function PATCH(req: Request) {
   const b = await body(req);
   const name = text(b.name, 20);
   if (name.length < 2) return json({ error: "닉네임을 2자 이상 입력해 주세요." }, 400);
+  const contactType = CONTACT_TYPES.some(([k]) => k === b.contactType) ? String(b.contactType) : "";
   try {
     await ensureSchema();
-    await db()`update users set name = ${name}, bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)} where id = ${id}`;
+    await db()`update users set name = ${name}, bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType} where id = ${id}`;
     return json({ user: await profile(id) });
   } catch (e) {
     return fail(e);

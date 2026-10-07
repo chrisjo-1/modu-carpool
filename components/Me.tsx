@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
-import { METER_URL, type Post, type User } from "@/lib/types";
+import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
 import { Card, Icon, Segment, Tag, api, btnGhost, btnPrimary, field, useLang, useT, when } from "./ui";
 
 export default function Me({
@@ -29,6 +29,7 @@ export default function Me({
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [contact, setContact] = useState("");
+  const [contactType, setContactType] = useState("");
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
 
@@ -36,6 +37,7 @@ export default function Me({
     setName(user?.name ?? "");
     setBio(user?.bio ?? "");
     setContact(user?.contact ?? "");
+    setContactType(user?.contactType ?? "");
   }, [user]);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export default function Me({
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api<{ user: User }>("/api/auth", "PATCH", { name, bio, contact });
+    const r = await api<{ user: User }>("/api/auth", "PATCH", { name, bio, contact, contactType });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setUser(r.data.user);
@@ -88,10 +90,18 @@ export default function Me({
                 {t("자기소개")}
                 <textarea data-block-id="F041" className={`${field} mt-1`} rows={2} maxLength={200} placeholder={t("예: 판교로 출퇴근해요. 영어 조금 합니다.")} value={bio} onChange={(e) => setBio(e.target.value)} />
               </label>
-              <label className="block text-sm text-sub">
-                {t("연락 수단")}
-                <input data-block-id="F042" className={`${field} mt-1`} maxLength={60} placeholder={t("예: 카카오톡 ID, 전화번호, LINE, WeChat")} value={contact} onChange={(e) => setContact(e.target.value)} />
-              </label>
+              <div className="space-y-1">
+                <label htmlFor="F045" className="block text-sm text-sub">{t("연락 방법")}</label>
+                <div className="flex gap-2">
+                  <select id="F045" data-block-id="F045" className={`${field} w-[46%] shrink-0`} value={contactType} onChange={(e) => setContactType(e.target.value)}>
+                    <option value="">{t("선택")}</option>
+                    {CONTACT_TYPES.map(([k, label]) => (
+                      <option key={k} value={k}>{t(label)}</option>
+                    ))}
+                  </select>
+                  <input data-block-id="F042" className={field} maxLength={60} aria-label={t("연락처 입력")} placeholder={t(contactType === "phone" ? "예: 010-1234-5678" : "ID 또는 번호")} inputMode={contactType === "phone" ? "tel" : "text"} value={contact} onChange={(e) => setContact(e.target.value)} />
+                </div>
+              </div>
               <p className="text-[13px] text-sub">{t("연락 수단은 신청이 수락된 상대에게만 보입니다.")}</p>
               <button data-block-id="B040" data-block-name="프로필 저장" className={btnPrimary} disabled={busy}>{t("저장")}</button>
               <button type="button" data-block-id="B041" data-block-name="로그아웃" className={btnGhost} onClick={async () => { await api("/api/auth", "DELETE"); setUser(null); }}>{t("로그아웃")}</button>
