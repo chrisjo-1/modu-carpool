@@ -1,25 +1,25 @@
+# 모두의카풀
 
-# 🚗 모두의카풀 (Modu Carpool)
+같은 방향, 같이 가요. 출퇴근과 서울 나들이 카풀 매칭 웹앱(PWA).
 
-운전자와 탑승자를 잇는 스마트 카풀 매칭 및 데이터 수집 플랫폼입니다.
+- Next.js 15 (App Router) · Tailwind CSS · Neon(Postgres)
+- 한국어 · English · 日本語 · 中文
+- 무료 운행 원칙, 출퇴근 카풀에 한해 [모카 미터기](https://moca-meter.vercel.app)로 실비 분담
 
-## ✨ 주요 기능
-- **운전자 등록**: 자신의 차량 정보와 운행 스케줄 등록 (Gemini AI 프로필 요약 포함)
-- **탑승자 신청**: 출발/도착지 설정 및 예상 택시비 확인 기능
-- **AI 요약**: Gemini 3 Flash 모델을 활용한 신뢰감 있는 한 줄 자기소개 생성
-- **관리자 포털**: 수집된 데이터를 한눈에 확인하고 CSV로 추출 가능 (비밀번호: `0928`)
+## 환경 변수
 
-## 🛠 기술 스택
-- **Frontend**: React 19, Tailwind CSS, Lucide Icons
-- **Routing**: React Router Dom (HashRouter)
-- **AI Integration**: Google Gemini API (@google/genai)
-- **Data Store**: LocalStorage (현재 버전)
+| 이름 | 설명 |
+|---|---|
+| `DATABASE_URL` | Neon 연결 주소. 없으면 예시 글만 보이고 회원 기능이 꺼진다. |
+| `SESSION_SECRET` | 로그인 쿠키 서명용 비밀값 |
+| `ADMIN_PASSWORD` | `/admin` 비밀번호 |
+| `NEXT_PUBLIC_METER_URL` | (선택) 미터기 주소 |
 
-## 🚀 배포 가이드 (Vercel)
-1. GitHub 저장소에 코드를 업로드합니다.
-2. Vercel에서 프로젝트를 연결합니다.
-3. **Environment Variables** 설정에서 `API_KEY` 항목을 만들고 자신의 Gemini API Key를 입력합니다.
-4. 배포 완료 후 제공되는 도메인으로 접속합니다.
+테이블은 첫 요청 때 자동으로 만들어진다(`lib/server.ts`).
 
----
-© 2024 Modu Carpool.
+## 개발
+
+```
+npm install
+npm run dev
+```

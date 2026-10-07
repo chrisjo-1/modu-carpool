@@ -1,0 +1,170 @@
+"use client";
+import { useCallback, useEffect, useState } from "react";
+import { translate, type Lang } from "@/lib/i18n";
+import type { Post, Thread, User } from "@/lib/types";
+import Chat, { ChatRoom } from "./Chat";
+import Home, { PostDetail } from "./Home";
+import Me from "./Me";
+import PostForm from "./PostForm";
+import { Icon, LangContext, api } from "./ui";
+
+type Tab = "home" | "post" | "chat" | "me";
+const LANG_KEY = "modu.lang";
+
+export default function App() {
+  const [tab, setTab] = useState<Tab>("home");
+  const [lang, setLangState] = useState<Lang>("ko");
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [sample, setSample] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [open, setOpen] = useState<Post | null>(null);
+  const [room, setRoom] = useState<Thread | null>(null);
+  const [toastMsg, setToastMsg] = useState("");
+  const [version, setVersion] = useState(0);
+  const t = (ko: string) => translate(lang, ko);
+
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    try {
+      localStorage.setItem(LANG_KEY, l);
+    } catch {
+      /* 무시 */
+    }
+  };
+
+  const loadPosts = useCallback(async () => {
+    const r = await api<{ posts: Post[]; sample: boolean }>("/api/posts");
+    if (r.ok) {
+      setPosts(r.data.posts);
+      setSample(!!r.data.sample);
+    }
+    setLoaded(true);
+    return r.ok ? r.data.posts : [];
+  }, []);
+
+  const loadThreads = useCallback(async () => {
+    const r = await api<{ threads: Thread[] }>("/api/requests");
+    if (r.ok) setThreads(r.data.threads);
+  }, []);
+
+  // 첫 진입: 언어 복원, 글 목록, 로그인 상태, 공유 링크(?p=)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LANG_KEY) as Lang | null;
+      const guess = (navigator.language || "ko").slice(0, 2) as Lang;
+      const pick = saved ?? guess;
+      if (["ko", "en", "ja", "zh"].includes(pick)) setLangState(pick);
+    } catch {
+      /* 무시 */
+    }
+    loadPosts().then((list) => {
+      const id = new URLSearchParams(location.search).get("p");
+      const hit = id && list.find((p) => p.id === id);
+      if (hit) setOpen(hit);
+    });
+    api<{ enabled: boolean; user: User | null }>("/api/auth").then((r) => {
+      setEnabled(!!r.data.enabled);
+      setUser(r.data.user ?? null);
+    });
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, [loadPosts]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  // 로그인 중에는 신청 상태를 주기적으로 새로 받는다.
+  useEffect(() => {
+    if (!user) return setThreads([]);
+    loadThreads();
+    loadPosts();
+    const id = setInterval(() => document.visibilityState === "visible" && loadThreads(), 20000);
+    return () => clearInterval(id);
+  }, [user, loadThreads, loadPosts]);
+
+  useEffect(() => {
+    if (!toastMsg) return;
+    const id = setTimeout(() => setToastMsg(""), 2600);
+    return () => clearTimeout(id);
+  }, [toastMsg]);
+
+  const refresh = async () => {
+    const list = await loadPosts();
+    if (user) await loadThreads();
+    setVersion((v) => v + 1);
+    const cur = open;
+    if (!cur) return;
+    let next = list.find((p) => p.id === cur.id) ?? null;
+    if (!next && cur.mine) {
+      // 마감한 내 글은 전체 목록에 없으므로 내 글 목록에서 다시 찾는다.
+      const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
+      next = (r.ok && r.data.posts.find((p) => p.id === cur.id)) || null;
+    }
+    setOpen((now) => (now && now.id === cur.id ? next : now));
+  };
+
+  const goLogin = () => {
+    setOpen(null);
+    setTab("me");
+  };
+  const openChat = (th: Thread) => {
+    setOpen(null);
+    setRoom(th);
+  };
+
+  const pending = threads.filter((th) => th.iAmOwner && th.status === "pending").length;
+  const tabs: { id: Tab; label: string; icon: (w?: number) => React.ReactNode; block: string }[] = [
+    { id: "home", label: t("찾기"), icon: Icon.home, block: "N001" },
+    { id: "post", label: t("등록"), icon: Icon.plus, block: "N002" },
+    { id: "chat", label: t("채팅"), icon: Icon.chat, block: "N003" },
+    { id: "me", label: t("내 정보"), icon: Icon.user, block: "N004" },
+  ];
+
+  return (
+    <LangContext.Provider value={lang}>
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+        <header className="flex items-center gap-3 px-5 pb-2 pt-5">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-white">{Icon.car(1.8)}</span>
+          <div>
+            <p className="text-xl font-bold leading-tight">{t("모두의카풀")}</p>
+            <p className="text-[13px] leading-tight text-sub">{t("같은 방향, 같이 가요")}</p>
+          </div>
+        </header>
+
+        <main className="flex-1 px-4 pb-28 pt-3">
+          {tab === "home" &&
+            (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
+          {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onDone={() => { refresh(); setTab("home"); }} />}
+          {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} />}
+        </main>
+
+        <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
+          <ul className="mx-auto grid max-w-md grid-cols-4">
+            {tabs.map((x) => {
+              const on = tab === x.id;
+              return (
+                <li key={x.id}>
+                  <button data-block-id={x.block} data-block-name={x.label} aria-current={on ? "page" : undefined} onClick={() => setTab(x.id)} className={`relative flex w-full flex-col items-center gap-0.5 py-2.5 text-xs ${on ? "font-semibold text-accent" : "text-sub"}`}>
+                    {x.icon(on ? 1.9 : 1.5)}
+                    {x.label}
+                    {x.id === "chat" && pending > 0 && <span className="absolute right-[28%] top-1.5 h-2 w-2 rounded-full bg-warn" aria-label={t("새 신청")} />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} />}
+        {room && <ChatRoom thread={room} onClose={() => setRoom(null)} toast={setToastMsg} />}
+        {toastMsg && (
+          <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl bg-ink px-4 py-3 text-center text-sm text-white shadow-card">{toastMsg}</div>
+        )}
+      </div>
+    </LangContext.Provider>
+  );
+}

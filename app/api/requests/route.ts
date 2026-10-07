@@ -1,0 +1,98 @@
+import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, text } from "@/lib/server";
+
+export const dynamic = "force-dynamic";
+
+/** 내가 보낸 신청 + 내 글에 들어온 신청. 연락처는 수락된 뒤에만 내려준다. */
+export async function GET() {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  try {
+    await ensureSchema();
+    const rows = await db()`
+      select r.id, r.status, r.message, r.created_at, r.user_id as req_id,
+             p.id as post_id, p.origin, p.dest, p.depart_at, p.cost, p.user_id as owner_id,
+             ou.name as owner_name, ou.contact as owner_contact,
+             ru.name as req_name, ru.contact as req_contact, ru.bio as req_bio
+      from requests r
+      join posts p on p.id = r.post_id
+      join users ou on ou.id = p.user_id
+      join users ru on ru.id = r.user_id
+      where r.user_id = ${me} or p.user_id = ${me}
+      order by r.created_at desc limit 100`;
+    return json({
+      threads: rows.map((r) => {
+        const iAmOwner = r.owner_id === me;
+        const accepted = r.status === "accepted";
+        return {
+          id: r.id,
+          postId: r.post_id,
+          origin: r.origin,
+          dest: r.dest,
+          departAt: new Date(r.depart_at as string).getTime(),
+          cost: r.cost,
+          status: r.status,
+          message: r.message,
+          iAmOwner,
+          other: (iAmOwner ? r.req_name : r.owner_name) || "회원",
+          otherBio: iAmOwner ? r.req_bio : "",
+          contact: accepted ? (iAmOwner ? r.req_contact : r.owner_contact) : null,
+        };
+      }),
+    });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 카풀 신청 */
+export async function POST(req: Request) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const b = await body(req);
+  if (!isUuid(b.postId)) return json({ error: "잘못된 요청입니다." }, 400);
+  try {
+    await ensureSchema();
+    const sql = db();
+    const post = await sql`select user_id, status from posts where id = ${b.postId}`;
+    if (!post.length || post[0].status !== "open") return json({ error: "마감되었거나 없는 글입니다." }, 404);
+    if (post[0].user_id === me) return json({ error: "내가 올린 글에는 신청할 수 없습니다." }, 400);
+    await sql`insert into requests (post_id, user_id, message) values (${b.postId}, ${me}, ${text(b.message, 300)})
+              on conflict (post_id, user_id) do nothing`;
+    return json({ ok: true });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 글 작성자가 신청을 수락·거절 */
+export async function PATCH(req: Request) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const b = await body(req);
+  if (!isUuid(b.id) || (b.status !== "accepted" && b.status !== "declined")) return json({ error: "잘못된 요청입니다." }, 400);
+  try {
+    await ensureSchema();
+    const rows = await db()`
+      update requests r set status = ${b.status} from posts p
+      where r.id = ${b.id} and p.id = r.post_id and p.user_id = ${me} returning r.id`;
+    if (!rows.length) return json({ error: "권한이 없습니다." }, 403);
+    return json({ ok: true });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 신청자가 신청 취소 */
+export async function DELETE(req: Request) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const id = new URL(req.url).searchParams.get("id");
+  if (!isUuid(id)) return json({ error: "잘못된 요청입니다." }, 400);
+  try {
+    await ensureSchema();
+    await db()`delete from requests where id = ${id} and user_id = ${me}`;
+    return json({ ok: true });
+  } catch (e) {
+    return fail(e);
+  }
+}
