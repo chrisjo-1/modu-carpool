@@ -1,5 +1,7 @@
 export type Post = {
   id: string;
+  /** 작성자 회원 id (차단할 때 쓴다) */
+  ownerId?: string;
   owner: string;
   ownerBio: string;
   role: "driver" | "rider";
@@ -38,6 +40,7 @@ export type Thread = {
   days?: string;
   timeGo?: string;
   timeBack?: string;
+  otherId?: string;
   otherPhoto?: string;
   status: "pending" | "accepted" | "declined";
   message: string;

@@ -27,6 +27,7 @@ export default function Me({
   version,
   toast,
   onCommute,
+  onChanged,
 }: {
   user: User | null;
   enabled: boolean;
@@ -37,6 +38,8 @@ export default function Me({
   toast: (m: string) => void;
   /** 출퇴근 정보 입력 창을 연다. 가입 직후면 onboarding 이 true. */
   onCommute: (post: Post | null, onboarding: boolean) => void;
+  /** 차단을 풀어 글 목록을 다시 받아야 할 때 */
+  onChanged: () => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -51,6 +54,7 @@ export default function Me({
   // 가입할 때 "정기카풀(출퇴근)"을 고르면 가입 직후 출퇴근 정보를 받아 바로 게시한다.
   const [wantRegular, setWantRegular] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
+  const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
   const file = useRef<HTMLInputElement>(null);
   const regular = mine.find((p) => p.regular) ?? null;
 
@@ -85,6 +89,20 @@ export default function Me({
     if (!user) return setMine([]);
     api<{ posts: Post[] }>("/api/posts?mine=1").then((r) => r.ok && setMine(r.data.posts));
   }, [user, version]);
+
+  const loadBlocks = () => api<{ blocks: { id: string; name: string; photo: string }[] }>("/api/blocks").then((r) => r.ok && setBlocks(r.data.blocks));
+  useEffect(() => {
+    if (!user) return setBlocks([]);
+    loadBlocks();
+  }, [user, version]);
+
+  const unblock = async (id: string) => {
+    const r = await api(`/api/blocks?u=${id}`, "DELETE");
+    if (!r.ok) return toast(t(r.error));
+    toast(t("차단을 풀었어요."));
+    loadBlocks();
+    onChanged();
+  };
 
   const auth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,6 +244,20 @@ export default function Me({
               ))}
             </Card>
           )}
+        </div>
+      )}
+
+      {user && blocks.length > 0 && (
+        <div>
+          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("차단한 회원")}</h2>
+          <Card data-block-id="C044" data-block-name="차단한 회원" className="divide-y divide-line">
+            {blocks.map((b) => (
+              <div key={b.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <span className="flex min-w-0 items-center gap-3"><Avatar src={b.photo} name={b.name} size={36} /><span className="truncate font-semibold">{b.name}</span></span>
+                <button data-block-id="B049" data-block-name="차단 해제" className="shrink-0 text-[14px] text-accent underline" onClick={() => unblock(b.id)}>{t("차단 해제")}</button>
+              </div>
+            ))}
+          </Card>
         </div>
       )}
 

@@ -38,10 +38,12 @@ export async function GET(req: Request) {
                   where p.user_id = ${me} order by p.regular desc, p.depart_at desc limit 100`
       : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v from posts p join users u on u.id = p.user_id
                   where p.status = 'open' and not u.blocked and (p.regular or p.depart_at > now() - interval '2 hours')
+                    and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                   order by p.depart_at asc limit 300`;
     const now = Date.now();
     const posts = rows.map((r) => ({
       id: r.id,
+      ownerId: r.user_id,
       owner: r.owner || "회원",
       ownerBio: r.owner_bio,
       ownerPhoto: photoUrl(r.user_id, r.photo_v),

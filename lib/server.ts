@@ -52,6 +52,12 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists photo text not null default ''`;
       await sql`alter table users add column if not exists photo_v integer not null default 0`;
       await sql`alter table users add column if not exists blocked boolean not null default false`;
+      await sql`create table if not exists blocks (
+        blocker uuid not null references users(id) on delete cascade,
+        blocked uuid not null references users(id) on delete cascade,
+        created_at timestamptz not null default now(),
+        primary key (blocker, blocked))`;
+      await sql`create index if not exists blocks_blocked_idx on blocks (blocked)`;
       await sql`create table if not exists admin_attempts (ip text not null, at timestamptz not null default now())`;
       await sql`create index if not exists admin_attempts_at_idx on admin_attempts (at)`;
       await sql`create table if not exists requests (

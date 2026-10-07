@@ -19,7 +19,8 @@ export async function GET() {
       join posts p on p.id = r.post_id
       join users ou on ou.id = p.user_id
       join users ru on ru.id = r.user_id
-      where r.user_id = ${me} or p.user_id = ${me}
+      where (r.user_id = ${me} or p.user_id = ${me})
+        and not exists (select 1 from blocks k where (k.blocker = r.user_id and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = r.user_id))
       order by r.created_at desc limit 100`;
     return json({
       threads: rows.map((r) => {
@@ -37,6 +38,7 @@ export async function GET() {
           days: r.days,
           timeGo: r.time_go,
           timeBack: r.time_back,
+          otherId: iAmOwner ? r.req_id : r.owner_id,
           otherPhoto: iAmOwner ? photoUrl(r.req_id, r.req_pv) : photoUrl(r.owner_id, r.owner_pv),
           status: r.status,
           message: r.message,
@@ -65,6 +67,8 @@ export async function POST(req: Request) {
     const post = await sql`select user_id, status from posts where id = ${b.postId}`;
     if (!post.length || post[0].status !== "open") return json({ error: "마감되었거나 없는 글입니다." }, 404);
     if (post[0].user_id === me) return json({ error: "내가 올린 글에는 신청할 수 없습니다." }, 400);
+    const cut = await sql`select 1 from blocks where (blocker = ${me} and blocked = ${post[0].user_id}) or (blocker = ${post[0].user_id} and blocked = ${me})`;
+    if (cut.length) return json({ error: "신청할 수 없는 글입니다." }, 403);
     await sql`insert into requests (post_id, user_id, message) values (${b.postId}, ${me}, ${text(b.message, 300)})
               on conflict (post_id, user_id) do nothing`;
     return json({ ok: true });

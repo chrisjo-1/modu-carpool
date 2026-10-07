@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
-import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, money, scheduleText, useLang, useT, when } from "./ui";
+import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 type Role = "all" | "driver" | "rider";
 type Kind = "all" | "commute" | "trip";
@@ -35,17 +35,39 @@ export function Route({ origin, dest }: { origin: string; dest: string }) {
   );
 }
 
-export default function Home({ posts, sample, onOpen }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void }) {
+export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void }) {
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
   const [kind, setKind] = useState<Kind>("all");
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
+  // 가까운 순 정렬: 내 위치를 받아 두고, 다시 누르면 출발 시각 순으로 돌아간다.
+  const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  const toggleNear = () => {
+    if (here) return setHere(null);
+    if (!("geolocation" in navigator)) return toast(t("이 기기는 위치 확인을 지원하지 않아요."));
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        setHere({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      (err) => {
+        setLocating(false);
+        toast(t(err.code === err.PERMISSION_DENIED ? "위치 권한을 허용해 주세요." : "현재 위치를 찾지 못했어요."));
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    );
+  };
+  /** 내 위치에서 글의 출발지까지 거리(km). 위치가 없는 글은 null. */
+  const far = (p: Post) => (here && p.originLat != null && p.originLng != null ? distanceKm(here.lat, here.lng, p.originLat, p.originLng) : null);
 
   const list = useMemo(() => {
     const k = q.trim().toLowerCase();
-    return posts.filter(
+    const hit = posts.filter(
       (p) =>
         (role === "all" || p.role === role) &&
         (kind === "all" || p.kind === kind) &&
@@ -53,9 +75,12 @@ export default function Home({ posts, sample, onOpen }: { posts: Post[]; sample:
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
         (!k || `${p.origin} ${p.dest} ${p.note} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
     );
+    if (!here) return hit;
+    // 가까운 순: 출발 위치가 저장된 글을 거리순으로, 위치가 없는 글은 뒤에 둔다.
+    return [...hit].sort((a, b) => (far(a) ?? Infinity) - (far(b) ?? Infinity));
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, role, kind, q, regularOnly, lang]);
+  }, [posts, role, kind, q, regularOnly, lang, here]);
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-4">
@@ -71,6 +96,10 @@ export default function Home({ posts, sample, onOpen }: { posts: Post[]; sample:
         <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`rounded-full border px-4 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
           {t("정기카풀만 보기")}
         </button>
+        <button type="button" data-block-id="B003" data-block-name="가까운 순" role="switch" aria-checked={!!here} disabled={locating} onClick={toggleNear} className={`ml-2 rounded-full border px-4 text-[14px] ${here ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+          {locating ? t("위치를 찾는 중…") : t("가까운 순")}
+        </button>
+        {here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 순서입니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
       </div>
 
       {sample && <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] text-ink">{t("지금 보이는 글은 화면 확인용 예시입니다.")}</p>}
@@ -89,7 +118,7 @@ export default function Home({ posts, sample, onOpen }: { posts: Post[]; sample:
                   </div>
                   <Route origin={p.origin} dest={p.dest} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
-                    <span className="num">{scheduleText(p, lang)}</span>
+                    <span className="num">{scheduleText(p, lang)}{far(p) != null && <b className="ml-1.5 font-semibold text-accent">· {kmText(far(p) as number)}</b>}</span>
                     <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} size={24} />{p.owner} · {p.role === "driver" ? t("남은 자리") : t("인원")} {p.seats}</span>
                   </div>
                 </Card>
@@ -159,6 +188,13 @@ export function PostDetail({
 
   const statusText = { pending: t("수락 대기 중"), accepted: t("수락됨"), declined: t("거절됨") };
 
+  /** 회원 차단. close 가 true 면 상세 창도 닫는다(글 작성자를 차단한 경우). */
+  const block = async (userId: string, close: boolean) => {
+    if (!window.confirm(t("이 회원을 차단할까요? 서로의 글과 신청, 대화가 보이지 않게 됩니다."))) return;
+    await run("/api/blocks", "POST", { userId }, "차단했어요.");
+    if (close) onClose();
+  };
+
   return (
     <Sheet title={t("카풀 상세")} blockId="S010" onClose={onClose}>
       <div className="space-y-4">
@@ -200,7 +236,10 @@ export function PostDetail({
               <div key={th.id} className="space-y-2 rounded-2xl border border-line p-4">
                 <div className="flex items-center justify-between">
                   <p className="flex items-center gap-2 font-semibold"><Avatar src={th.otherPhoto} name={th.other} size={28} />{th.other}</p>
-                  <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>
+                  <span className="flex items-center gap-2">
+                    {th.otherId && <button className="min-h-0 text-[13px] text-sub underline" disabled={busy} onClick={() => block(th.otherId as string, false)}>{t("차단")}</button>}
+                    <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>
+                  </span>
                 </div>
                 {th.otherBio && <p className="text-[14px] text-sub">{th.otherBio}</p>}
                 {th.message && <p className="whitespace-pre-wrap text-[15px]">{th.message}</p>}
@@ -268,6 +307,9 @@ export function PostDetail({
         )}
 
         <button data-block-id="B013" data-block-name="공유" className="w-full text-[15px] text-sub underline" onClick={share}>{t("이 카풀 공유하기")}</button>
+        {user && !sample && !post.mine && post.ownerId && (
+          <button data-block-id="B016" data-block-name="회원 차단" disabled={busy} className="w-full text-[14px] text-sub underline" onClick={() => block(post.ownerId as string, true)}>{t("이 회원 차단")}</button>
+        )}
       </div>
     </Sheet>
   );

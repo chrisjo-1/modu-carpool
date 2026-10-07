@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 async function canChat(requestId: string, me: string) {
   const rows = await db()`
     select 1 from requests r join posts p on p.id = r.post_id
-    where r.id = ${requestId} and r.status = 'accepted' and (r.user_id = ${me} or p.user_id = ${me})`;
+    where r.id = ${requestId} and r.status = 'accepted' and (r.user_id = ${me} or p.user_id = ${me})
+      and not exists (select 1 from blocks k where (k.blocker = r.user_id and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = r.user_id))`;
   return rows.length > 0;
 }
 

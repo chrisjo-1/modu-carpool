@@ -42,7 +42,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat }: { us
   );
 }
 
-export function ChatRoom({ thread, onClose, toast }: { thread: Thread; onClose: () => void; toast: (m: string) => void }) {
+export function ChatRoom({ thread, onClose, toast, onChanged }: { thread: Thread; onClose: () => void; toast: (m: string) => void; onChanged: () => void }) {
   const t = useT();
   const lang = useLang();
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -69,6 +69,15 @@ export function ChatRoom({ thread, onClose, toast }: { thread: Thread; onClose: 
     if (msgs.length !== count.current) end.current?.scrollIntoView({ block: "end" });
     count.current = msgs.length;
   }, [msgs]);
+
+  const block = async () => {
+    if (!thread.otherId || !window.confirm(t("이 회원을 차단할까요? 서로의 글과 신청, 대화가 보이지 않게 됩니다."))) return;
+    const r = await api("/api/blocks", "POST", { userId: thread.otherId });
+    if (!r.ok) return toast(t(r.error));
+    toast(t("차단했어요."));
+    onChanged();
+    onClose();
+  };
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +110,7 @@ export function ChatRoom({ thread, onClose, toast }: { thread: Thread; onClose: 
           ))}
           <div ref={end} />
         </div>
+        {thread.otherId && <button data-block-id="B031" data-block-name="회원 차단" className="w-full text-[13px] text-sub underline" onClick={block}>{t("이 회원 차단")}</button>}
         <form onSubmit={send} className="sticky bottom-0 flex gap-2 bg-surface pt-2">
           <input data-block-id="F030" className={field} maxLength={500} placeholder={t("메시지 입력")} aria-label={t("메시지 입력")} value={text} onChange={(e) => setText(e.target.value)} />
           <button data-block-id="B030" data-block-name="전송" disabled={busy || !text.trim()} className="shrink-0 rounded-xl bg-accent px-5 font-semibold text-white disabled:opacity-40">{t("전송")}</button>
