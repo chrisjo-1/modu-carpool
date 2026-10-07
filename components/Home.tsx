@@ -114,7 +114,7 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
                 <Card className="space-y-3 p-5">
                   <div className="flex items-center justify-between gap-2">
                     <PostTags post={p} />
-                    {p.mine && <Tag>{t("내 글")}</Tag>}
+                    <span className="flex shrink-0 gap-1.5">{p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
                   </div>
                   <Route origin={p.origin} dest={p.dest} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
@@ -252,9 +252,25 @@ export function PostDetail({
             ))}
             <button data-block-id="B015" data-block-name="글 수정" className={`${btnPrimary} py-3 text-[15px]`} onClick={() => (post.regular ? onEditCommute(post) : onEdit(post))}>{post.regular ? t("출퇴근 정보 수정") : t("글 수정")}</button>
             <div className="flex gap-2 pt-1">
-              <button disabled={busy} className={`${btnGhost} py-3 text-[15px]`} onClick={() => run("/api/posts", "PATCH", { id: post.id, status: post.status === "open" ? "closed" : "open" }, post.status === "open" ? (post.role === "rider" ? "종료했어요." : "마감했어요.") : "다시 열었어요.")}>
-                {post.status === "open" ? (post.role === "rider" ? t("진행 중") : t("모집 마감")) : t("다시 열기")}
-              </button>
+              {post.role === "rider" ? (
+                <button
+                  data-block-id="B018"
+                  data-block-name="진행 중 / 다시 게시"
+                  disabled={busy}
+                  className={`${btnGhost} py-3 text-[15px]`}
+                  onClick={() => {
+                    if (post.status !== "open") return run("/api/posts", "PATCH", { id: post.id, status: "open" }, "다시 게시했어요. 운전자를 다시 모집합니다.");
+                    if (!window.confirm(t("다른 운전자의 카풀 신청이 중지됩니다.\n카풀이 불발된 경우 '다시 게시' 버튼을 눌러 운전자를 다시 모집할 수 있습니다."))) return;
+                    run("/api/posts", "PATCH", { id: post.id, status: "progress" }, "카풀 진행 중으로 표시했어요.");
+                  }}
+                >
+                  {post.status === "open" ? t("진행 중") : t("다시 게시")}
+                </button>
+              ) : (
+                <button disabled={busy} className={`${btnGhost} py-3 text-[15px]`} onClick={() => run("/api/posts", "PATCH", { id: post.id, status: post.status === "open" ? "closed" : "open" }, post.status === "open" ? "마감했어요." : "다시 열었어요.")}>
+                  {post.status === "open" ? t("모집 마감") : t("다시 열기")}
+                </button>
+              )}
               <button
                 disabled={busy}
                 className={`${btnGhost} py-3 text-[15px] text-warn`}
@@ -280,6 +296,9 @@ export function PostDetail({
             )}
           </div>
         ) : (
+          post.status === "progress" ? (
+            <p data-block-id="C011" data-block-name="카풀 진행 중 안내" className="rounded-2xl bg-accentSoft px-4 py-4 text-center text-[15px] font-semibold text-accent">{t("카풀 진행 중인 글이에요. 지금은 신청을 받지 않습니다.")}</p>
+          ) : (
           <div className="space-y-2">
             {user && !sample && (
               <label className="block text-sm text-sub">
@@ -302,6 +321,7 @@ export function PostDetail({
             </button>
             <p className="text-center text-[13px] text-sub">{t("연락처는 상대가 수락한 뒤에만 서로 공개됩니다.")}</p>
           </div>
+          )
         )}
 
         <button data-block-id="B013" data-block-name="공유" className="w-full text-[15px] text-sub underline" onClick={share}>{t("이 카풀 공유하기")}</button>

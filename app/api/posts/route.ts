@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v from posts p join users u on u.id = p.user_id
                   where p.user_id = ${me} order by p.regular desc, p.depart_at desc limit 100`
       : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v from posts p join users u on u.id = p.user_id
-                  where p.status = 'open' and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '2 hours')
+                  where p.status in ('open', 'progress') and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '2 hours')
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                   order by p.depart_at asc limit 300`;
     const now = Date.now();
@@ -183,8 +183,9 @@ export async function PATCH(req: Request) {
       if (!rows.length) return json({ error: "권한이 없습니다." }, 403);
       return json({ ok: true });
     }
-    const status = b.status === "open" ? "open" : "closed";
-    await sql`update posts set status = ${status} where id = ${b.id} and user_id = ${me}`;
+    // 'progress'(카풀 진행 중)는 탑승자 글에만 쓴다: 목록에는 남지만 새 신청은 받지 않는다.
+    const status = b.status === "open" ? "open" : b.status === "progress" ? "progress" : "closed";
+    await sql`update posts set status = case when ${status} = 'progress' and role <> 'rider' then 'closed' else ${status} end where id = ${b.id} and user_id = ${me}`;
     return json({ ok: true });
   } catch (e) {
     return fail(e);

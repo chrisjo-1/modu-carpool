@@ -154,7 +154,7 @@ export default function Admin() {
                     <td className="px-2 py-2">{p.origin} → {p.dest}{p.note && <span className="block max-w-[260px] truncate text-xs text-sub">{p.note}</span>}</td>
                     <td className="num px-2 py-2">{p.regular ? `정기 ${p.days} ${p.time_go}` : day(p.depart_at)}</td>
                     <td className="px-2 py-2">{p.role === "driver" ? "운전자" : "탑승자"} · {p.cost === "fixed" ? `${p.price.toLocaleString()}원` : p.cost === "meter" ? "비용 나눔" : "무료"}</td>
-                    <td className="px-2 py-2">{p.status === "open" ? "모집 중" : "마감"}</td>
+                    <td className="px-2 py-2">{p.status === "open" ? "모집 중" : p.status === "progress" ? "카풀 진행 중" : "마감"}</td>
                     <td className="px-2 py-2">{p.name} <span className="text-sub">{p.email}</span>{p.blocked && <span className="ml-1 text-warn">차단됨</span>}</td>
                     <td className="whitespace-nowrap px-2 py-2">
                       <button data-block-id="B091" data-block-name="글 수정" className="mr-3 min-h-0 text-accent underline" onClick={() => setEdit({ ...p })}>수정</button>
@@ -272,6 +272,7 @@ export default function Admin() {
               상태
               <select className={`${input} mt-1`} value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>
                 <option value="open">모집 중</option>
+                {edit.status === "progress" && <option value="progress">카풀 진행 중</option>}
                 <option value="closed">마감</option>
               </select>
             </label>

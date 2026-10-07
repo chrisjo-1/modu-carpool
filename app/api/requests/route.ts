@@ -69,6 +69,7 @@ export async function POST(req: Request) {
     await ensureSchema();
     const sql = db();
     const post = await sql`select user_id, status from posts where id = ${b.postId}`;
+    if (post.length && post[0].status === "progress") return json({ error: "이미 카풀이 진행 중인 글이라 신청할 수 없습니다." }, 409);
     if (!post.length || post[0].status !== "open") return json({ error: "마감되었거나 없는 글입니다." }, 404);
     if (post[0].user_id === me) return json({ error: "내가 올린 글에는 신청할 수 없습니다." }, 400);
     const cut = await sql`select 1 from blocks where (blocker = ${me} and blocked = ${post[0].user_id}) or (blocker = ${post[0].user_id} and blocked = ${me})`;

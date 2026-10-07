@@ -130,7 +130,7 @@ export async function PATCH(req: Request) {
       const origin = text(b.origin, 60);
       const dest = text(b.dest, 60);
       if (origin.length < 2 || dest.length < 2) return json({ error: "출발지와 도착지를 입력해 주세요." }, 400);
-      const status = b.status === "closed" ? "closed" : "open";
+      const status = b.status === "closed" ? "closed" : b.status === "progress" ? "progress" : "open";
       await sql`update posts set origin = ${origin}, dest = ${dest}, note = ${text(b.note, 300)}, status = ${status} where id = ${b.postId}`;
       return json({ ok: true });
     }

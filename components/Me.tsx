@@ -250,7 +250,7 @@ export default function Me({
                     <p className="truncate font-semibold">{p.origin} → {p.dest}</p>
                     <p className="num text-[13px] text-sub">{p.regular ? `${t("정기카풀")} · ` : ""}{scheduleText(p, lang)}</p>
                   </div>
-                  <Tag tone={p.status === "open" ? "accent" : "plain"}>{p.status === "open" ? (p.role === "rider" ? t("진행 중") : t("모집 중")) : p.role === "rider" ? t("종료") : t("마감")}</Tag>
+                  <Tag tone={p.status === "closed" ? "plain" : "accent"}>{p.status === "open" ? t("모집 중") : p.status === "progress" ? t("카풀 진행 중") : t("마감")}</Tag>
                 </button>
                 <div className="flex gap-4 px-5 pb-3 text-[14px]">
                   <button data-block-id="B051" data-block-name="글 수정" className="min-h-0 py-1 font-semibold text-accent underline" onClick={() => onEdit(p)}>{t("수정")}</button>

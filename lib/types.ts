@@ -24,7 +24,7 @@ export type Post = {
   departAt: number;
   seats: number;
   note: string;
-  status: "open" | "closed";
+  status: "open" | "progress" | "closed";
   mine: boolean;
 };
 
