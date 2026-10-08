@@ -55,6 +55,15 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists blocked boolean not null default false`;
       await sql`alter table users add column if not exists test boolean not null default false`;
       await sql`alter table users add column if not exists notify boolean not null default true`;
+      await sql`alter table users add column if not exists pw_at timestamptz`;
+      await sql`create table if not exists password_resets (
+        token_hash text primary key,
+        user_id uuid not null references users(id) on delete cascade,
+        ip text not null default '',
+        expires_at timestamptz not null,
+        used boolean not null default false,
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists password_resets_user_idx on password_resets (user_id, created_at)`;
       await sql`create table if not exists blocks (
         blocker uuid not null references users(id) on delete cascade,
         blocked uuid not null references users(id) on delete cascade,
@@ -150,8 +159,11 @@ export async function currentUserId(): Promise<string | null> {
   if (!id) return null;
   try {
     await ensureSchema();
-    const rows = await db()`select blocked from users where id = ${id}`;
-    return rows.length && !rows[0].blocked ? id : null;
+    const rows = await db()`select blocked, extract(epoch from pw_at)::bigint as pw_at from users where id = ${id}`;
+    if (!rows.length || rows[0].blocked) return null;
+    // 비밀번호를 바꾼 뒤에는 그 전에 만들어진 로그인(다른 기기 포함)을 모두 끊는다.
+    if (rows[0].pw_at != null && typeof p?.iat === "number" && p.iat < Number(rows[0].pw_at)) return null;
+    return id;
   } catch (e) {
     console.error("[auth]", e);
     return null;

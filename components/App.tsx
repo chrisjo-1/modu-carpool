@@ -7,6 +7,7 @@ import CommuteSheet from "./Commute";
 import Home, { PostDetail } from "./Home";
 import Me from "./Me";
 import { MemberSheet, ReasonSheet } from "./Member";
+import ResetSheet from "./Reset";
 import PostForm from "./PostForm";
 import { Icon, LangContext, Sheet, api } from "./ui";
 
@@ -29,6 +30,7 @@ export default function App() {
   const [why, setWhy] = useState<{ mode: "report" | "block"; userId: string; name: string; requestId?: string } | null>(null);
   const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean } | null>(null);
   const [toastMsg, setToastMsg] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [version, setVersion] = useState(0);
   const t = (ko: string) => translate(lang, ko);
 
@@ -67,6 +69,8 @@ export default function App() {
       /* 무시 */
     }
     loadPosts().then((list) => {
+      const reset = new URLSearchParams(location.search).get("reset");
+      if (reset) setResetToken(reset);
       const id = new URLSearchParams(location.search).get("p");
       const hit = id && list.find((p) => p.id === id);
       if (hit) setOpen(hit);
@@ -206,6 +210,23 @@ export default function App() {
         {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
+        {resetToken && (
+          <ResetSheet
+            token={resetToken}
+            onClose={() => {
+              setResetToken("");
+              history.replaceState(null, "", location.pathname);
+            }}
+            onDone={(u) => {
+              setUser(u);
+              setResetToken("");
+              history.replaceState(null, "", location.pathname);
+              setTab("me");
+              setToastMsg(t("새 비밀번호로 바꾸고 로그인했어요."));
+            }}
+            toast={setToastMsg}
+          />
+        )}
         {why && <ReasonSheet mode={why.mode} name={why.name} onClose={() => setWhy(null)} onSubmit={submitWhy} />}
         {toastMsg && (
           <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-medium text-ink shadow-card">{toastMsg}</div>

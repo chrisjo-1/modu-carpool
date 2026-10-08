@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
+import { createHash, randomBytes } from "node:crypto";
+import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
-import { authEnabled, body, clearCookie, currentUserId, db, ensureSchema, fail, json, needLogin, photoUrl, setUserSession, text } from "@/lib/server";
+import { authEnabled, body, clearCookie, clientIp, currentUserId, db, ensureSchema, fail, json, needLogin, photoUrl, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +26,10 @@ export async function GET() {
 export async function POST(req: Request) {
   if (!authEnabled()) return json({ error: "로그인 기능이 아직 준비 중입니다." }, 503);
   const b = await body(req);
+  if (b.action === "reset") return resetPassword(b);
   const email = text(b.email, 120).toLowerCase();
   const password = typeof b.password === "string" ? b.password : "";
+  if (b.action === "forgot") return forgot(req, email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "이메일 형식을 확인해 주세요." }, 400);
   if (password.length < 8 || password.length > 72) return json({ error: "비밀번호는 8자 이상이어야 합니다." }, 400);
   try {
@@ -50,6 +54,61 @@ export async function POST(req: Request) {
       return json({ user: await profile(String(rows[0].id)) });
     }
     return json({ error: "잘못된 요청입니다." }, 400);
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
+const FORGOT_OK = "가입된 이메일이라면 비밀번호 재설정 메일을 보냈어요. 메일함을 확인해 주세요.";
+
+/** 비밀번호 찾기: 가입 여부와 관계없이 같은 답을 주고, 가입된 메일이면 재설정 링크를 보낸다. */
+async function forgot(req: Request, email: string) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "이메일 형식을 확인해 주세요." }, 400);
+  const ip = clientIp(req);
+  try {
+    await ensureSchema();
+    const sql = db();
+    const n = await sql`select count(*)::int as n from password_resets where ip = ${ip} and created_at > now() - interval '1 hour'`;
+    if ((n[0].n as number) >= 10) return json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, 429);
+    const u = await sql`select id from users where email = ${email} and not test and not blocked`;
+    if (u.length) {
+      const recent = await sql`select count(*)::int as n from password_resets where user_id = ${u[0].id} and created_at > now() - interval '1 hour'`;
+      if ((recent[0].n as number) < 3) {
+        const token = randomBytes(32).toString("hex");
+        await sql`insert into password_resets (token_hash, user_id, ip, expires_at) values (${hashToken(token)}, ${u[0].id}, ${ip}, now() + interval '30 minutes')`;
+        await sendResetMail(email, `${siteUrl()}/?reset=${token}`);
+      }
+    } else {
+      // 가입 여부가 응답 시간으로 드러나지 않게 조금 기다린다.
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    await sql`delete from password_resets where created_at < now() - interval '1 day'`;
+    return json({ ok: true, message: FORGOT_OK });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 메일 링크의 토큰으로 새 비밀번호를 정한다. 성공하면 다른 기기의 로그인은 끊기고 이 기기는 로그인된다. */
+async function resetPassword(b: Record<string, unknown>) {
+  const token = typeof b.token === "string" && /^[a-f0-9]{64}$/.test(b.token) ? b.token : "";
+  const password = typeof b.password === "string" ? b.password : "";
+  if (!token) return json({ error: "링크가 올바르지 않습니다. 비밀번호 찾기를 다시 해 주세요." }, 400);
+  if (password.length < 8 || password.length > 72) return json({ error: "비밀번호는 8자 이상이어야 합니다." }, 400);
+  try {
+    await ensureSchema();
+    const sql = db();
+    const used = await sql`update password_resets set used = true
+      where token_hash = ${hashToken(token)} and not used and expires_at > now() returning user_id`;
+    if (!used.length) return json({ error: "링크가 만료되었거나 이미 사용되었습니다. 비밀번호 찾기를 다시 해 주세요." }, 400);
+    const id = String(used[0].user_id);
+    const hash = await bcrypt.hash(password, 10);
+    const rows = await sql`update users set pw = ${hash}, pw_at = date_trunc('second', now()) - interval '2 seconds' where id = ${id} and not blocked returning id`;
+    if (!rows.length) return json({ error: "이용이 정지된 계정입니다." }, 403);
+    await sql`update password_resets set used = true where user_id = ${id}`;
+    await setUserSession(id);
+    return json({ user: await profile(id) });
   } catch (e) {
     return fail(e);
   }

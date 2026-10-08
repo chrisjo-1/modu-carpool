@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
-import { Avatar, Card, Icon, Segment, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
+import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 
 /** 고른 사진을 가운데 정사각형으로 잘라 240px JPEG로 줄인다. */
 async function shrink(file: File): Promise<string> {
@@ -48,6 +48,8 @@ export default function Me({
   const t = useT();
   const lang = useLang();
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [forgot, setForgot] = useState(false);
+  const [sentMsg, setSentMsg] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -217,7 +219,33 @@ export default function Me({
                 </div>
               )}
               <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
+              {mode === "login" && (
+                <button type="button" data-block-id="B053" data-block-name="비밀번호 찾기" className="w-full min-h-0 py-2 text-[14px] text-sub underline" onClick={() => { setForgot(true); setSentMsg(""); }}>{t("비밀번호를 잊으셨나요?")}</button>
+              )}
             </form>
+          )}
+          {forgot && (
+            <Sheet title={t("비밀번호 찾기")} blockId="S082" onClose={() => setForgot(false)}>
+              <form
+                className="space-y-4"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setBusy(true);
+                  const r = await api<{ message: string }>("/api/auth", "POST", { action: "forgot", email });
+                  setBusy(false);
+                  if (!r.ok) return toast(t(r.error));
+                  setSentMsg(t(r.data.message));
+                }}
+              >
+                <p className="text-[15px] leading-relaxed text-sub">{t("가입한 이메일을 입력하면 비밀번호를 다시 정할 수 있는 링크를 보내 드려요. 링크는 30분 동안 쓸 수 있어요.")}</p>
+                <label className="block text-sm text-sub">
+                  {t("이메일")}
+                  <input data-block-id="F046" className={`${field} mt-1`} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                </label>
+                {sentMsg && <p role="status" data-block-id="C046" className="rounded-xl bg-accentSoft px-4 py-3 text-[15px] text-accent">{sentMsg}</p>}
+                <button data-block-id="B054" data-block-name="재설정 메일 보내기" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : sentMsg ? t("다시 보내기") : t("재설정 메일 보내기")}</button>
+              </form>
+            </Sheet>
           )}
         </Card>
       </div>
