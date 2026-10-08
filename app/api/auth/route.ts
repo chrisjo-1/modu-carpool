@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
+import { matchNewUser } from "@/lib/legacy";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
 import { authEnabled, body, clearCookie, clientIp, currentUserId, db, ensureSchema, fail, json, needLogin, photoUrl, setUserSession, text } from "@/lib/server";
@@ -42,6 +43,8 @@ export async function POST(req: Request) {
       if (exists.length) return json({ error: "이미 가입된 이메일입니다." }, 409);
       const hash = await bcrypt.hash(password, 10);
       const rows = await sql`insert into users (email, pw, name) values (${email}, ${hash}, ${name}) returning id`;
+      // 구 워프 회원이면 대조 상태를 바로 '가입됨'으로 바꾼다(실패해도 가입은 진행).
+      await matchNewUser(String(rows[0].id), email).catch((e) => console.error("[legacy]", e));
       await setUserSession(String(rows[0].id));
       return json({ user: await profile(String(rows[0].id)) });
     }

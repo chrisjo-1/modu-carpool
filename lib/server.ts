@@ -56,6 +56,28 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists test boolean not null default false`;
       await sql`alter table users add column if not exists notify boolean not null default true`;
       await sql`alter table users add column if not exists pw_at timestamptz`;
+      // 구 워프(이전 서비스) 회원. 탈퇴 회원은 개인정보 없이 대조용 해시만 둔다.
+      await sql`create table if not exists legacy_members (
+        warp_id text primary key,
+        src_no text not null default '',
+        name text, gender text, nickname text, kind text, joined_on text, status text,
+        phone text, phone_norm text, email text, email_norm text, naver_id text, kakao_id text,
+        records integer not null default 1,
+        withdrawn boolean not null default false,
+        email_h text, phone_h text,
+        match_status text not null default '비교대기',
+        matched_user uuid references users(id) on delete set null,
+        matched_by text,
+        marketing text not null default '미확인',
+        promo text not null default '동의확인필요',
+        memo text not null default '',
+        imported_at timestamptz not null default now())`;
+      await sql`create index if not exists legacy_email_idx on legacy_members (email_norm)`;
+      await sql`create index if not exists legacy_phone_idx on legacy_members (phone_norm)`;
+      await sql`create index if not exists legacy_email_h_idx on legacy_members (email_h)`;
+      await sql`create index if not exists legacy_match_idx on legacy_members (match_status)`;
+      await sql`create table if not exists legacy_access (
+        id bigserial primary key, warp_id text not null, ip text not null default '', at timestamptz not null default now())`;
       await sql`create table if not exists password_resets (
         token_hash text primary key,
         user_id uuid not null references users(id) on delete cascade,
