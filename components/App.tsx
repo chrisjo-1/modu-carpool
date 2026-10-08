@@ -142,7 +142,8 @@ export default function App() {
     setRoom(th);
   };
 
-  const pending = threads.filter((th) => th.iAmOwner && th.status === "pending").length;
+  // 채팅 아이콘 뱃지: 안 읽은 메시지 + 아직 답하지 않은 받은 신청
+  const pending = threads.reduce((n, th) => n + (th.unread ?? 0) + (th.iAmOwner && th.status === "pending" ? 1 : 0), 0);
   const tabs: { id: Tab; label: string; icon: (w?: number) => React.ReactNode; block: string }[] = [
     { id: "home", label: t("찾기"), icon: Icon.home, block: "N001" },
     { id: "post", label: t("등록"), icon: Icon.plus, block: "N002" },
@@ -182,9 +183,13 @@ export default function App() {
               return (
                 <li key={x.id}>
                   <button data-block-id={x.block} data-block-name={x.label} aria-current={on ? "page" : undefined} onClick={() => setTab(x.id)} className={`relative flex w-full flex-col items-center gap-0.5 py-2.5 text-xs ${on ? "font-semibold text-accent" : "text-sub"}`}>
-                    {x.icon(on ? 1.9 : 1.5)}
+                    <span className="relative">
+                      {x.icon(on ? 1.9 : 1.5)}
+                      {x.id === "chat" && pending > 0 && (
+                        <span data-block-id="C035" data-block-name="채팅 뱃지" aria-label={`${t("새 알림")} ${pending}`} className="num absolute -right-3 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-warn px-1 text-[11px] font-bold leading-none text-white">{pending > 99 ? "99+" : pending}</span>
+                      )}
+                    </span>
                     {x.label}
-                    {x.id === "chat" && pending > 0 && <span className="absolute right-[28%] top-1.5 h-2 w-2 rounded-full bg-warn" aria-label={t("새 신청")} />}
                   </button>
                 </li>
               );
@@ -199,7 +204,7 @@ export default function App() {
           </Sheet>
         )}
         {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); setTab("home"); }} />}
-        {room && <ChatRoom thread={room} onClose={() => setRoom(null)} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
+        {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {why && <ReasonSheet mode={why.mode} name={why.name} onClose={() => setWhy(null)} onSubmit={submitWhy} />}
         {toastMsg && (

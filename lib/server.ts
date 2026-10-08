@@ -90,6 +90,12 @@ export function ensureSchema(): Promise<void> {
         body text not null,
         created_at timestamptz not null default now())`;
       await sql`create index if not exists messages_req_idx on messages (request_id, id)`;
+      await sql`alter table messages add column if not exists image text not null default ''`;
+      await sql`create table if not exists chat_reads (
+        request_id uuid not null references requests(id) on delete cascade,
+        user_id uuid not null references users(id) on delete cascade,
+        last_id bigint not null default 0,
+        primary key (request_id, user_id))`;
       await sql`create table if not exists reviews (
         request_id uuid not null references requests(id) on delete cascade,
         rater uuid not null references users(id) on delete cascade,

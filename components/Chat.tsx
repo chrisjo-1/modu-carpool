@@ -4,7 +4,34 @@ import { METER_URL, contactLabel, type Thread, type User } from "@/lib/types";
 import { Stars } from "./Member";
 import { Avatar, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
-type Msg = { id: number; mine: boolean; body: string; at: number };
+type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
+
+/** 채팅 사진: 긴 변 1280px JPEG로 줄인다. */
+async function shrinkPhoto(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  let q = 0.82;
+  let out = canvas.toDataURL("image/jpeg", q);
+  while (out.length > 800_000 && q > 0.4) out = canvas.toDataURL("image/jpeg", (q -= 0.12));
+  return out;
+}
+
+/** 목록에 보일 마지막 메시지 시각: 오늘이면 시:분, 아니면 월/일 */
+function shortTime(ms: number, lang: string) {
+  const d = new Date(ms);
+  const today = new Date().toDateString() === d.toDateString();
+  return d.toLocaleString(lang === "ko" ? "ko-KR" : lang, today ? { hour: "2-digit", minute: "2-digit", hour12: false } : { month: "numeric", day: "numeric" });
+}
 
 export default function Chat({ user, enabled, threads, goLogin, openChat }: { user: User | null; enabled: boolean; threads: Thread[]; goLogin: () => void; openChat: (th: Thread) => void }) {
   const t = useT();
@@ -30,11 +57,24 @@ export default function Chat({ user, enabled, threads, goLogin, openChat }: { us
             <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status !== "accepted"} onClick={() => openChat(th)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
               <Avatar src={th.otherPhoto} name={th.other} size={44} />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{th.other} <span className="font-normal text-sub">· {th.iAmOwner ? t("받은 신청") : t("보낸 신청")}</span></p>
-                <p className="truncate text-[14px] text-sub">{th.origin} → {th.dest}</p>
-                <p className="num text-[13px] text-sub">{scheduleText(th, lang)}</p>
+                <p className="flex items-baseline justify-between gap-2">
+                  <span className="truncate font-semibold">{th.other} <span className="font-normal text-sub">· {th.origin} → {th.dest}</span></span>
+                  {th.last && <span className="num shrink-0 text-[12px] text-sub">{shortTime(th.last.at, lang)}</span>}
+                </p>
+                {th.last ? (
+                  <p data-block-id="C032" data-block-name="마지막 메시지" className={`truncate text-[14px] ${th.unread ? "font-semibold text-ink" : "text-sub"}`}>
+                    {th.last.mine && <span className="text-sub">{t("나")}: </span>}
+                    {th.last.image ? `[${t("사진")}]` : th.last.text}
+                  </p>
+                ) : (
+                  <p className="num truncate text-[13px] text-sub">{scheduleText(th, lang)} · {th.iAmOwner ? t("받은 신청") : t("보낸 신청")}</p>
+                )}
               </div>
-              <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>
+              {th.unread ? (
+                <span data-block-id="C033" data-block-name="안 읽은 메시지 수" aria-label={`${t("안 읽은 메시지")} ${th.unread}`} className="num grid h-6 min-w-6 shrink-0 place-items-center rounded-full bg-warn px-1.5 text-[12px] font-bold text-white">{th.unread > 99 ? "99+" : th.unread}</span>
+              ) : (
+                <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>
+              )}
             </button>
           ))}
         </Card>
@@ -67,6 +107,7 @@ export function ChatRoom({
   const [busy, setBusy] = useState(false);
   const [stars, setStars] = useState(thread.myStars ?? 0);
   const end = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const count = useRef(0);
 
   useEffect(() => {
@@ -98,6 +139,23 @@ export function ChatRoom({
     }
     toast(t("별점을 남겼어요."));
     onChanged();
+  };
+
+  const sendPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return toast(t("사진 파일만 보낼 수 있어요."));
+    setBusy(true);
+    try {
+      const image = await shrinkPhoto(file);
+      const r = await api<{ id: number }>("/api/messages", "POST", { requestId: thread.id, body: "", image });
+      if (!r.ok) return toast(t(r.error));
+      setMsgs((m) => [...m, { id: r.data.id, mine: true, body: "", image, at: Date.now() }]);
+    } catch {
+      toast(t("사진을 불러오지 못했어요."));
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
   const send = async (e: React.FormEvent) => {
@@ -138,7 +196,14 @@ export function ChatRoom({
           {msgs.length === 0 && <p className="py-8 text-center text-[15px] text-sub">{t("첫 인사를 건네 보세요.")}</p>}
           {msgs.map((m) => (
             <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
-              <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[15px] ${m.mine ? "bg-accent text-white" : "bg-bg text-ink"}`}>{m.body}</p>
+              {m.image ? (
+                <a href={m.image} target="_blank" rel="noopener noreferrer" className="block max-w-[70%] overflow-hidden rounded-2xl border border-line bg-bg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img data-block-id="C034" src={m.image} alt={t("보낸 사진")} loading="lazy" className="block max-h-72 w-auto object-cover" />
+                </a>
+              ) : (
+                <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[15px] ${m.mine ? "bg-accent text-white" : "bg-bg text-ink"}`}>{m.body}</p>
+              )}
             </div>
           ))}
           <div ref={end} />
@@ -150,6 +215,8 @@ export function ChatRoom({
           </div>
         )}
         <form onSubmit={send} className="sticky bottom-0 flex gap-2 bg-surface pt-2">
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => sendPhoto(e.target.files?.[0])} />
+          <button type="button" data-block-id="B034" data-block-name="사진 보내기" aria-label={t("사진 보내기")} disabled={busy} className="grid shrink-0 place-items-center rounded-xl border border-line px-3 text-sub disabled:opacity-40" onClick={() => fileRef.current?.click()}>{Icon.image(1.6)}</button>
           <input data-block-id="F030" className={field} maxLength={500} placeholder={t("메시지 입력")} aria-label={t("메시지 입력")} value={text} onChange={(e) => setText(e.target.value)} />
           <button data-block-id="B030" data-block-name="전송" disabled={busy || !text.trim()} className="shrink-0 rounded-xl bg-accent px-5 font-semibold text-white disabled:opacity-40">{t("전송")}</button>
         </form>

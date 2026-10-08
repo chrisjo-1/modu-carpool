@@ -52,6 +52,9 @@ export type Thread = {
   /** 별점을 남길 수 있는지(수락됐고 출발 시각이 지났거나 정기카풀)와 내가 준 별점(없으면 0) */
   canRate?: boolean;
   myStars?: number;
+  /** 마지막 메시지와 안 읽은 메시지 수 */
+  last?: { text: string; image: boolean; mine: boolean; at: number } | null;
+  unread?: number;
 };
 
 export type User = { id: string; email: string; name: string; bio: string; contact: string; contactType: string; photo: string; test?: boolean; notify?: boolean };

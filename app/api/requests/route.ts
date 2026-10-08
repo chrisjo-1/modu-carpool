@@ -16,15 +16,19 @@ export async function GET() {
              ou.photo_v as owner_pv, ru.photo_v as req_pv,
              ou.name as owner_name, ou.contact as owner_contact, ou.contact_type as owner_ctype,
              ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio,
-             coalesce(rv.stars, 0) as my_stars, (p.regular or p.depart_at < now()) as passed
+             coalesce(rv.stars, 0) as my_stars, (p.regular or p.depart_at < now()) as passed,
+             lm.body as last_body, lm.has_image as last_image, lm.created_at as last_at, (lm.user_id = ${me}) as last_mine,
+             (select count(*)::int from messages u where u.request_id = r.id and u.user_id <> ${me}
+                and u.id > coalesce((select last_id from chat_reads c where c.request_id = r.id and c.user_id = ${me}), 0)) as unread
       from requests r
+      left join lateral (select body, (image <> '') as has_image, created_at, user_id from messages m where m.request_id = r.id order by m.id desc limit 1) lm on true
       left join reviews rv on rv.request_id = r.id and rv.rater = ${me}
       join posts p on p.id = r.post_id
       join users ou on ou.id = p.user_id
       join users ru on ru.id = r.user_id
       where (r.user_id = ${me} or p.user_id = ${me})
         and not exists (select 1 from blocks k where (k.blocker = r.user_id and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = r.user_id))
-      order by r.created_at desc limit 100`;
+      order by coalesce(lm.created_at, r.created_at) desc limit 100`;
     return json({
       threads: rows.map((r) => {
         const iAmOwner = r.owner_id === me;
@@ -52,6 +56,8 @@ export async function GET() {
           contactType: accepted ? (iAmOwner ? r.req_ctype : r.owner_ctype) : "",
           canRate: accepted && !!r.passed,
           myStars: r.my_stars,
+          last: r.last_at ? { text: String(r.last_body ?? ""), image: !!r.last_image, mine: !!r.last_mine, at: new Date(r.last_at as string).getTime() } : null,
+          unread: accepted ? Number(r.unread) : 0,
         };
       }),
     });

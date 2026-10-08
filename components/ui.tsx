@@ -75,6 +75,9 @@ export const Icon = {
   plus: (w = 1.5) => (
     <svg {...base} strokeWidth={w}><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></svg>
   ),
+  image: (w = 1.5) => (
+    <svg {...base} strokeWidth={w}><rect x="3.5" y="5" width="17" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M20.5 16l-5-5-8.5 8" /></svg>
+  ),
   chat: (w = 1.5) => (
     <svg {...base} strokeWidth={w}><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4.5 3.5V17H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" /></svg>
   ),
