@@ -225,13 +225,14 @@ export async function GET(req: Request) {
   const key = process.env.KAKAO_REST_KEY;
   try {
     if (q.length >= 2) {
-      const items = (key ? await kakaoSearch(q, key) : await freeSearch(q, lang)).filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lng));
+      const items = (key ? await kakaoSearch(q, key).catch((e) => (console.error("[places] kakao", e), freeSearch(q, lang))) : await freeSearch(q, lang)).filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lng));
       return out({ items }, 3600);
     }
     const lat = Number(p.get("lat"));
     const lng = Number(p.get("lng"));
     if (p.get("lat") && p.get("lng") && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-      const name = key ? await kakaoReverse(lat, lng, key) : await osmReverse(lat, lng, lang);
+      // 카카오 키가 거절되면(권한 미설정 등) 무료 지도 검색으로 대신한다.
+      const name = key ? await kakaoReverse(lat, lng, key).catch((e) => (console.error("[places] kakao", e), osmReverse(lat, lng, lang))) : await osmReverse(lat, lng, lang);
       return out({ name }, 3600);
     }
     return out({ items: [], name: "" }, 0);
