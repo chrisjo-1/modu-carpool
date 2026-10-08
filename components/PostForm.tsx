@@ -94,7 +94,7 @@ export default function PostForm({
       <Card className="space-y-4 p-5">
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("나는")}</p>
-          <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자예요")], ["rider", t("탑승자예요")]]} />
+          <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} />
         </div>
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("종류")}</p>

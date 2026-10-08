@@ -1,5 +1,5 @@
 import { notify } from "@/lib/mail";
-import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, photoUrl, text } from "@/lib/server";
+import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { nextOccurrence } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function GET() {
     const rows = await db()`
       select r.id, r.status, r.message, r.created_at, r.user_id as req_id,
              p.id as post_id, p.origin, p.dest, p.depart_at, p.cost, p.price, p.regular, p.days, p.time_go, p.time_back, p.user_id as owner_id,
-             ou.photo_v as owner_pv, ru.photo_v as req_pv,
+             ou.photo_v as owner_pv, ru.photo_v as req_pv, ou.car_no as owner_car, ou.car_v as owner_cv, ru.car_no as req_car, ru.car_v as req_cv,
              ou.name as owner_name, ou.contact as owner_contact, ou.contact_type as owner_ctype,
              ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio,
              coalesce(rv.stars, 0) as my_stars, (p.regular or p.depart_at < now()) as passed,
@@ -58,6 +58,9 @@ export async function GET() {
           myStars: r.my_stars,
           last: r.last_at ? { text: String(r.last_body ?? ""), image: !!r.last_image, mine: !!r.last_mine, at: new Date(r.last_at as string).getTime() } : null,
           unread: accepted ? Number(r.unread) : 0,
+          // 차량번호는 신청이 수락된 상대에게만 보인다.
+          otherCarNo: accepted ? String((iAmOwner ? r.req_car : r.owner_car) ?? "") : "",
+          otherCarPhoto: accepted ? (iAmOwner ? carPhotoUrl(r.req_id, r.req_cv) : carPhotoUrl(r.owner_id, r.owner_cv)) : "",
         };
       }),
     });

@@ -140,6 +140,10 @@ export function MemberSheet({
             </div>
           </div>
           {m.bio && <p className="whitespace-pre-wrap rounded-2xl bg-bg px-4 py-3 text-[15px]">{m.bio}</p>}
+          {m.carPhoto && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img data-block-id="C082" data-block-name="차량 사진" src={m.carPhoto} alt={t("차량 사진")} loading="lazy" className="max-h-52 w-full rounded-2xl border border-line object-cover" />
+          )}
 
           <div>
             <h3 className="mb-2 text-sm font-semibold text-sub">{t("지난 카풀")} {m.history.length}</h3>

@@ -110,7 +110,7 @@ export default function CommuteSheet({
         )}
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("나는")}</p>
-          <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자예요")], ["rider", t("탑승자예요")]]} />
+          <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} />
         </div>
         <PlaceField blockId="F060" label={t("집 (출발지)")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
         <PlaceField blockId="F061" label={t("회사 (도착지)")} placeholder={t("예: 강남역")} value={dest} onChange={setDest} toast={toast} />

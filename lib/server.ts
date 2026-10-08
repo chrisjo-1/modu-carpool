@@ -56,6 +56,9 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists test boolean not null default false`;
       await sql`alter table users add column if not exists notify boolean not null default true`;
       await sql`alter table users add column if not exists pw_at timestamptz`;
+      await sql`alter table users add column if not exists car_no text not null default ''`;
+      await sql`alter table users add column if not exists car_photo text not null default ''`;
+      await sql`alter table users add column if not exists car_v integer not null default 0`;
       // 구 워프(이전 서비스) 회원. 탈퇴 회원은 개인정보 없이 대조용 해시만 둔다.
       await sql`create table if not exists legacy_members (
         warp_id text primary key,
@@ -225,6 +228,7 @@ export const needLogin = () => json({ error: "로그인이 필요합니다." }, 
 
 /** 프로필 사진 주소. 사진이 없으면 빈 문자열. v는 캐시를 새로 고치기 위한 번호다. */
 export const photoUrl = (userId: unknown, v: unknown) => (Number(v) > 0 ? `/api/photo?u=${userId}&v=${Number(v)}` : "");
+export const carPhotoUrl = (userId: unknown, v: unknown) => (Number(v) > 0 ? `/api/photo?u=${userId}&car=1&v=${Number(v)}` : "");
 export const clientIp = (req: Request) => (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
 
 /** 신고·차단 사유를 검사한다. "기타"는 내용을 직접 적어야 한다. */

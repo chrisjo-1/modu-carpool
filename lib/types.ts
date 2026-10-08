@@ -15,6 +15,8 @@ export type Post = {
   timeGo?: string;
   timeBack?: string;
   ownerPhoto?: string;
+  /** 운전자 글이면 작성자의 차량 사진 */
+  carPhoto?: string;
   origin: string;
   dest: string;
   originLat?: number | null;
@@ -52,12 +54,15 @@ export type Thread = {
   /** 별점을 남길 수 있는지(수락됐고 출발 시각이 지났거나 정기카풀)와 내가 준 별점(없으면 0) */
   canRate?: boolean;
   myStars?: number;
+  /** 수락된 상대의 차량(등록했을 때만) */
+  otherCarNo?: string;
+  otherCarPhoto?: string;
   /** 마지막 메시지와 안 읽은 메시지 수 */
   last?: { text: string; image: boolean; mine: boolean; at: number } | null;
   unread?: number;
 };
 
-export type User = { id: string; email: string; name: string; bio: string; contact: string; contactType: string; photo: string; test?: boolean; notify?: boolean };
+export type User = { id: string; email: string; name: string; bio: string; contact: string; contactType: string; photo: string; test?: boolean; notify?: boolean; carNo?: string; carPhoto?: string };
 
 /** 연락 방법 종류. 값은 DB에 저장되는 키, 표시는 번역해서 보여준다. */
 export const CONTACT_TYPES: [string, string][] = [
@@ -87,6 +92,7 @@ export type Member = {
   name: string;
   bio: string;
   photo: string;
+  carPhoto: string;
   me: boolean;
   blockedByMe: boolean;
   rating: { avg: number; count: number };

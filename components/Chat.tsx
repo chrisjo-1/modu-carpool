@@ -186,6 +186,17 @@ export function ChatRoom({
           </div>
         )}
         <div className="space-y-2 rounded-2xl bg-bg p-4 text-[14px]">
+          {(thread.otherCarNo || thread.otherCarPhoto) && (
+            <div data-block-id="C036" data-block-name="상대 차량" className="flex items-center gap-3">
+              {thread.otherCarPhoto && (
+                <a href={thread.otherCarPhoto} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={thread.otherCarPhoto} alt={t("상대 차량 사진")} className="h-12 w-16 rounded-lg border border-line object-cover" />
+                </a>
+              )}
+              <p><span className="text-sub">{t("차량번호")}: </span><b className="num">{thread.otherCarNo || t("미등록")}</b></p>
+            </div>
+          )}
           <p><span className="text-sub">{t("상대 연락 수단")}: </span><b className="break-all">{thread.contact ? `${thread.contactType ? `${t(contactLabel(thread.contactType))} · ` : ""}${thread.contact}` : t("등록된 연락 수단이 없어요.")}</b></p>
           {thread.cost === "fixed" && <p><span className="text-sub">{t("1인 금액")}: </span><b className="num">{money(thread.price ?? 0, lang)}</b></p>}
           {thread.cost === "meter" && (

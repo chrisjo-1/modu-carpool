@@ -210,6 +210,10 @@ export function PostDetail({
             {t("출발 위치 지도에서 보기")} {Icon.arrow()}
           </a>
         )}
+        {post.carPhoto && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img data-block-id="C012" data-block-name="차량 사진" src={post.carPhoto} alt={t("운전자 차량 사진")} loading="lazy" className="max-h-56 w-full rounded-2xl border border-line object-cover" />
+        )}
         {post.ownerBio && <p className="rounded-2xl bg-bg px-4 py-3 text-[15px] text-sub">{post.ownerBio}</p>}
         {post.note && <p className="whitespace-pre-wrap text-[16px] leading-relaxed">{post.note}</p>}
 

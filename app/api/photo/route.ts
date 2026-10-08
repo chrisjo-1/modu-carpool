@@ -9,7 +9,8 @@ export async function GET(req: Request) {
   if (!hasDb() || !isUuid(id)) return new Response(null, { status: 404 });
   try {
     await ensureSchema();
-    const rows = await db()`select photo from users where id = ${id}`;
+    const car = p.get("car") === "1";
+    const rows = car ? await db()`select car_photo as photo from users where id = ${id}` : await db()`select photo from users where id = ${id}`;
     const photo = rows.length ? String(rows[0].photo) : "";
     if (!photo) return new Response(null, { status: 404 });
     return new Response(Buffer.from(photo, "base64"), {

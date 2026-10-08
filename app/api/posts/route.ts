@@ -1,4 +1,4 @@
-import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needLogin, photoUrl, text } from "@/lib/server";
+import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { samplePosts } from "@/lib/sample";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular, toMinutes, validDays } from "@/lib/time";
 
@@ -34,9 +34,9 @@ export async function GET(req: Request) {
     if (mine && !me) return needLogin();
     const sql = db();
     const rows = mine
-      ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v from posts p join users u on u.id = p.user_id
+      ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v from posts p join users u on u.id = p.user_id
                   where p.user_id = ${me} order by p.regular desc, p.depart_at desc limit 100`
-      : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v from posts p join users u on u.id = p.user_id
+      : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v from posts p join users u on u.id = p.user_id
                   where p.status in ('open', 'progress') and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '2 hours')
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                   order by p.depart_at asc limit 300`;
@@ -47,6 +47,7 @@ export async function GET(req: Request) {
       owner: r.owner || "회원",
       ownerBio: r.owner_bio,
       ownerPhoto: photoUrl(r.user_id, r.photo_v),
+      carPhoto: r.role === "driver" ? carPhotoUrl(r.user_id, r.car_v) : "",
       role: r.role,
       kind: r.kind,
       cost: r.cost,

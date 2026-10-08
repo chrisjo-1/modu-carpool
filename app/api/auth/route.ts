@@ -3,13 +3,13 @@ import { createHash, randomBytes } from "node:crypto";
 import { matchNewUser } from "@/lib/legacy";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
-import { authEnabled, body, clearCookie, clientIp, currentUserId, db, ensureSchema, fail, json, needLogin, photoUrl, setUserSession, text } from "@/lib/server";
+import { authEnabled, body, clearCookie, clientIp, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false } : null;
+  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v) } : null;
 }
 
 export async function GET() {
@@ -131,6 +131,18 @@ export async function PATCH(req: Request) {
       return fail(e);
     }
   }
+  if (typeof b.carNo === "string" && b.name === undefined) {
+    // 차량번호: 공백을 빼고 '12가3456', '123가4567', '서울12가3456' 꼴만 받는다. 빈 값이면 삭제.
+    const carNo = b.carNo.replace(/\s/g, "").slice(0, 12);
+    if (carNo && !/^(?:[가-힣]{2})?\d{2,3}[가-힣]\d{4}$/.test(carNo)) return json({ error: "차량번호 형식을 확인해 주세요. 예: 12가3456" }, 400);
+    try {
+      await ensureSchema();
+      await db()`update users set car_no = ${carNo} where id = ${id}`;
+      return json({ user: await profile(id) });
+    } catch (e) {
+      return fail(e);
+    }
+  }
   const name = text(b.name, 20);
   if (name.length < 2) return json({ error: "닉네임을 2자 이상 입력해 주세요." }, 400);
   const contactType = CONTACT_TYPES.some(([k]) => k === b.contactType) ? String(b.contactType) : "";
@@ -148,11 +160,13 @@ export async function PUT(req: Request) {
   const id = await currentUserId();
   if (!id) return needLogin();
   const b = await body(req);
+  const car = b.kind === "car";
   const raw = typeof b.photo === "string" ? b.photo : "";
   let data = "";
   if (raw) {
     const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
-    if (!m || m[1].length > 110_000) return json({ error: "사진 파일을 확인해 주세요." }, 400);
+    // 프로필 사진은 240px 정사각, 차량 사진은 긴 변 800px까지
+    if (!m || m[1].length > (car ? 300_000 : 110_000)) return json({ error: "사진 파일을 확인해 주세요." }, 400);
     const head = Buffer.from(m[1].slice(0, 8), "base64");
     // JPEG 파일은 FF D8 FF 로 시작한다.
     if (head[0] !== 0xff || head[1] !== 0xd8 || head[2] !== 0xff) return json({ error: "사진 파일을 확인해 주세요." }, 400);
@@ -160,7 +174,9 @@ export async function PUT(req: Request) {
   }
   try {
     await ensureSchema();
-    await db()`update users set photo = ${data}, photo_v = ${data ? Math.floor(Date.now() / 1000) : 0} where id = ${id}`;
+    const v = data ? Math.floor(Date.now() / 1000) : 0;
+    if (car) await db()`update users set car_photo = ${data}, car_v = ${v} where id = ${id}`;
+    else await db()`update users set photo = ${data}, photo_v = ${v} where id = ${id}`;
     return json({ user: await profile(id) });
   } catch (e) {
     return fail(e);

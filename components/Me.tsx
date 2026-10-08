@@ -5,6 +5,28 @@ import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 
 /** 고른 사진을 가운데 정사각형으로 잘라 240px JPEG로 줄인다. */
+/** 차량 사진: 긴 변 800px JPEG */
+async function shrinkCar(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 800 / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  let q = 0.8;
+  let out = canvas.toDataURL("image/jpeg", q);
+  while (out.length > 290_000 && q > 0.4) out = canvas.toDataURL("image/jpeg", (q -= 0.1));
+  return out;
+}
+
+const EMAIL_KEY = "modu.email";
+
 async function shrink(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const side = Math.min(bitmap.width, bitmap.height);
@@ -51,6 +73,9 @@ export default function Me({
   const [forgot, setForgot] = useState(false);
   const [sentMsg, setSentMsg] = useState("");
   const [email, setEmail] = useState("");
+  const [remember, setRemember] = useState(true);
+  const [carNo, setCarNo] = useState("");
+  const carFile = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
@@ -84,7 +109,38 @@ export default function Me({
     }
   };
 
+  // 로그아웃 후 다시 로그인할 때 이메일을 채워 둔다(이 기기에서만).
   useEffect(() => {
+    if (user) return;
+    try {
+      const saved = localStorage.getItem(EMAIL_KEY);
+      if (saved) setEmail(saved);
+      else if (localStorage.getItem(EMAIL_KEY + ".off") === "1") setRemember(false);
+    } catch {
+      /* 무시 */
+    }
+  }, [user]);
+
+  const saveCarPhoto = async (photo: string) => {
+    setBusy(true);
+    const r = await api<{ user: User }>("/api/auth", "PUT", { photo, kind: "car" });
+    setBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    setUser(r.data.user);
+    toast(t(photo ? "차량 사진을 등록했어요." : "차량 사진을 삭제했어요."));
+  };
+  const saveCarNo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    const r = await api<{ user: User }>("/api/auth", "PATCH", { carNo });
+    setBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    setUser(r.data.user);
+    toast(t(r.data.user.carNo ? "차량번호를 저장했어요." : "차량번호를 지웠어요."));
+  };
+
+  useEffect(() => {
+    setCarNo(user?.carNo ?? "");
     setName(user?.name ?? "");
     setBio(user?.bio ?? "");
     setContact(user?.contact ?? "");
@@ -117,6 +173,17 @@ export default function Me({
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setPassword("");
+    try {
+      if (remember) {
+        localStorage.setItem(EMAIL_KEY, email.trim());
+        localStorage.removeItem(EMAIL_KEY + ".off");
+      } else {
+        localStorage.removeItem(EMAIL_KEY);
+        localStorage.setItem(EMAIL_KEY + ".off", "1");
+      }
+    } catch {
+      /* 무시 */
+    }
     setUser(r.data.user);
     if (mode === "signup" && wantRegular) onCommute(null, true);
   };
@@ -218,6 +285,10 @@ export default function Me({
                   <p className="text-[13px] text-sub">{t("고르면 가입하자마자 출퇴근 정보를 입력해 정기카풀로 바로 등록됩니다.")}</p>
                 </div>
               )}
+              <label data-block-id="F047" data-block-name="이메일 기억하기" className="flex min-h-0 items-center gap-2 text-[14px] text-sub">
+                <input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                {t("이 기기에서 이메일 기억하기")}
+              </label>
               <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
               {mode === "login" && (
                 <button type="button" data-block-id="B053" data-block-name="비밀번호 찾기" className="w-full min-h-0 py-2 text-[14px] text-sub underline" onClick={() => { setForgot(true); setSentMsg(""); }}>{t("비밀번호를 잊으셨나요?")}</button>
@@ -254,6 +325,41 @@ export default function Me({
         <button data-block-id="B050" data-block-name="내 프로필" onClick={() => onProfile(user.id)} className="flex w-full items-center justify-between rounded-2xl border border-line bg-white px-5 text-left text-[16px] font-semibold shadow-card">
           {t("내 별점 · 지난 카풀 보기")} <span className="text-sub">{Icon.arrow()}</span>
         </button>
+      )}
+
+      {user && (
+        <div>
+          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 차량 (운전자)")}</h2>
+          <Card data-block-id="C047" data-block-name="내 차량" className="space-y-4 p-5">
+            <div className="flex items-center gap-4">
+              {user.carPhoto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.carPhoto} alt={t("내 차량 사진")} className="h-20 w-28 shrink-0 rounded-xl border border-line object-cover" />
+              ) : (
+                <span className="grid h-20 w-28 shrink-0 place-items-center rounded-xl border border-dashed border-line text-sub">{Icon.car(1.4)}</span>
+              )}
+              <div className="flex flex-wrap gap-x-4">
+                <button type="button" data-block-id="B055" data-block-name="차량 사진 등록" disabled={busy} className="min-h-0 py-1 text-[15px] font-semibold text-accent" onClick={() => carFile.current?.click()}>{user.carPhoto ? t("사진 변경") : t("차량 사진 등록")}</button>
+                {user.carPhoto && <button type="button" data-block-id="B056" data-block-name="차량 사진 삭제" disabled={busy} className="min-h-0 py-1 text-[15px] text-sub underline" onClick={() => saveCarPhoto("")}>{t("사진 삭제")}</button>}
+                <input ref={carFile} data-block-id="F048" type="file" accept="image/*" className="hidden" aria-label={t("차량 사진")} onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  try {
+                    await saveCarPhoto(await shrinkCar(f));
+                  } catch {
+                    toast(t("사진을 읽지 못했어요. 다른 사진으로 시도해 주세요."));
+                  }
+                }} />
+              </div>
+            </div>
+            <form onSubmit={saveCarNo} className="flex gap-2">
+              <input data-block-id="F049" className={field} maxLength={14} placeholder={t("차량번호 (예: 12가3456)")} aria-label={t("차량번호")} value={carNo} onChange={(e) => setCarNo(e.target.value)} />
+              <button data-block-id="B057" data-block-name="차량번호 저장" disabled={busy || carNo.replace(/\s/g, "") === (user.carNo ?? "")} className="shrink-0 rounded-xl bg-accent px-5 font-semibold text-white disabled:opacity-40">{t("저장")}</button>
+            </form>
+            <p className="text-[13px] leading-relaxed text-sub">{t("차량 사진은 내 운전자 글과 프로필에 보이고, 차량번호는 신청을 수락한 상대에게만 보여요. 사진에는 번호판이 보이지 않게 찍어 주세요.")}</p>
+          </Card>
+        </div>
       )}
 
       {user && (
