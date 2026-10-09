@@ -1,4 +1,5 @@
 "use client";
+import FareCard from "./Fare";
 import { useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
@@ -210,6 +211,7 @@ export function PostDetail({
             {t("출발 위치 지도에서 보기")} {Icon.arrow()}
           </a>
         )}
+        <FareCard post={post} />
         {post.carPhoto && (
           // eslint-disable-next-line @next/next/no-img-element
           <img data-block-id="C012" data-block-name="차량 사진" src={post.carPhoto} alt={t("운전자 차량 사진")} loading="lazy" className="max-h-56 w-full rounded-2xl border border-line object-cover" />

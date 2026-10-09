@@ -16,12 +16,7 @@ const LOCALE: Record<Lang, string> = { ko: "ko-KR", en: "en-US", ja: "ja-JP", zh
 export const when = (ms: number, lang: Lang) =>
   new Date(ms).toLocaleString(LOCALE[lang], { month: "short", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
 
-/** 두 좌표 사이 거리(km) */
-export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const r = Math.PI / 180;
-  const a = Math.sin(((lat2 - lat1) * r) / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(((lng2 - lng1) * r) / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
+export { distanceKm } from "@/lib/geo";
 export const kmText = (km: number) => (km < 1 ? `${Math.max(10, Math.round(km * 100) * 10)}m` : `${km < 10 ? km.toFixed(1) : Math.round(km)}km`);
 
 export const money = (n: number, lang: Lang) => (lang === "ko" ? `${n.toLocaleString("ko-KR")}원` : `₩${n.toLocaleString("en-US")}`);
