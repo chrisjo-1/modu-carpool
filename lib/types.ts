@@ -17,6 +17,8 @@ export type Post = {
   ownerPhoto?: string;
   /** 운전자 글이면 작성자의 차량 사진 */
   carPhoto?: string;
+  /** 내 글이 다른 회원에게 보이지 않는 이유 */
+  hidden?: "" | "test" | "closed" | "expired" | "blocked";
   origin: string;
   dest: string;
   originLat?: number | null;

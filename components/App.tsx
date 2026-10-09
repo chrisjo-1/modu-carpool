@@ -103,6 +103,17 @@ export default function App() {
     return () => clearInterval(id);
   }, [user, loadThreads, loadPosts]);
 
+  // 다른 사람이 새로 올린 글이 보이도록, 화면이 켜져 있으면 30초마다, 앱으로 돌아오면 바로 목록을 새로 받는다.
+  useEffect(() => {
+    const tick = () => document.visibilityState === "visible" && loadPosts();
+    const id = setInterval(tick, 30000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [loadPosts]);
+
   useEffect(() => {
     if (!wantRoom) return;
     const th = threads.find((x) => x.id === wantRoom && x.status === "accepted");

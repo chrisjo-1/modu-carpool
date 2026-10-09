@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 const Legacy = dynamic(() => import("@/components/admin/Legacy"), { ssr: false });
 const Credits = dynamic(() => import("@/components/admin/Credits"), { ssr: false });
 
-type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean };
+type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = { id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; posts: number };
 type Flag = { id: string; reason: string; detail: string; status?: string; created_at: number; target_id: string; target_name: string; target_email: string; target_blocked: boolean };
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
@@ -160,8 +160,8 @@ export default function Admin() {
                     <td className="px-2 py-2">{p.origin} → {p.dest}{p.note && <span className="block max-w-[260px] truncate text-xs text-sub">{p.note}</span>}</td>
                     <td className="num px-2 py-2">{p.regular ? `정기 ${p.days} ${p.time_go}` : day(p.depart_at)}</td>
                     <td className="px-2 py-2">{p.role === "driver" ? "운전자" : "탑승자"} · {p.cost === "fixed" ? `${p.price.toLocaleString()}원` : p.cost === "meter" ? "비용 나눔" : "무료"}</td>
-                    <td className="px-2 py-2">{p.status === "open" ? "모집 중" : p.status === "progress" ? "카풀 진행 중" : "마감"}</td>
-                    <td className="px-2 py-2">{p.name} <span className="text-sub">{p.email}</span>{p.blocked && <span className="ml-1 text-warn">차단됨</span>}</td>
+                    <td className="px-2 py-2">{p.status === "open" ? "모집 중" : p.status === "progress" ? "카풀 진행 중" : "마감"}{!p.regular && p.depart_at < Date.now() - 2 * 3600_000 && <span className="ml-1 text-xs text-sub">(출발 지남)</span>}</td>
+                    <td className="px-2 py-2">{p.name} <span className="text-sub">{p.email}</span>{p.blocked && <span className="ml-1 text-warn">차단됨</span>}{p.test && <span className="ml-1 rounded-full bg-accentSoft px-2 py-0.5 text-xs font-semibold text-accent">테스트 · 실제 회원에게 안 보임</span>}</td>
                     <td className="whitespace-nowrap px-2 py-2">
                       <button data-block-id="B091" data-block-name="글 수정" className="mr-3 min-h-0 text-accent underline" onClick={() => setEdit({ ...p })}>수정</button>
                       <button data-block-id="B092" data-block-name="글 삭제" className="min-h-0 text-warn underline" onClick={() => removePost(p)}>삭제</button>

@@ -1,5 +1,6 @@
 "use client";
 import FareCard from "./Fare";
+import { HIDDEN_TEXT } from "./Me";
 import { useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
@@ -256,6 +257,7 @@ export function PostDetail({
                 {th.status === "accepted" && <button className={`${btnGhost} py-3 text-[15px]`} onClick={() => openChat(th)}>{t("대화하기")}</button>}
               </div>
             ))}
+            {post.hidden && <p data-block-id="C014" data-block-name="노출 안 됨 안내" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] text-warn">{t(HIDDEN_TEXT[post.hidden])}</p>}
             <button data-block-id="B015" data-block-name="글 수정" className={`${btnPrimary} py-3 text-[15px]`} onClick={() => (post.regular ? onEditCommute(post) : onEdit(post))}>{post.regular ? t("출퇴근 정보 수정") : t("글 수정")}</button>
             <div className="flex gap-2 pt-1">
               {post.role === "rider" ? (

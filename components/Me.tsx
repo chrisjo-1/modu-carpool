@@ -29,6 +29,14 @@ async function shrinkCar(file: File): Promise<string> {
 
 const EMAIL_KEY = "modu.email";
 
+/** 내 글이 다른 회원 목록에 보이지 않는 이유 */
+export const HIDDEN_TEXT: Record<string, string> = {
+  test: "테스트 회원으로 쓴 글이라 실제 회원에게는 보이지 않아요.",
+  closed: "마감한 글이라 다른 회원 목록에 보이지 않아요.",
+  expired: "출발 시각이 2시간 넘게 지나 목록에서 내려갔어요.",
+  blocked: "이용이 정지된 계정이라 글이 보이지 않아요.",
+};
+
 async function shrink(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const side = Math.min(bitmap.width, bitmap.height);
@@ -414,6 +422,7 @@ export default function Me({
                   </div>
                   <Tag tone={p.status === "closed" ? "plain" : "accent"}>{p.status === "open" ? t("모집 중") : p.status === "progress" ? t("카풀 진행 중") : t("마감")}</Tag>
                 </button>
+                {p.hidden && <p data-block-id="C051" data-block-name="노출 안 됨 안내" className="mx-5 mb-2 rounded-lg bg-warnSoft px-3 py-2 text-[13px] text-warn">{t(HIDDEN_TEXT[p.hidden])}</p>}
                 <div className="flex gap-4 px-5 pb-3 text-[14px]">
                   <button data-block-id="B051" data-block-name="글 수정" className="min-h-0 py-1 font-semibold text-accent underline" onClick={() => onEdit(p)}>{t("수정")}</button>
                   <button data-block-id="B052" data-block-name="글 삭제" className="min-h-0 py-1 text-warn underline" onClick={async () => {
