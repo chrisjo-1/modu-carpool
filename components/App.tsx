@@ -8,6 +8,7 @@ import Home, { PostDetail } from "./Home";
 import Me from "./Me";
 import { MemberSheet, ReasonSheet } from "./Member";
 import ResetSheet from "./Reset";
+import { usePush } from "./Push";
 import PostForm from "./PostForm";
 import { Icon, LangContext, Sheet, api } from "./ui";
 
@@ -31,6 +32,8 @@ export default function App() {
   const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean } | null>(null);
   const [toastMsg, setToastMsg] = useState("");
   const [resetToken, setResetToken] = useState("");
+  const [wantRoom, setWantRoom] = useState("");
+  const push = usePush(!!user);
   const [version, setVersion] = useState(0);
   const t = (ko: string) => translate(lang, ko);
 
@@ -69,8 +72,13 @@ export default function App() {
       /* 무시 */
     }
     loadPosts().then((list) => {
-      const reset = new URLSearchParams(location.search).get("reset");
+      const q = new URLSearchParams(location.search);
+      const reset = q.get("reset");
       if (reset) setResetToken(reset);
+      // 푸시·메일 알림에서 들어온 경우: ?tab=chat 이면 채팅 탭, ?room=신청ID 면 그 대화방
+      if (q.get("tab") === "chat" || q.get("room")) setTab("chat");
+      if (q.get("room")) setWantRoom(q.get("room") as string);
+      if (q.get("tab") || q.get("room")) history.replaceState(null, "", location.pathname);
       const id = new URLSearchParams(location.search).get("p");
       const hit = id && list.find((p) => p.id === id);
       if (hit) setOpen(hit);
@@ -94,6 +102,15 @@ export default function App() {
     const id = setInterval(() => document.visibilityState === "visible" && loadThreads(), 20000);
     return () => clearInterval(id);
   }, [user, loadThreads, loadPosts]);
+
+  useEffect(() => {
+    if (!wantRoom) return;
+    const th = threads.find((x) => x.id === wantRoom && x.status === "accepted");
+    if (th) {
+      setRoom(th);
+      setWantRoom("");
+    }
+  }, [wantRoom, threads]);
 
   useEffect(() => {
     if (!toastMsg) return;
@@ -176,8 +193,8 @@ export default function App() {
           {tab === "home" &&
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
-          {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} />}
+          {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} push={push} toast={setToastMsg} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} push={push} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">

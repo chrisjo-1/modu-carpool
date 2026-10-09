@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { METER_URL, contactLabel, type Thread, type User } from "@/lib/types";
 import { Stars } from "./Member";
+import type { usePush } from "./Push";
 import { Avatar, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
 type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
@@ -33,7 +34,7 @@ function shortTime(ms: number, lang: string) {
   return d.toLocaleString(lang === "ko" ? "ko-KR" : lang, today ? { hour: "2-digit", minute: "2-digit", hour12: false } : { month: "numeric", day: "numeric" });
 }
 
-export default function Chat({ user, enabled, threads, goLogin, openChat }: { user: User | null; enabled: boolean; threads: Thread[]; goLogin: () => void; openChat: (th: Thread) => void }) {
+export default function Chat({ user, enabled, threads, goLogin, openChat, push, toast }: { user: User | null; enabled: boolean; threads: Thread[]; goLogin: () => void; openChat: (th: Thread) => void; push: ReturnType<typeof usePush>; toast: (m: string) => void }) {
   const t = useT();
   const lang = useLang();
   const statusText = { pending: t("수락 대기 중"), accepted: t("수락됨"), declined: t("거절됨") };
@@ -44,6 +45,12 @@ export default function Chat({ user, enabled, threads, goLogin, openChat }: { us
         <h1 className="text-[28px] font-bold">{t("채팅")}</h1>
         <p className="mt-1 text-sub">{t("신청이 수락되면 여기서 대화할 수 있어요.")}</p>
       </header>
+      {user && push.state === "off" && (
+        <Card data-block-id="C037" data-block-name="푸시 알림 안내" className="flex items-center justify-between gap-3 px-5 py-4">
+          <p className="text-[14px] leading-relaxed">{t("푸시 알림을 켜면 카풀 신청과 메시지를 바로 받을 수 있어요.")}</p>
+          <button data-block-id="B035" data-block-name="푸시 켜기" className="shrink-0 rounded-xl bg-accent px-4 py-2 text-[14px] font-semibold text-white" onClick={async () => { const err = await push.turnOn(); toast(t(err || "푸시 알림을 켰어요.")); }}>{t("켜기")}</button>
+        </Card>
+      )}
       {!user ? (
         <Card className="space-y-4 p-6 text-center">
           <p className="text-sub">{enabled ? t("로그인하면 신청 내역과 대화를 볼 수 있어요.") : t("회원 기능은 준비 중입니다. 곧 열립니다.")}</p>
@@ -106,6 +113,8 @@ export function ChatRoom({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [stars, setStars] = useState(thread.myStars ?? 0);
+  const [otherUnread, setOtherUnread] = useState(0);
+  const [nudgedAt, setNudgedAt] = useState<number | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const count = useRef(0);
@@ -113,8 +122,12 @@ export function ChatRoom({
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      const r = await api<{ messages: Msg[] }>(`/api/messages?request=${thread.id}`);
-      if (alive && r.ok) setMsgs(r.data.messages);
+      const r = await api<{ messages: Msg[]; otherUnread: number; nudgedAt: number | null }>(`/api/messages?request=${thread.id}`);
+      if (alive && r.ok) {
+        setMsgs(r.data.messages);
+        setOtherUnread(r.data.otherUnread ?? 0);
+        setNudgedAt(r.data.nudgedAt ?? null);
+      }
     };
     load();
     const id = setInterval(() => document.visibilityState === "visible" && load(), 4000);
@@ -157,6 +170,16 @@ export function ChatRoom({
       if (fileRef.current) fileRef.current.value = "";
     }
   };
+
+  const nudge = async () => {
+    setBusy(true);
+    const r = await api("/api/messages", "PUT", { requestId: thread.id });
+    setBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    setNudgedAt(Date.now());
+    toast(t("상대에게 메일로 알렸어요."));
+  };
+  const nudgeLocked = nudgedAt != null && Date.now() - nudgedAt < 6 * 3600_000;
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +242,14 @@ export function ChatRoom({
           ))}
           <div ref={end} />
         </div>
+        {otherUnread > 0 && msgs.length > 0 && (
+          <div data-block-id="C038" data-block-name="메일로 알리기" className="flex items-center justify-between gap-3 rounded-2xl bg-bg px-4 py-2.5">
+            <span className="text-[13px] text-sub">{t("상대가 아직 읽지 않은 메시지")} <b className="num text-ink">{otherUnread}</b></span>
+            <button data-block-id="B036" data-block-name="메일로 알리기" disabled={busy || nudgeLocked} className="min-h-0 shrink-0 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-semibold text-accent disabled:text-sub" onClick={nudge}>
+              {nudgeLocked ? t("메일 알림 보냄") : t("메일로 알리기")}
+            </button>
+          </div>
+        )}
         {thread.canRate && (
           <div data-block-id="C031" data-block-name="별점 남기기" className="flex items-center justify-between rounded-2xl border border-line px-4 py-2">
             <span className="text-[14px] text-sub">{stars ? t("내가 남긴 별점") : t("카풀은 어땠나요? 별점을 남겨 주세요.")}</span>

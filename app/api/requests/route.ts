@@ -1,4 +1,5 @@
 import { notify } from "@/lib/mail";
+import { pushText, sendPush } from "@/lib/push";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { nextOccurrence } from "@/lib/time";
 
@@ -88,7 +89,11 @@ export async function POST(req: Request) {
               on conflict (post_id, user_id) do nothing returning id`;
     if (made.length) {
       const who = await sql`select name from users where id = ${me}`;
-      await notify(String(post[0].user_id), "request", String(who[0]?.name ?? ""), `${post[0].origin} → ${post[0].dest}`, text(b.message, 300));
+      const route = `${post[0].origin} → ${post[0].dest}`;
+      await Promise.all([
+        notify(String(post[0].user_id), "request", String(who[0]?.name ?? ""), route, text(b.message, 300)),
+        sendPush(String(post[0].user_id), { title: "카풀 신청이 왔어요", body: pushText.cut(`${who[0]?.name || "회원"}님 · ${route}`, 120), url: "/?tab=chat", tag: `req-${b.postId}` }),
+      ]);
     }
     return json({ ok: true });
   } catch (e) {
@@ -112,7 +117,11 @@ export async function PATCH(req: Request) {
     if (!rows.length) return json({ error: "권한이 없습니다." }, 403);
     if (b.status === "accepted" && before[0]?.status !== "accepted") {
       const who = await sql`select name from users where id = ${me}`;
-      await notify(String(rows[0].user_id), "accepted", String(who[0]?.name ?? ""), `${rows[0].origin} → ${rows[0].dest}`);
+      const route = `${rows[0].origin} → ${rows[0].dest}`;
+      await Promise.all([
+        notify(String(rows[0].user_id), "accepted", String(who[0]?.name ?? ""), route),
+        sendPush(String(rows[0].user_id), { title: "카풀 신청이 수락됐어요", body: pushText.cut(`${who[0]?.name || "회원"}님 · ${route} · 이제 대화할 수 있어요`, 120), url: `/?room=${b.id}`, tag: `chat-${b.id}` }),
+      ]);
     }
     return json({ ok: true });
   } catch (e) {

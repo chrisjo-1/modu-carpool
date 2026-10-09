@@ -1,4 +1,5 @@
-import { notify } from "@/lib/mail";
+import { notify, nudgeMail } from "@/lib/mail";
+import { pushText, sendPush } from "@/lib/push";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +25,16 @@ export async function GET(req: Request) {
     const rows = await sql`select id, user_id, body, (image <> '') as has_image, created_at from messages where request_id = ${id} order by id desc limit 200`;
     // 대화를 열어 본 것으로 기록해 안 읽은 수를 0으로 만든다.
     if (rows.length)
-      await sql`insert into chat_reads (request_id, user_id, last_id) values (${id}, ${me}, ${rows[0].id})
-                on conflict (request_id, user_id) do update set last_id = greatest(chat_reads.last_id, excluded.last_id)`;
+      await sql`insert into chat_reads (request_id, user_id, last_id, read_at) values (${id}, ${me}, ${rows[0].id}, now())
+                on conflict (request_id, user_id) do update set last_id = greatest(chat_reads.last_id, excluded.last_id), read_at = now()`;
+    // 상대가 아직 읽지 않은 내 메시지 수와 마지막 메일 알림 시각(메일로 알리기 버튼용)
+    const st = await sql`
+      select (select count(*)::int from messages m where m.request_id = ${id} and m.user_id = ${me}
+                and m.id > coalesce((select c.last_id from chat_reads c where c.request_id = ${id} and c.user_id <> ${me}), 0)) as other_unread,
+             (select max(at) from mail_nudges n where n.request_id = ${id} and n.sender = ${me}) as nudged_at`;
     return json({
+      otherUnread: st[0].other_unread,
+      nudgedAt: st[0].nudged_at ? new Date(st[0].nudged_at as string).getTime() : null,
       messages: rows.reverse().map((m) => ({
         id: Number(m.id),
         mine: m.user_id === me,
@@ -62,14 +70,52 @@ export async function POST(req: Request) {
     const sent = await sql`insert into messages (request_id, user_id, body, image) values (${b.requestId}, ${me}, ${msg}, ${image}) returning id`;
     await sql`insert into chat_reads (request_id, user_id, last_id) values (${b.requestId}, ${me}, ${sent[0].id})
               on conflict (request_id, user_id) do update set last_id = greatest(chat_reads.last_id, excluded.last_id)`;
-    // 이 대화에서 내가 보낸 첫 메시지일 때만 상대에게 메일로 알린다.
-    const n = await sql`select count(*)::int as n from messages where request_id = ${b.requestId} and user_id = ${me}`;
-    if (n[0].n === 1) {
-      const r = await sql`select r.user_id as req_id, p.user_id as owner_id, p.origin, p.dest, (select name from users where id = ${me}) as name
-                          from requests r join posts p on p.id = r.post_id where r.id = ${b.requestId}`;
-      if (r.length) await notify(String(r[0].owner_id === me ? r[0].req_id : r[0].owner_id), "hello", String(r[0].name ?? ""), `${r[0].origin} → ${r[0].dest}`, msg || "(사진)");
+    const r = await sql`select r.user_id as req_id, p.user_id as owner_id, p.origin, p.dest, (select name from users where id = ${me}) as name,
+                          (select count(*)::int from messages where request_id = ${b.requestId} and user_id = ${me}) as mine
+                        from requests r join posts p on p.id = r.post_id where r.id = ${b.requestId}`;
+    if (r.length) {
+      const other = String(r[0].owner_id === me ? r[0].req_id : r[0].owner_id);
+      const route = `${r[0].origin} → ${r[0].dest}`;
+      // 상대가 지금 이 대화방을 보고 있으면(10초 안에 읽음) 푸시는 생략한다.
+      const seen = await sql`select 1 from chat_reads where request_id = ${b.requestId} and user_id = ${other} and read_at > now() - interval '10 seconds'`;
+      await Promise.all([
+        // 이 대화에서 내가 보낸 첫 메시지일 때만 메일로도 알린다.
+        r[0].mine === 1 ? notify(other, "hello", String(r[0].name ?? ""), route, msg || "(사진)") : null,
+        seen.length ? null : sendPush(other, { title: `${r[0].name || "회원"} · ${route}`.slice(0, 60), body: pushText.cut(msg || "사진을 보냈어요", 120), url: `/?room=${b.requestId}`, tag: `chat-${b.requestId}` }),
+      ]);
     }
     return json({ ok: true, id: Number(sent[0].id) });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 메일로 알리기: 상대가 내 메시지를 읽지 않았을 때, 대화마다 6시간에 한 번 */
+export async function PUT(req: Request) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const b = await body(req);
+  if (!isUuid(b.requestId)) return json({ error: "잘못된 요청입니다." }, 400);
+  try {
+    await ensureSchema();
+    if (!(await canChat(b.requestId, me))) return json({ error: "수락된 뒤에 대화할 수 있습니다." }, 403);
+    const sql = db();
+    const r = await sql`select r.user_id as req_id, p.user_id as owner_id, p.origin, p.dest, (select name from users where id = ${me}) as name
+                        from requests r join posts p on p.id = r.post_id where r.id = ${b.requestId}`;
+    const other = String(r[0].owner_id === me ? r[0].req_id : r[0].owner_id);
+    const o = await sql`select notify, test from users where id = ${other}`;
+    if (!o.length || o[0].test || o[0].notify === false) return json({ error: "상대가 메일 알림을 꺼 두어 보낼 수 없어요." }, 400);
+    const unread = await sql`select id, body, (image <> '') as has_image from messages m where m.request_id = ${b.requestId} and m.user_id = ${me}
+                               and m.id > coalesce((select c.last_id from chat_reads c where c.request_id = ${b.requestId} and c.user_id = ${other}), 0)
+                             order by id desc`;
+    if (!unread.length) return json({ error: "상대가 메시지를 모두 읽었어요." }, 400);
+    const recent = await sql`select 1 from mail_nudges where request_id = ${b.requestId} and sender = ${me} and at > now() - interval '6 hours'`;
+    if (recent.length) return json({ error: "메일 알림은 6시간에 한 번 보낼 수 있어요." }, 429);
+    await sql`insert into mail_nudges (request_id, sender) values (${b.requestId}, ${me})`;
+    const last = unread[0].has_image && !unread[0].body ? "(사진)" : String(unread[0].body);
+    const ok = await nudgeMail(other, String(r[0].name ?? ""), `${r[0].origin} → ${r[0].dest}`, unread.length, last, `/?room=${b.requestId}`);
+    if (!ok) return json({ error: "메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요." }, 502);
+    return json({ ok: true });
   } catch (e) {
     return fail(e);
   }

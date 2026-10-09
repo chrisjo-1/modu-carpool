@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
+import { pushHint, type usePush } from "./Push";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 
 /** 고른 사진을 가운데 정사각형으로 잘라 240px JPEG로 줄인다. */
@@ -51,6 +52,7 @@ export default function Me({
   onCommute,
   onChanged,
   onEdit,
+  push,
   onProfile,
 }: {
   user: User | null;
@@ -65,6 +67,7 @@ export default function Me({
   /** 차단을 풀어 글 목록을 다시 받아야 할 때 */
   onChanged: () => void;
   onEdit: (p: Post) => void;
+  push: ReturnType<typeof usePush>;
   onProfile: (id: string) => void;
 }) {
   const t = useT();
@@ -256,6 +259,18 @@ export default function Me({
                   toast(t(r.data.user.notify ? "메일 알림을 켰어요." : "메일 알림을 껐어요."));
                 }} />
               </label>
+              <div data-block-id="F050" data-block-name="푸시 알림" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 py-2 text-[15px]">
+                <span>{t("푸시 알림")}<span className="block text-[13px] text-sub">{pushHint[push.state] ? t(pushHint[push.state] as string) : t("카풀 신청과 채팅 메시지를 이 기기로 바로 알려 드려요.")}</span></span>
+                <input type="checkbox" aria-label={t("푸시 알림")} className="h-5 w-5 shrink-0 accent-[#2F6BFF]" disabled={push.state !== "on" && push.state !== "off"} checked={push.state === "on"} onChange={async (e) => {
+                  if (e.target.checked) {
+                    const err = await push.turnOn();
+                    toast(t(err || "푸시 알림을 켰어요."));
+                  } else {
+                    await push.turnOff();
+                    toast(t("푸시 알림을 껐어요."));
+                  }
+                }} />
+              </div>
               <button type="button" data-block-id="B041" data-block-name="로그아웃" className={btnGhost} onClick={async () => { await api("/api/auth", "DELETE"); setUser(null); }}>{t("로그아웃")}</button>
             </form>
           ) : !enabled ? (

@@ -51,6 +51,43 @@ export async function sendResetMail(to: string, link: string) {
 
 export const siteUrl = () => SITE;
 
+/** 메일로 알리기: 읽지 않은 메시지 수와 마지막 메시지를 보낸다. 받는 사람이 알림을 껐으면 보내지 않는다. */
+export async function nudgeMail(toUserId: string, fromName: string, route: string, count: number, last: string, path: string) {
+  if (!mailEnabled()) return false;
+  const rows = await db()`select email from users where id = ${toUserId} and notify and not test and not blocked`;
+  if (!rows.length) return false;
+  const to = String(rows[0].email);
+  const from = fromName || "회원";
+  const subject = `[모두의카풀] ${from} 님의 메시지 ${count}개를 아직 확인하지 않으셨어요`;
+  const lead = `"${route}" 카풀 채팅에서 ${from} 님이 메시지를 기다리고 있어요.`;
+  const link = `${SITE}${path}`;
+  if (process.env.MAIL_DRYRUN === "1") {
+    console.log(`[mail] to=${to} | ${subject} | ${last} | ${link}`);
+    return true;
+  }
+  const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6">${esc(lead)}</p>
+<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border-radius:12px;font-size:15px;line-height:1.6;white-space:pre-wrap">${esc(last)}</p>
+<a href="${esc(link)}" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">메시지 확인하기</a>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">상대 회원이 보낸 알림 요청입니다. 받고 싶지 않으면 내 정보에서 "메일 알림"을 꺼 주세요.</p>
+</div></div>`;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: process.env.MAIL_FROM, to: [to], subject, html, text: `${lead}\n\n"${last}"\n\n${link}` }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) console.error("[mail]", res.status, (await res.text()).slice(0, 200));
+    return res.ok;
+  } catch (e) {
+    console.error("[mail]", e);
+    return false;
+  }
+}
+
 export async function notify(toUserId: string, kind: Kind, fromName: string, route: string, quote = "") {
   if (!mailEnabled()) return;
   try {

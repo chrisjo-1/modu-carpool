@@ -57,6 +57,13 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists notify boolean not null default true`;
       await sql`alter table users add column if not exists pw_at timestamptz`;
       await sql`alter table users add column if not exists car_no text not null default ''`;
+      await sql`create table if not exists push_subs (
+        endpoint text primary key,
+        user_id uuid not null references users(id) on delete cascade,
+        p256dh text not null,
+        auth text not null,
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists push_subs_user_idx on push_subs (user_id)`;
       await sql`alter table users add column if not exists car_photo text not null default ''`;
       await sql`alter table users add column if not exists car_v integer not null default 0`;
       // 구 워프(이전 서비스) 회원. 탈퇴 회원은 개인정보 없이 대조용 해시만 둔다.
@@ -130,6 +137,12 @@ export function ensureSchema(): Promise<void> {
         user_id uuid not null references users(id) on delete cascade,
         last_id bigint not null default 0,
         primary key (request_id, user_id))`;
+      await sql`alter table chat_reads add column if not exists read_at timestamptz`;
+      await sql`create table if not exists mail_nudges (
+        request_id uuid not null references requests(id) on delete cascade,
+        sender uuid not null references users(id) on delete cascade,
+        at timestamptz not null default now())`;
+      await sql`create index if not exists mail_nudges_idx on mail_nudges (request_id, sender, at)`;
       await sql`create table if not exists reviews (
         request_id uuid not null references requests(id) on delete cascade,
         rater uuid not null references users(id) on delete cascade,
