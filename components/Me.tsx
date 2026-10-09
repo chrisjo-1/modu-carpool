@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
 import AuthForm from "./AuthForm";
+import { NoticeList } from "./Notices";
 import CreditCard from "./Credits";
 import { pushHint, type usePush } from "./Push";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
@@ -87,6 +88,9 @@ export default function Me({
   const [bio, setBio] = useState("");
   const [contact, setContact] = useState("");
   const [contactType, setContactType] = useState("");
+  const [gender, setGender] = useState("");
+  const [rolePref, setRolePref] = useState("");
+  const [noticesOpen, setNoticesOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
@@ -137,6 +141,8 @@ export default function Me({
     setBio(user?.bio ?? "");
     setContact(user?.contact ?? "");
     setContactType(user?.contactType ?? "");
+    setGender(user?.gender ?? "");
+    setRolePref(user?.rolePref ?? "");
   }, [user]);
 
   useEffect(() => {
@@ -161,7 +167,7 @@ export default function Me({
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api<{ user: User }>("/api/auth", "PATCH", { name, bio, contact, contactType });
+    const r = await api<{ user: User }>("/api/auth", "PATCH", { name, bio, contact, contactType, gender, rolePref });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setUser(r.data.user);
@@ -175,6 +181,12 @@ export default function Me({
       </header>
 
       {user && <CreditCard toast={toast} version={version} />}
+      {user && (
+        <button data-block-id="B061" data-block-name="공지사항" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left font-semibold shadow-card" onClick={() => setNoticesOpen(true)}>
+          {t("공지사항")} <span className="text-sub">{Icon.arrow()}</span>
+        </button>
+      )}
+      {noticesOpen && <NoticeList onClose={() => setNoticesOpen(false)} />}
 
       <div>
         <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("언어")}</h2>
@@ -218,6 +230,26 @@ export default function Me({
                 </div>
               </div>
               <p className="text-[13px] text-sub">{t("연락 수단은 신청이 수락된 상대에게만 보입니다.")}</p>
+              <div className="flex gap-2">
+                <label className="block w-1/2 text-sm text-sub">
+                  {t("성별")}
+                  <select data-block-id="F053" className={`${field} mt-1`} value={gender} onChange={(e) => setGender(e.target.value)}>
+                    <option value="">{t("선택 안 함")}</option>
+                    <option value="female">{t("여성")}</option>
+                    <option value="male">{t("남성")}</option>
+                  </select>
+                </label>
+                <label className="block w-1/2 text-sm text-sub">
+                  {t("주로 이용")}
+                  <select data-block-id="F054" className={`${field} mt-1`} value={rolePref} onChange={(e) => setRolePref(e.target.value)}>
+                    <option value="">{t("선택 안 함")}</option>
+                    <option value="driver">{t("운전자")}</option>
+                    <option value="rider">{t("탑승자")}</option>
+                    <option value="both">{t("둘 다")}</option>
+                  </select>
+                </label>
+              </div>
+              <p className="text-[13px] text-sub">{t("성별과 이용 역할은 공개되지 않고, 맞춤 공지를 보낼 때만 써요.")}</p>
               <button data-block-id="B040" data-block-name="프로필 저장" className={btnPrimary} disabled={busy}>{t("저장")}</button>
               <label data-block-id="F045" data-block-name="메일 알림" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 text-[15px]">
                 <span>{t("메일 알림")}<span className="block text-[13px] text-sub">{t("카풀 신청, 수락, 첫 메시지를 가입 메일로 알려 드려요.")}</span></span>

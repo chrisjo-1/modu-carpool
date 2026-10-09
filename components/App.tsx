@@ -9,6 +9,7 @@ import Me from "./Me";
 import { MemberSheet, ReasonSheet } from "./Member";
 import ResetSheet from "./Reset";
 import Gate from "./Gate";
+import { NoticePopup } from "./Notices";
 import { usePush } from "./Push";
 import PostForm from "./PostForm";
 import { Icon, LangContext, Sheet, api } from "./ui";
@@ -38,6 +39,7 @@ export default function App() {
   const [checked, setChecked] = useState(false);
   const [preview, setPreviewState] = useState(false);
   const [sharedPost, setSharedPost] = useState("");
+  const [noticeFocus, setNoticeFocus] = useState(0);
   const setPreview = (v: boolean) => {
     setPreviewState(v);
     try {
@@ -92,7 +94,8 @@ export default function App() {
       // 푸시·메일 알림에서 들어온 경우: ?tab=chat 이면 채팅 탭, ?room=신청ID 면 그 대화방
       if (q.get("tab") === "chat" || q.get("room")) setTab("chat");
       if (q.get("room")) setWantRoom(q.get("room") as string);
-      if (q.get("tab") || q.get("room")) history.replaceState(null, "", location.pathname);
+      if (q.get("notice")) setNoticeFocus(Number(q.get("notice")) || 0);
+      if (q.get("tab") || q.get("room") || q.get("notice")) history.replaceState(null, "", location.pathname);
       const id = new URLSearchParams(location.search).get("p");
       const hit = id && list.find((p) => p.id === id);
       if (hit) setOpen(hit);
@@ -277,6 +280,7 @@ export default function App() {
             sharedPost={sharedPost}
           />
         )}
+        <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
         {resetToken && (
           <ResetSheet
             token={resetToken}

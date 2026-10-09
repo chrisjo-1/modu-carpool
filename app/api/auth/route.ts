@@ -9,8 +9,8 @@ import { authEnabled, body, clearCookie, clientIp, currentUserId, db, ensureSche
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v) } : null;
+  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, gender, role_pref from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "" } : null;
 }
 
 export async function GET() {
@@ -150,7 +150,9 @@ export async function PATCH(req: Request) {
   const contactType = CONTACT_TYPES.some(([k]) => k === b.contactType) ? String(b.contactType) : "";
   try {
     await ensureSchema();
-    await db()`update users set name = ${name}, bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType} where id = ${id}`;
+    const gender = ["female", "male"].includes(String(b.gender)) ? String(b.gender) : "";
+    const rolePref = ["driver", "rider", "both"].includes(String(b.rolePref)) ? String(b.rolePref) : "";
+    await db()`update users set name = ${name}, bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType}, gender = ${gender}, role_pref = ${rolePref} where id = ${id}`;
     return json({ user: await profile(id) });
   } catch (e) {
     return fail(e);

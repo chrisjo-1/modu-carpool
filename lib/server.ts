@@ -71,6 +71,24 @@ export function ensureSchema(): Promise<void> {
       await sql`create unique index if not exists credit_daily_uniq on credit_ledger (user_id, reason, day) where reason in ('attend', 'post')`;
       await sql`create unique index if not exists credit_signup_uniq on credit_ledger (user_id) where reason = 'signup'`;
       await sql`create table if not exists settings (key text primary key, value text not null)`;
+      // 공지 대상 고르기용: 성별, 주로 이용하는 역할(비어 있으면 글·차량·구 회원 정보로 판단)
+      await sql`alter table users add column if not exists gender text not null default ''`;
+      await sql`alter table users add column if not exists role_pref text not null default ''`;
+      await sql`create table if not exists notices (
+        id bigserial primary key,
+        title text not null,
+        body text not null,
+        roles text[] not null default '{}',
+        genders text[] not null default '{}',
+        active boolean not null default true,
+        target_count integer not null default 0,
+        push_sent integer not null default 0,
+        created_at timestamptz not null default now())`;
+      await sql`create table if not exists notice_reads (
+        notice_id bigint not null references notices(id) on delete cascade,
+        user_id uuid not null references users(id) on delete cascade,
+        at timestamptz not null default now(),
+        primary key (notice_id, user_id))`;
       await sql`create table if not exists push_subs (
         endpoint text primary key,
         user_id uuid not null references users(id) on delete cascade,
