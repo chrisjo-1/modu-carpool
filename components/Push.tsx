@@ -33,12 +33,14 @@ export function usePush(loggedIn: boolean) {
     }
   }, []);
 
+  // 로그인 전에도 지원 여부를 알아야 가입 화면에 '푸시 알림 받기'를 보여줄 수 있다.
   useEffect(() => {
-    if (loggedIn) check();
+    check();
   }, [loggedIn, check]);
 
-  const turnOn = async (): Promise<string> => {
-    const perm = await Notification.requestPermission();
+  /** 권한 요청을 이미 시작했다면(가입 버튼을 누른 순간 등) 그 결과를 넘겨받는다. */
+  const turnOn = async (asked?: Promise<NotificationPermission>): Promise<string> => {
+    const perm = await (asked ?? Notification.requestPermission());
     if (perm !== "granted") {
       setState(perm === "denied" ? "denied" : "off");
       return "알림 권한을 허용해야 푸시를 받을 수 있어요.";

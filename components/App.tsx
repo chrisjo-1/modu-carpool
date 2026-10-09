@@ -8,6 +8,7 @@ import Home, { PostDetail } from "./Home";
 import Me from "./Me";
 import { MemberSheet, ReasonSheet } from "./Member";
 import ResetSheet from "./Reset";
+import Gate from "./Gate";
 import { usePush } from "./Push";
 import PostForm from "./PostForm";
 import { Icon, LangContext, Sheet, api } from "./ui";
@@ -33,6 +34,19 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [wantRoom, setWantRoom] = useState("");
+  // 로그인 확인이 끝났는지, 로그인 없이 둘러보는 중인지(이 탭에서만 기억)
+  const [checked, setChecked] = useState(false);
+  const [preview, setPreviewState] = useState(false);
+  const [sharedPost, setSharedPost] = useState("");
+  const setPreview = (v: boolean) => {
+    setPreviewState(v);
+    try {
+      if (v) sessionStorage.setItem("modu.preview", "1");
+      else sessionStorage.removeItem("modu.preview");
+    } catch {
+      /* 무시 */
+    }
+  };
   const push = usePush(!!user);
   const [version, setVersion] = useState(0);
   const t = (ko: string) => translate(lang, ko);
@@ -83,9 +97,16 @@ export default function App() {
       const hit = id && list.find((p) => p.id === id);
       if (hit) setOpen(hit);
     });
+    try {
+      if (sessionStorage.getItem("modu.preview") === "1") setPreviewState(true);
+    } catch {
+      /* 무시 */
+    }
+    setSharedPost(new URLSearchParams(location.search).get("p") ?? "");
     api<{ enabled: boolean; user: User | null }>("/api/auth").then((r) => {
       setEnabled(!!r.data.enabled);
       setUser(r.data.user ?? null);
+      setChecked(true);
     });
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, [loadPosts]);
@@ -165,9 +186,13 @@ export default function App() {
     setWhy(null);
   };
 
+  // 둘러보다가 로그인이 필요한 동작을 하면 첫 화면(로그인·가입)을 다시 띄운다. 보던 글은 그대로 둔다.
   const goLogin = () => {
-    setOpen(null);
-    setTab("me");
+    if (enabled) setPreview(false);
+    else {
+      setOpen(null);
+      setTab("me");
+    }
   };
   const openChat = (th: Thread) => {
     setOpen(null);
@@ -205,7 +230,7 @@ export default function App() {
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} push={push} toast={setToastMsg} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={setUser} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} push={push} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} push={push} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
@@ -238,6 +263,20 @@ export default function App() {
         {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
+        {enabled && checked && !user && !preview && !resetToken && (
+          <Gate
+            setUser={(u) => {
+              setUser(u);
+              setPreview(false);
+            }}
+            toast={setToastMsg}
+            onCommute={() => setCommute({ post: null, onboarding: true })}
+            push={push}
+            onPreview={() => setPreview(true)}
+            setLang={setLang}
+            sharedPost={sharedPost}
+          />
+        )}
         {resetToken && (
           <ResetSheet
             token={resetToken}

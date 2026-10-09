@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
-import CreditCard, { creditText } from "./Credits";
+import AuthForm from "./AuthForm";
+import CreditCard from "./Credits";
 import { pushHint, type usePush } from "./Push";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 
@@ -27,7 +28,6 @@ async function shrinkCar(file: File): Promise<string> {
   return out;
 }
 
-const EMAIL_KEY = "modu.email";
 
 /** 내 글이 다른 회원 목록에 보이지 않는 이유 */
 export const HIDDEN_TEXT: Record<string, string> = {
@@ -81,21 +81,13 @@ export default function Me({
 }) {
   const t = useT();
   const lang = useLang();
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [forgot, setForgot] = useState(false);
-  const [sentMsg, setSentMsg] = useState("");
-  const [email, setEmail] = useState("");
-  const [remember, setRemember] = useState(true);
   const [carNo, setCarNo] = useState("");
   const carFile = useRef<HTMLInputElement>(null);
-  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [contact, setContact] = useState("");
   const [contactType, setContactType] = useState("");
   const [busy, setBusy] = useState(false);
-  // 가입할 때 "정기카풀(출퇴근)"을 고르면 가입 직후 출퇴근 정보를 받아 바로 게시한다.
-  const [wantRegular, setWantRegular] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
   const file = useRef<HTMLInputElement>(null);
@@ -120,18 +112,6 @@ export default function Me({
       toast(t("사진을 읽지 못했어요. 다른 사진으로 시도해 주세요."));
     }
   };
-
-  // 로그아웃 후 다시 로그인할 때 이메일을 채워 둔다(이 기기에서만).
-  useEffect(() => {
-    if (user) return;
-    try {
-      const saved = localStorage.getItem(EMAIL_KEY);
-      if (saved) setEmail(saved);
-      else if (localStorage.getItem(EMAIL_KEY + ".off") === "1") setRemember(false);
-    } catch {
-      /* 무시 */
-    }
-  }, [user]);
 
   const saveCarPhoto = async (photo: string) => {
     setBusy(true);
@@ -176,29 +156,6 @@ export default function Me({
     toast(t("차단을 풀었어요."));
     loadBlocks();
     onChanged();
-  };
-
-  const auth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    const r = await api<{ user: User; credit?: number }>("/api/auth", "POST", { action: mode, email, password, name });
-    setBusy(false);
-    if (!r.ok) return toast(t(r.error));
-    setPassword("");
-    try {
-      if (remember) {
-        localStorage.setItem(EMAIL_KEY, email.trim());
-        localStorage.removeItem(EMAIL_KEY + ".off");
-      } else {
-        localStorage.removeItem(EMAIL_KEY);
-        localStorage.setItem(EMAIL_KEY + ".off", "1");
-      }
-    } catch {
-      /* 무시 */
-    }
-    setUser(r.data.user);
-    if (r.data.credit) toast(`${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)}`);
-    if (mode === "signup" && wantRegular) onCommute(null, true);
   };
 
   const saveProfile = async (e: React.FormEvent) => {
@@ -288,62 +245,7 @@ export default function Me({
           ) : !enabled ? (
             <p className="text-[15px] leading-relaxed text-sub">{t("회원 기능은 준비 중입니다. 곧 열립니다.")}</p>
           ) : (
-            <form onSubmit={auth} className="space-y-3">
-              <Segment label={t("계정")} value={mode} onChange={setMode} options={[["login", t("로그인")], ["signup", t("회원가입")]]} />
-              {mode === "signup" && (
-                <label className="block text-sm text-sub">
-                  {t("닉네임")}
-                  <input className={`${field} mt-1`} required minLength={2} maxLength={20} value={name} onChange={(e) => setName(e.target.value)} />
-                </label>
-              )}
-              <label className="block text-sm text-sub">
-                {t("이메일")}
-                <input data-block-id="F043" className={`${field} mt-1`} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              </label>
-              <label className="block text-sm text-sub">
-                {t("비밀번호 (8자 이상)")}
-                <input data-block-id="F044" className={`${field} mt-1`} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} />
-              </label>
-              {mode === "signup" && (
-                <div className="space-y-1.5">
-                  <button type="button" data-block-id="B047" data-block-name="정기카풀 키워드" role="switch" aria-checked={wantRegular} onClick={() => setWantRegular((v) => !v)} className={`rounded-full border px-4 text-[15px] ${wantRegular ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-                    {wantRegular ? "✓ " : "+ "}{t("정기카풀(출퇴근)")}
-                  </button>
-                  <p className="text-[13px] text-sub">{t("고르면 가입하자마자 출퇴근 정보를 입력해 정기카풀로 바로 등록됩니다.")}</p>
-                </div>
-              )}
-              <label data-block-id="F047" data-block-name="이메일 기억하기" className="flex min-h-0 items-center gap-2 text-[14px] text-sub">
-                <input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-                {t("이 기기에서 이메일 기억하기")}
-              </label>
-              <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
-              {mode === "login" && (
-                <button type="button" data-block-id="B053" data-block-name="비밀번호 찾기" className="w-full min-h-0 py-2 text-[14px] text-sub underline" onClick={() => { setForgot(true); setSentMsg(""); }}>{t("비밀번호를 잊으셨나요?")}</button>
-              )}
-            </form>
-          )}
-          {forgot && (
-            <Sheet title={t("비밀번호 찾기")} blockId="S082" onClose={() => setForgot(false)}>
-              <form
-                className="space-y-4"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  setBusy(true);
-                  const r = await api<{ message: string }>("/api/auth", "POST", { action: "forgot", email });
-                  setBusy(false);
-                  if (!r.ok) return toast(t(r.error));
-                  setSentMsg(t(r.data.message));
-                }}
-              >
-                <p className="text-[15px] leading-relaxed text-sub">{t("가입한 이메일을 입력하면 비밀번호를 다시 정할 수 있는 링크를 보내 드려요. 링크는 30분 동안 쓸 수 있어요.")}</p>
-                <label className="block text-sm text-sub">
-                  {t("이메일")}
-                  <input data-block-id="F046" className={`${field} mt-1`} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-                </label>
-                {sentMsg && <p role="status" data-block-id="C046" className="rounded-xl bg-accentSoft px-4 py-3 text-[15px] text-accent">{sentMsg}</p>}
-                <button data-block-id="B054" data-block-name="재설정 메일 보내기" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : sentMsg ? t("다시 보내기") : t("재설정 메일 보내기")}</button>
-              </form>
-            </Sheet>
+            <AuthForm setUser={setUser} toast={toast} onCommute={() => onCommute(null, true)} push={push} />
           )}
         </Card>
       </div>

@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       const exists = await sql`select 1 from users where email = ${email}`;
       if (exists.length) return json({ error: "이미 가입된 이메일입니다." }, 409);
       const hash = await bcrypt.hash(password, 10);
-      const rows = await sql`insert into users (email, pw, name) values (${email}, ${hash}, ${name}) returning id`;
+      const rows = await sql`insert into users (email, pw, name, notify) values (${email}, ${hash}, ${name}, ${b.notify !== false}) returning id`;
       // 구 워프 회원이면 대조 상태를 바로 '가입됨'으로 바꾼다(실패해도 가입은 진행).
       await matchNewUser(String(rows[0].id), email).catch((e) => console.error("[legacy]", e));
       const welcome = await grant(String(rows[0].id), "signup").catch(() => 0);
