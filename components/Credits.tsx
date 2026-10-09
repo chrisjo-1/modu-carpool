@@ -1,10 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Card, api, useLang, useT } from "./ui";
+import { Card, Icon, api, useLang, useT } from "./ui";
 
 type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number };
-type Item = { amount: number; reason: string; label: string; memo: string; at: number };
-type Data = { balance: number; attended: boolean; welcome: number; rules: Rules; history: Item[] };
+type Item = { id: string; amount: number; reason: string; label: string; memo: string; at: number };
+type Data = { balance: number; attended: boolean; welcome: number; rules: Rules; historyCount: number };
 
 export const creditText = (n: number, lang: string) => `${n.toLocaleString(lang === "ko" ? "ko-KR" : "en-US")}`;
 
@@ -13,8 +13,25 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
   const t = useT();
   const lang = useLang();
   const [d, setD] = useState<Data | null>(null);
-  const [all, setAll] = useState(false);
   const [busy, setBusy] = useState(false);
+  // 내역은 처음엔 접어 두고, 버튼을 누르면 20건씩 불러온다.
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<Item[]>([]);
+  const [more, setMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const loadHistory = async (reset: boolean) => {
+    setLoading(true);
+    const before = !reset && items.length ? `&before=${items[items.length - 1].id}` : "";
+    const r = await api<{ items: Item[]; more: boolean }>(`/api/credits?history=1${before}`);
+    setLoading(false);
+    if (!r.ok) return toast(t(r.error));
+    setItems((cur) => (reset ? r.data.items : [...cur, ...r.data.items]));
+    setMore(r.data.more);
+  };
+  const toggle = () => {
+    if (!open) loadHistory(true);
+    setOpen((v) => !v);
+  };
 
   const load = useCallback(async (first = false) => {
     const r = await api<Data>("/api/credits");
@@ -30,6 +47,11 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
   useEffect(() => {
     if (version) load();
   }, [version, load]);
+  // 잔액이 바뀌면(출석 등) 펼쳐 둔 내역도 새로 받는다.
+  useEffect(() => {
+    if (open) loadHistory(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d?.balance, d?.historyCount]);
 
   const attend = async () => {
     setBusy(true);
@@ -48,7 +70,6 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
     [t("채팅에서 메일로 알리기"), `−${creditText(d.rules.nudge, lang)}`],
     ...(d.rules.legacy ? [[t("워프 회원 이전 축하"), `+${creditText(d.rules.legacy, lang)}`] as [string, string]] : []),
   ];
-  const list = all ? d.history : d.history.slice(0, 5);
 
   return (
     <div>
@@ -71,21 +92,29 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
             </li>
           ))}
         </ul>
-        {d.history.length > 0 && (
+        {d.historyCount > 0 && (
           <div>
-            <p className="mb-1 text-sm font-semibold text-sub">{t("최근 내역")}</p>
-            <ul data-block-id="C050" data-block-name="크레딧 내역" className="divide-y divide-line">
-              {list.map((h, i) => (
-                <li key={i} className="flex items-center justify-between gap-3 py-2 text-[14px]">
-                  <span className="min-w-0">
-                    <span className="block truncate">{t(h.label)}{h.memo && <span className="text-sub"> · {h.memo}</span>}</span>
-                    <span className="num text-[12px] text-sub">{new Date(h.at).toLocaleString(lang === "ko" ? "ko-KR" : lang, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
-                  </span>
-                  <b className={`num shrink-0 ${h.amount > 0 ? "text-accent" : "text-warn"}`}>{h.amount > 0 ? "+" : "−"}{creditText(Math.abs(h.amount), lang)}</b>
-                </li>
-              ))}
-            </ul>
-            {d.history.length > 5 && <button className="min-h-0 w-full py-2 text-[14px] text-sub underline" onClick={() => setAll((v) => !v)}>{all ? t("접기") : t("전체 보기")}</button>}
+            <button data-block-id="B210" data-block-name="크레딧 내역 보기" aria-expanded={open} aria-controls="credit-history" onClick={toggle} className="flex w-full items-center justify-between rounded-xl border border-line px-4 text-[15px]">
+              <span>{open ? t("내역 접기") : t("내역 보기")} <span className="num text-sub">({d.historyCount.toLocaleString("ko-KR")})</span></span>
+              <span className={`text-sub transition-transform ${open ? "rotate-90" : ""}`}>{Icon.arrow()}</span>
+            </button>
+            {open && (
+              <div id="credit-history" className="mt-2">
+                <ul data-block-id="C210" data-block-name="크레딧 내역" className="divide-y divide-line">
+                  {items.map((h) => (
+                    <li key={h.id} className="flex items-center justify-between gap-3 py-2 text-[14px]">
+                      <span className="min-w-0">
+                        <span className="block truncate">{t(h.label)}{h.memo && <span className="text-sub"> · {h.memo}</span>}</span>
+                        <span className="num text-[12px] text-sub">{new Date(h.at).toLocaleString(lang === "ko" ? "ko-KR" : lang, { year: "2-digit", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+                      </span>
+                      <b className={`num shrink-0 ${h.amount > 0 ? "text-accent" : "text-warn"}`}>{h.amount > 0 ? "+" : "−"}{creditText(Math.abs(h.amount), lang)}</b>
+                    </li>
+                  ))}
+                </ul>
+                {loading && <p className="py-2 text-center text-[13px] text-sub">{t("불러오는 중…")}</p>}
+                {more && !loading && <button data-block-id="B211" data-block-name="크레딧 내역 더 보기" className="min-h-0 w-full py-2 text-[14px] text-sub underline" onClick={() => loadHistory(false)}>{t("더 보기")}</button>}
+              </div>
+            )}
           </div>
         )}
         <p className="text-[12px] leading-relaxed text-sub">{t("크레딧은 모두의카풀 안에서만 쓰는 포인트로, 현금으로 바꾸거나 다른 회원에게 줄 수 없어요.")}</p>

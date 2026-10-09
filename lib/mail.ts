@@ -1,11 +1,11 @@
 import { db } from "./server";
+import { SITE_URL as SITE } from "./site";
 
 /**
  * 가입 메일로 보내는 알림.
  * RESEND_API_KEY 와 MAIL_FROM(예: "모두의카풀 <noreply@내도메인>")이 있어야 실제로 나간다.
  * 알림이 실패해도 본래 동작(신청·대화)은 그대로 성공해야 하므로 오류는 기록만 한다.
  */
-const SITE = (process.env.SITE_URL || "https://modu-carpool.vercel.app").replace(/\/$/, "");
 export const mailEnabled = () => (!!process.env.RESEND_API_KEY && !!process.env.MAIL_FROM) || process.env.MAIL_DRYRUN === "1";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);

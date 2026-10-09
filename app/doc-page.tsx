@@ -3,7 +3,12 @@ import DocView from "@/components/DocView";
 import { hasDb, ensureSchema } from "@/lib/server";
 import { DEFAULT_DOCS, DOC_TITLE, getDoc, type DocKey } from "@/lib/terms";
 
-export const docMeta = (k: DocKey): Metadata => ({ title: DOC_TITLE[k], alternates: { canonical: `/${k}` } });
+export const docMeta = (k: DocKey): Metadata => ({
+  title: DOC_TITLE[k],
+  description: k === "terms" ? "모두의카풀 서비스 이용 조건, 회원의 권리와 의무, 크레딧과 책임의 한계를 안내합니다." : "모두의카풀이 수집하는 개인정보 항목과 이용 목적, 보유 기간, 처리 위탁과 회원의 권리를 안내합니다.",
+  alternates: { canonical: `/${k}` },
+  openGraph: { title: `${DOC_TITLE[k]} | 모두의카풀`, url: `/${k}` },
+});
 
 /** /terms, /privacy 공용 화면 */
 export default async function DocPage({ k }: { k: DocKey }) {

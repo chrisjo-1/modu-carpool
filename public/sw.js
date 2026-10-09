@@ -13,8 +13,8 @@ self.addEventListener("push", (e) => {
   e.waitUntil(
     self.registration.showNotification(d.title || "모두의카풀", {
       body: d.body || "",
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
       tag: d.tag || undefined,
       renotify: !!d.tag,
       data: { url: d.url || "/" },

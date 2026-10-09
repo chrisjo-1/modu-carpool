@@ -7,6 +7,16 @@ import { Avatar, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, schedule
 
 type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
 
+const LOCALE: Record<string, string> = { ko: "ko-KR", en: "en-US", ja: "ja-JP", zh: "zh-CN" };
+const kst = (ms: number) => new Date(ms + 9 * 3600000).toISOString();
+const dayKey = (ms: number) => kst(ms).slice(0, 10);
+const minuteKey = (ms: number) => kst(ms).slice(0, 16);
+/** 보낸 시각: 오후 3:05 */
+const clock = (ms: number, lang: string) => new Date(ms).toLocaleTimeString(LOCALE[lang] ?? "ko-KR", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Seoul" });
+/** 날짜 구분선: 2026년 10월 10일 토요일 (올해면 연도 생략) */
+const dateLine = (ms: number, lang: string) =>
+  new Date(ms).toLocaleDateString(LOCALE[lang] ?? "ko-KR", { year: dayKey(ms).slice(0, 4) === dayKey(Date.now()).slice(0, 4) ? undefined : "numeric", month: "long", day: "numeric", weekday: "long", timeZone: "Asia/Seoul" });
+
 /** 채팅 사진: 긴 변 1280px JPEG로 줄인다. */
 async function shrinkPhoto(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
@@ -206,6 +216,7 @@ export function ChatRoom({
     toast(t("상대에게 메일로 알렸어요.") + (r.data.cost ? ` −${r.data.cost.toLocaleString("ko-KR")} ${t("크레딧")}` : ""));
     onChanged();
   };
+  const mineUnread = new Set(otherUnread > 0 ? msgs.filter((m) => m.mine).slice(-otherUnread).map((m) => m.id) : []);
   const nudgeLocked = nudgedAt != null && Date.now() - nudgedAt < 6 * 3600_000;
 
   const send = async (e: React.FormEvent) => {
@@ -256,18 +267,42 @@ export function ChatRoom({
         </div>
         <div className="min-h-[30dvh] space-y-2" aria-live="polite">
           {msgs.length === 0 && <p className="py-8 text-center text-[15px] text-sub">{t("첫 인사를 건네 보세요.")}</p>}
-          {msgs.map((m) => (
-            <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
-              {m.image ? (
-                <a href={m.image} target="_blank" rel="noopener noreferrer" className="block max-w-[70%] overflow-hidden rounded-2xl border border-line bg-bg">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img data-block-id="C034" src={m.image} alt={t("보낸 사진")} loading="lazy" className="block max-h-72 w-auto object-cover" />
-                </a>
-              ) : (
-                <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[15px] ${m.mine ? "bg-accent text-white" : "bg-bg text-ink"}`}>{m.body}</p>
-              )}
-            </div>
-          ))}
+          {msgs.map((m, i) => {
+            const prev = msgs[i - 1];
+            const next = msgs[i + 1];
+            const newDay = !prev || dayKey(prev.at) !== dayKey(m.at);
+            // 같은 사람이 같은 분에 이어 보낸 메시지는 마지막 것에만 시간을 붙인다.
+            const showTime = !next || next.mine !== m.mine || minuteKey(next.at) !== minuteKey(m.at);
+            // 상대가 아직 읽지 않은 내 메시지(뒤에서부터 otherUnread개)
+            const unread = m.mine && mineUnread.has(m.id);
+            const meta = (showTime || unread) && (
+              <span className={`flex shrink-0 flex-col justify-end pb-0.5 text-[11px] leading-tight ${m.mine ? "items-end" : "items-start"}`}>
+                {unread && <b className="num text-accent" aria-label={t("안 읽음")}>1</b>}
+                {showTime && <time dateTime={new Date(m.at).toISOString()} className="num text-sub">{clock(m.at, lang)}</time>}
+              </span>
+            );
+            return (
+              <div key={m.id}>
+                {newDay && (
+                  <p data-block-id="C211" data-block-name="날짜 구분" className="my-2 flex items-center gap-3 text-[12px] text-sub before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
+                    {dateLine(m.at, lang)}
+                  </p>
+                )}
+                <div className={`flex items-end gap-1.5 ${m.mine ? "justify-end" : "justify-start"}`}>
+                  {m.mine && meta}
+                  {m.image ? (
+                    <a href={m.image} target="_blank" rel="noopener noreferrer" className="block max-w-[70%] overflow-hidden rounded-2xl border border-line bg-bg">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img data-block-id="C034" src={m.image} alt={t("보낸 사진")} loading="lazy" className="block max-h-72 w-auto object-cover" />
+                    </a>
+                  ) : (
+                    <p className={`max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[15px] ${m.mine ? "bg-accent text-white" : "bg-bg text-ink"}`}>{m.body}</p>
+                  )}
+                  {!m.mine && meta}
+                </div>
+              </div>
+            );
+          })}
           <div ref={end} />
         </div>
         {otherUnread > 0 && msgs.length > 0 && (

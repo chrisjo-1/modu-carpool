@@ -5,7 +5,7 @@ import { finishVerify, startVerify } from "@/lib/verify";
 import { matchNewUser } from "@/lib/legacy";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
-import { authEnabled, body, clearCookie, clientIp, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
+import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -40,12 +40,16 @@ export async function POST(req: Request) {
   try {
     await ensureSchema();
     const sql = db();
+    const ip = clientIp(req);
     if (b.action === "signup") {
+      // 같은 곳에서 1시간에 5번까지 가입
+      if (await overLimit("signup-ip", ip, 5, 60)) return json({ error: "가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, 429);
       const name = text(b.name, 20);
       if (name.length < 2) return json({ error: "닉네임을 2자 이상 입력해 주세요." }, 400);
       if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
       const exists = await sql`select 1 from users where email = ${email}`;
       if (exists.length) return json({ error: "이미 가입된 이메일입니다." }, 409);
+      await recordAttempt("signup-ip", ip);
       const hash = await bcrypt.hash(password, 10);
       const mkt = b.marketing === true;
       const rows = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at)
@@ -59,9 +63,16 @@ export async function POST(req: Request) {
       return json({ user: await profile(String(rows[0].id)), credit: welcome, verify });
     }
     if (b.action === "login") {
+      // 비밀번호 무차별 대입 방지: 같은 이메일 15분에 10번, 같은 곳 15분에 30번 틀리면 잠깐 막는다.
+      if ((await overLimit("login-email", email, 10, 15)) || (await overLimit("login-ip", ip, 30, 15)))
+        return json({ error: "로그인 시도가 너무 많습니다. 15분 뒤에 다시 시도하거나 비밀번호 찾기를 이용해 주세요." }, 429);
       const rows = await sql`select id, pw, blocked from users where email = ${email}`;
       const ok = rows.length > 0 && (await bcrypt.compare(password, String(rows[0].pw)));
-      if (!ok) return json({ error: "이메일 또는 비밀번호가 맞지 않습니다." }, 401);
+      if (!ok) {
+        await recordAttempt("login-email", email);
+        await recordAttempt("login-ip", ip);
+        return json({ error: "이메일 또는 비밀번호가 맞지 않습니다." }, 401);
+      }
       if (rows[0].blocked) return json({ error: "이용이 정지된 계정입니다. 문의가 필요하면 운영자에게 연락해 주세요." }, 403);
       await setUserSession(String(rows[0].id));
       return json({ user: await profile(String(rows[0].id)) });

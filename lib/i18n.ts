@@ -3,6 +3,14 @@ export const LANGS: [Lang, string][] = [["ko", "한국어"], ["en", "English"], 
 
 /** 한국어 문구 → [영어, 일본어, 중국어]. 없는 문구는 한국어 그대로 보여준다. */
 const D: Record<string, [string, string, string]> = {
+  "내역 보기": ["View history", "履歴を見る", "查看记录"],
+  "내역 접기": ["Hide history", "履歴を閉じる", "收起记录"],
+  "불러오는 중…": ["Loading…", "読み込み中…", "加载中…"],
+  "더 보기": ["Load more", "もっと見る", "加载更多"],
+  "안 읽음": ["Unread", "未読", "未读"],
+  "가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.": ["Too many sign-ups. Please try again later.", "登録リクエストが多すぎます。しばらくしてからお試しください。", "注册请求过多，请稍后再试。"],
+  "로그인 시도가 너무 많습니다. 15분 뒤에 다시 시도하거나 비밀번호 찾기를 이용해 주세요.": ["Too many login attempts. Try again in 15 minutes or reset your password.", "ログイン試行が多すぎます。15分後に再試行するか、パスワード再設定をご利用ください。", "登录尝试过多，请15分钟后再试或找回密码。"],
+  "메시지를 너무 빨리 보내고 있어요. 잠시 후 다시 보내 주세요.": ["You're sending messages too fast. Please wait a moment.", "メッセージの送信が速すぎます。少し待ってから送ってください。", "发送消息过快，请稍后再发。"],
   "이용이 정지된 계정입니다.": ["This account has been suspended.", "利用停止中のアカウントです。", "该账号已被停用。"],
   "인증 메일을 다시 보냈어요. 메일함(스팸함 포함)을 확인해 주세요.": ["Verification email sent again. Check your inbox (and spam).", "認証メールを再送しました。受信箱（迷惑メール含む）をご確認ください。", "已重新发送验证邮件，请查看收件箱（包括垃圾邮件）。"],
   "이메일 인증이 필요해요.": ["Please verify your email.", "メール認証が必要です。", "需要验证邮箱。"],

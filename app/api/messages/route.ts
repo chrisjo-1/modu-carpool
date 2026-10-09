@@ -69,6 +69,9 @@ export async function POST(req: Request) {
     await ensureSchema();
     if (!(await canChat(b.requestId, me))) return json({ error: "수락된 뒤에 대화할 수 있습니다." }, 403);
     const sql = db();
+    // 도배 방지: 1분에 30개까지
+    const burst = await sql`select count(*)::int as n from messages where user_id = ${me} and created_at > now() - interval '1 minute'`;
+    if ((burst[0].n as number) >= 30) return json({ error: "메시지를 너무 빨리 보내고 있어요. 잠시 후 다시 보내 주세요." }, 429);
     const sent = await sql`insert into messages (request_id, user_id, body, image) values (${b.requestId}, ${me}, ${msg}, ${image}) returning id`;
     await sql`insert into chat_reads (request_id, user_id, last_id) values (${b.requestId}, ${me}, ${sent[0].id})
               on conflict (request_id, user_id) do update set last_id = greatest(chat_reads.last_id, excluded.last_id)`;
@@ -102,6 +105,9 @@ export async function PUT(req: Request) {
     await ensureSchema();
     if (!(await canChat(b.requestId, me))) return json({ error: "수락된 뒤에 대화할 수 있습니다." }, 403);
     const sql = db();
+    // 도배 방지: 1분에 30개까지
+    const burst = await sql`select count(*)::int as n from messages where user_id = ${me} and created_at > now() - interval '1 minute'`;
+    if ((burst[0].n as number) >= 30) return json({ error: "메시지를 너무 빨리 보내고 있어요. 잠시 후 다시 보내 주세요." }, 429);
     const r = await sql`select r.user_id as req_id, p.user_id as owner_id, p.origin, p.dest, (select name from users where id = ${me}) as name
                         from requests r join posts p on p.id = r.post_id where r.id = ${b.requestId}`;
     const other = String(r[0].owner_id === me ? r[0].req_id : r[0].owner_id);

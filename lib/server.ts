@@ -185,6 +185,9 @@ export function ensureSchema(): Promise<void> {
       await sql`create index if not exists reports_created_idx on reports (created_at)`;
       await sql`create table if not exists admin_attempts (ip text not null, at timestamptz not null default now())`;
       await sql`create index if not exists admin_attempts_at_idx on admin_attempts (at)`;
+      // 회원 로그인 실패·가입 횟수 제한용 기록(kind: login-email, login-ip, signup-ip)
+      await sql`create table if not exists auth_attempts (kind text not null, key text not null, at timestamptz not null default now())`;
+      await sql`create index if not exists auth_attempts_idx on auth_attempts (kind, key, at)`;
       await sql`create table if not exists requests (
         id uuid primary key default gen_random_uuid(),
         post_id uuid not null references posts(id) on delete cascade,
@@ -311,7 +314,7 @@ export const needLogin = () => json({ error: "로그인이 필요합니다." }, 
 /** 프로필 사진 주소. 사진이 없으면 빈 문자열. v는 캐시를 새로 고치기 위한 번호다. */
 export const photoUrl = (userId: unknown, v: unknown) => (Number(v) > 0 ? `/api/photo?u=${userId}&v=${Number(v)}` : "");
 export const carPhotoUrl = (userId: unknown, v: unknown) => (Number(v) > 0 ? `/api/photo?u=${userId}&car=1&v=${Number(v)}` : "");
-export const clientIp = (req: Request) => (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+export const clientIp = (req: Request) => req.headers.get("x-real-ip") || (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
 
 /** 신고·차단 사유를 검사한다. "기타"는 내용을 직접 적어야 한다. */
 export function reasonOf(b: Record<string, unknown>): { reason: string; detail: string } | { error: string } {
@@ -320,4 +323,16 @@ export function reasonOf(b: Record<string, unknown>): { reason: string; detail: 
   if (!reason) return { error: "사유를 선택해 주세요." };
   if (reason === "etc" && detail.length < 2) return { error: "기타 사유를 적어 주세요." };
   return { reason, detail };
+}
+
+/** 최근 minutes 분 동안 같은 kind·key 기록이 max 번 이상이면 true (요청 횟수 제한) */
+export async function overLimit(kind: string, key: string, max: number, minutes: number) {
+  const r = await db()`select count(*)::int as n from auth_attempts where kind = ${kind} and key = ${key} and at > now() - make_interval(mins => ${minutes})`;
+  return (r[0].n as number) >= max;
+}
+export async function recordAttempt(kind: string, key: string) {
+  const sql = db();
+  await sql`insert into auth_attempts (kind, key) values (${kind}, ${key})`;
+  // 하루 지난 기록은 가끔 정리한다.
+  if (Math.random() < 0.05) await sql`delete from auth_attempts where at < now() - interval '1 day'`;
 }
