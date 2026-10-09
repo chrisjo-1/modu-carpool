@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 const Legacy = dynamic(() => import("@/components/admin/Legacy"), { ssr: false });
 const Credits = dynamic(() => import("@/components/admin/Credits"), { ssr: false });
 const AdminNotices = dynamic(() => import("@/components/admin/Notices"), { ssr: false });
+const AdminKeywords = dynamic(() => import("@/components/admin/Keywords"), { ssr: false });
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = { id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; posts: number };
@@ -12,7 +13,7 @@ type Flag = { id: string; reason: string; detail: string; status?: string; creat
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
-type TabId = "posts" | "users" | "flags" | "legacy" | "credits" | "notices";
+type TabId = "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", promo: "홍보성", illegal: "불법", etc: "기타" };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -138,11 +139,12 @@ export default function Admin() {
       </section>
       {!info?.db && <p className="rounded-xl bg-warnSoft px-4 py-3 text-sm text-warn">DB가 아직 연결되지 않았습니다. 연결 전에는 현황과 관리 기능이 동작하지 않습니다.</p>}
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {tabBtn("posts", "카풀 글")}
         {tabBtn("users", "회원")}
         {tabBtn("flags", `신고·차단${s?.reports ? ` (${s.reports})` : ""}`)}
         {tabBtn("notices", "공지")}
+        {tabBtn("keywords", "키워드")}
         {tabBtn("credits", "크레딧")}
         {tabBtn("legacy", "구 워프 회원 이전")}
         {msg && <p role="status" className="ml-2 text-sm text-sub">{msg}</p>}
@@ -224,6 +226,7 @@ export default function Admin() {
       {tab === "legacy" && <Legacy />}
       {tab === "credits" && <Credits />}
       {tab === "notices" && <AdminNotices />}
+      {tab === "keywords" && <AdminKeywords />}
 
       {tab === "flags" && (
         <>

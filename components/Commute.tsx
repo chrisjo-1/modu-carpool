@@ -7,6 +7,8 @@ import PlaceField from "./PlaceField";
 import { Segment, Sheet, api, btnGhost, btnPrimary, field, useLang, useT } from "./ui";
 
 /** 비용 선택: 무료 / 미터기 나눔 / 금액 입력(허용될 때만). 한 번짜리 등록과 정기카풀이 함께 쓴다. */
+import { TagPicker } from "./Keywords";
+
 export function CostField({
   cost,
   setCost,
@@ -69,6 +71,7 @@ export default function CommuteSheet({
   const [cost, setCost] = useState<"free" | "meter" | "fixed">(initial?.cost ?? "free");
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [note, setNote] = useState(initial?.note ?? "");
+  const [tags, setTags] = useState<string[]>(initial?.tagIds ?? []);
   const [busy, setBusy] = useState(false);
 
   const allowed = priceAllowedRegular(days, timeGo, back ? timeBack : "");
@@ -92,6 +95,7 @@ export default function CommuteSheet({
       cost: cost === "fixed" && !allowed ? "free" : cost,
       price: Number(price),
       note,
+      tags,
     });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
@@ -157,6 +161,7 @@ export default function CommuteSheet({
           <p className="text-sm text-sub">{t("비용")}</p>
           <CostField cost={cost} setCost={setCost} price={price} setPrice={setPrice} allowed={allowed} />
         </div>
+        <TagPicker role={role} cost={cost === "fixed" && !allowed ? "free" : cost} value={tags} onChange={setTags} />
 
         <label className="block text-sm text-sub">
           {t("남길 말 (선택)")}

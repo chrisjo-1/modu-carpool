@@ -1,4 +1,5 @@
 import { grant } from "@/lib/credits";
+import { allowedTags, getKeywords, tagLabels } from "@/lib/keywords";
 import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { samplePosts } from "@/lib/sample";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular, toMinutes, validDays } from "@/lib/time";
@@ -45,7 +46,10 @@ export async function GET(req: Request) {
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                   order by p.depart_at asc limit 300`;
     const now = Date.now();
+    const kw = await getKeywords();
     const posts = rows.map((r) => ({
+      tagIds: (r.tags as string[]) ?? [],
+      tags: tagLabels(kw, r.tags),
       id: r.id,
       ownerId: r.user_id,
       owner: r.owner || "회원",
@@ -105,7 +109,8 @@ function oneTime(b: Record<string, unknown>) {
 export async function POST(req: Request) {
   const me = await currentUserId();
   if (!me) return needLogin();
-  const r = oneTime(await body(req));
+  const b0 = await body(req);
+  const r = { ...oneTime(b0), tags: b0.tags };
   if (!r.v) return json({ error: r.error }, 400);
   const v = r.v;
   try {
@@ -113,10 +118,11 @@ export async function POST(req: Request) {
     const sql = db();
     const open = await sql`select count(*)::int as n from posts where user_id = ${me} and status = 'open' and not regular and depart_at > now()`;
     if ((open[0].n as number) >= 10) return json({ error: "진행 중인 글은 10개까지 올릴 수 있습니다." }, 429);
+    const tags = allowedTags(await getKeywords(), r.tags, v.role, v.cost);
     const rows = await sql`
-      insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng)
+      insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng, tags)
       values (${me}, ${v.role}, ${v.kind}, ${v.cost}, ${v.price}, ${v.origin}, ${v.dest}, ${v.at}, ${v.seats}, ${v.note},
-              ${v.oLat}, ${v.oLng}, ${v.dLat}, ${v.dLng})
+              ${v.oLat}, ${v.oLng}, ${v.dLat}, ${v.dLng}, ${tags}::text[])
       returning id`;
     const credit = await grant(me, "post").catch(() => 0);
     return json({ id: rows[0].id, credit });
@@ -154,14 +160,14 @@ export async function PUT(req: Request) {
       update posts set role = ${role}, cost = ${c.cost}, price = ${c.price}, origin = ${origin}, dest = ${dest},
         origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng},
         days = ${sorted}, time_go = ${timeGo}, time_back = ${timeBack}, depart_at = ${next},
-        seats = ${seats}, note = ${text(b.note, 300)}, status = 'open'
+        seats = ${seats}, note = ${text(b.note, 300)}, status = 'open', tags = ${allowedTags(await getKeywords(), b.tags, role, c.cost)}::text[]
       where user_id = ${me} and regular returning id`;
     if (updated.length) return json({ id: updated[0].id, updated: true });
     const rows = await sql`
       insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
-                         regular, days, time_go, time_back)
+                         regular, days, time_go, time_back, tags)
       values (${me}, ${role}, 'commute', ${c.cost}, ${c.price}, ${origin}, ${dest}, ${next}, ${seats}, ${text(b.note, 300)},
-              ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${timeBack})
+              ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${timeBack}, ${allowedTags(await getKeywords(), b.tags, role, c.cost)}::text[])
       returning id`;
     const credit = await grant(me, "post").catch(() => 0);
     return json({ id: rows[0].id, updated: false, credit });
@@ -186,7 +192,7 @@ export async function PATCH(req: Request) {
       // 정기카풀은 출퇴근 정보 창(PUT)에서 고친다.
       const rows = await sql`
         update posts set role = ${v.role}, kind = ${v.kind}, cost = ${v.cost}, price = ${v.price}, origin = ${v.origin}, dest = ${v.dest},
-          depart_at = ${v.at}, seats = ${v.seats}, note = ${v.note},
+          depart_at = ${v.at}, seats = ${v.seats}, note = ${v.note}, tags = ${allowedTags(await getKeywords(), b.tags, v.role, v.cost)}::text[],
           origin_lat = ${v.oLat}, origin_lng = ${v.oLng}, dest_lat = ${v.dLat}, dest_lng = ${v.dLng}
         where id = ${b.id} and user_id = ${me} and not regular returning id`;
       if (!rows.length) return json({ error: "권한이 없습니다." }, 403);

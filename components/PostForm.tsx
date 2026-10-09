@@ -3,6 +3,7 @@ import { useState } from "react";
 import { priceAllowedAt } from "@/lib/time";
 import type { Place, Post, User } from "@/lib/types";
 import { CostField } from "./Commute";
+import { TagPicker } from "./Keywords";
 import PlaceField from "./PlaceField";
 import { Card, Segment, api, btnPrimary, field, useT } from "./ui";
 
@@ -54,6 +55,7 @@ export default function PostForm({
   const [at, setAt] = useState(() => (initial ? toLocalInput(initial.departAt) : defaultWhen()));
   const [seats, setSeats] = useState(initial?.seats ?? 2);
   const [note, setNote] = useState(initial?.note ?? "");
+  const [tags, setTags] = useState<string[]>(initial?.tagIds ?? []);
   const [busy, setBusy] = useState(false);
 
   // 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시) 출발일 때만 금액을 적을 수 있다.
@@ -77,6 +79,7 @@ export default function PostForm({
       departAt: new Date(at).getTime(),
       seats,
       note,
+      tags,
     });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
@@ -129,6 +132,9 @@ export default function PostForm({
         ) : (
           <p className="text-[15px] leading-relaxed text-sub">{t("나들이·관광 카풀은 무료 운행만 등록할 수 있어요.")}</p>
         )}
+      </Card>
+      <Card data-block-id="C060" data-block-name="키워드" className="p-5">
+        <TagPicker role={role} cost={kind === "commute" && !(cost === "fixed" && !allowed) ? cost : "free"} value={tags} onChange={setTags} />
       </Card>
 
       <Card className="p-5">

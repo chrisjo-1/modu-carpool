@@ -15,6 +15,9 @@ export type Post = {
   timeGo?: string;
   timeBack?: string;
   ownerPhoto?: string;
+  /** 키워드: 표시용 이름과 묶음(gift·driver·rider), 수정용 id */
+  tags?: { label: string; group: string }[];
+  tagIds?: string[];
   /** 운전자 글이면 작성자의 차량 사진 */
   carPhoto?: string;
   /** 내 글이 다른 회원에게 보이지 않는 이유 */

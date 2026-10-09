@@ -8,6 +8,24 @@ import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, dis
 type Role = "all" | "driver" | "rider";
 type Kind = "all" | "commute" | "trip";
 
+/** 글 키워드 칩. 카드에서는 앞의 몇 개만 */
+export function KeywordChips({ post, max }: { post: Post; max?: number }) {
+  const t = useT();
+  const list = post.tags ?? [];
+  if (!list.length) return null;
+  const shown = max ? list.slice(0, max) : list;
+  return (
+    <div data-block-id="C015" data-block-name="키워드" className="flex flex-wrap gap-1.5">
+      {shown.map((k) => (
+        <span key={k.label} className={`rounded-full px-2.5 py-0.5 text-[12px] ${k.group === "gift" ? "bg-[#FFF7E6] text-[#9A5B00]" : "bg-bg text-sub"}`}>
+          {k.group === "gift" ? `${t("감사")} · ` : "#"}{t(k.label)}
+        </span>
+      ))}
+      {max && list.length > max && <span className="px-1 text-[12px] text-sub">+{list.length - max}</span>}
+    </div>
+  );
+}
+
 function PostTags({ post }: { post: Post }) {
   const t = useT();
   const lang = useLang();
@@ -119,6 +137,7 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
                     <span className="flex shrink-0 gap-1.5">{p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
                   </div>
                   <Route origin={p.origin} dest={p.dest} />
+                  <KeywordChips post={p} max={4} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
                     <span className="num">{scheduleText(p, lang)}{far(p) != null && <b className="ml-1.5 font-semibold text-accent">· {kmText(far(p) as number)}</b>}</span>
                     <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} size={24} />{p.owner} · {p.role === "driver" ? t("남은 자리") : t("인원")} {p.seats}</span>
@@ -200,6 +219,7 @@ export function PostDetail({
       <div className="space-y-4">
         <PostTags post={post} />
         <Route origin={post.origin} dest={post.dest} />
+        <KeywordChips post={post} />
         <dl className="space-y-2 text-[16px]">
           {post.regular && <div className="flex justify-between"><dt className="text-sub">{t("일정")}</dt><dd className="num font-semibold">{scheduleText(post, lang)}</dd></div>}
           <div className="flex justify-between"><dt className="text-sub">{t("출발")}</dt><dd className="num font-semibold">{when(post.departAt, lang)}</dd></div>
