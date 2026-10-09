@@ -1,3 +1,4 @@
+import { grant } from "@/lib/credits";
 import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { samplePosts } from "@/lib/sample";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular, toMinutes, validDays } from "@/lib/time";
@@ -112,7 +113,8 @@ export async function POST(req: Request) {
       values (${me}, ${v.role}, ${v.kind}, ${v.cost}, ${v.price}, ${v.origin}, ${v.dest}, ${v.at}, ${v.seats}, ${v.note},
               ${v.oLat}, ${v.oLng}, ${v.dLat}, ${v.dLng})
       returning id`;
-    return json({ id: rows[0].id });
+    const credit = await grant(me, "post").catch(() => 0);
+    return json({ id: rows[0].id, credit });
   } catch (e) {
     return fail(e);
   }
@@ -156,7 +158,8 @@ export async function PUT(req: Request) {
       values (${me}, ${role}, 'commute', ${c.cost}, ${c.price}, ${origin}, ${dest}, ${next}, ${seats}, ${text(b.note, 300)},
               ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${timeBack})
       returning id`;
-    return json({ id: rows[0].id, updated: false });
+    const credit = await grant(me, "post").catch(() => 0);
+    return json({ id: rows[0].id, updated: false, credit });
   } catch (e) {
     return fail(e);
   }

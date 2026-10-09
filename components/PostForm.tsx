@@ -62,7 +62,7 @@ export default function PostForm({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api("/api/posts", initial ? "PATCH" : "POST", {
+    const r = await api<{ id?: string; credit?: number }>("/api/posts", initial ? "PATCH" : "POST", {
       id: initial?.id,
       role,
       kind,
@@ -85,7 +85,8 @@ export default function PostForm({
       setDest(empty);
       setNote("");
     }
-    toast(t(initial ? "글을 수정했어요." : "카풀을 등록했어요."));
+    const credit = !initial && r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : "";
+    toast(t(initial ? "글을 수정했어요." : "카풀을 등록했어요.") + credit);
     onDone(initial ? undefined : (r.data as { id?: string }).id);
   };
 

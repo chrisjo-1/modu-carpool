@@ -3,14 +3,15 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
 const Legacy = dynamic(() => import("@/components/admin/Legacy"), { ssr: false });
+const Credits = dynamic(() => import("@/components/admin/Credits"), { ssr: false });
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean };
-type UserRow = { id: string; email: string; name: string; blocked: boolean; test: boolean; created_at: number; posts: number };
+type UserRow = { id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; posts: number };
 type Flag = { id: string; reason: string; detail: string; status?: string; created_at: number; target_id: string; target_name: string; target_email: string; target_blocked: boolean };
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
-type TabId = "posts" | "users" | "flags" | "legacy";
+type TabId = "posts" | "users" | "flags" | "legacy" | "credits";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", promo: "홍보성", illegal: "불법", etc: "기타" };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -107,7 +108,7 @@ export default function Admin() {
 
   const s = info?.stats;
   const tabBtn = (id: TabId, label: string) => (
-    <button onClick={() => setTab(id)} aria-pressed={tab === id} className={`rounded-xl px-4 text-[15px] ${tab === id ? "bg-accent font-semibold text-white" : "bg-white text-sub shadow-card"}`}>{label}</button>
+    <button onClick={() => { setTab(id); refresh(q); }} aria-pressed={tab === id} className={`rounded-xl px-4 text-[15px] ${tab === id ? "bg-accent font-semibold text-white" : "bg-white text-sub shadow-card"}`}>{label}</button>
   );
 
   return (
@@ -140,6 +141,7 @@ export default function Admin() {
         {tabBtn("posts", "카풀 글")}
         {tabBtn("users", "회원")}
         {tabBtn("flags", `신고·차단${s?.reports ? ` (${s.reports})` : ""}`)}
+        {tabBtn("credits", "크레딧")}
         {tabBtn("legacy", "구 워프 회원 이전")}
         {msg && <p role="status" className="ml-2 text-sm text-sub">{msg}</p>}
       </div>
@@ -191,7 +193,7 @@ export default function Admin() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="text-sub">
-                <tr>{["닉네임", "이메일", "가입일", "글", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                <tr>{["닉네임", "이메일", "가입일", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {(info?.users ?? []).map((u) => (
@@ -200,6 +202,7 @@ export default function Admin() {
                     <td className="px-2 py-2">{u.email}</td>
                     <td className="num px-2 py-2">{new Date(u.created_at).toLocaleDateString("ko-KR")}</td>
                     <td className="num px-2 py-2">{u.posts}</td>
+                    <td className="num px-2 py-2">{(u.credits ?? 0).toLocaleString("ko-KR")}</td>
                     <td className="px-2 py-2">{u.blocked ? <span className="font-semibold text-warn">차단됨</span> : "정상"}</td>
                     <td className="whitespace-nowrap px-2 py-2">
                       {u.test && <button data-block-id="B097" data-block-name="이 회원으로 들어가기" className="mr-3 min-h-0 font-semibold text-accent underline" onClick={() => enter(u)}>이 회원으로 들어가기</button>}
@@ -217,6 +220,7 @@ export default function Admin() {
       )}
 
       {tab === "legacy" && <Legacy />}
+      {tab === "credits" && <Credits />}
 
       {tab === "flags" && (
         <>

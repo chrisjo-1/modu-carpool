@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       select p.id, p.origin, p.dest, p.depart_at, p.role, p.kind, p.cost, p.price, p.regular, p.days, p.time_go, p.status, p.note, u.email, u.name, u.blocked
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
     const users = await sql`
-      select u.id, u.email, u.name, u.blocked, u.test, u.created_at,
+      select u.id, u.email, u.name, u.blocked, u.test, u.credits, u.created_at,
              (select count(*)::int from posts where user_id = u.id) as posts
       from users u
       where ${q} = '' or u.email ilike ${like} or u.name ilike ${like}

@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
+import { grant } from "@/lib/credits";
 import { matchNewUser } from "@/lib/legacy";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
@@ -45,8 +46,9 @@ export async function POST(req: Request) {
       const rows = await sql`insert into users (email, pw, name) values (${email}, ${hash}, ${name}) returning id`;
       // 구 워프 회원이면 대조 상태를 바로 '가입됨'으로 바꾼다(실패해도 가입은 진행).
       await matchNewUser(String(rows[0].id), email).catch((e) => console.error("[legacy]", e));
+      const welcome = await grant(String(rows[0].id), "signup").catch(() => 0);
       await setUserSession(String(rows[0].id));
-      return json({ user: await profile(String(rows[0].id)) });
+      return json({ user: await profile(String(rows[0].id)), credit: welcome });
     }
     if (b.action === "login") {
       const rows = await sql`select id, pw, blocked from users where email = ${email}`;

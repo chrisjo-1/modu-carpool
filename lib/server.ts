@@ -57,6 +57,20 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists notify boolean not null default true`;
       await sql`alter table users add column if not exists pw_at timestamptz`;
       await sql`alter table users add column if not exists car_no text not null default ''`;
+      // 크레딧: 잔액은 users.credits, 모든 변동은 credit_ledger 에 남긴다.
+      await sql`alter table users add column if not exists credits integer not null default 0`;
+      await sql`create table if not exists credit_ledger (
+        id bigserial primary key,
+        user_id uuid not null references users(id) on delete cascade,
+        amount integer not null,
+        reason text not null,
+        memo text not null default '',
+        day text not null default '',
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists credit_ledger_user_idx on credit_ledger (user_id, id desc)`;
+      await sql`create unique index if not exists credit_daily_uniq on credit_ledger (user_id, reason, day) where reason in ('attend', 'post')`;
+      await sql`create unique index if not exists credit_signup_uniq on credit_ledger (user_id) where reason = 'signup'`;
+      await sql`create table if not exists settings (key text primary key, value text not null)`;
       await sql`create table if not exists push_subs (
         endpoint text primary key,
         user_id uuid not null references users(id) on delete cascade,

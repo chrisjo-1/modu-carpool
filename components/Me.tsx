@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
+import CreditCard, { creditText } from "./Credits";
 import { pushHint, type usePush } from "./Push";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 
@@ -172,7 +173,7 @@ export default function Me({
   const auth = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api<{ user: User }>("/api/auth", "POST", { action: mode, email, password, name });
+    const r = await api<{ user: User; credit?: number }>("/api/auth", "POST", { action: mode, email, password, name });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setPassword("");
@@ -188,6 +189,7 @@ export default function Me({
       /* 무시 */
     }
     setUser(r.data.user);
+    if (r.data.credit) toast(`${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)}`);
     if (mode === "signup" && wantRegular) onCommute(null, true);
   };
 
@@ -206,6 +208,8 @@ export default function Me({
       <header>
         <h1 className="text-[28px] font-bold">{t("내 정보")}</h1>
       </header>
+
+      {user && <CreditCard toast={toast} version={version} />}
 
       <div>
         <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("언어")}</h2>

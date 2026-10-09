@@ -1,3 +1,4 @@
+import { getRules, spend } from "@/lib/credits";
 import { notify, nudgeMail } from "@/lib/mail";
 import { pushText, sendPush } from "@/lib/push";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, text } from "@/lib/server";
@@ -33,6 +34,7 @@ export async function GET(req: Request) {
                 and m.id > coalesce((select c.last_id from chat_reads c where c.request_id = ${id} and c.user_id <> ${me}), 0)) as other_unread,
              (select max(at) from mail_nudges n where n.request_id = ${id} and n.sender = ${me}) as nudged_at`;
     return json({
+      nudgeCost: (await getRules()).nudge,
       otherUnread: st[0].other_unread,
       nudgedAt: st[0].nudged_at ? new Date(st[0].nudged_at as string).getTime() : null,
       messages: rows.reverse().map((m) => ({
@@ -111,11 +113,19 @@ export async function PUT(req: Request) {
     if (!unread.length) return json({ error: "상대가 메시지를 모두 읽었어요." }, 400);
     const recent = await sql`select 1 from mail_nudges where request_id = ${b.requestId} and sender = ${me} and at > now() - interval '6 hours'`;
     if (recent.length) return json({ error: "메일 알림은 6시간에 한 번 보낼 수 있어요." }, 429);
+    // 크레딧: 발송에 성공했을 때만 차감한다. 먼저 잔액이 충분한지 본다.
+    const cost = (await getRules()).nudge;
+    const bal = await sql`select credits from users where id = ${me}`;
+    if (Number(bal[0]?.credits ?? 0) < cost) return json({ error: `크레딧이 부족해요. 메일로 알리기에는 ${cost.toLocaleString("ko-KR")} 크레딧이 필요해요.` }, 402);
     await sql`insert into mail_nudges (request_id, sender) values (${b.requestId}, ${me})`;
     const last = unread[0].has_image && !unread[0].body ? "(사진)" : String(unread[0].body);
     const ok = await nudgeMail(other, String(r[0].name ?? ""), `${r[0].origin} → ${r[0].dest}`, unread.length, last, `/?room=${b.requestId}`);
-    if (!ok) return json({ error: "메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요." }, 502);
-    return json({ ok: true });
+    if (!ok) {
+      await sql`delete from mail_nudges where request_id = ${b.requestId} and sender = ${me} and at > now() - interval '1 minute'`;
+      return json({ error: "메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요." }, 502);
+    }
+    await spend(me, cost, "nudge", `${r[0].origin} → ${r[0].dest}`);
+    return json({ ok: true, cost });
   } catch (e) {
     return fail(e);
   }

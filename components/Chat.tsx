@@ -115,6 +115,7 @@ export function ChatRoom({
   const [stars, setStars] = useState(thread.myStars ?? 0);
   const [otherUnread, setOtherUnread] = useState(0);
   const [nudgedAt, setNudgedAt] = useState<number | null>(null);
+  const [nudgeCost, setNudgeCost] = useState(0);
   const end = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const count = useRef(0);
@@ -122,11 +123,12 @@ export function ChatRoom({
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      const r = await api<{ messages: Msg[]; otherUnread: number; nudgedAt: number | null }>(`/api/messages?request=${thread.id}`);
+      const r = await api<{ messages: Msg[]; otherUnread: number; nudgedAt: number | null; nudgeCost: number }>(`/api/messages?request=${thread.id}`);
       if (alive && r.ok) {
         setMsgs(r.data.messages);
         setOtherUnread(r.data.otherUnread ?? 0);
         setNudgedAt(r.data.nudgedAt ?? null);
+        setNudgeCost(r.data.nudgeCost ?? 0);
       }
     };
     load();
@@ -172,12 +174,14 @@ export function ChatRoom({
   };
 
   const nudge = async () => {
+    if (nudgeCost && !window.confirm(`${t("메일로 알리기")}: ${nudgeCost.toLocaleString("ko-KR")} ${t("크레딧이 사용돼요. 보낼까요?")}`)) return;
     setBusy(true);
-    const r = await api("/api/messages", "PUT", { requestId: thread.id });
+    const r = await api<{ cost: number }>("/api/messages", "PUT", { requestId: thread.id });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setNudgedAt(Date.now());
-    toast(t("상대에게 메일로 알렸어요."));
+    toast(t("상대에게 메일로 알렸어요.") + (r.data.cost ? ` −${r.data.cost.toLocaleString("ko-KR")} ${t("크레딧")}` : ""));
+    onChanged();
   };
   const nudgeLocked = nudgedAt != null && Date.now() - nudgedAt < 6 * 3600_000;
 
@@ -246,7 +250,7 @@ export function ChatRoom({
           <div data-block-id="C038" data-block-name="메일로 알리기" className="flex items-center justify-between gap-3 rounded-2xl bg-bg px-4 py-2.5">
             <span className="text-[13px] text-sub">{t("상대가 아직 읽지 않은 메시지")} <b className="num text-ink">{otherUnread}</b></span>
             <button data-block-id="B036" data-block-name="메일로 알리기" disabled={busy || nudgeLocked} className="min-h-0 shrink-0 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-semibold text-accent disabled:text-sub" onClick={nudge}>
-              {nudgeLocked ? t("메일 알림 보냄") : t("메일로 알리기")}
+              {nudgeLocked ? t("메일 알림 보냄") : `${t("메일로 알리기")}${nudgeCost ? ` · ${nudgeCost.toLocaleString("ko-KR")}C` : ""}`}
             </button>
           </div>
         )}

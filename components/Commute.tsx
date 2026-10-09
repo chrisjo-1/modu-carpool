@@ -77,7 +77,7 @@ export default function CommuteSheet({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api<{ updated: boolean }>("/api/posts", "PUT", {
+    const r = await api<{ updated: boolean; credit?: number }>("/api/posts", "PUT", {
       role,
       origin: origin.name,
       dest: dest.name,
@@ -95,7 +95,7 @@ export default function CommuteSheet({
     });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
-    toast(t(r.data.updated ? "출퇴근 정보를 고쳤어요." : "정기카풀로 게시했어요."));
+    toast(t(r.data.updated ? "출퇴근 정보를 고쳤어요." : "정기카풀로 게시했어요.") + (r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : ""));
     onDone();
   };
 
