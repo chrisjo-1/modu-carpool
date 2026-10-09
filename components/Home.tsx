@@ -62,18 +62,27 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
   const [kind, setKind] = useState<Kind>("all");
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
-  // 가까운 순 정렬: 내 위치를 받아 두고, 다시 누르면 출발 시각 순으로 돌아간다.
+  // 정렬: 출발 임박순(기본) · 최신순 · 가까운 순(내 위치 필요)
+  const [sort, setSort] = useState<"soon" | "new" | "near">("soon");
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
 
+  const pickSort = (s: "soon" | "new" | "near") => {
+    if (s !== "near") {
+      setSort(s);
+      return;
+    }
+    if (here) return setSort("near");
+    toggleNear();
+  };
   const toggleNear = () => {
-    if (here) return setHere(null);
     if (!("geolocation" in navigator)) return toast(t("이 기기는 위치 확인을 지원하지 않아요."));
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
         setHere({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setSort("near");
       },
       (err) => {
         setLocating(false);
@@ -95,12 +104,16 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
         (!k || `${p.origin} ${p.dest} ${p.note} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
     );
-    if (!here) return hit;
+    // 종료된 글은 어떤 정렬에서도 맨 아래에 둔다.
+    const live = hit.filter((p) => !p.ended);
+    const done = hit.filter((p) => p.ended);
+    if (sort === "new") live.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
     // 가까운 순: 출발 위치가 저장된 글을 거리순으로, 위치가 없는 글은 뒤에 둔다.
-    return [...hit].sort((a, b) => (far(a) ?? Infinity) - (far(b) ?? Infinity));
+    else if (sort === "near" && here) live.sort((a, b) => (far(a) ?? Infinity) - (far(b) ?? Infinity));
+    return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, role, kind, q, regularOnly, lang, here]);
+  }, [posts, role, kind, q, regularOnly, lang, here, sort]);
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-4">
@@ -116,10 +129,14 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`rounded-full border px-4 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
           {t("정기카풀만 보기")}
         </button>
-        <button type="button" data-block-id="B003" data-block-name="가까운 순" role="switch" aria-checked={!!here} disabled={locating} onClick={toggleNear} className={`ml-2 rounded-full border px-4 text-[14px] ${here ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-          {locating ? t("위치를 찾는 중…") : t("가까운 순")}
-        </button>
-        {here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 순서입니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
+        <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="mt-1 flex gap-1.5">
+          {([["soon", t("출발 임박순")], ["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")]] as const).map(([k, label]) => (
+            <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-0 rounded-full border px-3.5 py-1.5 text-[14px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {sort === "near" && here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 순서입니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
       </div>
 
       {sample && <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] text-ink">{t("지금 보이는 글은 화면 확인용 예시입니다.")}</p>}
@@ -130,11 +147,11 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         <ul className="space-y-3">
           {list.map((p) => (
             <li key={p.id}>
-              <button data-block-id="C001" data-block-name="카풀 카드" onClick={() => onOpen(p)} className="block w-full text-left">
+              <button data-block-id="C001" data-block-name="카풀 카드" onClick={() => onOpen(p)} className={`block w-full text-left ${p.ended ? "opacity-60" : ""}`}>
                 <Card className="space-y-3 p-5">
                   <div className="flex items-center justify-between gap-2">
                     <PostTags post={p} />
-                    <span className="flex shrink-0 gap-1.5">{p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
+                    <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
                   </div>
                   <Route origin={p.origin} dest={p.dest} />
                   <KeywordChips post={p} max={4} />
@@ -292,7 +309,7 @@ export function PostDetail({
                     run("/api/posts", "PATCH", { id: post.id, status: "progress" }, "카풀 진행 중으로 표시했어요.");
                   }}
                 >
-                  {post.status === "open" ? t("진행 중") : t("다시 게시")}
+                  {post.status === "open" ? t("일시정지") : t("다시 게시")}
                 </button>
               ) : (
                 <button disabled={busy} className={`${btnGhost} py-3 text-[15px]`} onClick={() => run("/api/posts", "PATCH", { id: post.id, status: post.status === "open" ? "closed" : "open" }, post.status === "open" ? "마감했어요." : "다시 열었어요.")}>
@@ -324,7 +341,9 @@ export function PostDetail({
             )}
           </div>
         ) : (
-          post.status === "progress" ? (
+          post.ended ? (
+            <p data-block-id="C016" data-block-name="종료 안내" className="rounded-2xl bg-bg px-4 py-4 text-center text-[15px] font-semibold text-sub">{t("출발 시각이 지나 종료된 카풀이에요.")}</p>
+          ) : post.status === "progress" ? (
             <p data-block-id="C011" data-block-name="카풀 진행 중 안내" className="rounded-2xl bg-accentSoft px-4 py-4 text-center text-[15px] font-semibold text-accent">{t("카풀 진행 중인 글이에요. 지금은 신청을 받지 않습니다.")}</p>
           ) : (
           <div className="space-y-2">

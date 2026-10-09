@@ -1,10 +1,11 @@
 import { db } from "./server";
 
 /** 크레딧 기준(관리자 화면에서 바꿀 수 있다). nudge 는 '메일로 알리기' 1회에 차감하는 양. */
-export const DEFAULT_RULES = { signup: 1000, attend: 100, post: 1000, nudge: 500 };
+export const DEFAULT_RULES = { signup: 1000, attend: 100, post: 1000, nudge: 500, legacy: 2000 };
 export type Rules = typeof DEFAULT_RULES;
 export const REASON_LABEL: Record<string, string> = {
   signup: "가입 축하",
+  legacy: "워프 회원 이전 축하",
   attend: "출석",
   post: "카풀 게시",
   nudge: "메일로 알리기",
@@ -31,11 +32,11 @@ export const kstDay = (t = Date.now()) => new Date(t + 9 * 3600_000).toISOString
  * 적립. 같은 날 같은 사유(출석·게시)나 가입 축하가 이미 있으면 아무것도 하지 않고 0을 돌려준다.
  * 장부 기록과 잔액 변경을 한 문장으로 처리해 중복 지급을 막는다.
  */
-export async function grant(userId: string, reason: "signup" | "attend" | "post", memo = ""): Promise<number> {
+export async function grant(userId: string, reason: "signup" | "attend" | "post" | "legacy", memo = ""): Promise<number> {
   const rules = await getRules();
   const amount = rules[reason];
   if (!amount) return 0;
-  const day = reason === "signup" ? "" : kstDay();
+  const day = reason === "signup" || reason === "legacy" ? "" : kstDay();
   const rows = await db()`
     with ins as (
       insert into credit_ledger (user_id, amount, reason, memo, day) values (${userId}, ${amount}, ${reason}, ${memo}, ${day})
@@ -68,4 +69,10 @@ export async function adjust(userId: string, amount: number, memo: string) {
     return cur.length ? Number(cur[0].credits) : null;
   }
   return rows.length ? Number(rows[0].credits) : null;
+}
+
+/** 구 워프 회원(가입 이메일 일치)이면 이전 축하 크레딧을 한 번 지급한다. */
+export async function grantLegacy(userId: string): Promise<number> {
+  const hit = await db()`select 1 from legacy_members where matched_user = ${userId} limit 1`;
+  return hit.length ? grant(userId, "legacy") : 0;
 }

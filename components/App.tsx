@@ -40,6 +40,7 @@ export default function App() {
   const [preview, setPreviewState] = useState(false);
   const [sharedPost, setSharedPost] = useState("");
   const [noticeFocus, setNoticeFocus] = useState(0);
+  const [feedbackFirst, setFeedbackFirst] = useState(false);
   const setPreview = (v: boolean) => {
     setPreviewState(v);
     try {
@@ -95,7 +96,11 @@ export default function App() {
       if (q.get("tab") === "chat" || q.get("room")) setTab("chat");
       if (q.get("room")) setWantRoom(q.get("room") as string);
       if (q.get("notice")) setNoticeFocus(Number(q.get("notice")) || 0);
-      if (q.get("tab") || q.get("room") || q.get("notice")) history.replaceState(null, "", location.pathname);
+      if (q.get("feedback")) {
+        setFeedbackFirst(true);
+        setTab("me");
+      }
+      if (q.get("tab") || q.get("room") || q.get("notice") || q.get("feedback")) history.replaceState(null, "", location.pathname);
       const id = new URLSearchParams(location.search).get("p");
       const hit = id && list.find((p) => p.id === id);
       if (hit) setOpen(hit);
@@ -233,7 +238,7 @@ export default function App() {
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} push={push} toast={setToastMsg} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} push={push} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} push={push} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">

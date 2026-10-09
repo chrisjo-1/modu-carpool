@@ -37,12 +37,14 @@ export async function GET(req: Request) {
     const sql = db();
     const rows = mine
       ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, u.blocked as owner_blocked,
-                         (not p.regular and p.depart_at <= now() - interval '2 hours') as expired
+                         (not p.regular and p.depart_at <= now() - interval '7 days') as expired,
+                         (not p.regular and p.depart_at <= now()) as ended
                   from posts p join users u on u.id = p.user_id
                   where p.user_id = ${me} order by p.regular desc, p.depart_at desc limit 100`
-      : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, false as owner_blocked, false as expired
+      : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, false as owner_blocked, false as expired,
+                         (not p.regular and p.depart_at <= now()) as ended
                   from posts p join users u on u.id = p.user_id
-                  where p.status in ('open', 'progress') and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '2 hours')
+                  where p.status in ('open', 'progress') and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '7 days')
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                   order by p.depart_at asc limit 300`;
     const now = Date.now();
@@ -76,10 +78,14 @@ export async function GET(req: Request) {
       note: r.note,
       status: r.status,
       mine: !!me && r.user_id === me,
+      // 출발 시각이 지난 일회성 글: 목록에 '종료'로 남고 신청은 받지 않는다.
+      ended: !!r.ended,
+      createdAt: new Date(r.created_at as string).getTime(),
       // 내 글 목록에서만: 다른 회원 목록에 보이지 않는 이유
       hidden: me && r.user_id === me ? (r.owner_blocked ? "blocked" : r.owner_test ? "test" : r.status === "closed" ? "closed" : r.expired ? "expired" : "") : undefined,
     }));
-    if (!mine) posts.sort((a, b) => a.departAt - b.departAt);
+    // 출발 임박순, 종료된 글은 맨 아래(최근에 끝난 순)
+    if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });
   } catch (e) {
     return fail(e);

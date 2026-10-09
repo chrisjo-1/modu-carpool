@@ -1,4 +1,4 @@
-import { REASON_LABEL, getRules, grant, kstDay } from "@/lib/credits";
+import { REASON_LABEL, getRules, grant, grantLegacy, kstDay } from "@/lib/credits";
 import { body, currentUserId, db, ensureSchema, fail, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -6,11 +6,12 @@ export const dynamic = "force-dynamic";
 /** 내 크레딧: 잔액, 기준, 오늘 출석 여부, 최근 내역 */
 export async function GET() {
   const me = await currentUserId();
-  if (!me) return needLogin();
   try {
     await ensureSchema();
-    // 크레딧 도입 전에 가입한 회원도 가입 축하 크레딧을 한 번 받는다.
-    const welcome = await grant(me, "signup");
+    // 로그인 전에는 안내용으로 기준만 알려 준다.
+    if (!me) return json({ rules: await getRules() });
+    // 크레딧 도입 전에 가입한 회원도 가입 축하(와 워프 이전) 크레딧을 한 번 받는다.
+    const welcome = (await grant(me, "signup")) + (await grantLegacy(me));
     const sql = db();
     const [u, today, history, rules] = await Promise.all([
       sql`select credits from users where id = ${me}`,

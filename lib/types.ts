@@ -22,6 +22,8 @@ export type Post = {
   carPhoto?: string;
   /** 내 글이 다른 회원에게 보이지 않는 이유 */
   hidden?: "" | "test" | "closed" | "expired" | "blocked";
+  ended?: boolean;
+  createdAt?: number;
   origin: string;
   dest: string;
   originLat?: number | null;

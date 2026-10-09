@@ -40,7 +40,10 @@ export default function Gate({
         </div>
         <h1 className="mt-8 text-[28px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-sub">{sharedPost ? t("공유받은 카풀을 보려면 로그인하거나 둘러보기를 눌러 주세요.") : t("출퇴근길도 나들이도, 방향이 같은 사람과 함께 타요.")}</p>
-        <Card className="mt-6 p-5">
+        <p data-block-id="C054" data-block-name="워프 회원 안내" className="mt-4 rounded-2xl border border-[#F5D9A8] bg-[#FFF7E6] px-4 py-3 text-[14px] leading-relaxed text-[#7A4A00]">
+          {t("워프를 쓰시던 분이라면, 워프에 가입했던 이메일로 회원가입해 주세요. 이전 축하 크레딧을 추가로 드려요.")}
+        </p>
+        <Card className="mt-4 p-5">
           <AuthForm setUser={setUser} toast={toast} onCommute={onCommute} push={push} />
         </Card>
         <button data-block-id="B060" data-block-name="미리 둘러보기" className="mt-4 w-full rounded-2xl border border-line bg-white py-3.5 text-[16px] font-semibold text-ink" onClick={onPreview}>

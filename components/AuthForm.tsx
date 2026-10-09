@@ -33,6 +33,10 @@ export default function AuthForm({
   const [busy, setBusy] = useState(false);
   const [forgot, setForgot] = useState(false);
   const [sentMsg, setSentMsg] = useState("");
+  const [legacyBonus, setLegacyBonus] = useState(0);
+  useEffect(() => {
+    api<{ rules?: { legacy?: number } }>("/api/credits").then((r) => r.ok && setLegacyBonus(r.data.rules?.legacy ?? 0));
+  }, []);
 
   // 이 기기에 기억한 이메일이 있으면 비밀번호만 입력하게 한다.
   useEffect(() => {
@@ -55,7 +59,7 @@ export default function AuthForm({
     // 알림 권한 창은 버튼을 누른 그 순간에 띄워야 하는 브라우저가 있어 먼저 요청한다.
     const perm = canPush && wantPush && typeof Notification !== "undefined" ? Notification.requestPermission().catch(() => "default" as NotificationPermission) : null;
     setBusy(true);
-    const r = await api<{ user: User; credit?: number }>("/api/auth", "POST", { action: mode, email, password, name, notify: mode === "signup" ? mail : undefined });
+    const r = await api<{ user: User; credit?: number; legacy?: number }>("/api/auth", "POST", { action: mode, email, password, name, notify: mode === "signup" ? mail : undefined });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setPassword("");
@@ -71,7 +75,8 @@ export default function AuthForm({
       /* 무시 */
     }
     setUser(r.data.user);
-    if (r.data.credit) toast(`${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)}`);
+    if (r.data.legacy) toast(`${t("워프 회원이셨네요! 이전 축하 크레딧까지 적립됐어요.")} +${creditText((r.data.credit ?? 0) + r.data.legacy, lang)}`);
+    else if (r.data.credit) toast(`${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)}`);
     if (perm) {
       const err = await push.turnOn(perm);
       if (err) toast(t(err));
@@ -93,6 +98,11 @@ export default function AuthForm({
     <>
       <form onSubmit={submit} className="space-y-3">
         <Segment label={t("계정")} value={mode} onChange={setMode} options={[["login", t("로그인")], ["signup", t("회원가입")]]} />
+        {mode === "signup" && legacyBonus > 0 && (
+          <p data-block-id="C053" data-block-name="워프 회원 안내" className="rounded-xl bg-[#FFF7E6] px-4 py-3 text-[14px] leading-relaxed text-[#7A4A00]">
+            <b>{t("구 워프 회원이셨나요?")}</b> {t("워프에 가입했던 이메일로 가입하면")} <b className="num">{creditText(legacyBonus, lang)}</b> {t("크레딧을 추가로 드려요.")}
+          </p>
+        )}
         {mode === "signup" && (
           <label className="block text-sm text-sub">
             {t("닉네임")}

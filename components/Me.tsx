@@ -4,6 +4,7 @@ import { LANGS, type Lang } from "@/lib/i18n";
 import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
 import AuthForm from "./AuthForm";
 import { NoticeList } from "./Notices";
+import FeedbackSheet from "./Feedback";
 import CreditCard from "./Credits";
 import { pushHint, type usePush } from "./Push";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
@@ -34,7 +35,7 @@ async function shrinkCar(file: File): Promise<string> {
 export const HIDDEN_TEXT: Record<string, string> = {
   test: "테스트 회원으로 쓴 글이라 실제 회원에게는 보이지 않아요.",
   closed: "마감한 글이라 다른 회원 목록에 보이지 않아요.",
-  expired: "출발 시각이 2시간 넘게 지나 목록에서 내려갔어요.",
+  expired: "종료된 지 7일이 지나 목록에서 내려갔어요.",
   blocked: "이용이 정지된 계정이라 글이 보이지 않아요.",
 };
 
@@ -64,6 +65,7 @@ export default function Me({
   onEdit,
   push,
   onProfile,
+  feedbackFirst = false,
 }: {
   user: User | null;
   enabled: boolean;
@@ -79,6 +81,8 @@ export default function Me({
   onEdit: (p: Post) => void;
   push: ReturnType<typeof usePush>;
   onProfile: (id: string) => void;
+  /** 답변 알림을 눌러 들어온 경우 의견 창을 바로 연다 */
+  feedbackFirst?: boolean;
 }) {
   const t = useT();
   const lang = useLang();
@@ -91,6 +95,7 @@ export default function Me({
   const [gender, setGender] = useState("");
   const [rolePref, setRolePref] = useState("");
   const [noticesOpen, setNoticesOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(feedbackFirst);
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
@@ -187,6 +192,11 @@ export default function Me({
         </button>
       )}
       {noticesOpen && <NoticeList onClose={() => setNoticesOpen(false)} />}
+      <button data-block-id="B062" data-block-name="의견 보내기" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card" onClick={() => setFeedbackOpen(true)}>
+        <span><b>{t("의견 보내기")}</b><span className="block text-[13px] text-sub">{t("건의, 불편한 점, 아이디어를 들려주세요.")}</span></span>
+        <span className="text-sub">{Icon.arrow()}</span>
+      </button>
+      {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} onClose={() => setFeedbackOpen(false)} />}
 
       <div>
         <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("언어")}</h2>

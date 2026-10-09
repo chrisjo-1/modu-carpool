@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
-type Rules = { signup: number; attend: number; post: number; nudge: number };
+type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number };
 type Row = { id: number; amount: number; reason: string; memo: string; created_at: number; user_id: string; name: string; email: string; credits: number };
 type Data = { rules: Rules; labels: Record<string, string>; totals: { issued: number; used: number; balance: number; attendToday: number }; ledger: Row[] };
 
@@ -12,6 +12,7 @@ const call = (method: string, url: string, data?: unknown) =>
 
 const RULE_ROWS: [keyof Rules, string, string][] = [
   ["signup", "가입 축하", "가입할 때 한 번 (기존 회원은 내 정보를 처음 열 때)"],
+  ["legacy", "워프 회원 이전 축하", "구 워프 가입 이메일로 가입한 회원에게 한 번 (추가 지급)"],
   ["attend", "출석하기", "하루 한 번, 내 정보의 출석 버튼"],
   ["post", "카풀 게시", "하루 한 번, 일회성·정기카풀 글 등록"],
   ["nudge", "메일로 알리기 (차감)", "채팅에서 메일 발송에 성공했을 때만"],
