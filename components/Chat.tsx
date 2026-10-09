@@ -120,22 +120,45 @@ export function ChatRoom({
   const fileRef = useRef<HTMLInputElement>(null);
   const count = useRef(0);
 
+  // 대화가 오가는 중(최근 1분 안에 메시지·입력)이면 3초, 잠잠하면 10초, 5분 넘게 조용하면 20초마다 새로 받는다.
+  // 화면이 꺼져 있으면 쉬고, 다시 켜지면 바로 받는다.
+  const activeAt = useRef(Date.now());
   useEffect(() => {
     let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastId = -1;
     const load = async () => {
       const r = await api<{ messages: Msg[]; otherUnread: number; nudgedAt: number | null; nudgeCost: number }>(`/api/messages?request=${thread.id}`);
       if (alive && r.ok) {
+        const top = r.data.messages.at(-1)?.id ?? 0;
+        if (lastId !== -1 && top !== lastId) activeAt.current = Date.now();
+        lastId = top;
         setMsgs(r.data.messages);
         setOtherUnread(r.data.otherUnread ?? 0);
         setNudgedAt(r.data.nudgedAt ?? null);
         setNudgeCost(r.data.nudgeCost ?? 0);
       }
     };
-    load();
-    const id = setInterval(() => document.visibilityState === "visible" && load(), 4000);
+    const next = () => {
+      const idle = Date.now() - activeAt.current;
+      timer = setTimeout(tick, idle < 60_000 ? 3000 : idle < 300_000 ? 10_000 : 20_000);
+    };
+    const tick = async () => {
+      if (document.visibilityState === "visible") await load();
+      if (alive) next();
+    };
+    const wake = () => {
+      if (document.visibilityState !== "visible") return;
+      activeAt.current = Date.now();
+      clearTimeout(timer);
+      tick();
+    };
+    load().then(() => alive && next());
+    document.addEventListener("visibilitychange", wake);
     return () => {
       alive = false;
-      clearInterval(id);
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", wake);
     };
   }, [thread.id]);
 
@@ -194,6 +217,7 @@ export function ChatRoom({
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setText("");
+    activeAt.current = Date.now();
     setMsgs((m) => [...m, { id: Date.now(), mine: true, body, at: Date.now() }]);
   };
 
@@ -263,7 +287,7 @@ export function ChatRoom({
         <form onSubmit={send} className="sticky bottom-0 flex gap-2 bg-surface pt-2">
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => sendPhoto(e.target.files?.[0])} />
           <button type="button" data-block-id="B034" data-block-name="사진 보내기" aria-label={t("사진 보내기")} disabled={busy} className="grid shrink-0 place-items-center rounded-xl border border-line px-3 text-sub disabled:opacity-40" onClick={() => fileRef.current?.click()}>{Icon.image(1.6)}</button>
-          <input data-block-id="F030" className={field} maxLength={500} placeholder={t("메시지 입력")} aria-label={t("메시지 입력")} value={text} onChange={(e) => setText(e.target.value)} />
+          <input data-block-id="F030" className={field} maxLength={500} placeholder={t("메시지 입력")} aria-label={t("메시지 입력")} value={text} onChange={(e) => { setText(e.target.value); activeAt.current = Date.now(); }} />
           <button data-block-id="B030" data-block-name="전송" disabled={busy || !text.trim()} className="shrink-0 rounded-xl bg-accent px-5 font-semibold text-white disabled:opacity-40">{t("전송")}</button>
         </form>
       </div>

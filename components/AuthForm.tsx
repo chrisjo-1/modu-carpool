@@ -7,6 +7,34 @@ import { Segment, Sheet, api, btnPrimary, field, useLang, useT } from "./ui";
 
 export const EMAIL_KEY = "modu.email";
 
+export type Agree = { terms: boolean; privacy: boolean; marketing: boolean };
+
+/** 약관 동의: 전체 동의 + 필수 2개 + 선택 마케팅. 가입 폼과 기존 회원 동의 창에서 함께 쓴다. */
+export function Consent({ value, onChange }: { value: Agree; onChange: (v: Agree) => void }) {
+  const t = useT();
+  const all = value.terms && value.privacy && value.marketing;
+  const row = (k: keyof Agree, label: string, href?: string, block = "") => (
+    <div className="flex items-center justify-between gap-2">
+      <label data-block-id={block} className="flex min-h-0 items-center gap-2 text-[14px]">
+        <input type="checkbox" className="h-4 w-4 shrink-0 accent-[#2F6BFF]" checked={value[k]} onChange={(e) => onChange({ ...value, [k]: e.target.checked })} />
+        <span>{label}</span>
+      </label>
+      {href && <a href={href} target="_blank" rel="noreferrer" className="shrink-0 text-[13px] text-sub underline">{t("보기")}</a>}
+    </div>
+  );
+  return (
+    <div data-block-id="C202" data-block-name="약관 동의" className="space-y-2 rounded-xl border border-line px-4 py-3">
+      <label data-block-id="F201" className="flex min-h-0 items-center gap-2 border-b border-line pb-2 text-[15px] font-semibold">
+        <input type="checkbox" className="h-4 w-4 shrink-0 accent-[#2F6BFF]" checked={all} onChange={(e) => onChange({ terms: e.target.checked, privacy: e.target.checked, marketing: e.target.checked })} />
+        <span>{t("전체 동의")}</span>
+      </label>
+      {row("terms", t("[필수] 이용약관 동의"), "/terms", "F202")}
+      {row("privacy", t("[필수] 개인정보 수집·이용 동의"), "/privacy", "F203")}
+      {row("marketing", t("[선택] 이벤트·혜택 정보 수신"), undefined, "F204")}
+    </div>
+  );
+}
+
 /** 로그인·회원가입 폼. 첫 화면과 내 정보에서 함께 쓴다. */
 export default function AuthForm({
   setUser,
@@ -34,6 +62,7 @@ export default function AuthForm({
   const [forgot, setForgot] = useState(false);
   const [sentMsg, setSentMsg] = useState("");
   const [legacyBonus, setLegacyBonus] = useState(0);
+  const [agree, setAgree] = useState({ terms: false, privacy: false, marketing: false });
   useEffect(() => {
     api<{ rules?: { legacy?: number } }>("/api/credits").then((r) => r.ok && setLegacyBonus(r.data.rules?.legacy ?? 0));
   }, []);
@@ -58,8 +87,9 @@ export default function AuthForm({
     e.preventDefault();
     // 알림 권한 창은 버튼을 누른 그 순간에 띄워야 하는 브라우저가 있어 먼저 요청한다.
     const perm = canPush && wantPush && typeof Notification !== "undefined" ? Notification.requestPermission().catch(() => "default" as NotificationPermission) : null;
+    if (mode === "signup" && !(agree.terms && agree.privacy)) return toast(t("이용약관과 개인정보 수집·이용에 동의해 주세요."));
     setBusy(true);
-    const r = await api<{ user: User; credit?: number; legacy?: number }>("/api/auth", "POST", { action: mode, email, password, name, notify: mode === "signup" ? mail : undefined });
+    const r = await api<{ user: User; credit?: number; verify?: string }>("/api/auth", "POST", { action: mode, email, password, name, notify: mode === "signup" ? mail : undefined, ...(mode === "signup" ? agree : {}) });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setPassword("");
@@ -75,7 +105,7 @@ export default function AuthForm({
       /* 무시 */
     }
     setUser(r.data.user);
-    if (r.data.legacy) toast(`${t("워프 회원이셨네요! 이전 축하 크레딧까지 적립됐어요.")} +${creditText((r.data.credit ?? 0) + r.data.legacy, lang)}`);
+    if (mode === "signup") toast(`${r.data.credit ? `${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)} · ` : ""}${t(r.data.verify === "sent" ? "메일함에서 인증 링크를 눌러 주세요." : "내 정보에서 인증 메일을 받아 주세요.")}`);
     else if (r.data.credit) toast(`${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)}`);
     if (perm) {
       const err = await push.turnOn(perm);
@@ -139,6 +169,7 @@ export default function AuthForm({
             : pushHint[push.state] && push.state !== "disabled" && <p className="text-[12px] text-sub">{t("푸시 알림")}: {t(pushHint[push.state] as string)}</p>}
           {check(remember, setRemember, t("이 기기에서 이메일 기억하기"), "F047")}
         </div>
+        {mode === "signup" && <Consent value={agree} onChange={setAgree} />}
         <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
         {mode === "login" && (
           <button type="button" data-block-id="B053" data-block-name="비밀번호 찾기" className="w-full min-h-0 py-2 text-[14px] text-sub underline" onClick={() => { setForgot(true); setSentMsg(""); }}>{t("비밀번호를 잊으셨나요?")}</button>

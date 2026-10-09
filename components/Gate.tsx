@@ -3,6 +3,7 @@ import type { Lang } from "@/lib/i18n";
 import { LANGS } from "@/lib/i18n";
 import type { User } from "@/lib/types";
 import AuthForm from "./AuthForm";
+import { DocLinks } from "./Account";
 import type { usePush } from "./Push";
 import { Card, Icon, useLang, useT } from "./ui";
 
@@ -50,6 +51,7 @@ export default function Gate({
           {t("로그인 없이 미리 둘러보기")}
         </button>
         <p className="mt-2 text-center text-[13px] text-sub">{t("둘러보다가 신청하거나 글을 쓸 때 로그인하면 돼요.")}</p>
+        <DocLinks />
       </div>
     </div>
   );

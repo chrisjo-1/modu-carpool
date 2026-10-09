@@ -69,7 +69,7 @@ export async function POST(req: Request) {
         const tag = crypto.randomUUID().slice(0, 8);
         const name = text(b.name, 20) || `테스트${tag.slice(0, 4)}`;
         // 비밀번호 칸에는 맞출 수 없는 값을 넣어, 관리자 화면을 통해서만 들어갈 수 있게 한다.
-        const rows = await sql`insert into users (email, pw, name, test) values (${`test-${tag}@test.invalid`}, ${`!${crypto.randomUUID()}`}, ${name}, true) returning id`;
+        const rows = await sql`insert into users (email, pw, name, test, email_verified, terms_at) values (${`test-${tag}@test.invalid`}, ${`!${crypto.randomUUID()}`}, ${name}, true, true, now()) returning id`;
         return json({ ok: true, id: rows[0].id });
       }
       if (!isUuid(b.userId)) return json({ error: "잘못된 요청입니다." }, 400);

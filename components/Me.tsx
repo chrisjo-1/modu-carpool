@@ -7,6 +7,8 @@ import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
 import CreditCard from "./Credits";
 import { pushHint, type usePush } from "./Push";
+import RouteAlerts from "./RouteAlerts";
+import { DocLinks } from "./Account";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 
 /** 고른 사진을 가운데 정사각형으로 잘라 240px JPEG로 줄인다. */
@@ -282,6 +284,15 @@ export default function Me({
                   }
                 }} />
               </div>
+              <label data-block-id="F208" data-block-name="마케팅 수신" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 text-[15px]">
+                <span>{t("이벤트·혜택 정보 받기")}<span className="block text-[13px] text-sub">{t("선택 사항이에요. 언제든 끌 수 있어요.")}</span></span>
+                <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={user.marketing === true} onChange={async (e) => {
+                  const r = await api<{ user: User }>("/api/auth", "PATCH", { marketing: e.target.checked });
+                  if (!r.ok) return toast(t(r.error));
+                  setUser(r.data.user);
+                  toast(t(r.data.user.marketing ? "이벤트·혜택 정보 수신에 동의했어요." : "이벤트·혜택 정보 수신을 철회했어요."));
+                }} />
+              </label>
               <button type="button" data-block-id="B041" data-block-name="로그아웃" className={btnGhost} onClick={async () => { await api("/api/auth", "DELETE"); setUser(null); }}>{t("로그아웃")}</button>
             </form>
           ) : !enabled ? (
@@ -350,6 +361,8 @@ export default function Me({
         </div>
       )}
 
+      {user && <RouteAlerts regular={regular} toast={toast} push={push} />}
+
       {user && (
         <div>
           <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내가 올린 카풀")}</h2>
@@ -413,6 +426,7 @@ export default function Me({
       <p className="px-1 text-[13px] leading-relaxed text-sub">
         {t("모두의카풀은 무료 운행을 원칙으로 하며, 출퇴근 카풀에 한해 실비 분담을 돕습니다. 영리 목적의 유상운송은 「여객자동차 운수사업법」에 따라 금지되어 있습니다. 만남과 이동에 대한 책임은 당사자에게 있으니 공개된 장소에서 만나 주세요.")}
       </p>
+      <DocLinks />
     </section>
   );
 }

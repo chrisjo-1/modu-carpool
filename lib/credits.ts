@@ -73,6 +73,6 @@ export async function adjust(userId: string, amount: number, memo: string) {
 
 /** 구 워프 회원(가입 이메일 일치)이면 이전 축하 크레딧을 한 번 지급한다. */
 export async function grantLegacy(userId: string): Promise<number> {
-  const hit = await db()`select 1 from legacy_members where matched_user = ${userId} limit 1`;
+  const hit = await db()`select 1 from legacy_members l join users u on u.id = l.matched_user where l.matched_user = ${userId} and u.email_verified limit 1`;
   return hit.length ? grant(userId, "legacy") : 0;
 }

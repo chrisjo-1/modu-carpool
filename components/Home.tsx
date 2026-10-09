@@ -1,9 +1,12 @@
 "use client";
+import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { HIDDEN_TEXT } from "./Me";
 import { useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
+
+const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
 type Role = "all" | "driver" | "rider";
 type Kind = "all" | "commute" | "trip";
@@ -66,6 +69,7 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
   const [sort, setSort] = useState<"soon" | "new" | "near">("soon");
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [view, setView] = useState<"list" | "map">("list");
 
   const pickSort = (s: "soon" | "new" | "near") => {
     if (s !== "near") {
@@ -122,6 +126,8 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         <p data-block-id="S001-desc" className="mt-1 text-sub">{t("출퇴근길도 서울 나들이도, 방향이 같은 사람과 함께.")}</p>
       </header>
 
+      <Segment label={t("보기 방식")} value={view} onChange={setView} options={[["list", t("목록")], ["map", t("지도")]]} />
+
       <div className="space-y-2">
         <input data-block-id="F001" className={field} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
         <Segment label={t("종류")} value={kind} onChange={setKind} options={[["all", t("전체")], ["commute", t("출퇴근")], ["trip", t("나들이·관광")]]} />
@@ -129,7 +135,7 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`rounded-full border px-4 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
           {t("정기카풀만 보기")}
         </button>
-        <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="mt-1 flex gap-1.5">
+        <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className={`mt-1 gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
           {([["soon", t("출발 임박순")], ["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")]] as const).map(([k, label]) => (
             <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-0 rounded-full border px-3.5 py-1.5 text-[14px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
               {label}
@@ -141,7 +147,9 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
 
       {sample && <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] text-ink">{t("지금 보이는 글은 화면 확인용 예시입니다.")}</p>}
 
-      {list.length === 0 ? (
+      {view === "map" ? (
+        <PostMap posts={list} onOpen={onOpen} here={here} />
+      ) : list.length === 0 ? (
         <Card className="px-6 py-12 text-center text-sub">{t("조건에 맞는 카풀이 아직 없어요.")}</Card>
       ) : (
         <ul className="space-y-3">

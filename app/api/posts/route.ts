@@ -1,4 +1,6 @@
+import { notifyRouteAlerts } from "@/lib/alerts";
 import { grant } from "@/lib/credits";
+import { isVerified } from "@/lib/verify";
 import { allowedTags, getKeywords, tagLabels } from "@/lib/keywords";
 import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { samplePosts } from "@/lib/sample";
@@ -121,6 +123,7 @@ export async function POST(req: Request) {
   const v = r.v;
   try {
     await ensureSchema();
+    if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 글을 올릴 수 있어요. 메일함을 확인해 주세요." }, 403);
     const sql = db();
     const open = await sql`select count(*)::int as n from posts where user_id = ${me} and status = 'open' and not regular and depart_at > now()`;
     if ((open[0].n as number) >= 10) return json({ error: "진행 중인 글은 10개까지 올릴 수 있습니다." }, 429);
@@ -131,6 +134,7 @@ export async function POST(req: Request) {
               ${v.oLat}, ${v.oLng}, ${v.dLat}, ${v.dLng}, ${tags}::text[])
       returning id`;
     const credit = await grant(me, "post").catch(() => 0);
+    await notifyRouteAlerts(String(rows[0].id));
     return json({ id: rows[0].id, credit });
   } catch (e) {
     return fail(e);
@@ -161,6 +165,7 @@ export async function PUT(req: Request) {
   const next = new Date(nextOccurrence(sorted, timeGo)).toISOString();
   try {
     await ensureSchema();
+    if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 글을 올릴 수 있어요. 메일함을 확인해 주세요." }, 403);
     const sql = db();
     const updated = await sql`
       update posts set role = ${role}, cost = ${c.cost}, price = ${c.price}, origin = ${origin}, dest = ${dest},
@@ -176,6 +181,7 @@ export async function PUT(req: Request) {
               ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${timeBack}, ${allowedTags(await getKeywords(), b.tags, role, c.cost)}::text[])
       returning id`;
     const credit = await grant(me, "post").catch(() => 0);
+    await notifyRouteAlerts(String(rows[0].id));
     return json({ id: rows[0].id, updated: false, credit });
   } catch (e) {
     return fail(e);

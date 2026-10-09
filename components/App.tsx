@@ -10,6 +10,8 @@ import { MemberSheet, ReasonSheet } from "./Member";
 import ResetSheet from "./Reset";
 import Gate from "./Gate";
 import { NoticePopup } from "./Notices";
+import { ConsentSheet, VerifyBanner } from "./Account";
+import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import PostForm from "./PostForm";
 import { Icon, LangContext, Sheet, api } from "./ui";
@@ -41,6 +43,7 @@ export default function App() {
   const [sharedPost, setSharedPost] = useState("");
   const [noticeFocus, setNoticeFocus] = useState(0);
   const [feedbackFirst, setFeedbackFirst] = useState(false);
+  const [consentLater, setConsentLater] = useState(false);
   const setPreview = (v: boolean) => {
     setPreviewState(v);
     try {
@@ -60,6 +63,15 @@ export default function App() {
       localStorage.setItem(LANG_KEY, l);
     } catch {
       /* 무시 */
+    }
+  };
+
+  const langNow = (): Lang => {
+    try {
+      const l = localStorage.getItem(LANG_KEY) as Lang | null;
+      return l && ["ko", "en", "ja", "zh"].includes(l) ? l : "ko";
+    } catch {
+      return "ko";
     }
   };
 
@@ -92,6 +104,18 @@ export default function App() {
       const q = new URLSearchParams(location.search);
       const reset = q.get("reset");
       if (reset) setResetToken(reset);
+      const verify = q.get("verify");
+      if (verify) {
+        history.replaceState(null, "", location.pathname);
+        api<{ user: User; legacy?: number }>("/api/auth", "POST", { action: "verify", token: verify }).then((r) => {
+          if (!r.ok) return setToastMsg(translate(langNow(), r.error));
+          setUser(r.data.user);
+          setPreview(false);
+          setTab("me");
+          const msg = translate(langNow(), "이메일 인증을 마쳤어요. 이제 글쓰기와 카풀 신청을 할 수 있어요.");
+          setToastMsg(r.data.legacy ? `${msg} ${translate(langNow(), "워프 회원 이전 축하")} +${creditText(r.data.legacy, langNow())}` : msg);
+        });
+      }
       // 푸시·메일 알림에서 들어온 경우: ?tab=chat 이면 채팅 탭, ?room=신청ID 면 그 대화방
       if (q.get("tab") === "chat" || q.get("room")) setTab("chat");
       if (q.get("room")) setWantRoom(q.get("room") as string);
@@ -128,14 +152,14 @@ export default function App() {
     if (!user) return setThreads([]);
     loadThreads();
     loadPosts();
-    const id = setInterval(() => document.visibilityState === "visible" && loadThreads(), 20000);
+    const id = setInterval(() => document.visibilityState === "visible" && loadThreads(), 30000);
     return () => clearInterval(id);
   }, [user, loadThreads, loadPosts]);
 
-  // 다른 사람이 새로 올린 글이 보이도록, 화면이 켜져 있으면 30초마다, 앱으로 돌아오면 바로 목록을 새로 받는다.
+  // 다른 사람이 새로 올린 글이 보이도록, 화면이 켜져 있으면 60초마다, 앱으로 돌아오면 바로 목록을 새로 받는다.
   useEffect(() => {
     const tick = () => document.visibilityState === "visible" && loadPosts();
-    const id = setInterval(tick, 30000);
+    const id = setInterval(tick, 60000);
     document.addEventListener("visibilitychange", tick);
     return () => {
       clearInterval(id);
@@ -225,6 +249,7 @@ export default function App() {
             <a href="/admin" className="shrink-0 font-semibold text-accent underline">관리자로 돌아가기</a>
           </p>
         )}
+        {user && <VerifyBanner user={user} toast={setToastMsg} />}
         <header className="flex items-center gap-3 px-5 pb-2 pt-5">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-white">{Icon.car(1.8)}</span>
           <div>
@@ -247,7 +272,7 @@ export default function App() {
               const on = tab === x.id;
               return (
                 <li key={x.id}>
-                  <button data-block-id={x.block} data-block-name={x.label} aria-current={on ? "page" : undefined} onClick={() => setTab(x.id)} className={`relative flex w-full flex-col items-center gap-0.5 py-2.5 text-xs ${on ? "font-semibold text-accent" : "text-sub"}`}>
+                  <button data-block-id={x.block} data-block-name={x.label} aria-current={on ? "page" : undefined} onClick={() => { setTab(x.id); if (x.id === "home") loadPosts(); if (x.id === "chat" && user) loadThreads(); }} className={`relative flex w-full flex-col items-center gap-0.5 py-2.5 text-xs ${on ? "font-semibold text-accent" : "text-sub"}`}>
                     <span className="relative">
                       {x.icon(on ? 1.9 : 1.5)}
                       {x.id === "chat" && pending > 0 && (
@@ -286,6 +311,7 @@ export default function App() {
           />
         )}
         <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
+        {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {resetToken && (
           <ResetSheet
             token={resetToken}

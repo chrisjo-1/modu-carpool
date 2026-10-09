@@ -75,6 +75,30 @@ export function ensureSchema(): Promise<void> {
       // 공지 대상 고르기용: 성별, 주로 이용하는 역할(비어 있으면 글·차량·구 회원 정보로 판단)
       await sql`alter table users add column if not exists gender text not null default ''`;
       await sql`alter table posts add column if not exists tags text[] not null default '{}'`;
+      // 메일 인증: 이 기능 전에 가입한 회원은 인증된 것으로 두고(기본값 true로 추가), 새 가입부터 false
+      await sql`alter table users add column if not exists email_verified boolean not null default true`;
+      await sql`alter table users alter column email_verified set default false`;
+      await sql`create table if not exists email_verifications (
+        token_hash text primary key,
+        user_id uuid not null references users(id) on delete cascade,
+        expires_at timestamptz not null,
+        created_at timestamptz not null default now())`;
+      // 약관·개인정보 동의, 선택 마케팅 수신 동의
+      await sql`alter table users add column if not exists terms_at timestamptz`;
+      await sql`alter table users add column if not exists marketing boolean not null default false`;
+      await sql`alter table users add column if not exists marketing_at timestamptz`;
+      // 경로 알림: 출발·도착이 비슷한 새 글이 올라오면 푸시
+      await sql`create table if not exists route_alerts (
+        id bigserial primary key,
+        user_id uuid not null references users(id) on delete cascade,
+        label text not null default '',
+        o_lat double precision not null, o_lng double precision not null,
+        d_lat double precision not null, d_lng double precision not null,
+        want text not null default 'any',
+        sent_day text not null default '',
+        sent_count integer not null default 0,
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists route_alerts_user_idx on route_alerts (user_id)`;
       await sql`create table if not exists feedback (
         id bigserial primary key,
         user_id uuid references users(id) on delete set null,

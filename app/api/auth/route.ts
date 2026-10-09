@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { grant, grantLegacy } from "@/lib/credits";
+import { finishVerify, startVerify } from "@/lib/verify";
 import { matchNewUser } from "@/lib/legacy";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
@@ -9,8 +10,8 @@ import { authEnabled, body, clearCookie, clientIp, currentUserId, db, ensureSche
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, gender, role_pref from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "" } : null;
+  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, gender, role_pref, email_verified, terms_at, marketing from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true } : null;
 }
 
 export async function GET() {
@@ -29,6 +30,8 @@ export async function POST(req: Request) {
   if (!authEnabled()) return json({ error: "로그인 기능이 아직 준비 중입니다." }, 503);
   const b = await body(req);
   if (b.action === "reset") return resetPassword(b);
+  if (b.action === "verify") return verifyEmail(b);
+  if (b.action === "resendVerify" || b.action === "consent") return accountAction(b);
   const email = text(b.email, 120).toLowerCase();
   const password = typeof b.password === "string" ? b.password : "";
   if (b.action === "forgot") return forgot(req, email);
@@ -40,16 +43,20 @@ export async function POST(req: Request) {
     if (b.action === "signup") {
       const name = text(b.name, 20);
       if (name.length < 2) return json({ error: "닉네임을 2자 이상 입력해 주세요." }, 400);
+      if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
       const exists = await sql`select 1 from users where email = ${email}`;
       if (exists.length) return json({ error: "이미 가입된 이메일입니다." }, 409);
       const hash = await bcrypt.hash(password, 10);
-      const rows = await sql`insert into users (email, pw, name, notify) values (${email}, ${hash}, ${name}, ${b.notify !== false}) returning id`;
+      const mkt = b.marketing === true;
+      const rows = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at)
+        values (${email}, ${hash}, ${name}, ${b.notify !== false}, false, now(), ${mkt}, ${mkt ? new Date().toISOString() : null}) returning id`;
       // 구 워프 회원이면 대조 상태를 바로 '가입됨'으로 바꾼다(실패해도 가입은 진행).
       await matchNewUser(String(rows[0].id), email).catch((e) => console.error("[legacy]", e));
       const welcome = await grant(String(rows[0].id), "signup").catch(() => 0);
-      const legacy = await grantLegacy(String(rows[0].id)).catch(() => 0);
+      // 워프 이전 크레딧은 이메일 인증을 마친 뒤 지급한다(남의 이메일로 가입해 받는 것을 막는다).
+      const verify = await startVerify(String(rows[0].id), email).catch(() => "nomail");
       await setUserSession(String(rows[0].id));
-      return json({ user: await profile(String(rows[0].id)), credit: welcome, legacy });
+      return json({ user: await profile(String(rows[0].id)), credit: welcome, verify });
     }
     if (b.action === "login") {
       const rows = await sql`select id, pw, blocked from users where email = ${email}`;
@@ -60,6 +67,44 @@ export async function POST(req: Request) {
       return json({ user: await profile(String(rows[0].id)) });
     }
     return json({ error: "잘못된 요청입니다." }, 400);
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 메일 링크(?verify=)로 인증 완료 → 워프 이전 크레딧 지급 */
+async function verifyEmail(b: Record<string, unknown>) {
+  try {
+    await ensureSchema();
+    const id = await finishVerify(typeof b.token === "string" ? b.token : "");
+    if (!id) return json({ error: "인증 링크가 만료되었거나 이미 사용되었습니다. 로그인 후 위쪽 안내에서 인증 메일을 다시 받아 주세요." }, 400);
+    const legacy = await grantLegacy(id).catch(() => 0);
+    const me = await currentUserId();
+    if (!me) await setUserSession(id);
+    return json({ ok: true, legacy, user: await profile(me ?? id) });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 로그인한 회원: 인증 메일 다시 보내기, 약관 동의(기존 회원), 마케팅 수신 변경 */
+async function accountAction(b: Record<string, unknown>) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  try {
+    await ensureSchema();
+    const sql = db();
+    if (b.action === "resendVerify") {
+      const u = await sql`select email, email_verified from users where id = ${me}`;
+      if (u[0]?.email_verified) return json({ ok: true, already: true });
+      const r = await startVerify(me, String(u[0].email));
+      if (r === "limited") return json({ error: "인증 메일은 1시간에 3번까지 보낼 수 있어요." }, 429);
+      return json({ ok: true });
+    }
+    if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
+    const mkt = b.marketing === true;
+    await sql`update users set terms_at = coalesce(terms_at, now()), marketing = ${mkt}, marketing_at = now() where id = ${me}`;
+    return json({ user: await profile(me) });
   } catch (e) {
     return fail(e);
   }
@@ -125,6 +170,15 @@ export async function PATCH(req: Request) {
   const id = await currentUserId();
   if (!id) return needLogin();
   const b = await body(req);
+  if (typeof b.marketing === "boolean" && b.name === undefined) {
+    try {
+      await ensureSchema();
+      await db()`update users set marketing = ${b.marketing}, marketing_at = now() where id = ${id}`;
+      return json({ user: await profile(id) });
+    } catch (e) {
+      return fail(e);
+    }
+  }
   if (typeof b.notify === "boolean" && b.name === undefined) {
     try {
       await ensureSchema();

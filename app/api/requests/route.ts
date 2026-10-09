@@ -1,5 +1,6 @@
 import { notify } from "@/lib/mail";
 import { pushText, sendPush } from "@/lib/push";
+import { isVerified } from "@/lib/verify";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { nextOccurrence } from "@/lib/time";
 
@@ -79,6 +80,7 @@ export async function POST(req: Request) {
   try {
     await ensureSchema();
     const sql = db();
+    if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 카풀을 신청할 수 있어요. 메일함을 확인해 주세요." }, 403);
     const post = await sql`select user_id, status, origin, dest, (not regular and depart_at <= now()) as ended from posts where id = ${b.postId}`;
     if (post.length && post[0].ended) return json({ error: "출발 시각이 지나 종료된 카풀입니다." }, 409);
     if (post.length && post[0].status === "progress") return json({ error: "이미 카풀이 진행 중인 글이라 신청할 수 없습니다." }, 409);

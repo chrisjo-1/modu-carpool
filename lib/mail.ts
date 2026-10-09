@@ -51,6 +51,38 @@ export async function sendResetMail(to: string, link: string) {
 
 export const siteUrl = () => SITE;
 
+/** 가입 메일 인증. 알림 수신 설정과 관계없이 보낸다. */
+export async function sendVerifyMail(to: string, link: string) {
+  if (!mailEnabled()) return false;
+  const subject = "[모두의카풀] 이메일 인증을 완료해 주세요";
+  const lead = "모두의카풀에 가입해 주셔서 고마워요. 아래 버튼을 눌러 이메일 인증을 마치면 카풀 글쓰기와 신청을 할 수 있어요.";
+  const note = "링크는 24시간 동안 쓸 수 있어요. 직접 가입하지 않으셨다면 이 메일을 무시해 주세요.";
+  if (process.env.MAIL_DRYRUN === "1") {
+    console.log(`[mail] to=${to} | ${subject} | ${link}`);
+    return true;
+  }
+  const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6">${lead}</p>
+<a href="${esc(link)}" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">이메일 인증하기</a>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${note}</p>
+</div></div>`;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: process.env.MAIL_FROM, to: [to], subject, html, text: `${lead}\n\n${link}\n\n${note}` }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) console.error("[mail]", res.status, (await res.text()).slice(0, 200));
+    return res.ok;
+  } catch (e) {
+    console.error("[mail]", e);
+    return false;
+  }
+}
+
 /** 메일로 알리기: 읽지 않은 메시지 수와 마지막 메시지를 보낸다. 받는 사람이 알림을 껐으면 보내지 않는다. */
 export async function nudgeMail(toUserId: string, fromName: string, route: string, count: number, last: string, path: string) {
   if (!mailEnabled()) return false;
