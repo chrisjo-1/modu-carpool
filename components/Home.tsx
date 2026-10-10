@@ -10,7 +10,6 @@ import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, dis
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
 type Role = "all" | "driver" | "rider";
-type Kind = "all" | "commute" | "trip";
 
 /** 글 키워드 칩. 카드에서는 앞의 몇 개만 */
 export function KeywordChips({ post, max }: { post: Post; max?: number }) {
@@ -68,7 +67,6 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
   const kw = useKeywords();
   const [picked, setPicked] = useState<string[]>([]);
   const allKeywords = kw ? [...kw.gift, ...kw.driver, ...kw.rider] : [];
-  const [kind, setKind] = useState<Kind>("all");
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
   // 정렬: 출발 임박순(기본) · 최신순 · 가까운 순(내 위치 필요)
@@ -110,7 +108,6 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
       (p) =>
         (picked.length === 0 || (p.tagIds ?? []).some((id) => picked.includes(id))) &&
         (role === "all" || p.role === role) &&
-        (kind === "all" || p.kind === kind) &&
         (!regularOnly || !!p.regular) &&
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
         (!k || `${p.origin} ${p.dest} ${p.note} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
@@ -124,7 +121,7 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
     return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, role, kind, q, regularOnly, lang, here, sort]);
+  }, [posts, role, q, regularOnly, lang, here, sort]);
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-4">
@@ -156,11 +153,15 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         </div>
       )}
 
-      <Segment label={t("보기 방식")} value={view} onChange={setView} options={[["list", t("목록")], ["map", t("지도")]]} />
-
       <div className="space-y-2">
-        <input data-block-id="F001" className={field} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
-        <Segment label={t("종류")} value={kind} onChange={setKind} options={[["all", t("전체")], ["commute", t("출퇴근")], ["trip", t("나들이·관광")]]} />
+        {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼) */}
+        <div className="flex items-center gap-2">
+          <input data-block-id="F001" className={`${field} min-w-0 flex-1`} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
+          <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => setView((v) => (v === "map" ? "list" : "map"))}
+            className={`min-h-0 shrink-0 rounded-xl border px-3 py-3 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+            {view === "map" ? t("목록") : t("지도")}
+          </button>
+        </div>
         <Segment label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
         <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`rounded-full border px-4 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
           {t("정기카풀만 보기")}
