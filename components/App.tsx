@@ -12,6 +12,7 @@ import Gate from "./Gate";
 import { NoticePopup } from "./Notices";
 import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
+import Interests from "./Interests";
 import CommuteStart, { COMMUTE_LATER_KEY } from "./CommuteStart";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
@@ -38,6 +39,7 @@ export default function App() {
   const [why, setWhy] = useState<{ mode: "report" | "block"; userId: string; name: string; requestId?: string } | null>(null);
   const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean; prefill?: { origin: Place; dest: Place } } | null>(null);
   const [commuteStart, setCommuteStart] = useState(false);
+  const [pickInterests, setPickInterests] = useState(false);
   // 첫 화면 로딩: 로그인 확인과 글 목록이 끝나면 사라진다. 8초가 지나도 안 끝나면 그냥 넘어간다.
   const [splashGone, setSplashGone] = useState(false);
   const [splashTimedOut, setSplashTimedOut] = useState(false);
@@ -83,13 +85,17 @@ export default function App() {
   };
 
   const loadPosts = useCallback(async () => {
-    const r = await api<{ posts: Post[]; sample: boolean }>("/api/posts");
+    // 카풀과 택시 동승을 함께 받아 하나의 목록으로 두고, 화면에서 서비스별로 나눈다.
+    const [r, taxi] = await Promise.all([api<{ posts: Post[]; sample: boolean }>("/api/posts"), api<{ posts: Post[] }>("/api/posts?service=taxi")]);
+    // 샘플 목록(DB 없음)에서는 택시 목록을 따로 받지 않는다.
+    const taxiList = taxi.ok && r.ok && !r.data.sample ? taxi.data.posts.map((p) => ({ ...p, service: "taxi" as const })) : [];
+    const all = r.ok ? [...r.data.posts, ...taxiList] : [];
     if (r.ok) {
-      setPosts(r.data.posts);
+      setPosts(all);
       setSample(!!r.data.sample);
     }
     setLoaded(true);
-    return r.ok ? r.data.posts : [];
+    return all;
   }, []);
 
   const loadThreads = useCallback(async () => {
@@ -114,13 +120,15 @@ export default function App() {
       const verify = q.get("verify");
       if (verify) {
         history.replaceState(null, "", location.pathname);
-        api<{ user: User; legacy?: number }>("/api/auth", "POST", { action: "verify", token: verify }).then((r) => {
+        api<{ user: User; legacy?: number; welcome?: number; created?: boolean }>("/api/auth", "POST", { action: "verify", token: verify }).then((r) => {
           if (!r.ok) return setToastMsg(translate(langNow(), r.error));
           setUser(r.data.user);
           setPreview(false);
           setTab("me");
-          const msg = translate(langNow(), "이메일 인증을 마쳤어요. 이제 글쓰기와 카풀 신청을 할 수 있어요.");
-          setToastMsg(r.data.legacy ? `${msg} ${translate(langNow(), "워프 회원 이전 축하")} +${creditText(r.data.legacy, langNow())}` : msg);
+          // 인증 링크로 가입이 끝난 경우: 가입 축하 크레딧과 워프 이전 크레딧을 함께 알린다.
+          const msg = translate(langNow(), r.data.created ? "가입을 마쳤어요. 환영합니다!" : "이메일 인증을 마쳤어요. 이제 글쓰기와 카풀 신청을 할 수 있어요.");
+          const bonus = [r.data.welcome ? `${translate(langNow(), "가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.welcome, langNow())}` : "", r.data.legacy ? `${translate(langNow(), "워프 회원 이전 축하")} +${creditText(r.data.legacy, langNow())}` : ""].filter(Boolean).join(" · ");
+          setToastMsg(bonus ? `${msg} ${bonus}` : msg);
         });
       }
       // 푸시·메일 알림에서 들어온 경우: ?tab=chat 이면 채팅 탭, ?room=신청ID 면 그 대화방
@@ -198,6 +206,11 @@ export default function App() {
   useEffect(() => {
     if (booted) setSplashGone(true);
   }, [booted]);
+
+  // 희망 선택을 아직 하지 않은 회원(가입 직후 포함)에게 한 번 묻는다.
+  useEffect(() => {
+    if (user && !user.test && user.interests == null) setPickInterests(true);
+  }, [user]);
 
   // '기타'로 미뤄 둔 출퇴근 정보: 로그인한 뒤 처음 앱을 열 때 한 번 다시 묻는다.
   const askedLater = useRef(false);
@@ -352,6 +365,17 @@ export default function App() {
           <Sheet title={t("글 수정")} blockId="S070" onClose={() => setEditing(null)}>
             <PostForm initial={editing} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { setEditing(null); refresh(); }} />
           </Sheet>
+        )}
+        {pickInterests && user && (
+          <Interests
+            onClose={() => setPickInterests(false)}
+            onSaved={(u, picked) => {
+              setUser(u);
+              setPickInterests(false);
+              if (picked.includes("carpool")) setCommuteStart(true);
+              else if (picked.includes("other")) commuteLater();
+            }}
+          />
         )}
         {commuteStart && <CommuteStart onNext={commuteNext} onLater={commuteLater} onClose={() => setCommuteStart(false)} toast={setToastMsg} />}
         {commute && <CommuteSheet initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); try { localStorage.removeItem(COMMUTE_LATER_KEY); } catch { /* 무시 */ } refresh(); setTab("home"); }} />}

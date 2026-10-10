@@ -1,8 +1,8 @@
 import { distanceKm } from "./geo";
 import { pushText, sendPush } from "./push";
 import { db } from "./server";
+import { boundingBox, getRadius } from "./radius";
 
-export const ALERT_KM = 2;
 export const ALERT_MAX = 3;
 const DAILY_CAP = 10;
 const kstDay = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
@@ -19,13 +19,16 @@ export async function notifyRouteAlerts(postId: string) {
     const post = p[0];
     if (!post || post.test || post.origin_lat == null || post.dest_lat == null) return 0;
     const oLat = Number(post.origin_lat), oLng = Number(post.origin_lng), dLat = Number(post.dest_lat), dLng = Number(post.dest_lng);
-    // 위도 0.02° ≈ 2.2km, 경도 0.03° ≈ 2.6km(서울 기준) 사각형으로 먼저 좁히고, 거리는 아래에서 정확히 잰다.
+    // 반경은 관리자 설정(2·5·10km). 사각형으로 먼저 좁히고, 거리는 아래에서 정확히 잰다.
+    const km = await getRadius("route");
+    const bo = boundingBox(oLat, oLng, km);
+    const bd = boundingBox(dLat, dLng, km);
     const cand = await sql`select a.id, a.user_id, a.o_lat, a.o_lng, a.d_lat, a.d_lng, a.sent_day, a.sent_count
       from route_alerts a join users u on u.id = a.user_id
       where a.user_id <> ${post.user_id} and not u.blocked
         and (a.want = 'any' or a.want = ${post.role})
-        and a.o_lat between ${oLat - 0.02} and ${oLat + 0.02} and a.o_lng between ${oLng - 0.03} and ${oLng + 0.03}
-        and a.d_lat between ${dLat - 0.02} and ${dLat + 0.02} and a.d_lng between ${dLng - 0.03} and ${dLng + 0.03}
+        and a.o_lat between ${bo.minLat} and ${bo.maxLat} and a.o_lng between ${bo.minLng} and ${bo.maxLng}
+        and a.d_lat between ${bd.minLat} and ${bd.maxLat} and a.d_lng between ${bd.minLng} and ${bd.maxLng}
         and not exists (select 1 from blocks b where (b.blocker = a.user_id and b.blocked = ${post.user_id}) or (b.blocker = ${post.user_id} and b.blocked = a.user_id))`;
     const today = kstDay();
     const seen = new Set<string>();
@@ -33,7 +36,7 @@ export async function notifyRouteAlerts(postId: string) {
     for (const a of cand) {
       const uid = String(a.user_id);
       if (seen.has(uid)) continue;
-      if (distanceKm(oLat, oLng, Number(a.o_lat), Number(a.o_lng)) > ALERT_KM || distanceKm(dLat, dLng, Number(a.d_lat), Number(a.d_lng)) > ALERT_KM) continue;
+      if (distanceKm(oLat, oLng, Number(a.o_lat), Number(a.o_lng)) > km || distanceKm(dLat, dLng, Number(a.d_lat), Number(a.d_lng)) > km) continue;
       const count = a.sent_day === today ? Number(a.sent_count) : 0;
       if (count >= DAILY_CAP) continue;
       seen.add(uid);

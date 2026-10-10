@@ -9,6 +9,7 @@ const AdminKeywords = dynamic(() => import("@/components/admin/Keywords"), { ssr
 const AdminFeedback = dynamic(() => import("@/components/admin/Feedback"), { ssr: false });
 const AdminStats = dynamic(() => import("@/components/admin/Stats"), { ssr: false });
 const AdminDocs = dynamic(() => import("@/components/admin/Docs"), { ssr: false });
+const AdminRadius = dynamic(() => import("@/components/admin/Radius"), { ssr: false });
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = { id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; posts: number };
@@ -16,7 +17,7 @@ type Flag = { id: string; reason: string; detail: string; status?: string; creat
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
-type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs";
+type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", promo: "홍보성", illegal: "불법", etc: "기타" };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -152,6 +153,7 @@ export default function Admin() {
         {tabBtn("keywords", "키워드")}
         {tabBtn("credits", "크레딧")}
         {tabBtn("docs", "약관")}
+        {tabBtn("radius", "반경")}
         {tabBtn("legacy", "구 워프 회원 이전")}
         {msg && <p role="status" className="ml-2 text-sm text-sub">{msg}</p>}
       </div>
@@ -236,6 +238,7 @@ export default function Admin() {
       {tab === "feedback" && <AdminFeedback />}
       {tab === "stats" && <AdminStats />}
       {tab === "docs" && <AdminDocs />}
+      {tab === "radius" && <AdminRadius />}
 
       {tab === "flags" && (
         <>

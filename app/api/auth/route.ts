@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { grant, grantLegacy } from "@/lib/credits";
 import { finishVerify, startVerify } from "@/lib/verify";
+import { sendVerifyMail } from "@/lib/mail";
 import { matchNewUser } from "@/lib/legacy";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
@@ -10,8 +11,8 @@ import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, cur
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, gender, role_pref, email_verified, terms_at, marketing from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true } : null;
+  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, gender, role_pref, email_verified, terms_at, marketing, interests from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true, interests: rows[0].interests ?? null } : null;
 }
 
 export async function GET() {
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
   const b = await body(req);
   if (b.action === "reset") return resetPassword(b);
   if (b.action === "verify") return verifyEmail(b);
-  if (b.action === "resendVerify" || b.action === "consent") return accountAction(b);
+  if (b.action === "resendVerify" || b.action === "consent" || b.action === "interests") return accountAction(b);
   const email = text(b.email, 120).toLowerCase();
   const password = typeof b.password === "string" ? b.password : "";
   if (b.action === "forgot") return forgot(req, email);
@@ -49,18 +50,25 @@ export async function POST(req: Request) {
       if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
       const exists = await sql`select 1 from users where email = ${email}`;
       if (exists.length) return json({ error: "이미 가입된 이메일입니다." }, 409);
+      // 인증 메일은 1분에 한 번만 다시 보낸다.
+      const prev = await sql`select created_at from pending_signups where email = ${email}`;
+      if (prev.length && Date.now() - new Date(String(prev[0].created_at)).getTime() < 60_000)
+        return json({ error: "인증 메일은 1분 뒤에 다시 보낼 수 있어요." }, 429);
       await recordAttempt("signup-ip", ip);
       const hash = await bcrypt.hash(password, 10);
+      const token = randomBytes(32).toString("hex");
       const mkt = b.marketing === true;
-      const rows = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at)
-        values (${email}, ${hash}, ${name}, ${b.notify !== false}, false, now(), ${mkt}, ${mkt ? new Date().toISOString() : null}) returning id`;
-      // 구 워프 회원이면 대조 상태를 바로 '가입됨'으로 바꾼다(실패해도 가입은 진행).
-      await matchNewUser(String(rows[0].id), email).catch((e) => console.error("[legacy]", e));
-      const welcome = await grant(String(rows[0].id), "signup").catch(() => 0);
-      // 워프 이전 크레딧은 이메일 인증을 마친 뒤 지급한다(남의 이메일로 가입해 받는 것을 막는다).
-      const verify = await startVerify(String(rows[0].id), email).catch(() => "nomail");
-      await setUserSession(String(rows[0].id));
-      return json({ user: await profile(String(rows[0].id)), credit: welcome, verify });
+      // 이메일 인증을 마치기 전에는 계정을 만들지 않는다. 임시 가입 정보만 둔다.
+      await sql`insert into pending_signups (email, pw, name, notify, marketing, token_hash, ip, expires_at)
+        values (${email}, ${hash}, ${name}, ${b.notify !== false}, ${mkt}, ${hashToken(token)}, ${ip}, now() + interval '24 hours')
+        on conflict (email) do update set pw = excluded.pw, name = excluded.name, notify = excluded.notify, marketing = excluded.marketing,
+          token_hash = excluded.token_hash, ip = excluded.ip, created_at = now(), expires_at = excluded.expires_at`;
+      const sent = await sendVerifyMail(email, `${siteUrl()}/?verify=${token}`).catch(() => false);
+      if (!sent) {
+        await sql`delete from pending_signups where email = ${email}`;
+        return json({ error: "인증 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요." }, 503);
+      }
+      return json({ pending: true });
     }
     if (b.action === "login") {
       // 비밀번호 무차별 대입 방지: 같은 이메일 15분에 10번, 같은 곳 15분에 30번 틀리면 잠깐 막는다.
@@ -83,11 +91,43 @@ export async function POST(req: Request) {
   }
 }
 
+
+/**
+ * 인증 링크의 토큰으로 임시 가입 정보를 찾아 계정을 만든다.
+ * 성공하면 회원 id와 지급 크레딧, 이미 가입된 이메일이면 "taken", 링크가 아니면 null.
+ */
+async function createFromPending(token: string): Promise<{ id: string; welcome: number; legacy: number } | "taken" | null> {
+  if (!/^[a-f0-9]{64}$/.test(token)) return null;
+  const sql = db();
+  const rows = await sql`delete from pending_signups where token_hash = ${hashToken(token)} and expires_at > now()
+    returning email, pw, name, notify, marketing`;
+  if (!rows.length) return null;
+  const p = rows[0];
+  const email = String(p.email);
+  if ((await sql`select 1 from users where email = ${email}`).length) return "taken";
+  const mkt = p.marketing === true;
+  const ins = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at)
+    values (${email}, ${String(p.pw)}, ${String(p.name)}, ${p.notify === true}, true, now(), ${mkt}, ${mkt ? new Date().toISOString() : null}) returning id`;
+  const id = String(ins[0].id);
+  // 구 워프 회원이면 대조 상태를 '가입됨'으로 바꾸고, 워프 이전 크레딧을 준다(인증이 끝난 뒤라 안전하다).
+  await matchNewUser(id, email).catch((e) => console.error("[legacy]", e));
+  const welcome = await grant(id, "signup").catch(() => 0);
+  const legacy = await grantLegacy(id).catch(() => 0);
+  await setUserSession(id);
+  return { id, welcome, legacy };
+}
+
 /** 메일 링크(?verify=)로 인증 완료 → 워프 이전 크레딧 지급 */
 async function verifyEmail(b: Record<string, unknown>) {
   try {
     await ensureSchema();
-    const id = await finishVerify(typeof b.token === "string" ? b.token : "");
+    const token = typeof b.token === "string" ? b.token : "";
+    // 가입 전 인증: 임시 가입 정보로 계정을 만든다.
+    const created = await createFromPending(token);
+    if (created === "taken") return json({ error: "이미 가입된 이메일입니다. 로그인해 주세요." }, 409);
+    if (created) return json({ ok: true, created: true, welcome: created.welcome, legacy: created.legacy, user: await profile(created.id) });
+    // 예전 방식(이미 가입된 회원의 인증 메일)
+    const id = await finishVerify(token);
     if (!id) return json({ error: "인증 링크가 만료되었거나 이미 사용되었습니다. 로그인 후 위쪽 안내에서 인증 메일을 다시 받아 주세요." }, 400);
     const legacy = await grantLegacy(id).catch(() => 0);
     const me = await currentUserId();
@@ -105,6 +145,14 @@ async function accountAction(b: Record<string, unknown>) {
   try {
     await ensureSchema();
     const sql = db();
+    if (b.action === "interests") {
+      // 가입 뒤 희망 선택(복수): 출퇴근 카풀(carpool), 택시 동승(taxi), 기타(other)
+      const list = Array.isArray(b.interests) ? b.interests.filter((x): x is string => typeof x === "string") : [];
+      const picked = [...new Set(list.filter((x) => ["carpool", "taxi", "other"].includes(x)))];
+      if (!picked.length) return json({ error: "하나 이상 골라 주세요." }, 400);
+      await sql`update users set interests = ${picked}::text[] where id = ${me}`;
+      return json({ user: await profile(me) });
+    }
     if (b.action === "resendVerify") {
       const u = await sql`select email, email_verified from users where id = ${me}`;
       if (u[0]?.email_verified) return json({ ok: true, already: true });

@@ -111,6 +111,22 @@ export function ensureSchema(): Promise<void> {
         created_at timestamptz not null default now(),
         replied_at timestamptz)`;
       await sql`alter table users add column if not exists role_pref text not null default ''`;
+      // 가입 뒤 희망 선택(복수): carpool · taxi · other. null이면 아직 고르지 않음.
+      await sql`alter table users add column if not exists interests text[]`;
+      // 이메일 인증 전 임시 가입 정보. 인증 링크를 누를 때 계정을 만든다.
+      await sql`create table if not exists pending_signups (
+        email text primary key,
+        pw text not null,
+        name text not null default '',
+        notify boolean not null default true,
+        marketing boolean not null default false,
+        token_hash text not null,
+        ip text not null default '',
+        created_at timestamptz not null default now(),
+        expires_at timestamptz not null)`;
+      await sql`create unique index if not exists pending_token_uniq on pending_signups (token_hash)`;
+      // 서비스 구분: carpool(기존 카풀) · taxi(택시 동승). 택시 글은 depart_at 30분 뒤 자동으로 목록에서 빠진다.
+      await sql`alter table posts add column if not exists service text not null default 'carpool'`;
       await sql`create table if not exists notices (
         id bigserial primary key,
         title text not null,

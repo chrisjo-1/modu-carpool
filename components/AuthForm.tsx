@@ -50,6 +50,7 @@ export default function AuthForm({
   const t = useT();
   const lang = useLang();
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [pending, setPending] = useState("");
   const [email, setEmail] = useState("");
   const [saved, setSaved] = useState("");
   const [password, setPassword] = useState("");
@@ -103,14 +104,17 @@ export default function AuthForm({
     } catch {
       /* 무시 */
     }
+    // 가입은 이메일 인증을 마쳐야 완료된다. 인증 전에는 로그인시키지 않고 안내만 한다.
+    if (mode === "signup") {
+      setPending(email.trim());
+      return toast(t("인증 메일을 보냈어요. 메일함에서 인증 링크를 눌러 가입을 마쳐 주세요."));
+    }
     setUser(r.data.user);
-    if (mode === "signup") toast(`${r.data.credit ? `${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)} · ` : ""}${t(r.data.verify === "sent" ? "메일함에서 인증 링크를 눌러 주세요." : "내 정보에서 인증 메일을 받아 주세요.")}`);
-    else if (r.data.credit) toast(`${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)}`);
+    if (r.data.credit) toast(`${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.credit, lang)}`);
     if (perm) {
       const err = await push.turnOn(perm);
       if (err) toast(t(err));
     }
-    if (mode === "signup" && wantRegular) onCommute(true);
   };
 
   const check = (on: boolean, set: (v: boolean) => void, label: string, block: string, hint?: string) => (
@@ -161,6 +165,7 @@ export default function AuthForm({
           {check(remember, setRemember, t("이 기기에서 이메일 기억하기"), "F047")}
         </div>
         {mode === "signup" && <Consent value={agree} onChange={setAgree} />}
+        {mode === "signup" && pending && <p data-block-id="C061" data-block-name="인증 메일 안내" role="status" className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">{t("인증 메일을 보냈어요. 메일함에서 인증 링크를 눌러 가입을 마쳐 주세요.")}<br /><span className="font-semibold">{pending}</span></p>}
         <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
         {mode === "login" && (
           <button type="button" data-block-id="B053" data-block-name="비밀번호 찾기" className="w-full min-h-0 py-2 text-[14px] text-sub underline" onClick={() => { setForgot(true); setSentMsg(""); }}>{t("비밀번호를 잊으셨나요?")}</button>

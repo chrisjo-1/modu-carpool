@@ -35,9 +35,15 @@ function PostTags({ post }: { post: Post }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {post.regular && <Tag tone="accent">{t("정기카풀")}</Tag>}
-      <Tag tone={post.regular ? "plain" : "accent"}>{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
-      {!post.regular && <Tag>{post.kind === "commute" ? t("출퇴근") : t("나들이·관광")}</Tag>}
-      <Tag tone={post.cost === "free" ? "plain" : "warn"}>{post.cost === "fixed" ? money(post.price ?? 0, lang) : post.cost === "meter" ? t("비용 나눔") : t("무료")}</Tag>
+      {post.service === "taxi" ? (
+        <Tag tone="accent">{t("택시 동승")}</Tag>
+      ) : (
+        <>
+          <Tag tone={post.regular ? "plain" : "accent"}>{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
+          {!post.regular && <Tag>{post.kind === "commute" ? t("출퇴근") : t("나들이·관광")}</Tag>}
+        </>
+      )}
+      {post.service !== "taxi" && <Tag tone={post.cost === "free" ? "plain" : "warn"}>{post.cost === "fixed" ? money(post.price ?? 0, lang) : post.cost === "meter" ? t("비용 나눔") : t("무료")}</Tag>}
     </div>
   );
 }
@@ -62,6 +68,8 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
+  // 서비스: 카풀(기본) 또는 택시 동승. 택시 동승은 같은 목록에서 필터로만 나눈다.
+  const [service, setService] = useState<"carpool" | "taxi">("carpool");
   const [kind, setKind] = useState<Kind>("all");
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
@@ -102,6 +110,7 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
     const k = q.trim().toLowerCase();
     const hit = posts.filter(
       (p) =>
+        (p.service ?? "carpool") === service &&
         (role === "all" || p.role === role) &&
         (kind === "all" || p.kind === kind) &&
         (!regularOnly || !!p.regular) &&
@@ -126,12 +135,17 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         <p data-block-id="S001-desc" className="mt-1 text-sub">{t("출퇴근길도 서울 나들이도, 방향이 같은 사람과 함께.")}</p>
       </header>
 
+      <Segment label={t("서비스")} value={service} onChange={setService} options={[["carpool", t("카풀")], ["taxi", t("택시 동승")]]} />
       <Segment label={t("보기 방식")} value={view} onChange={setView} options={[["list", t("목록")], ["map", t("지도")]]} />
 
       <div className="space-y-2">
         <input data-block-id="F001" className={field} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
-        <Segment label={t("종류")} value={kind} onChange={setKind} options={[["all", t("전체")], ["commute", t("출퇴근")], ["trip", t("나들이·관광")]]} />
-        <Segment label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
+        {service === "carpool" && (
+          <>
+            <Segment label={t("종류")} value={kind} onChange={setKind} options={[["all", t("전체")], ["commute", t("출퇴근")], ["trip", t("나들이·관광")]]} />
+            <Segment label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
+          </>
+        )}
         <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`rounded-full border px-4 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
           {t("정기카풀만 보기")}
         </button>

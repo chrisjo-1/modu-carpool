@@ -55,7 +55,7 @@ export default function RouteAlerts({ regular, toast, push }: { regular: Post | 
     <div>
       <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("경로 알림")}</h2>
       <Card data-block-id="C203" data-block-name="경로 알림" className="space-y-3 p-5">
-        <p className="text-[14px] leading-relaxed text-sub">{t("내 경로와 출발지·도착지가 각각 2km 안인 새 카풀 글이 올라오면 푸시로 알려 드려요.")}</p>
+        <p className="text-[14px] leading-relaxed text-sub">{t("내 경로와 출발지·도착지가 각각 운영 반경(기본 2km) 안인 새 카풀 글이 올라오면 푸시로 알려 드려요.")}</p>
         {push.state !== "on" && <p className="rounded-lg bg-[#FFF7E6] px-3 py-2 text-[13px] text-[#7A4A00]">{t("푸시 알림이 꺼져 있어요. 위에서 푸시 알림을 켜 주세요.")}</p>}
         {list.length > 0 && (
           <ul className="divide-y divide-line rounded-xl border border-line">

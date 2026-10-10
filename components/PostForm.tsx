@@ -5,6 +5,7 @@ import type { Place, Post, User } from "@/lib/types";
 import { CostField } from "./Commute";
 import { TagPicker } from "./Keywords";
 import PlaceField from "./PlaceField";
+import TaxiForm from "./TaxiForm";
 import { Card, Segment, api, btnPrimary, field, useT } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
@@ -48,6 +49,7 @@ export default function PostForm({
   const empty: Place = { name: "", lat: null, lng: null };
   const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? "driver");
   const [kind, setKind] = useState<"commute" | "trip">(initial?.kind ?? "commute");
+  const [service, setService] = useState<"carpool" | "taxi">("carpool");
   const [cost, setCost] = useState<"free" | "meter" | "fixed">(initial?.cost ?? "free");
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [origin, setOrigin] = useState<Place>(initial ? { name: initial.origin, lat: initial.originLat ?? null, lng: initial.originLng ?? null } : empty);
@@ -165,8 +167,14 @@ export default function PostForm({
           <p className="text-sub">{enabled ? t("카풀을 등록하려면 로그인이 필요해요.") : t("회원 기능은 준비 중입니다. 곧 열립니다.")}</p>
           {enabled && <button data-block-id="B020" data-block-name="로그인 이동" className={btnPrimary} onClick={goLogin}>{t("로그인 / 회원가입")}</button>}
         </Card>
-      ) : (
+      ) : initial ? (
         form
+      ) : (
+        <div className="space-y-4">
+          {/* 카풀은 기존 등록 창, 택시 동승은 차량 없이 출발·도착·시각·인원만 묻는 창 */}
+          <Segment label={t("서비스")} value={service} onChange={setService} options={[["carpool", t("카풀")], ["taxi", t("택시 동승")]]} />
+          {service === "taxi" ? <TaxiForm toast={toast} onDone={onDone} /> : form}
+        </div>
       )}
     </section>
   );

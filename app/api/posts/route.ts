@@ -37,6 +37,8 @@ export async function GET(req: Request) {
     const mine = new URL(req.url).searchParams.get("mine") === "1";
     if (mine && !me) return needLogin();
     const sql = db();
+    // 서비스 구분: 기본은 카풀, ?service=taxi 면 택시 동승. 택시 글은 출발 30분 뒤 목록에서 빠진다.
+    const svc = new URL(req.url).searchParams.get("service") === "taxi" ? "taxi" : "carpool";
     const rows = mine
       ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, u.blocked as owner_blocked,
                          (not p.regular and p.depart_at <= now() - interval '7 days') as expired,
@@ -46,7 +48,8 @@ export async function GET(req: Request) {
       : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, false as owner_blocked, false as expired,
                          (not p.regular and p.depart_at <= now()) as ended
                   from posts p join users u on u.id = p.user_id
-                  where p.status in ('open', 'progress') and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '7 days')
+                  where p.status in ('open', 'progress') and p.service = ${svc} and (p.service = 'carpool' or p.depart_at > now() - interval '30 minutes')
+                    and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '7 days')
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                   order by p.depart_at asc limit 300`;
     const now = Date.now();
@@ -56,6 +59,7 @@ export async function GET(req: Request) {
       tags: tagLabels(kw, r.tags),
       id: r.id,
       ownerId: r.user_id,
+      service: r.service === "taxi" ? "taxi" : "carpool",
       owner: r.owner || "회원",
       ownerBio: r.owner_bio,
       ownerPhoto: photoUrl(r.user_id, r.photo_v),
