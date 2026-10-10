@@ -125,8 +125,8 @@ export function ensureSchema(): Promise<void> {
         created_at timestamptz not null default now(),
         expires_at timestamptz not null)`;
       await sql`create unique index if not exists pending_token_uniq on pending_signups (token_hash)`;
-      // 서비스 구분: carpool(기존 카풀) · taxi(택시 동승). 택시 글은 depart_at 30분 뒤 자동으로 목록에서 빠진다.
-      await sql`alter table posts add column if not exists service text not null default 'carpool'`;
+      // 탑승자가 '택시 동승도 찾기'를 체크한 글
+      await sql`alter table posts add column if not exists taxi_share boolean not null default false`;
       await sql`create table if not exists notices (
         id bigserial primary key,
         title text not null,

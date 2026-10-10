@@ -85,17 +85,13 @@ export default function App() {
   };
 
   const loadPosts = useCallback(async () => {
-    // 카풀과 택시 동승을 함께 받아 하나의 목록으로 두고, 화면에서 서비스별로 나눈다.
-    const [r, taxi] = await Promise.all([api<{ posts: Post[]; sample: boolean }>("/api/posts"), api<{ posts: Post[] }>("/api/posts?service=taxi")]);
-    // 샘플 목록(DB 없음)에서는 택시 목록을 따로 받지 않는다.
-    const taxiList = taxi.ok && r.ok && !r.data.sample ? taxi.data.posts.map((p) => ({ ...p, service: "taxi" as const })) : [];
-    const all = r.ok ? [...r.data.posts, ...taxiList] : [];
+    const r = await api<{ posts: Post[]; sample: boolean }>("/api/posts");
     if (r.ok) {
-      setPosts(all);
+      setPosts(r.data.posts);
       setSample(!!r.data.sample);
     }
     setLoaded(true);
-    return all;
+    return r.ok ? r.data.posts : [];
   }, []);
 
   const loadThreads = useCallback(async () => {

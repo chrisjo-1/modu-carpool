@@ -1,4 +1,5 @@
 import { notifyRouteAlerts } from "@/lib/alerts";
+import { notifyTaxi } from "@/lib/taxi";
 import { grant } from "@/lib/credits";
 import { isVerified } from "@/lib/verify";
 import { allowedTags, getKeywords, tagLabels } from "@/lib/keywords";
@@ -37,8 +38,6 @@ export async function GET(req: Request) {
     const mine = new URL(req.url).searchParams.get("mine") === "1";
     if (mine && !me) return needLogin();
     const sql = db();
-    // 서비스 구분: 기본은 카풀, ?service=taxi 면 택시 동승. 택시 글은 출발 30분 뒤 목록에서 빠진다.
-    const svc = new URL(req.url).searchParams.get("service") === "taxi" ? "taxi" : "carpool";
     const rows = mine
       ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, u.blocked as owner_blocked,
                          (not p.regular and p.depart_at <= now() - interval '7 days') as expired,
@@ -48,8 +47,7 @@ export async function GET(req: Request) {
       : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, false as owner_blocked, false as expired,
                          (not p.regular and p.depart_at <= now()) as ended
                   from posts p join users u on u.id = p.user_id
-                  where p.status in ('open', 'progress') and p.service = ${svc} and (p.service = 'carpool' or p.depart_at > now() - interval '30 minutes')
-                    and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '7 days')
+                  where p.status in ('open', 'progress') and not u.blocked and (not u.test or exists (select 1 from users v where v.id = ${me} and v.test)) and (p.regular or p.depart_at > now() - interval '7 days')
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                   order by p.depart_at asc limit 300`;
     const now = Date.now();
@@ -59,7 +57,7 @@ export async function GET(req: Request) {
       tags: tagLabels(kw, r.tags),
       id: r.id,
       ownerId: r.user_id,
-      service: r.service === "taxi" ? "taxi" : "carpool",
+      taxiShare: r.taxi_share === true,
       owner: r.owner || "회원",
       ownerBio: r.owner_bio,
       ownerPhoto: photoUrl(r.user_id, r.photo_v),
@@ -114,7 +112,7 @@ function oneTime(b: Record<string, unknown>) {
   if (!(seats >= 1 && seats <= 6)) return { error: "인원은 1~6명으로 입력해 주세요." };
   const c = costOf(b, kind === "commute", priceAllowedAt(departAt.getTime()));
   if (c.error) return { error: c.error };
-  return { v: { role, kind, origin, dest, at: departAt.toISOString(), seats, oLat, oLng, dLat, dLng, cost: c.cost, price: c.price, note: text(b.note, 300) } };
+  return { v: { role, kind, origin, dest, at: departAt.toISOString(), seats, oLat, oLng, dLat, dLng, cost: c.cost, price: c.price, note: text(b.note, 300), taxiShare: b.taxiShare === true && role === "rider" } };
 }
 
 /** 한 번짜리 카풀 등록 */
@@ -133,12 +131,14 @@ export async function POST(req: Request) {
     if ((open[0].n as number) >= 10) return json({ error: "진행 중인 글은 10개까지 올릴 수 있습니다." }, 429);
     const tags = allowedTags(await getKeywords(), r.tags, v.role, v.cost);
     const rows = await sql`
-      insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng, tags)
+      insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng, tags, taxi_share)
       values (${me}, ${v.role}, ${v.kind}, ${v.cost}, ${v.price}, ${v.origin}, ${v.dest}, ${v.at}, ${v.seats}, ${v.note},
-              ${v.oLat}, ${v.oLng}, ${v.dLat}, ${v.dLng}, ${tags}::text[])
+              ${v.oLat}, ${v.oLng}, ${v.dLat}, ${v.dLng}, ${tags}::text[], ${v.taxiShare})
       returning id`;
     const credit = await grant(me, "post").catch(() => 0);
     await notifyRouteAlerts(String(rows[0].id));
+    // 탑승자가 '택시 동승도 찾기'를 체크했으면 근처 운전자·탑승자에게 알린다.
+    if (v.taxiShare) await notifyTaxi(String(rows[0].id));
     return json({ id: rows[0].id, credit });
   } catch (e) {
     return fail(e);

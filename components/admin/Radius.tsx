@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 type Data = { choices: number[]; values: { taxi: number; route: number } };
 const ROWS: [keyof Data["values"], string, string][] = [
-  ["taxi", "택시 동승 글 푸시 반경", "택시 동승 글을 올리면 출발지 반경 안 회원에게 알려요."],
+  ["taxi", "택시 동승 푸시 반경", "카풀 글에서 '택시 동승도 찾기'를 체크하면 출발지 반경 안 운전자·탑승자에게 알려요."],
   ["route", "카풀 운전자(경로 알림) 반경", "내 경로 알림과 출발·도착지가 이 반경 안인 새 카풀 글을 알려요."],
 ];
 

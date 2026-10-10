@@ -6,14 +6,14 @@ import { boundingBox, getRadius } from "./radius";
 const MAX_RECIPIENTS = 200;
 
 /**
- * 택시 동승 글이 올라오면 출발지 반경 안의 회원에게 푸시한다.
+ * 탑승자가 '택시 동승도 찾기'를 체크한 글이 올라오면 출발지 반경 안의 운전자·탑승자 모두에게 푸시한다.
  * 회원의 위치는 가장 최근 카풀 글의 출발지로 본다(위치를 따로 저장하지 않는다).
  * 글쓴이, 서로 차단한 사이, 테스트 회원, 알림을 끈 회원은 뺀다. 한 번에 최대 200명.
  */
 export async function notifyTaxi(postId: string): Promise<number> {
   try {
     const sql = db();
-    const p = (await sql`select id, user_id, origin, dest, origin_lat, origin_lng, depart_at from posts where id = ${postId} and service = 'taxi'`)[0];
+    const p = (await sql`select id, user_id, role, origin, dest, origin_lat, origin_lng, depart_at from posts where id = ${postId}`)[0];
     if (!p || p.origin_lat == null || p.origin_lng == null) return 0;
     const lat = Number(p.origin_lat), lng = Number(p.origin_lng);
     const km = await getRadius("taxi");
@@ -22,7 +22,7 @@ export async function notifyTaxi(postId: string): Promise<number> {
     const cand = await sql`select h.user_id, h.origin_lat, h.origin_lng from (
         select distinct on (p2.user_id) p2.user_id, p2.origin_lat, p2.origin_lng
         from posts p2 join users u on u.id = p2.user_id
-        where p2.service = 'carpool' and p2.origin_lat is not null and not u.blocked and not u.test and u.notify
+        where p2.origin_lat is not null and not u.blocked and not u.test and u.notify
         order by p2.user_id, p2.created_at desc) h
       where h.user_id <> ${p.user_id}
         and h.origin_lat between ${b.minLat} and ${b.maxLat} and h.origin_lng between ${b.minLng} and ${b.maxLng}
@@ -39,7 +39,7 @@ export async function notifyTaxi(postId: string): Promise<number> {
       const part = await Promise.all(
         ids.slice(i, i + 50).map((uid) =>
           sendPush(uid, {
-            title: `근처에서 택시 동승을 찾아요 (${km}km 안)`,
+            title: `근처 카풀에 택시 동승 상대를 찾는 분이 있어요 (${km}km 안)`,
             body: pushText.cut(`${p.origin} → ${p.dest} · ${when}`, 80),
             url: `/?p=${p.id}`,
             tag: `taxi-${p.id}`,

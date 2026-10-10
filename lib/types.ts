@@ -1,5 +1,6 @@
 export type Post = {
-  service?: "carpool" | "taxi";
+  /** 탑승자가 택시 동승도 찾는 글 */
+  taxiShare?: boolean;
   id: string;
   /** 작성자 회원 id (차단할 때 쓴다) */
   ownerId?: string;
