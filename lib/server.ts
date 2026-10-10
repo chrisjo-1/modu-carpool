@@ -127,6 +127,8 @@ export function ensureSchema(): Promise<void> {
       await sql`create unique index if not exists pending_token_uniq on pending_signups (token_hash)`;
       // 탑승자가 '택시 동승도 찾기'를 체크한 글
       await sql`alter table posts add column if not exists taxi_share boolean not null default false`;
+      await sql`alter table posts add column if not exists demo boolean not null default false`;
+      await sql`alter table posts add column if not exists demo_shown boolean not null default true`;
       await sql`create table if not exists notices (
         id bigserial primary key,
         title text not null,

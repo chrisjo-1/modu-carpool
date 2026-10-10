@@ -81,7 +81,8 @@ export async function POST(req: Request) {
     await ensureSchema();
     const sql = db();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 카풀을 신청할 수 있어요. 메일함을 확인해 주세요." }, 403);
-    const post = await sql`select user_id, status, origin, dest, (not regular and depart_at <= now()) as ended from posts where id = ${b.postId}`;
+    const post = await sql`select user_id, status, origin, dest, demo, (not regular and depart_at <= now()) as ended from posts where id = ${b.postId}`;
+    if (post.length && post[0].demo) return json({ error: "예시 글에는 신청할 수 없어요." }, 400);
     if (post.length && post[0].ended) return json({ error: "출발 시각이 지나 종료된 카풀입니다." }, 409);
     if (post.length && post[0].status === "progress") return json({ error: "이미 카풀이 진행 중인 글이라 신청할 수 없습니다." }, 409);
     if (!post.length || post[0].status !== "open") return json({ error: "마감되었거나 없는 글입니다." }, 404);
