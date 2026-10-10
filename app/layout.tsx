@@ -11,7 +11,10 @@ export const metadata: Metadata = {
   applicationName: "모두의카풀",
   alternates: { canonical: "/" },
   // 네이버 서치어드바이저 소유확인 메타 태그(공개 값, 비밀 아님)
-  verification: { other: { "naver-site-verification": "e146666753d353b3be8c06d95a0eddd5e9832aa8" } },
+  verification: {
+    google: "eLd5SsUGNzcSx7NFQkSXCKxO2F4nhRVbdqWemv0Wvbo",
+    other: { "naver-site-verification": "e146666753d353b3be8c06d95a0eddd5e9832aa8" },
+  },
   title: { default: title, template: "%s | 모두의카풀" },
   description,
   keywords: ["카풀", "출퇴근 카풀", "모두의카풀", "모카", "carpool Seoul", "ride share Korea"],
