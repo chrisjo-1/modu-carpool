@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { GROUPS, getKeywords, type Keywords } from "@/lib/keywords";
+import { GROUPS, clearKeywordCache, getKeywords, type Keywords } from "@/lib/keywords";
 import { body, db, ensureSchema, fail, isAdmin, json } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +39,7 @@ export async function PUT(req: Request) {
   try {
     await ensureSchema();
     await db()`insert into settings (key, value) values ('keywords', ${JSON.stringify(next)}) on conflict (key) do update set value = excluded.value`;
+    clearKeywordCache();
     return json({ ok: true, keywords: next });
   } catch (e) {
     return fail(e);

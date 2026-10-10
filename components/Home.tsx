@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { HIDDEN_TEXT } from "./Me";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
 import { useKeywords } from "./Keywords";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
@@ -74,6 +74,9 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
+  // 목록은 12개씩 나눠 보여 준다. 필터가 바뀌면 처음 12개로 돌아간다.
+  const PAGE = 12;
+  const [shown, setShown] = useState(PAGE);
 
   const pickSort = (s: "soon" | "new" | "near") => {
     if (s !== "near") {
@@ -121,13 +124,16 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
     return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, role, q, regularOnly, lang, here, sort]);
+  }, [posts, role, q, regularOnly, lang, here, sort, picked]);
+
+  useEffect(() => {
+    setShown(PAGE);
+  }, [q, role, picked, regularOnly, sort, here]);
 
   return (
-    <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-4">
+    <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
       <header>
-        <h1 data-block-id="S001-title" className="text-[28px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
-        <p data-block-id="S001-desc" className="mt-1 text-sub">{t("출퇴근길도 서울 나들이도, 방향이 같은 사람과 함께.")}</p>
+        <h1 data-block-id="S001-title" className="text-[22px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
       </header>
 
       {allKeywords.length > 0 && (
@@ -156,22 +162,25 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
       <div className="space-y-2">
         {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼) */}
         <div className="flex items-center gap-2">
-          <input data-block-id="F001" className={`${field} min-w-0 flex-1`} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
+          <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
           <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => setView((v) => (v === "map" ? "list" : "map"))}
-            className={`min-h-0 shrink-0 rounded-xl border px-3 py-3 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+            className={`min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
             {view === "map" ? t("목록") : t("지도")}
           </button>
         </div>
-        <Segment label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
-        <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`rounded-full border px-4 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-          {t("정기카풀만 보기")}
-        </button>
-        <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className={`mt-1 gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
-          {([["soon", t("출발 임박순")], ["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")]] as const).map(([k, label]) => (
-            <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-0 rounded-full border px-3.5 py-1.5 text-[14px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-              {label}
-            </button>
-          ))}
+        <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
+        {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
+        <div className={`flex flex-wrap items-center gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
+          <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex flex-wrap gap-1.5">
+            {([["soon", t("출발 임박순")], ["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")]] as const).map(([k, label]) => (
+              <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-0 rounded-full border px-3 py-1 text-[13px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`ml-auto min-h-0 rounded-full border px-3 py-1 text-[13px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+            {t("정기카풀만 보기")}
+          </button>
         </div>
         {sort === "near" && here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 순서입니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
       </div>
@@ -183,8 +192,9 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
       ) : list.length === 0 ? (
         <Card className="px-6 py-12 text-center text-sub">{t("조건에 맞는 카풀이 아직 없어요.")}</Card>
       ) : (
+        <>
         <ul className="space-y-3">
-          {list.map((p) => (
+          {list.slice(0, shown).map((p) => (
             <li key={p.id}>
               <button data-block-id="C001" data-block-name="카풀 카드" onClick={() => onOpen(p)} className={`block w-full text-left ${p.ended ? "opacity-60" : ""}`}>
                 <Card className="space-y-3 p-5">
@@ -203,6 +213,12 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
             </li>
           ))}
         </ul>
+        {list.length > shown && (
+          <button type="button" data-block-id="B005" data-block-name="목록 더 보기" onClick={() => setShown((n) => n + PAGE)} className={`${btnGhost} py-3 text-[15px]`}>
+            {t("더 보기")} <span className="num text-sub">({list.length - shown})</span>
+          </button>
+        )}
+        </>
       )}
     </section>
   );

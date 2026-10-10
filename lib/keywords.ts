@@ -25,7 +25,23 @@ export const DEFAULT_KEYWORDS: Keywords = {
   ],
 };
 
+/** 키워드는 자주 바뀌지 않으므로 서버 메모리에 60초 동안 보관해, 글 목록을 불러올 때마다 DB를 다시 읽지 않게 한다. */
+const KEYWORD_TTL_MS = 60_000;
+let kwCache: { at: number; value: Keywords } | null = null;
+
 export async function getKeywords(): Promise<Keywords> {
+  if (kwCache && Date.now() - kwCache.at < KEYWORD_TTL_MS) return kwCache.value;
+  const value = await readKeywords();
+  kwCache = { at: Date.now(), value };
+  return value;
+}
+
+/** 관리자가 키워드를 바꾼 뒤 바로 반영하고 싶을 때 호출 */
+export function clearKeywordCache() {
+  kwCache = null;
+}
+
+async function readKeywords(): Promise<Keywords> {
   const rows = await db()`select value from settings where key = 'keywords'`;
   if (!rows.length) return DEFAULT_KEYWORDS;
   try {
