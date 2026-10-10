@@ -18,6 +18,7 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [more, setMore] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const [loading, setLoading] = useState(false);
   const loadHistory = async (reset: boolean) => {
     setLoading(true);
@@ -77,14 +78,20 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
       <Card data-block-id="C048" data-block-name="크레딧" className="space-y-4 p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm text-sub">{t("보유 크레딧")}</p>
+            <p className="flex items-center gap-1.5 text-sm text-sub">
+              {t("보유 크레딧")}
+              <button type="button" data-block-id="B212" data-block-name="적립 기준 보기" aria-expanded={showRules} aria-controls="credit-rules" aria-label={t(showRules ? "적립 기준 숨기기" : "적립 기준 보기")} title={t(showRules ? "적립 기준 숨기기" : "적립 기준 보기")} onClick={() => setShowRules((v) => !v)} className={`flex h-5 w-5 min-h-0 items-center justify-center rounded-full border text-[12px] font-bold leading-none ${showRules ? "border-accent bg-accent text-white" : "border-sub text-sub"}`}>
+                i
+              </button>
+            </p>
             <p className="num text-[28px] font-bold leading-tight text-accent">{creditText(d.balance, lang)}</p>
           </div>
           <button data-block-id="B058" data-block-name="출석하기" disabled={busy || d.attended} className="shrink-0 rounded-xl bg-accent px-5 py-3 text-[15px] font-semibold text-white disabled:bg-bg disabled:text-sub" onClick={attend}>
             {d.attended ? t("오늘 출석 완료") : `${t("출석하기")} +${creditText(d.rules.attend, lang)}`}
           </button>
         </div>
-        <ul data-block-id="C049" data-block-name="적립 기준" className="grid grid-cols-2 gap-2 text-[13px]">
+        {showRules && (
+        <ul id="credit-rules" data-block-id="C049" data-block-name="적립 기준" className="grid grid-cols-2 gap-2 text-[13px]">
           {rules.map(([k, v]) => (
             <li key={k} className="flex items-center justify-between rounded-xl bg-bg px-3 py-2">
               <span className="text-sub">{k}</span>
@@ -92,6 +99,7 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
             </li>
           ))}
         </ul>
+        )}
         {d.historyCount > 0 && (
           <div>
             <button data-block-id="B210" data-block-name="크레딧 내역 보기" aria-expanded={open} aria-controls="credit-history" onClick={toggle} className="flex w-full items-center justify-between rounded-xl border border-line px-4 text-[15px]">

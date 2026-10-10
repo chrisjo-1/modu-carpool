@@ -13,6 +13,8 @@ const D: Record<string, [string, string, string]> = {
   "기타를 고르면 다음에 앱을 열 때 출퇴근 정보를 물어볼게요.": ["If you choose Other, we'll ask for your commute details next time you open the app.", "「その他」を選ぶと、次にアプリを開いたときに通勤情報をお聞きします。", "选择“其他”后，下次打开应用时会再询问您的通勤信息。"],
   "내역 보기": ["View history", "履歴を見る", "查看记录"],
   "내역 접기": ["Hide history", "履歴を閉じる", "收起记录"],
+  "적립 기준 보기": ["Show credit rules", "ポイントの貯め方を表示", "查看积分规则"],
+  "적립 기준 숨기기": ["Hide credit rules", "ポイントの貯め方を隠す", "隐藏积分规则"],
   "불러오는 중…": ["Loading…", "読み込み中…", "加载中…"],
   "더 보기": ["Load more", "もっと見る", "加载更多"],
   "안 읽음": ["Unread", "未読", "未读"],
