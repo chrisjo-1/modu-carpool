@@ -69,8 +69,8 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
   const allKeywords = kw ? [...kw.gift, ...kw.driver, ...kw.rider] : [];
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
-  // 정렬: 출발 임박순(기본) · 최신순 · 가까운 순(내 위치 필요)
-  const [sort, setSort] = useState<"soon" | "new" | "near">("soon");
+  // 정렬: 최신순(기본) · 가까운 순(내 위치 필요) · 출발 임박순
+  const [sort, setSort] = useState<"soon" | "new" | "near">("new");
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
@@ -172,7 +172,7 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
         <div className={`flex flex-wrap items-center gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
           <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex flex-wrap gap-1.5">
-            {([["soon", t("출발 임박순")], ["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")]] as const).map(([k, label]) => (
+            {([["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")], ["soon", t("출발 임박순")]] as const).map(([k, label]) => (
               <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-0 rounded-full border px-3 py-1 text-[13px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
                 {label}
               </button>
