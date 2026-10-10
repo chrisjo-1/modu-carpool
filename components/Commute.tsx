@@ -94,7 +94,7 @@ export default function CommuteSheet({
       days,
       timeGo,
       timeBack: back ? timeBack : "",
-      seats,
+      seats: role === "driver" ? seats : 1,
       cost: cost === "fixed" && !allowed ? "free" : cost,
       price: Number(price),
       note,
@@ -151,14 +151,14 @@ export default function CommuteSheet({
           {t("퇴근길도 함께")}
         </label>
 
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-sub">{role === "driver" ? t("태울 수 있는 자리") : t("함께 탈 인원")}</p>
+        {role === "driver" && <div className="flex items-center justify-between">
+          <p className="text-sm text-sub">{t("태울 수 있는 자리")}</p>
           <div className="flex items-center gap-3">
             <button type="button" aria-label={t("줄이기")} className="grid h-11 w-11 place-items-center rounded-full bg-bg text-xl" onClick={() => setSeats((s) => Math.max(1, s - 1))}>−</button>
             <span className="num w-6 text-center text-xl font-bold">{seats}</span>
             <button type="button" aria-label={t("늘리기")} className="grid h-11 w-11 place-items-center rounded-full bg-bg text-xl" onClick={() => setSeats((s) => Math.min(6, s + 1))}>+</button>
           </div>
-        </div>
+        </div>}
 
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("비용")}</p>

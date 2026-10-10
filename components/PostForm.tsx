@@ -78,7 +78,7 @@ export default function PostForm({
       destLat: dest.lat,
       destLng: dest.lng,
       departAt: new Date(at).getTime(),
-      seats,
+      seats: role === "driver" ? seats : 1,
       note,
       tags,
       taxiShare: role === "rider" && taxiShare,
@@ -126,14 +126,14 @@ export default function PostForm({
           {t("출발 일시")}
           <input data-block-id="F022" className={`${field} num mt-1`} type="datetime-local" required value={at} onChange={(e) => setAt(e.target.value)} />
         </label>
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-sub">{role === "driver" ? t("태울 수 있는 자리") : t("함께 탈 인원")}</p>
+        {role === "driver" && <div className="flex items-center justify-between">
+          <p className="text-sm text-sub">{t("태울 수 있는 자리")}</p>
           <div className="flex items-center gap-3">
             <button type="button" aria-label={t("줄이기")} className="grid h-11 w-11 place-items-center rounded-full bg-bg text-xl" onClick={() => setSeats((s) => Math.max(1, s - 1))}>−</button>
             <span className="num w-6 text-center text-xl font-bold">{seats}</span>
             <button type="button" aria-label={t("늘리기")} className="grid h-11 w-11 place-items-center rounded-full bg-bg text-xl" onClick={() => setSeats((s) => Math.min(6, s + 1))}>+</button>
           </div>
-        </div>
+        </div>}
       </Card>
 
       <Card className="space-y-3 p-5">
