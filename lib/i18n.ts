@@ -3,6 +3,14 @@ export const LANGS: [Lang, string][] = [["ko", "한국어"], ["en", "English"], 
 
 /** 한국어 문구 → [영어, 일본어, 중국어]. 없는 문구는 한국어 그대로 보여준다. */
 const D: Record<string, [string, string, string]> = {
+  "불러오는 중": ["Loading", "読み込み中", "加载中"],
+  "모두의카풀을 준비하고 있어요. 조금만 기다려주세요!": ["Getting Modu Carpool ready. Just a moment!", "モドゥの相乗りを準備しています。少々お待ちください！", "正在准备 Modu Carpool，请稍候！"],
+  "출퇴근 카풀": ["Commute carpool", "通勤カープール", "通勤拼车"],
+  "출발지와 도착지를 먼저 알려 주세요": ["Tell us where you start and where you go", "出発地と到着地を先に教えてください", "请先告诉我们出发地和目的地"],
+  "같은 방향으로 가는 이웃을 찾는 데 쓰여요. 다음 화면에서 요일과 시간을 정해요.": ["Used to find neighbors going the same way. Set days and times on the next screen.", "同じ方向に行く近所の人を探すために使います。次の画面で曜日と時間を決めます。", "用于寻找同路的邻居。下一屏设置星期和时间。"],
+  "다음": ["Next", "次へ", "下一步"],
+  "기타 (나중에 설정할게요)": ["Other (I'll set it up later)", "その他（あとで設定します）", "其他（稍后设置）"],
+  "기타를 고르면 다음에 앱을 열 때 출퇴근 정보를 물어볼게요.": ["If you choose Other, we'll ask for your commute details next time you open the app.", "「その他」を選ぶと、次にアプリを開いたときに通勤情報をお聞きします。", "选择“其他”后，下次打开应用时会再询问您的通勤信息。"],
   "내역 보기": ["View history", "履歴を見る", "查看记录"],
   "내역 접기": ["Hide history", "履歴を閉じる", "收起记录"],
   "불러오는 중…": ["Loading…", "読み込み中…", "加载中…"],

@@ -44,8 +44,8 @@ export async function POST(req: Request) {
     if (b.action === "signup") {
       // 같은 곳에서 1시간에 5번까지 가입
       if (await overLimit("signup-ip", ip, 5, 60)) return json({ error: "가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, 429);
-      const name = text(b.name, 20);
-      if (name.length < 2) return json({ error: "닉네임을 2자 이상 입력해 주세요." }, 400);
+      // 닉네임은 가입 때 묻지 않는다. 입력이 있으면 쓰고, 없으면 이메일 앞부분으로 정한다(내 정보에서 바꿀 수 있다).
+      const name = text(b.name, 20) || defaultNickname(email);
       if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
       const exists = await sql`select 1 from users where email = ${email}`;
       if (exists.length) return json({ error: "이미 가입된 이메일입니다." }, 409);
@@ -119,6 +119,12 @@ async function accountAction(b: Record<string, unknown>) {
   } catch (e) {
     return fail(e);
   }
+}
+
+/** 이메일 앞부분으로 기본 닉네임을 만든다. 2자 미만이면 임의 번호를 붙인다. */
+function defaultNickname(email: string) {
+  const base = email.split("@")[0].replace(/[^0-9A-Za-z가-힣_]/g, "").slice(0, 12);
+  return base.length >= 2 ? base : `회원${randomBytes(2).readUInt16BE(0) % 10000}`;
 }
 
 const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");

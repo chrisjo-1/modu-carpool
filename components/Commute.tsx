@@ -47,12 +47,15 @@ export function CostField({
 /** 출퇴근 정보를 받아 정기카풀로 게시한다. 가입 직후(onboarding)와 수정에 함께 쓴다. */
 export default function CommuteSheet({
   initial,
+  prefill,
   onboarding,
   onClose,
   onDone,
   toast,
 }: {
   initial: Post | null;
+  /** 출발지·도착지를 미리 채운 값(등록 탭에서 먼저 고른 경로) */
+  prefill?: { origin: Place; dest: Place };
   onboarding: boolean;
   onClose: () => void;
   onDone: () => void;
@@ -61,8 +64,8 @@ export default function CommuteSheet({
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? "driver");
-  const [origin, setOrigin] = useState<Place>({ name: initial?.origin ?? "", lat: initial?.originLat ?? null, lng: initial?.originLng ?? null });
-  const [dest, setDest] = useState<Place>({ name: initial?.dest ?? "", lat: initial?.destLat ?? null, lng: initial?.destLng ?? null });
+  const [origin, setOrigin] = useState<Place>(prefill?.origin ?? { name: initial?.origin ?? "", lat: initial?.originLat ?? null, lng: initial?.originLng ?? null });
+  const [dest, setDest] = useState<Place>(prefill?.dest ?? { name: initial?.dest ?? "", lat: initial?.destLat ?? null, lng: initial?.destLng ?? null });
   const [days, setDays] = useState(initial?.days || "12345");
   const [timeGo, setTimeGo] = useState(initial?.timeGo || "07:30");
   const [back, setBack] = useState(initial ? !!initial.timeBack : true);

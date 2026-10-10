@@ -14,3 +14,7 @@ button, a, [role="button"] { min-height: 44px; }
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 .live { animation: pulse-dot 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .sheet, .live { animation: none; } }
+/* 첫 로딩 바: 왼쪽에서 오른쪽으로 계속 지나간다 */
+@keyframes modu-bar { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+.modu-bar { animation: modu-bar 1.3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .modu-bar { animation-duration: 3s; } }

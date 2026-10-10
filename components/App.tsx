@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { translate, type Lang } from "@/lib/i18n";
 import type { Post, Thread, User } from "@/lib/types";
 import Chat, { ChatRoom } from "./Chat";
@@ -11,10 +11,13 @@ import ResetSheet from "./Reset";
 import Gate from "./Gate";
 import { NoticePopup } from "./Notices";
 import { ConsentSheet, VerifyBanner } from "./Account";
+import Splash from "./Splash";
+import CommuteStart, { COMMUTE_LATER_KEY } from "./CommuteStart";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import PostForm from "./PostForm";
 import { Icon, LangContext, Sheet, api } from "./ui";
+import type { Place } from "@/lib/types";
 
 type Tab = "home" | "post" | "chat" | "me";
 const LANG_KEY = "modu.lang";
@@ -33,7 +36,11 @@ export default function App() {
   const [editing, setEditing] = useState<Post | null>(null);
   const [member, setMember] = useState<string | null>(null);
   const [why, setWhy] = useState<{ mode: "report" | "block"; userId: string; name: string; requestId?: string } | null>(null);
-  const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean } | null>(null);
+  const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean; prefill?: { origin: Place; dest: Place } } | null>(null);
+  const [commuteStart, setCommuteStart] = useState(false);
+  // 첫 화면 로딩: 로그인 확인과 글 목록이 끝나면 사라진다. 8초가 지나도 안 끝나면 그냥 넘어간다.
+  const [splashGone, setSplashGone] = useState(false);
+  const [splashTimedOut, setSplashTimedOut] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [wantRoom, setWantRoom] = useState("");
@@ -182,6 +189,42 @@ export default function App() {
     return () => clearTimeout(id);
   }, [toastMsg]);
 
+  // 로딩 화면이 8초 넘게 남아 있으면 그냥 넘어간다.
+  useEffect(() => {
+    const id = setTimeout(() => setSplashTimedOut(true), 8000);
+    return () => clearTimeout(id);
+  }, []);
+  const booted = checked && loaded;
+  useEffect(() => {
+    if (booted) setSplashGone(true);
+  }, [booted]);
+
+  // '기타'로 미뤄 둔 출퇴근 정보: 로그인한 뒤 처음 앱을 열 때 한 번 다시 묻는다.
+  const askedLater = useRef(false);
+  useEffect(() => {
+    if (!user || askedLater.current || user.test) return;
+    let later = false;
+    try {
+      later = localStorage.getItem(COMMUTE_LATER_KEY) === "1";
+    } catch {
+      /* 무시 */
+    }
+    if (!later) return;
+    askedLater.current = true;
+    api<{ posts: Post[] }>("/api/posts?mine=1").then((r) => {
+      if (!r.ok) return;
+      if (r.data.posts.some((p) => p.regular)) {
+        try {
+          localStorage.removeItem(COMMUTE_LATER_KEY);
+        } catch {
+          /* 무시 */
+        }
+        return;
+      }
+      setCommute({ post: null, onboarding: true });
+    });
+  }, [user]);
+
   const refresh = async () => {
     const list = await loadPosts();
     if (user) await loadThreads();
@@ -200,7 +243,24 @@ export default function App() {
   /** 등록 탭에서 정기카풀(출퇴근)을 고르면, 이미 올린 정기카풀이 있는지 확인해 입력 창을 연다. */
   const openRegular = async () => {
     const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
-    setCommute({ post: (r.ok && r.data.posts.find((p) => p.regular)) || null, onboarding: false });
+    const reg = (r.ok && r.data.posts.find((p) => p.regular)) || null;
+    // 이미 정기카풀이 있으면 바로 고치는 창, 없으면 출발지·도착지부터 묻는다.
+    if (reg) setCommute({ post: reg, onboarding: false });
+    else setCommuteStart(true);
+  };
+  /** 출발지·도착지를 고른 뒤 전체 출퇴근 창을 연다. */
+  const commuteNext = (origin: Place, dest: Place) => {
+    setCommuteStart(false);
+    setCommute({ post: null, onboarding: false, prefill: { origin, dest } });
+  };
+  /** '기타'를 골랐을 때: 지금은 건너뛰고 다음 앱 실행 때 다시 묻는다. */
+  const commuteLater = () => {
+    try {
+      localStorage.setItem(COMMUTE_LATER_KEY, "1");
+    } catch {
+      /* 무시 */
+    }
+    setCommuteStart(false);
   };
 
   /** 사유 창에서 제출: 신고는 접수만 하고, 차단은 관련 창을 닫고 목록을 새로 받는다. */
@@ -293,7 +353,8 @@ export default function App() {
             <PostForm initial={editing} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { setEditing(null); refresh(); }} />
           </Sheet>
         )}
-        {commute && <CommuteSheet initial={commute.post} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); refresh(); setTab("home"); }} />}
+        {commuteStart && <CommuteStart onNext={commuteNext} onLater={commuteLater} onClose={() => setCommuteStart(false)} toast={setToastMsg} />}
+        {commute && <CommuteSheet initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); try { localStorage.removeItem(COMMUTE_LATER_KEY); } catch { /* 무시 */ } refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {enabled && checked && !user && !preview && !resetToken && (
@@ -310,6 +371,7 @@ export default function App() {
             sharedPost={sharedPost}
           />
         )}
+        {!booted && !splashTimedOut && !splashGone && <Splash />}
         <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {resetToken && (
