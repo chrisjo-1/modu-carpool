@@ -15,6 +15,8 @@ const D: Record<string, [string, string, string]> = {
   "내역 접기": ["Hide history", "履歴を閉じる", "收起记录"],
   "적립 기준 보기": ["Show credit rules", "ポイントの貯め方を表示", "查看积分规则"],
   "적립 기준 숨기기": ["Hide credit rules", "ポイントの貯め方を隠す", "隐藏积分规则"],
+  "키워드로 찾기": ["Filter by keyword", "キーワードで探す", "按关键词查找"],
+  "초기화": ["Reset", "リセット", "重置"],
   "택시 동승도 같이 찾아볼게요": ["I'm also looking for a shared taxi", "タクシー相乗りも一緒に探します", "也一起找拼车打车的人"],
   "체크하면 근처 운전자와 탑승자에게 택시 동승 상대를 찾는다고 알려요.": ["If checked, nearby drivers and riders are notified that you're looking for a shared taxi.", "チェックすると、近くの運転者と同乗者に相乗り相手を探していることを知らせます。", "勾选后，会通知附近的司机和乘客您在找拼车打车的人。"],
   "택시 동승 찾는 중": ["Looking for shared taxi", "タクシー相乗り募集中", "正在找拼车打车"],

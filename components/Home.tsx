@@ -4,6 +4,7 @@ import FareCard from "./Fare";
 import { HIDDEN_TEXT } from "./Me";
 import { useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
+import { useKeywords } from "./Keywords";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
@@ -63,6 +64,10 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
+  // 키워드 필터: 고른 키워드 중 하나라도 붙은 글만 (여러 개 고르면 OR)
+  const kw = useKeywords();
+  const [picked, setPicked] = useState<string[]>([]);
+  const allKeywords = kw ? [...kw.gift, ...kw.driver, ...kw.rider] : [];
   const [kind, setKind] = useState<Kind>("all");
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
@@ -103,6 +108,7 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
     const k = q.trim().toLowerCase();
     const hit = posts.filter(
       (p) =>
+        (picked.length === 0 || (p.tagIds ?? []).some((id) => picked.includes(id))) &&
         (role === "all" || p.role === role) &&
         (kind === "all" || p.kind === kind) &&
         (!regularOnly || !!p.regular) &&
@@ -126,6 +132,29 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         <h1 data-block-id="S001-title" className="text-[28px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
         <p data-block-id="S001-desc" className="mt-1 text-sub">{t("출퇴근길도 서울 나들이도, 방향이 같은 사람과 함께.")}</p>
       </header>
+
+      {allKeywords.length > 0 && (
+        <div data-block-id="C070" data-block-name="키워드 필터" className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-sm text-sub">{t("키워드로 찾기")}</p>
+            {picked.length > 0 && (
+              <button type="button" data-block-id="B070" data-block-name="키워드 초기화" className="min-h-0 text-[13px] text-sub underline" onClick={() => setPicked([])}>{t("초기화")}</button>
+            )}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {allKeywords.map((k) => {
+              const on = picked.includes(k.id);
+              return (
+                <button key={k.id} type="button" aria-pressed={on} data-block-id="B071" data-block-name="키워드 칩"
+                  onClick={() => setPicked((cur) => (cur.includes(k.id) ? cur.filter((x) => x !== k.id) : [...cur, k.id]))}
+                  className={`min-h-0 shrink-0 rounded-full border px-3 py-1.5 text-[14px] ${on ? "border-accent bg-accent text-white" : "border-line bg-white text-sub"}`}>
+                  {k.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <Segment label={t("보기 방식")} value={view} onChange={setView} options={[["list", t("목록")], ["map", t("지도")]]} />
 
