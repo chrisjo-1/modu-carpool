@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { priceAllowedAt } from "@/lib/time";
 import type { Place, Post, User } from "@/lib/types";
+import CarGateSheet from "./CarGate";
 import { CostField } from "./Commute";
 import { TagPicker } from "./Keywords";
 import PlaceField from "./PlaceField";
@@ -58,12 +59,16 @@ export default function PostForm({
   const [note, setNote] = useState(initial?.note ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tagIds ?? []);
   const [busy, setBusy] = useState(false);
+  // 운전자 글은 차량번호와 차량 사진이 있어야 올릴 수 있다.
+  const [carGate, setCarGate] = useState(false);
+  const carOk = !!user?.carNo && !!user?.carPhoto;
 
   // 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시) 출발일 때만 금액을 적을 수 있다.
   const allowed = kind === "commute" && priceAllowedAt(new Date(at).getTime());
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (role === "driver" && !carOk) return setCarGate(true);
     setBusy(true);
     const r = await api<{ id?: string; credit?: number }>("/api/posts", initial ? "PATCH" : "POST", {
       id: initial?.id,
@@ -97,10 +102,12 @@ export default function PostForm({
 
   const form = (
     <form onSubmit={submit} className="space-y-4">
+      {carGate && <CarGateSheet onClose={() => setCarGate(false)} />}
       <Card className="space-y-4 p-5">
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("나는")}</p>
           <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} />
+          <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : t("탑승자: 같이 탈 차를 찾는 글이에요.")}</p>
         </div>
         {role === "rider" && !initial && (
           <label data-block-id="F025" data-block-name="택시 동승 찾기" className="flex cursor-pointer items-start gap-3 rounded-xl bg-bg p-3">

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, Icon, api, useLang, useT } from "./ui";
 
-type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number };
+type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number; car: number };
 type Item = { id: string; amount: number; reason: string; label: string; memo: string; at: number };
 type Data = { balance: number; attended: boolean; welcome: number; rules: Rules; historyCount: number };
 
@@ -69,6 +69,7 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
     [t("출석하기 (하루 1번)"), `+${creditText(d.rules.attend, lang)}`],
     [t("카풀 게시 (하루 1번)"), `+${creditText(d.rules.post, lang)}`],
     [t("채팅에서 메일로 알리기"), `−${creditText(d.rules.nudge, lang)}`],
+    [t("차량 등록 축하"), `+${creditText(d.rules.car ?? 0, lang)}`],
     ...(d.rules.legacy ? [[t("워프 회원 이전 축하"), `+${creditText(d.rules.legacy, lang)}`] as [string, string]] : []),
   ];
 

@@ -34,8 +34,8 @@ function PostTags({ post }: { post: Post }) {
   const lang = useLang();
   return (
     <div className="flex flex-wrap gap-1.5">
-      {post.regular && <Tag tone="accent">{t("정기카풀")}</Tag>}
-      <Tag tone={post.regular ? "plain" : "accent"}>{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
+      {post.regular && <Tag>{t("정기카풀")}</Tag>}
+      <Tag tone={post.role === "driver" ? "accent" : "mint"}>{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
       {!post.regular && <Tag>{post.kind === "commute" ? t("출퇴근") : t("나들이·관광")}</Tag>}
       {post.taxiShare && <Tag tone="accent">{t("택시 동승 찾는 중")}</Tag>}
       <Tag tone={post.cost === "free" ? "plain" : "warn"}>{post.cost === "fixed" ? money(post.price ?? 0, lang) : post.cost === "meter" ? t("비용 나눔") : t("무료")}</Tag>

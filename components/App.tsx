@@ -374,7 +374,7 @@ export default function App() {
           />
         )}
         {commuteStart && <CommuteStart onNext={commuteNext} onLater={commuteLater} onClose={() => setCommuteStart(false)} toast={setToastMsg} />}
-        {commute && <CommuteSheet initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); try { localStorage.removeItem(COMMUTE_LATER_KEY); } catch { /* 무시 */ } refresh(); setTab("home"); }} />}
+        {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); try { localStorage.removeItem(COMMUTE_LATER_KEY); } catch { /* 무시 */ } refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {enabled && checked && !user && !preview && !resetToken && (

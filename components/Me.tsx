@@ -126,20 +126,20 @@ export default function Me({
 
   const saveCarPhoto = async (photo: string) => {
     setBusy(true);
-    const r = await api<{ user: User }>("/api/auth", "PUT", { photo, kind: "car" });
+    const r = await api<{ user: User; credit?: number }>("/api/auth", "PUT", { photo, kind: "car" });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setUser(r.data.user);
-    toast(t(photo ? "차량 사진을 등록했어요." : "차량 사진을 삭제했어요."));
+    toast(t(photo ? "차량 사진을 등록했어요." : "차량 사진을 삭제했어요.") + (r.data.credit ? ` ${t("차량 등록 축하 크레딧이 적립됐어요.")} +${r.data.credit.toLocaleString("ko-KR")}` : ""));
   };
   const saveCarNo = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api<{ user: User }>("/api/auth", "PATCH", { carNo });
+    const r = await api<{ user: User; credit?: number }>("/api/auth", "PATCH", { carNo });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setUser(r.data.user);
-    toast(t(r.data.user.carNo ? "차량번호를 저장했어요." : "차량번호를 지웠어요."));
+    toast(t(r.data.user.carNo ? "차량번호를 저장했어요." : "차량번호를 지웠어요.") + (r.data.credit ? ` ${t("차량 등록 축하 크레딧이 적립됐어요.")} +${r.data.credit.toLocaleString("ko-KR")}` : ""));
   };
 
   useEffect(() => {

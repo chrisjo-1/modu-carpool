@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { dayName } from "@/lib/i18n";
 import { priceAllowedRegular } from "@/lib/time";
-import type { Place, Post } from "@/lib/types";
+import type { Place, Post, User } from "@/lib/types";
+import CarGateSheet from "./CarGate";
 import PlaceField from "./PlaceField";
 import { Segment, Sheet, api, btnGhost, btnPrimary, field, useLang, useT } from "./ui";
 
@@ -46,6 +47,7 @@ export function CostField({
 
 /** 출퇴근 정보를 받아 정기카풀로 게시한다. 가입 직후(onboarding)와 수정에 함께 쓴다. */
 export default function CommuteSheet({
+  user,
   initial,
   prefill,
   onboarding,
@@ -53,6 +55,7 @@ export default function CommuteSheet({
   onDone,
   toast,
 }: {
+  user?: User | null;
   initial: Post | null;
   /** 출발지·도착지를 미리 채운 값(등록 탭에서 먼저 고른 경로) */
   prefill?: { origin: Place; dest: Place };
@@ -76,12 +79,16 @@ export default function CommuteSheet({
   const [note, setNote] = useState(initial?.note ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tagIds ?? []);
   const [busy, setBusy] = useState(false);
+  // 운전자 글은 차량번호와 차량 사진이 있어야 올릴 수 있다.
+  const [carGate, setCarGate] = useState(false);
+  const carOk = !!user?.carNo && !!user?.carPhoto;
 
   const allowed = priceAllowedRegular(days, timeGo, back ? timeBack : "");
   const toggleDay = (i: number) => setDays((d) => (d.includes(String(i)) ? d.replace(String(i), "") : [...d, String(i)].sort().join("")));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (role === "driver" && !carOk) return setCarGate(true);
     setBusy(true);
     const r = await api<{ updated: boolean; credit?: number }>("/api/posts", "PUT", {
       role,
@@ -109,6 +116,7 @@ export default function CommuteSheet({
   return (
     <Sheet title={t("내 출퇴근 정보")} blockId="S060" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
+        {carGate && <CarGateSheet onClose={() => setCarGate(false)} />}
         {onboarding && (
           <div>
             <h2 className="text-2xl font-bold leading-snug">{t("출퇴근 정보를 알려 주세요")}</h2>
@@ -118,6 +126,7 @@ export default function CommuteSheet({
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("나는")}</p>
           <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} />
+          <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : t("탑승자: 같이 탈 차를 찾는 글이에요.")}</p>
         </div>
         <PlaceField blockId="F060" label={t("집 (출발지)")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
         <PlaceField blockId="F061" label={t("회사 (도착지)")} placeholder={t("예: 강남역")} value={dest} onChange={setDest} toast={toast} />

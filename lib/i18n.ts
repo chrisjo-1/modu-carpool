@@ -534,6 +534,15 @@ const D: Record<string, [string, string, string]> = {
   "내가 올린 글에는 신청할 수 없습니다.": ["You can't request your own post.", "自分の投稿には申請できません。", "不能申请自己的发布。"],
   "권한이 없습니다.": ["Not allowed.", "権限がありません。", "没有权限。"],
   "수락된 뒤에 대화할 수 있습니다.": ["You can chat after the request is accepted.", "承認された後にチャットできます。", "被接受后才能聊天。"],
+  "운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.": ["Driver: a post where you give rides by car. Vehicle registration required.", "運転者：車で乗せる投稿です。車両登録が必要です。", "司机：驾车载人的帖子，需要先登记车辆。"],
+  "탑승자: 같이 탈 차를 찾는 글이에요.": ["Rider: a post looking for a ride together.", "同乗者：一緒に乗る車を探す投稿です。", "乘客：寻找同行车辆的帖子。"],
+  "운전자 글은 차량을 먼저 등록해야 올릴 수 있어요. 내 정보에서 차량번호와 차량 사진을 등록해 주세요.": ["Driver posts need a registered vehicle first. Add your plate number and a vehicle photo in My info.", "運転者の投稿は先に車両を登録する必要があります。マイ情報で車両番号と車両写真を登録してください。", "发布司机帖子前需要先登记车辆。请在我的信息中登记车牌号和车辆照片。"],
+  "차량을 먼저 등록해 주세요": ["Register your vehicle first", "先に車両を登録してください", "请先登记车辆"],
+  "운전자로 글을 올리려면 차량번호와 차량 사진을 등록해야 해요. 사진에는 번호판이 보이지 않게 찍어 주세요.": ["To post as a driver, register your plate number and a vehicle photo. Take the photo so the plate isn't visible.", "運転者として投稿するには、車両番号と車両写真の登録が必要です。写真はナンバーが写らないように撮ってください。", "以司机身份发布，需要登记车牌号和车辆照片。照片请勿拍到车牌。"],
+  "차량을 등록하면 축하 크레딧 1,000을 드려요.": ["Register your vehicle and get 1,000 welcome credits.", "車両を登録すると、お祝いクレジット1,000を差し上げます。", "登记车辆即可获得1,000 积分祝贺奖励。"],
+  "운전자로 등록하면 근처 탑승자가 카풀을 올릴 때 푸시 알림을 받을 수 있어요.": ["Once registered as a driver, you'll get push alerts when riders nearby post a carpool request.", "運転者として登録すると、近くの同乗者が配車リクエストを投稿したときにプッシュ通知を受け取れます。", "登记为司机后，附近乘客发布拼车请求时您会收到推送通知。"],
+  "차량 등록 축하": ["Vehicle registration bonus", "車両登録ボーナス", "车辆登记奖励"],
+  "차량 등록 축하 크레딧이 적립됐어요.": ["Vehicle registration bonus credits were added.", "車両登録のお祝いクレジットが付与されました。", "车辆登记祝贺积分已到账。"],
 };
 
 const INDEX: Record<Lang, number> = { ko: -1, en: 0, ja: 1, zh: 2 };

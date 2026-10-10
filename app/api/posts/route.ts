@@ -1,5 +1,7 @@
 import { notifyRouteAlerts } from "@/lib/alerts";
 import { notifyTaxi } from "@/lib/taxi";
+import { notifyDrivers } from "@/lib/drivers";
+import { CAR_REQUIRED, carReady } from "@/lib/car";
 import { grant } from "@/lib/credits";
 import { isVerified } from "@/lib/verify";
 import { allowedTags, getKeywords, tagLabels } from "@/lib/keywords";
@@ -127,6 +129,7 @@ export async function POST(req: Request) {
     await ensureSchema();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 글을 올릴 수 있어요. 메일함을 확인해 주세요." }, 403);
     const sql = db();
+    if (v.role === "driver" && !(await carReady(me))) return json({ error: CAR_REQUIRED }, 403);
     const open = await sql`select count(*)::int as n from posts where user_id = ${me} and status = 'open' and not regular and depart_at > now()`;
     if ((open[0].n as number) >= 10) return json({ error: "진행 중인 글은 10개까지 올릴 수 있습니다." }, 429);
     const tags = allowedTags(await getKeywords(), r.tags, v.role, v.cost);
@@ -139,6 +142,7 @@ export async function POST(req: Request) {
     await notifyRouteAlerts(String(rows[0].id));
     // 탑승자가 '택시 동승도 찾기'를 체크했으면 근처 운전자·탑승자에게 알린다.
     if (v.taxiShare) await notifyTaxi(String(rows[0].id));
+    if (v.role === "rider") await notifyDrivers(String(rows[0].id));
     return json({ id: rows[0].id, credit });
   } catch (e) {
     return fail(e);
@@ -171,6 +175,7 @@ export async function PUT(req: Request) {
     await ensureSchema();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 글을 올릴 수 있어요. 메일함을 확인해 주세요." }, 403);
     const sql = db();
+    if (role === "driver" && !(await carReady(me))) return json({ error: CAR_REQUIRED }, 403);
     const updated = await sql`
       update posts set role = ${role}, cost = ${c.cost}, price = ${c.price}, origin = ${origin}, dest = ${dest},
         origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng},

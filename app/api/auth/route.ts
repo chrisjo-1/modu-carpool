@@ -1,3 +1,4 @@
+import { grantCarIfReady } from "@/lib/car";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { grant, grantLegacy } from "@/lib/credits";
@@ -260,7 +261,8 @@ export async function PATCH(req: Request) {
     try {
       await ensureSchema();
       await db()`update users set car_no = ${carNo} where id = ${id}`;
-      return json({ user: await profile(id) });
+      const credit = await grantCarIfReady(id);
+      return json({ user: await profile(id), credit });
     } catch (e) {
       return fail(e);
     }
@@ -301,7 +303,8 @@ export async function PUT(req: Request) {
     const v = data ? Math.floor(Date.now() / 1000) : 0;
     if (car) await db()`update users set car_photo = ${data}, car_v = ${v} where id = ${id}`;
     else await db()`update users set photo = ${data}, photo_v = ${v} where id = ${id}`;
-    return json({ user: await profile(id) });
+    const credit = car ? await grantCarIfReady(id) : 0;
+    return json({ user: await profile(id), credit });
   } catch (e) {
     return fail(e);
   }

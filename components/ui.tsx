@@ -122,8 +122,8 @@ export function Card({ children, className = "", ...rest }: { children: ReactNod
   );
 }
 
-export function Tag({ children, tone = "plain" }: { children: ReactNode; tone?: "plain" | "accent" | "warn" }) {
-  const c = tone === "accent" ? "bg-accentSoft text-accent" : tone === "warn" ? "bg-warnSoft text-warn" : "bg-bg text-sub";
+export function Tag({ children, tone = "plain" }: { children: ReactNode; tone?: "plain" | "accent" | "warn" | "mint" }) {
+  const c = tone === "accent" ? "bg-accentSoft text-accent" : tone === "warn" ? "bg-warnSoft text-warn" : tone === "mint" ? "bg-[#E7F7EE] text-[#1B7A4B]" : "bg-bg text-sub";
   return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-medium ${c}`}>{children}</span>;
 }
 
