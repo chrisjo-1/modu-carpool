@@ -128,11 +128,18 @@ export function Tag({ children, tone = "plain" }: { children: ReactNode; tone?: 
 }
 
 /** 여러 선택지 중 하나를 고르는 버튼 줄 */
-export function Segment<T extends string>({ value, options, onChange, label, compact }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string; compact?: boolean }) {
+/** accents: 고른 항목을 진하게 강조할 색. accent = 파랑, mint = 초록 (운전자·탑승자 구분용) */
+export function Segment<T extends string>({ value, options, onChange, label, compact, accents }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string; compact?: boolean; accents?: Partial<Record<T, "accent" | "mint">> }) {
+  const onStyle = (v: T) => {
+    const a = accents?.[v];
+    if (a === "accent") return "bg-accent font-bold text-white shadow-card";
+    if (a === "mint") return "bg-[#1B7A4B] font-bold text-white shadow-card";
+    return "bg-white font-semibold text-ink shadow-sm";
+  };
   return (
     <div role="radiogroup" aria-label={label} className={`flex gap-1 rounded-xl bg-bg ${compact ? "p-0.5" : "p-1"}`}>
       {options.map(([v, text]) => (
-        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-lg px-2 ${compact ? "py-1.5 text-[14px]" : "text-[15px]"} ${value === v ? "bg-white font-semibold text-ink shadow-sm" : "text-sub"}`}>
+        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-lg px-2 ${compact ? "py-1.5 text-[14px]" : "py-2 text-[15px]"} ${value === v ? onStyle(v) : "text-sub"}`}>
           {text}
         </button>
       ))}

@@ -106,7 +106,7 @@ export default function PostForm({
       <Card className="space-y-4 p-5">
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("나는")}</p>
-          <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} />
+          <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
           <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : t("탑승자: 같이 탈 차를 찾는 글이에요.")}</p>
         </div>
         {role === "rider" && !initial && (

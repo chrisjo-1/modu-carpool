@@ -136,37 +136,35 @@ export default function Home({ posts, sample, onOpen, toast }: { posts: Post[]; 
         <h1 data-block-id="S001-title" className="text-[22px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
       </header>
 
-      {allKeywords.length > 0 && (
-        <div data-block-id="C070" data-block-name="키워드 필터" className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-sm text-sub">{t("키워드로 찾기")}</p>
-            {picked.length > 0 && (
-              <button type="button" data-block-id="B070" data-block-name="키워드 초기화" className="min-h-0 text-[13px] text-sub underline" onClick={() => setPicked([])}>{t("초기화")}</button>
-            )}
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {allKeywords.map((k) => {
-              const on = picked.includes(k.id);
-              return (
-                <button key={k.id} type="button" aria-pressed={on} data-block-id="B071" data-block-name="키워드 칩"
-                  onClick={() => setPicked((cur) => (cur.includes(k.id) ? cur.filter((x) => x !== k.id) : [...cur, k.id]))}
-                  className={`min-h-0 shrink-0 rounded-full border px-3 py-1.5 text-[14px] ${on ? "border-accent bg-accent text-white" : "border-line bg-white text-sub"}`}>
-                  {k.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       <div className="space-y-2">
-        {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼) */}
-        <div className="flex items-center gap-2">
-          <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
-          <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => setView((v) => (v === "map" ? "list" : "map"))}
-            className={`min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-            {view === "map" ? t("목록") : t("지도")}
-          </button>
+        {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼). 키워드 필터는 검색창 박스 안에 둔다 */}
+        <div data-block-id="C070" data-block-name="검색 박스" className="space-y-2 rounded-2xl border border-line bg-white p-2.5">
+          <div className="flex items-center gap-2">
+            <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
+            <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => setView((v) => (v === "map" ? "list" : "map"))}
+              className={`min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+              {view === "map" ? t("목록") : t("지도")}
+            </button>
+          </div>
+          {allKeywords.length > 0 && (
+            <div className="flex items-center gap-2 pt-0.5">
+              <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5">
+                {allKeywords.map((k) => {
+                  const on = picked.includes(k.id);
+                  return (
+                    <button key={k.id} type="button" aria-pressed={on} data-block-id="B071" data-block-name="키워드 칩"
+                      onClick={() => setPicked((cur) => (cur.includes(k.id) ? cur.filter((x) => x !== k.id) : [...cur, k.id]))}
+                      className={`min-h-0 shrink-0 rounded-full border px-3 py-1 text-[13px] ${on ? "border-accent bg-accent text-white" : "border-line bg-white text-sub"}`}>
+                      {k.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {picked.length > 0 && (
+                <button type="button" data-block-id="B070" data-block-name="키워드 초기화" className="min-h-0 shrink-0 text-[13px] text-sub underline" onClick={() => setPicked([])}>{t("초기화")}</button>
+              )}
+            </div>
+          )}
         </div>
         <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
