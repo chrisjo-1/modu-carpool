@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { dayName } from "@/lib/i18n";
 import { priceAllowedRegular } from "@/lib/time";
-import type { Place, Post, User } from "@/lib/types";
+import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import PlaceField from "./PlaceField";
 import { Segment, Sheet, api, btnGhost, btnPrimary, field, useLang, useT } from "./ui";
@@ -66,7 +66,7 @@ export default function CommuteSheet({
 }) {
   const t = useT();
   const lang = useLang();
-  const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? "driver");
+  const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
   const [origin, setOrigin] = useState<Place>(prefill?.origin ?? { name: initial?.origin ?? "", lat: initial?.originLat ?? null, lng: initial?.originLng ?? null });
   const [dest, setDest] = useState<Place>(prefill?.dest ?? { name: initial?.dest ?? "", lat: initial?.destLat ?? null, lng: initial?.destLng ?? null });
   const [days, setDays] = useState(initial?.days || "12345");

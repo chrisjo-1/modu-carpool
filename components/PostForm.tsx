@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { priceAllowedAt } from "@/lib/time";
-import type { Place, Post, User } from "@/lib/types";
+import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import { CostField } from "./Commute";
 import { TagPicker } from "./Keywords";
@@ -47,7 +47,7 @@ export default function PostForm({
 }) {
   const t = useT();
   const empty: Place = { name: "", lat: null, lng: null };
-  const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? "driver");
+  const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
   const [kind, setKind] = useState<"commute" | "trip">(initial?.kind ?? "commute");
   const [taxiShare, setTaxiShare] = useState(false);
   const [cost, setCost] = useState<"free" | "meter" | "fixed">(initial?.cost ?? "free");

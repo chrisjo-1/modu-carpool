@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
-import { CONTACT_TYPES, METER_URL, type Post, type User } from "@/lib/types";
+import { CONTACT_TYPES, METER_URL, defaultRoleFor, type Post, type User } from "@/lib/types";
 import AuthForm from "./AuthForm";
 import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
@@ -149,7 +149,7 @@ export default function Me({
     setContact(user?.contact ?? "");
     setContactType(user?.contactType ?? "");
     setGender(user?.gender ?? "");
-    setRolePref(user?.rolePref ?? "");
+    setRolePref(user?.rolePref || defaultRoleFor(user));
   }, [user]);
 
   useEffect(() => {

@@ -111,3 +111,7 @@ export type Member = {
 export type Place = { name: string; lat: number | null; lng: number | null };
 
 export const METER_URL = process.env.NEXT_PUBLIC_METER_URL || "https://moca-meter.vercel.app";
+
+/** 기본 역할: 차량 번호와 차량 사진을 모두 등록한 회원은 운전자, 아직 등록하지 않았다면 탑승자 */
+export const defaultRoleFor = (u: { carNo?: string; carPhoto?: string } | null | undefined): "driver" | "rider" =>
+  u?.carNo && u?.carPhoto ? "driver" : "rider";
