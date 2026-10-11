@@ -13,7 +13,13 @@ const AdminRadius = dynamic(() => import("@/components/admin/Radius"), { ssr: fa
 const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false });
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
-type UserRow = { id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; posts: number };
+type UserRow = {
+  id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; posts: number;
+  bio: string; contact: string; contact_type: string; gender: string; role_pref: string; car_no: string; car_v: number; photo: string; carPhoto: string;
+  interests: string[] | null; driver_posts: number; rider_posts: number;
+};
+const ROLE_LABEL: Record<string, string> = { driver: "운전자", rider: "탑승자", both: "둘 다", "": "미정" };
+const GENDER_LABEL: Record<string, string> = { female: "여", male: "남", "": "미입력" };
 type Flag = { id: string; reason: string; detail: string; status?: string; created_at: number; target_id: string; target_name: string; target_email: string; target_blocked: boolean };
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
@@ -33,6 +39,9 @@ export default function Admin() {
   const [info, setInfo] = useState<Info | null>(null);
   const [tab, setTab] = useState<TabId>("posts");
   const [q, setQ] = useState("");
+  const [gen, setGen] = useState("");
+  const [roleF, setRoleF] = useState("");
+  const [member, setMember] = useState<UserRow | null>(null);
   const [edit, setEdit] = useState<PostRow | null>(null);
   const [testName, setTestName] = useState("");
 
@@ -189,15 +198,59 @@ export default function Admin() {
         </section>
       )}
 
-      {tab === "users" && (
+      {tab === "users" && (() => {
+        const rows = (info?.users ?? []).filter((u) => (!gen || u.gender === gen) && (!roleF || (roleF === "none" ? u.role_pref === "" : u.role_pref === roleF)));
+        return (
         <section data-block-id="S093" data-block-name="회원 관리" className="rounded-2xl border border-line bg-white p-5 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">회원</h2>
+            <h2 className="text-lg font-semibold">회원 <span className="text-sm font-normal text-sub">{rows.length}명 표시</span></h2>
             <form onSubmit={(e) => { e.preventDefault(); refresh(q); }} className="flex gap-2">
               <input data-block-id="F090" className={`${input} w-56`} type="search" placeholder="이메일·닉네임 검색" aria-label="회원 검색" value={q} onChange={(e) => setQ(e.target.value)} />
               <button className="rounded-lg bg-bg px-4 text-sm">검색</button>
             </form>
           </div>
+          <div data-block-id="A205" data-block-name="회원 필터" className="mt-3 flex flex-wrap gap-2 text-sm">
+            <select data-block-id="F092" aria-label="성별 필터" className={`${input} w-auto`} value={gen} onChange={(e) => setGen(e.target.value)}>
+              <option value="">성별: 전체</option>
+              <option value="female">여</option>
+              <option value="male">남</option>
+            </select>
+            <select data-block-id="F093" aria-label="역할 필터" className={`${input} w-auto`} value={roleF} onChange={(e) => setRoleF(e.target.value)}>
+              <option value="">역할: 전체</option>
+              <option value="driver">운전자</option>
+              <option value="rider">탑승자</option>
+              <option value="both">둘 다</option>
+              <option value="none">미정</option>
+            </select>
+            {(gen || roleF) && <button data-block-id="B099" className="rounded-lg bg-bg px-3 text-sub" onClick={() => { setGen(""); setRoleF(""); }}>필터 해제</button>}
+          </div>
+          {member && (
+            <div data-block-id="C231" data-block-name="회원 상세" className="mt-4 rounded-xl border border-line bg-bg p-4 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-base font-semibold">{member.name || "—"} <span className="font-normal text-sub">{member.email}</span></p>
+                <button data-block-id="B240" className="text-sub underline" onClick={() => setMember(null)}>닫기</button>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                  <p className="mb-1 text-xs text-sub">프로필 사진</p>
+                  {member.photo ? <img src={member.photo} alt="프로필 사진" className="h-28 w-28 rounded-xl border border-line object-cover" /> : <p className="grid h-28 w-28 place-items-center rounded-xl border border-dashed border-line text-xs text-sub">없음</p>}
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-sub">차량 사진</p>
+                  {member.carPhoto ? <img src={member.carPhoto} alt="차량 사진" className="h-28 w-40 rounded-xl border border-line object-cover" /> : <p className="grid h-28 w-40 place-items-center rounded-xl border border-dashed border-line text-xs text-sub">없음</p>}
+                </div>
+                <dl className="col-span-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 self-start">
+                  <dt className="text-sub">희망 역할</dt><dd>{ROLE_LABEL[member.role_pref] ?? "미정"}</dd>
+                  <dt className="text-sub">글 기준</dt><dd>운전자 글 {member.driver_posts} · 탑승자 글 {member.rider_posts}</dd>
+                  <dt className="text-sub">성별</dt><dd>{GENDER_LABEL[member.gender] ?? "미입력"}</dd>
+                  <dt className="text-sub">차량번호</dt><dd>{member.car_no || "미등록"}</dd>
+                  <dt className="text-sub">연락처</dt><dd>{member.contact ? `${member.contact_type || ""} ${member.contact}`.trim() : "없음"}</dd>
+                  <dt className="text-sub">소개</dt><dd className="break-words">{member.bio || "없음"}</dd>
+                  <dt className="text-sub">관심사</dt><dd>{member.interests?.length ? member.interests.join(", ") : "미선택"}</dd>
+                </dl>
+              </div>
+            </div>
+          )}
           <form onSubmit={makeTest} data-block-id="S097" data-block-name="테스트 회원 만들기" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-bg p-3">
             <span className="text-sm font-semibold">테스트 회원</span>
             <input data-block-id="F091" className={`${input} w-48`} maxLength={20} placeholder="닉네임 (비우면 자동)" aria-label="테스트 회원 닉네임" value={testName} onChange={(e) => setTestName(e.target.value)} />
@@ -207,18 +260,26 @@ export default function Admin() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="text-sub">
-                <tr>{["닉네임", "이메일", "가입일", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                <tr>{["사진", "닉네임", "이메일", "역할", "성별", "차량", "가입일", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {(info?.users ?? []).map((u) => (
+                {rows.map((u) => (
                   <tr key={u.id}>
+                    <td className="px-2 py-2">{u.photo ? <img src={u.photo} alt="" loading="lazy" className="h-9 w-9 rounded-full border border-line object-cover" /> : <span className="grid h-9 w-9 place-items-center rounded-full bg-bg text-xs text-sub">없음</span>}</td>
                     <td className="px-2 py-2 font-medium">{u.name || "—"}{u.test && <span className="ml-2 rounded-full bg-accentSoft px-2 py-0.5 text-xs font-semibold text-accent">테스트</span>}</td>
                     <td className="px-2 py-2">{u.email}</td>
+                    <td className="px-2 py-2">
+                      <span className="block">희망 {ROLE_LABEL[u.role_pref] ?? "미정"}</span>
+                      <span className="block text-xs text-sub">운전자 {u.driver_posts} · 탑승자 {u.rider_posts}</span>
+                    </td>
+                    <td className="px-2 py-2">{GENDER_LABEL[u.gender] ?? "미입력"}</td>
+                    <td className="px-2 py-2">{u.carPhoto || u.car_no ? <span className="text-accent">등록</span> : <span className="text-sub">미등록</span>}</td>
                     <td className="num px-2 py-2">{new Date(u.created_at).toLocaleDateString("ko-KR")}</td>
                     <td className="num px-2 py-2">{u.posts}</td>
                     <td className="num px-2 py-2">{(u.credits ?? 0).toLocaleString("ko-KR")}</td>
                     <td className="px-2 py-2">{u.blocked ? <span className="font-semibold text-warn">차단됨</span> : "정상"}</td>
                     <td className="whitespace-nowrap px-2 py-2">
+                      <button data-block-id="B241" data-block-name="회원 상세 보기" className="mr-3 min-h-0 font-semibold text-accent underline" onClick={() => setMember(u)}>상세</button>
                       {u.test && <button data-block-id="B097" data-block-name="이 회원으로 들어가기" className="mr-3 min-h-0 font-semibold text-accent underline" onClick={() => enter(u)}>이 회원으로 들어가기</button>}
                       {u.test && <button data-block-id="B098" data-block-name="테스트 회원 삭제" className="mr-3 min-h-0 text-sub underline" onClick={() => removeUser(u)}>삭제</button>}
                       <button data-block-id="B093" data-block-name="차단" className={`min-h-0 underline ${u.blocked ? "text-accent" : "text-warn"}`} onClick={() => toggleBlock(u)}>{u.blocked ? "차단 해제" : "차단"}</button>
@@ -227,11 +288,12 @@ export default function Admin() {
                 ))}
               </tbody>
             </table>
-            {(info?.users ?? []).length === 0 && <p className="py-6 text-center text-sub">회원이 없습니다.</p>}
-            <p className="mt-3 text-xs text-sub">최근 가입 순으로 200명까지 보입니다. 더 찾으려면 검색해 주세요.</p>
+            {rows.length === 0 && <p className="py-6 text-center text-sub">회원이 없습니다.</p>}
+            <p className="mt-3 text-xs text-sub">최근 가입 순으로 200명까지 보입니다. 성별·역할 필터는 불러온 회원 안에서 걸러집니다. 더 찾으려면 검색해 주세요.</p>
           </div>
         </section>
-      )}
+        );
+      })()}
 
       {tab === "legacy" && <Legacy />}
       {tab === "credits" && <Credits />}

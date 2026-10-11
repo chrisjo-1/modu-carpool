@@ -1,4 +1,4 @@
-import { authEnabled, body, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, setAdminSession, setUserSession, text } from "@/lib/server";
+import { authEnabled, body, carPhotoUrl, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, photoUrl, setAdminSession, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +24,11 @@ export async function GET(req: Request) {
       select p.id, p.origin, p.dest, p.depart_at, p.role, p.kind, p.cost, p.price, p.regular, p.days, p.time_go, p.status, p.note, u.email, u.name, u.blocked, u.test
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
     const users = await sql`
-      select u.id, u.email, u.name, u.blocked, u.test, u.credits, u.created_at,
-             (select count(*)::int from posts where user_id = u.id) as posts
+      select u.id, u.email, u.name, u.blocked, u.test, u.credits, u.created_at, u.bio, u.contact, u.contact_type,
+             u.gender, u.role_pref, u.photo_v, u.car_v, u.car_no, u.interests,
+             (select count(*)::int from posts where user_id = u.id) as posts,
+             (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
+             (select count(*)::int from posts where user_id = u.id and role = 'rider') as rider_posts
       from users u
       where ${q} = '' or u.email ilike ${like} or u.name ilike ${like}
       order by u.test desc, u.created_at desc limit 200`;
@@ -47,7 +50,12 @@ export async function GET(req: Request) {
       blocks: ms(blocks),
       stats: s[0],
       posts: posts.map((p) => ({ ...p, depart_at: new Date(p.depart_at as string).getTime() })),
-      users: users.map((u) => ({ ...u, created_at: new Date(u.created_at as string).getTime() })),
+      users: users.map((u) => ({
+        ...u,
+        created_at: new Date(u.created_at as string).getTime(),
+        photo: photoUrl(u.id, u.photo_v),
+        carPhoto: carPhotoUrl(u.id, u.car_v),
+      })),
     });
   } catch (e) {
     return fail(e);
