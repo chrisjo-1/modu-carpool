@@ -157,8 +157,9 @@ export async function DELETE(req: Request) {
     if (!isUuid(user) || !hasDb()) return json({ error: "잘못된 요청입니다." }, 400);
     try {
       await ensureSchema();
-      const gone = await db()`delete from users where id = ${user} and test returning id`;
-      return gone.length ? json({ ok: true }) : json({ error: "테스트 회원만 삭제할 수 있습니다." }, 403);
+      // 회원의 글·신청·대화·크레딧 등 관련 기록은 외래키 cascade 로 함께 지워진다.
+      const gone = await db()`delete from users where id = ${user} returning id`;
+      return gone.length ? json({ ok: true }) : json({ error: "회원을 찾을 수 없습니다." }, 404);
     } catch (e) {
       return fail(e);
     }
