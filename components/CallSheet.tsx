@@ -34,10 +34,15 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
   const [mine, setMine] = useState<Post[] | null>(null);
   const [picked, setPicked] = useState<Post | null>(null);
   const [radius, setRadius] = useState<number | null>(null);
+  const [cost, setCost] = useState<number>(1000);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<{ radiusKm: number }>("/api/call").then((r) => r.ok && setRadius(r.data.radiusKm));
+    api<{ radiusKm: number; cost: number }>("/api/call").then((r) => {
+      if (!r.ok) return;
+      setRadius(r.data.radiusKm);
+      setCost(r.data.cost);
+    });
   }, []);
 
   const pickStep = async () => {
@@ -56,7 +61,8 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
     const r = await api<{ notified: number; radiusKm: number }>("/api/call", "POST", { postId: picked.id });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
-    toast(r.data.notified > 0 ? `${t("운전자")} ${r.data.notified.toLocaleString("ko-KR")}${t("명에게 알림을 보냈어요.")}` : t("반경 안에 알릴 운전자가 없어요."));
+    const who = r.data.notified > 0 ? `${t("운전자")} ${r.data.notified.toLocaleString("ko-KR")}${t("명에게 알림을 보냈어요.")}` : t("반경 안에 알릴 운전자가 없어요.");
+    toast(`${who} -${cost.toLocaleString("ko-KR")} ${t("크레딧")}`);
     onClose();
   };
 
@@ -72,7 +78,12 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
         <div className="space-y-3">
           <p className="text-sm text-sub">{t("호출에 쓸 내 카풀 글을 골라 주세요.")}</p>
           {mine === null && <div className="h-20 animate-pulse rounded-2xl bg-white" aria-hidden />}
-          {mine?.length === 0 && <p className="rounded-2xl bg-bg p-4 text-[14px] text-sub">{t("호출할 수 있는 내 글이 없어요. 출발지가 있는 열린 글을 먼저 올려 주세요.")}</p>}
+          {mine?.length === 0 && (
+            <div className="space-y-2 rounded-2xl bg-bg p-4">
+              <p className="text-[15px] font-semibold">{t("CALL은 등록된 카풀이 있어야 쓸 수 있어요.")}</p>
+              <p className="text-[14px] leading-relaxed text-sub">{t("먼저 카풀을 등록해 주세요. 출발지가 있는 열린 글 중 하나를 골라 호출할 수 있어요.")}</p>
+            </div>
+          )}
           <ul data-block-id="C057" data-block-name="내 글 목록" className="space-y-2">
             {mine?.map((p) => (
               <li key={p.id}>
@@ -92,8 +103,10 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
             <p className="text-sm text-sub">
               {radius !== null ? `${t("반경")} ${radius}km ${t("안의 운전자에게 알림을 보냅니다.")}` : t("주변 운전자에게 알림을 보냅니다.")}
             </p>
+            <p className="text-sm font-semibold text-warn">{t("CALL은")} {cost.toLocaleString("ko-KR")} {t("크레딧이 차감됩니다.")}</p>
+            <p className="text-sm text-sub">{t("이 글은 지금 시간으로 다시 올라갑니다.")}</p>
           </Card>
-          <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnPrimary} disabled={busy} onClick={send}>{busy ? t("처리 중…") : t("호출 보내기")}</button>
+          <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnPrimary} disabled={busy} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost.toLocaleString("ko-KR")} ${t("크레딧")})`}</button>
           <button type="button" className={btnGhost} onClick={() => setStep("pick")}>{t("뒤로")}</button>
         </div>
       )}

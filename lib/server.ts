@@ -270,6 +270,9 @@ export function ensureSchema(): Promise<void> {
         primary key (request_id, rater))`;
       await sql`create index if not exists reviews_ratee_idx on reviews (ratee)`;
       await backfillMemberCodes(sql);
+      // 표시 이름을 고유코드로 바꾼다. 기존 닉네임은 old_name 에 남겨 둔다(한 번만 실행).
+      await sql`alter table users add column if not exists old_name text`;
+      await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
     })().catch((e) => {
       ready = null;
       throw e;

@@ -12,6 +12,7 @@ export const REASON_LABEL: Record<string, string> = {
   nudge: "메일로 알리기",
   admin: "운영자 지급·회수",
   refund: "환불",
+  call: "주변 호출",
 };
 
 export async function getRules(): Promise<Rules> {
@@ -72,8 +73,8 @@ export async function adjust(userId: string, amount: number, memo: string) {
   return rows.length ? Number(rows[0].credits) : null;
 }
 
-/** 구 워프 회원(가입 이메일 일치)이면 이전 축하 크레딧을 한 번 지급한다. */
+/** 워프 고유번호를 직접 입력해 연결된 회원이면 이전 축하 크레딧을 한 번 지급한다. */
 export async function grantLegacy(userId: string): Promise<number> {
-  const hit = await db()`select 1 from legacy_members l join users u on u.id = l.matched_user where l.matched_user = ${userId} and u.email_verified limit 1`;
+  const hit = await db()`select 1 from legacy_members l join users u on u.id = l.matched_user where l.matched_user = ${userId} and l.matched_by = '번호입력' and u.email_verified limit 1`;
   return hit.length ? grant(userId, "legacy") : 0;
 }

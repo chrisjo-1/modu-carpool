@@ -1,19 +1,19 @@
-import { callDrivers, getCallRadiusKm } from "@/lib/call";
+import { CALL_COST, callDrivers, getCallRadiusKm } from "@/lib/call";
 import { body, currentUserId, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
-/** 호출 반경(km) 안내용 */
+/** 호출 반경(km)과 차감 크레딧 안내용 */
 export async function GET() {
   try {
     await ensureSchema();
-    return json({ radiusKm: await getCallRadiusKm() });
+    return json({ radiusKm: await getCallRadiusKm(), cost: CALL_COST });
   } catch (e) {
     return fail(e);
   }
 }
 
-/** {postId}: 내 글 기준 주변 운전자에게 알림 */
+/** {postId}: 1,000 크레딧을 쓰고, 내 글을 지금 시간으로 다시 올린 뒤 주변 운전자에게 알림 */
 export async function POST(req: Request) {
   const me = await currentUserId();
   if (!me) return needLogin();

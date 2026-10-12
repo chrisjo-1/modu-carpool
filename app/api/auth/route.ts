@@ -5,7 +5,6 @@ import { grant, grantLegacy } from "@/lib/credits";
 import { finishVerify, startVerify } from "@/lib/verify";
 import { sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
-import { matchNewUser } from "@/lib/legacy";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
 import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
@@ -123,7 +122,7 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   if (!ins) throw new Error("고유코드를 배정하지 못했습니다.");
   const id = String(ins[0].id);
   // 구 워프 회원이면 대조 상태를 '가입됨'으로 바꾸고, 워프 이전 크레딧을 준다(인증이 끝난 뒤라 안전하다).
-  await matchNewUser(id, email).catch((e) => console.error("[legacy]", e));
+  // 이메일로 워프 명단을 맞추지 않는다. 워프 이전 크레딧은 번호 입력으로만 받는다.
   const welcome = await grant(id, "signup").catch(() => 0);
   const legacy = await grantLegacy(id).catch(() => 0);
   await setUserSession(id);
