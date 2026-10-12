@@ -1,26 +1,43 @@
-import { CALL_COST, callDrivers, getCallRadiusKm } from "@/lib/call";
+import { CALL_COST, acceptCall, callDrivers, callerReady, getCallRadiusKm, incomingCall } from "@/lib/call";
+import { contactLabel } from "@/lib/types";
 import { body, currentUserId, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
-/** 호출 반경(km)과 차감 크레딧 안내용 */
-export async function GET() {
+/** 호출 반경·차감 크레딧·내 연락 방법 등록 여부. ?callId= 이면 받은 호출 한 건 */
+export async function GET(req: Request) {
+  const me = await currentUserId();
+  const callId = new URL(req.url).searchParams.get("callId");
   try {
     await ensureSchema();
-    return json({ radiusKm: await getCallRadiusKm(), cost: CALL_COST });
+    if (callId) {
+      if (!me) return needLogin();
+      if (!isUuid(callId)) return json({ error: "잘못된 요청입니다." }, 400);
+      const c = await incomingCall(me, callId);
+      if (!c) return json({ error: "받은 호출을 찾을 수 없어요." }, 404);
+      return json(c);
+    }
+    const ready = me ? await callerReady(me) : { ready: false, type: "" };
+    return json({ radiusKm: await getCallRadiusKm(), cost: CALL_COST, ready: ready.ready, contactType: contactLabel(ready.type) });
   } catch (e) {
     return fail(e);
   }
 }
 
-/** {postId}: 1,000 크레딧을 쓰고, 내 글을 지금 시간으로 다시 올린 뒤 주변 운전자에게 알림 */
+/** {postId}: CALL (크레딧 차감, 글 재등록, 주변 운전자 알림) · {action:"accept", callId}: 받은 호출 수락 */
 export async function POST(req: Request) {
   const me = await currentUserId();
   if (!me) return needLogin();
   const b = await body(req);
-  if (!isUuid(b.postId)) return json({ error: "호출할 글을 골라 주세요." }, 400);
   try {
     await ensureSchema();
+    if (b.action === "accept") {
+      if (!isUuid(b.callId)) return json({ error: "잘못된 요청입니다." }, 400);
+      const r = await acceptCall(me, String(b.callId));
+      if ("error" in r) return json({ error: r.error }, 400);
+      return json(r);
+    }
+    if (!isUuid(b.postId)) return json({ error: "호출할 글을 골라 주세요." }, 400);
     const r = await callDrivers(me, String(b.postId));
     if ("error" in r) return json({ error: r.error }, 400);
     return json(r);

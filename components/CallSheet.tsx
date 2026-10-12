@@ -35,17 +35,22 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
   const [picked, setPicked] = useState<Post | null>(null);
   const [radius, setRadius] = useState<number | null>(null);
   const [cost, setCost] = useState<number>(1000);
+  const [ready, setReady] = useState<boolean | null>(null);
+  const [contactType, setContactType] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<{ radiusKm: number; cost: number }>("/api/call").then((r) => {
+    api<{ radiusKm: number; cost: number; ready: boolean; contactType: string }>("/api/call").then((r) => {
       if (!r.ok) return;
       setRadius(r.data.radiusKm);
       setCost(r.data.cost);
+      setReady(r.data.ready);
+      setContactType(r.data.contactType);
     });
   }, []);
 
   const pickStep = async () => {
+    if (ready === false) return;
     setStep("pick");
     if (mine) return;
     const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
@@ -71,7 +76,8 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
       {step === "choose" && (
         <div className="space-y-3">
           <button type="button" data-block-id="B218" data-block-name="택시 호출" className={btnGhost} onClick={taxi}>{t("택시 호출")}</button>
-          <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnPrimary} onClick={pickStep}>{t("주변 운전자 호출")}</button>
+          {ready === false && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("CALL을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요.")}</p>}
+          <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnPrimary} disabled={ready === false} onClick={pickStep}>{t("주변 운전자 호출")}</button>
         </div>
       )}
       {step === "pick" && (
@@ -105,11 +111,65 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
             </p>
             <p className="text-sm font-semibold text-warn">{t("CALL은")} {cost.toLocaleString("ko-KR")} {t("크레딧이 차감됩니다.")}</p>
             <p className="text-sm text-sub">{t("이 글은 지금 시간으로 다시 올라갑니다.")}</p>
+            <p className="text-sm text-sub">{t("응답하는 운전자가 없어도 크레딧은 환불되지 않아요.")}</p>
+            <p className="text-sm text-sub">{t("수락한 운전자에게 내 연락 방법과 아이디가 보여요.")} ({contactType})</p>
           </Card>
           <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnPrimary} disabled={busy} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost.toLocaleString("ko-KR")} ${t("크레딧")})`}</button>
           <button type="button" className={btnGhost} onClick={() => setStep("pick")}>{t("뒤로")}</button>
         </div>
       )}
+    </Sheet>
+  );
+}
+
+/** 받은 호출(알림을 누르면 열린다). 수락하면 호출한 회원의 연락 방법과 아이디를 보여 준다. */
+export function IncomingCall({ callId, onClose, toast }: { callId: string; onClose: () => void; toast: (m: string) => void }) {
+  const t = useT();
+  const [info, setInfo] = useState<{ origin: string; dest: string; callerCode: string; accepted: boolean } | null>(null);
+  const [err, setErr] = useState("");
+  const [contact, setContact] = useState<{ contactType: string; contact: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api<{ origin: string; dest: string; callerCode: string; accepted: boolean }>(`/api/call?callId=${encodeURIComponent(callId)}`).then((r) => {
+      if (!r.ok) return setErr(t(r.error));
+      setInfo(r.data);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callId]);
+
+  const accept = async () => {
+    setBusy(true);
+    const r = await api<{ contactType: string; contact: string }>("/api/call", "POST", { action: "accept", callId });
+    setBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    setContact(r.data);
+  };
+
+  return (
+    <Sheet title={t("받은 호출")} blockId="S131" onClose={onClose}>
+      <div className="space-y-3">
+        {err && <p className="rounded-2xl bg-bg p-4 text-[14px] text-warn">{err}</p>}
+        {info && (
+          <Card className="space-y-1 p-4">
+            <p className="font-semibold">{info.origin} → {info.dest}</p>
+            <p className="text-sm text-sub">{t("호출한 회원")} {info.callerCode}</p>
+          </Card>
+        )}
+        {info && !contact && (
+          <>
+            <p className="text-sm text-sub">{t("수락하면 호출한 회원의 연락 방법과 아이디가 보여요.")}</p>
+            <button type="button" data-block-id="B275" data-block-name="호출 수락" className={btnPrimary} disabled={busy} onClick={accept}>{busy ? t("처리 중…") : t("수락하고 연락처 보기")}</button>
+          </>
+        )}
+        {contact && (
+          <Card className="space-y-1 p-4">
+            <p className="text-sm text-sub">{t("수락 완료")}</p>
+            <p className="font-semibold">{t("연락 방법")}: {contact.contactType}</p>
+            <p className="font-mono text-[16px] font-semibold">{t("아이디")}: {contact.contact}</p>
+          </Card>
+        )}
+      </div>
     </Sheet>
   );
 }

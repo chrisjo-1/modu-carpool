@@ -269,6 +269,22 @@ export function ensureSchema(): Promise<void> {
         created_at timestamptz not null default now(),
         primary key (request_id, rater))`;
       await sql`create index if not exists reviews_ratee_idx on reviews (ratee)`;
+      // CALL: 호출 기록, 받은 회원 목록, 수락 기록(수락한 회원에게만 호출자의 연락 방법을 보여 준다)
+      await sql`create table if not exists calls (
+        id uuid primary key default gen_random_uuid(),
+        caller uuid not null references users(id) on delete cascade,
+        post_id uuid references posts(id) on delete set null,
+        radius_km double precision not null,
+        created_at timestamptz not null default now())`;
+      await sql`create table if not exists call_recipients (
+        call_id uuid not null references calls(id) on delete cascade,
+        user_id uuid not null references users(id) on delete cascade,
+        primary key (call_id, user_id))`;
+      await sql`create table if not exists call_accepts (
+        call_id uuid not null references calls(id) on delete cascade,
+        user_id uuid not null references users(id) on delete cascade,
+        accepted_at timestamptz not null default now(),
+        primary key (call_id, user_id))`;
       await backfillMemberCodes(sql);
       // 표시 이름을 고유코드로 바꾼다. 기존 닉네임은 old_name 에 남겨 둔다(한 번만 실행).
       await sql`alter table users add column if not exists old_name text`;
