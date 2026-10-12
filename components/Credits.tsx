@@ -20,6 +20,8 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
   const [more, setMore] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [warpCode, setWarpCode] = useState("");
+  const [warpBusy, setWarpBusy] = useState(false);
   const loadHistory = async (reset: boolean) => {
     setLoading(true);
     const before = !reset && items.length ? `&before=${items[items.length - 1].id}` : "";
@@ -63,6 +65,17 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
     load();
   };
 
+  const claimWarp = async () => {
+    const code = warpCode.trim().toUpperCase();
+    setWarpBusy(true);
+    const r = await api<{ added: number; balance: number }>("/api/credits", "POST", { action: "claimWarp", code });
+    setWarpBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    setWarpCode("");
+    toast(`${t("워프 회원 크레딧이 적립됐어요.")} +${creditText(r.data.added, lang)} ${t("크레딧")}`);
+    load();
+  };
+
   if (!d) return <div className="h-40 animate-pulse rounded-3xl bg-white" aria-hidden />;
   const rules: [string, string][] = [
     [t("가입 축하"), `+${creditText(d.rules.signup, lang)}`],
@@ -101,6 +114,14 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
           ))}
         </ul>
         )}
+        <div data-block-id="C056" data-block-name="워프 회원 번호 입력" className="space-y-2 rounded-2xl bg-bg p-4">
+          <p className="text-[14px] font-semibold">{t("워프 회원이신가요?")}</p>
+          <p className="text-[13px] leading-relaxed text-sub">{t("워프에서 받으신 8자리 고유번호를 입력하면 이전 축하 크레딧을 한 번 받을 수 있어요.")}</p>
+          <div className="flex gap-2">
+            <input data-block-id="F215" aria-label={t("워프 고유번호")} className="min-w-0 flex-1 rounded-xl border border-line bg-white px-4 py-3 font-mono text-[16px] uppercase tracking-wider" maxLength={8} placeholder="0000000A" value={warpCode} onChange={(e) => setWarpCode(e.target.value.toUpperCase())} />
+            <button type="button" data-block-id="B215" data-block-name="워프 번호로 받기" disabled={warpBusy || warpCode.trim().length !== 8} className="shrink-0 rounded-xl bg-accent px-4 py-3 text-[15px] font-semibold text-white disabled:bg-bg disabled:text-sub" onClick={claimWarp}>{warpBusy ? t("처리 중…") : t("받기")}</button>
+          </div>
+        </div>
         {d.historyCount > 0 && (
           <div>
             <button data-block-id="B210" data-block-name="크레딧 내역 보기" aria-expanded={open} aria-controls="credit-history" onClick={toggle} className="flex w-full items-center justify-between rounded-xl border border-line px-4 text-[15px]">

@@ -219,7 +219,7 @@ export default function Me({
                   <input ref={file} data-block-id="F046" type="file" accept="image/*" className="hidden" aria-label={t("프로필 사진")} onChange={pickPhoto} />
                 </div>
               </div>
-              <div data-block-id="C048" data-block-name="내 고유코드" className="space-y-1 text-sm text-sub">
+              <div data-block-id="C055" data-block-name="내 고유코드" className="space-y-1 text-sm text-sub">
                 <span>{t("고유코드")}</span>
                 <p className="rounded-xl bg-bg px-4 py-3 font-mono text-[16px] font-semibold tracking-wider text-ink">{user.memberCode || "-"}</p>
               </div>

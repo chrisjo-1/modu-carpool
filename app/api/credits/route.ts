@@ -48,12 +48,40 @@ export async function POST(req: Request) {
   const me = await currentUserId();
   if (!me) return needLogin();
   const b = await body(req);
+  if (b.action === "claimWarp") return claimWarp(me, b.code);
   if (b.action !== "attend") return json({ error: "잘못된 요청입니다." }, 400);
   try {
     await ensureSchema();
     const added = await grant(me, "attend");
     if (!added) return json({ error: "오늘은 이미 출석했어요. 내일 다시 와 주세요." }, 409);
     const u = await db()`select credits from users where id = ${me}`;
+    return json({ ok: true, added, balance: Number(u[0].credits) });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 워프 회원 번호 입력: 등록된 번호면 한 번만 이전 축하 크레딧을 준다. 번호를 쓴 회원에게 연결된다. */
+async function claimWarp(me: string, raw: unknown) {
+  const code = String(raw ?? "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{8}$/.test(code)) return json({ error: "워프 고유번호 8자리를 입력해 주세요." }, 400);
+  try {
+    await ensureSchema();
+    const sql = db();
+    const me0 = await sql`select email_verified from users where id = ${me}`;
+    if (!me0.length) return json({ error: "회원 정보를 찾을 수 없어요." }, 404);
+    if (me0[0].email_verified === false) return json({ error: "이메일 인증을 마친 뒤에 받을 수 있어요." }, 400);
+    const hit = await sql`select warp_id, withdrawn, matched_user from legacy_members where upper(warp_id) = ${code} limit 1`;
+    if (!hit.length) return json({ error: "등록된 워프 고유번호가 아니에요. 번호를 다시 확인해 주세요." }, 404);
+    if (hit[0].withdrawn === true) return json({ error: "탈퇴한 회원의 번호는 사용할 수 없어요." }, 400);
+    if (hit[0].matched_user && String(hit[0].matched_user) !== me) return json({ error: "이미 다른 회원이 사용한 번호예요." }, 409);
+    // 아직 연결되지 않았거나 내 계정에 이미 연결된 번호만 바꾼다(동시에 두 사람이 받는 것을 막는다).
+    const claimed = await sql`update legacy_members set matched_user = ${me}, match_status = '가입됨', matched_by = '번호입력'
+      where upper(warp_id) = ${code} and (matched_user is null or matched_user = ${me}) returning warp_id`;
+    if (!claimed.length) return json({ error: "이미 다른 회원이 사용한 번호예요." }, 409);
+    const added = await grantLegacy(me);
+    if (!added) return json({ error: "이미 워프 이전 크레딧을 받았어요." }, 409);
+    const u = await sql`select credits from users where id = ${me}`;
     return json({ ok: true, added, balance: Number(u[0].credits) });
   } catch (e) {
     return fail(e);
