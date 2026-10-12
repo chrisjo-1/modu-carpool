@@ -7,7 +7,7 @@ import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
 import { HelpSheet } from "./Help";
 import CreditCard from "./Credits";
-import { pushHint, type usePush } from "./Push";
+import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
@@ -286,6 +286,7 @@ export default function Me({
                   }
                 }} />
               </div>
+              {push.state === "unsupported" && <UnsupportedNotice />}
               <label data-block-id="F208" data-block-name="마케팅 수신" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 text-[15px]">
                 <span>{t("이벤트·혜택 정보 받기")}<span className="block text-[13px] text-sub">{t("선택 사항이에요. 언제든 끌 수 있어요.")}</span></span>
                 <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={user.marketing === true} onChange={async (e) => {
