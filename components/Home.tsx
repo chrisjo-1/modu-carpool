@@ -5,7 +5,7 @@ import { HIDDEN_TEXT } from "./Me";
 import { useEffect, useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall } from "./CallSheet";
-import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
+import { RoleTag, Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
@@ -194,7 +194,7 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
                   <KeywordChips post={p} max={4} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
                     <span className="num">{scheduleText(p, lang)}{far(p) != null && <b className="ml-1.5 font-semibold text-accent">· {kmText(far(p) as number)}</b>}</span>
-                    <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} size={24} />{p.owner}{p.role === "driver" && <> · {t("남은 자리")} {p.seats}</>}</span>
+                    <span className="flex items-center gap-1.5"><RoleTag role={p.role} />{p.owner}{p.role === "driver" && <> · {t("남은 자리")} {p.seats}</>}</span>
                   </div>
                 </Card>
               </button>
@@ -283,9 +283,9 @@ export function PostDetail({
         <dl className="space-y-2 text-[16px]">
           {post.regular && <div className="flex justify-between"><dt className="text-sub">{t("일정")}</dt><dd className="num font-semibold">{scheduleText(post, lang)}</dd></div>}
           <div className="flex justify-between"><dt className="text-sub">{t("출발")}</dt><dd className="num font-semibold">{when(post.departAt, lang)}</dd></div>
-          {post.cost === "fixed" && <div className="flex justify-between"><dt className="text-sub">{t("1인 금액")}</dt><dd className="num font-semibold text-warn">{money(post.price ?? 0, lang)}</dd></div>}
+          {post.cost === "fixed" && <div className="flex justify-between"><dt className="text-sub">{t("카풀 비용")}</dt><dd className="num font-semibold text-warn">{money(post.price ?? 0, lang)}</dd></div>}
           {post.role === "driver" && <div className="flex justify-between"><dt className="text-sub">{t("남은 자리")}</dt><dd className="num font-semibold">{post.seats}</dd></div>}
-          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><Avatar src={post.ownerPhoto} name={post.owner} size={28} />{post.owner}</button> : <span className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} size={28} />{post.owner}</span>}</dd></div>
+          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><RoleTag role={post.role} />{post.owner}</button> : <span className="flex items-center gap-2 font-semibold"><RoleTag role={post.role} />{post.owner}</span>}</dd></div>
         </dl>
         {post.originLat != null && post.originLng != null && (
           <a data-block-id="B014" data-block-name="출발 위치 지도" href={`https://map.kakao.com/link/map/${encodeURIComponent(post.origin)},${post.originLat},${post.originLng}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl bg-bg px-4 text-[15px] font-semibold text-ink">
@@ -301,7 +301,7 @@ export function PostDetail({
         {post.note && <p className="whitespace-pre-wrap text-[16px] leading-relaxed">{post.note}</p>}
 
         {post.cost === "fixed" ? (
-          <p className="rounded-2xl border border-[#F6D9C4] bg-warnSoft p-4 text-[14px] leading-relaxed text-[#7C2D12]">{t("운전자가 정한 1인 금액입니다. 출퇴근 실비를 나누는 용도이며 결제는 당사자끼리 직접 합니다.")}</p>
+          <p className="rounded-2xl border border-[#F6D9C4] bg-warnSoft p-4 text-[14px] leading-relaxed text-[#7C2D12]">{t("운전자가 정한 카풀 비용입니다. 출퇴근 실비를 나누는 용도이며 결제는 당사자끼리 직접 합니다.")}</p>
         ) : post.cost === "meter" ? (
           <div className="space-y-2 rounded-2xl border border-[#F6D9C4] bg-warnSoft p-4 text-[14px] leading-relaxed text-[#7C2D12]">
             <p>{t("비용 나눔은 출퇴근 카풀에 한해 실비를 나누는 용도입니다. 영리 목적의 운송은 법으로 금지되어 있습니다.")}</p>
@@ -320,7 +320,7 @@ export function PostDetail({
             {incoming.map((th) => (
               <div key={th.id} className="space-y-2 rounded-2xl border border-line p-4">
                 <div className="flex items-center justify-between">
-                  <button className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => th.otherId && onProfile(th.otherId)}><Avatar src={th.otherPhoto} name={th.other} size={28} />{th.other}</button>
+                  <button className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => th.otherId && onProfile(th.otherId)}><RoleTag role={th.otherRole} />{th.other}</button>
                   <span className="flex items-center gap-2">
                     {th.otherId && <button className="min-h-0 text-[13px] text-sub underline" disabled={busy} onClick={() => onBlock(th.otherId as string, th.other)}>{t("차단")}</button>}
                     <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>

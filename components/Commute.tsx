@@ -33,7 +33,7 @@ export function CostField({
       {shown === "fixed" && (
         <>
           <label className="block text-sm text-sub">
-            {t("1인 금액 (원)")}
+            {t("카풀 비용 (원)")}
             <input data-block-id="F024" className={`${field} num mt-1`} inputMode="numeric" required maxLength={6} placeholder={t("예: 3000")} value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} />
           </label>
           <p className="text-[14px] leading-relaxed text-warn">{t("금액은 기름값·통행료 같은 실비를 나누는 범위에서 정해 주세요. 영리 목적의 운송은 법으로 금지되어 있습니다.")}</p>

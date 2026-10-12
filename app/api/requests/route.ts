@@ -14,7 +14,7 @@ export async function GET() {
     await ensureSchema();
     const rows = await db()`
       select r.id, r.status, r.message, r.created_at, r.user_id as req_id,
-             p.id as post_id, p.origin, p.dest, p.depart_at, p.cost, p.price, p.regular, p.days, p.time_go, p.time_back, p.user_id as owner_id,
+             p.id as post_id, p.role as post_role, p.origin, p.dest, p.depart_at, p.cost, p.price, p.regular, p.days, p.time_go, p.time_back, p.user_id as owner_id,
              ou.photo_v as owner_pv, ru.photo_v as req_pv, ou.car_no as owner_car, ou.car_v as owner_cv, ru.car_no as req_car, ru.car_v as req_cv,
              ou.name as owner_name, ou.contact as owner_contact, ou.contact_type as owner_ctype,
              ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio,
@@ -52,6 +52,8 @@ export async function GET() {
           status: r.status,
           message: r.message,
           iAmOwner,
+          // 상대의 역할(운전자/탑승자): 내가 글 주인이면 상대는 반대 역할
+          otherRole: iAmOwner ? (r.post_role === "driver" ? "rider" : "driver") : r.post_role,
           other: (iAmOwner ? r.req_name : r.owner_name) || "회원",
           otherBio: iAmOwner ? r.req_bio : "",
           contact: accepted ? (iAmOwner ? r.req_contact : r.owner_contact) : null,

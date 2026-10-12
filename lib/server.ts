@@ -290,6 +290,18 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists old_name text`;
       // 워프 회원 질문에 '아니오'로 답한 회원: 다시 묻지 않는다.
       await sql`alter table users add column if not exists warp_no boolean not null default false`;
+      // 마지막 접속 시각(관리자 회원 목록용). 요청 때마다 쓰지 않도록 5분에 한 번만 기록한다.
+      await sql`alter table users add column if not exists last_seen timestamptz`;
+      // 도움말(튜토리얼·자주 묻는 질문·의견 안내). 관리자 화면에서 고친다.
+      await sql`create table if not exists help_items (
+        id bigserial primary key,
+        section text not null,
+        title text not null,
+        body text not null default '',
+        image text not null default '',
+        sort integer not null default 0,
+        active boolean not null default true,
+        created_at timestamptz not null default now())`;
       await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
     })().catch((e) => {
       ready = null;
@@ -341,6 +353,7 @@ export async function currentUserId(): Promise<string | null> {
     if (!rows.length || rows[0].blocked) return null;
     // 비밀번호를 바꾼 뒤에는 그 전에 만들어진 로그인(다른 기기 포함)을 모두 끊는다.
     if (rows[0].pw_at != null && typeof p?.iat === "number" && p.iat < Number(rows[0].pw_at)) return null;
+    await db()`update users set last_seen = now() where id = ${id} and (last_seen is null or last_seen < now() - interval '5 minutes')`;
     return id;
   } catch (e) {
     console.error("[auth]", e);

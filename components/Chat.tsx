@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { METER_URL, contactLabel, type Thread, type User } from "@/lib/types";
 import { Stars } from "./Member";
 import type { usePush } from "./Push";
-import { Avatar, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
+import { RoleTag, Avatar, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
 type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
 
@@ -74,7 +74,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, openPo
         <Card className="divide-y divide-line">
           {threads.map((th) => (
             <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status === "declined" || (th.status === "pending" && !th.iAmOwner)} onClick={() => (th.status === "accepted" ? openChat(th) : openPost(th.postId))} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
-              <Avatar src={th.otherPhoto} name={th.other} size={44} />
+              <RoleTag role={th.otherRole} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-baseline justify-between gap-2">
                   <span className="truncate font-semibold">{th.other} <span className="font-normal text-sub">· {th.origin} → {th.dest}</span></span>
@@ -240,7 +240,7 @@ export function ChatRoom({
         {thread.otherId && (
           <div className="flex items-center justify-between gap-3">
             <button data-block-id="B032" data-block-name="상대 프로필" className="flex min-h-0 min-w-0 items-center gap-2 font-semibold" onClick={() => onProfile(thread.otherId as string)}>
-              <Avatar src={thread.otherPhoto} name={thread.other} size={36} />
+              <RoleTag role={thread.otherRole} />
               <span className="truncate underline decoration-line underline-offset-4">{thread.other}</span>
             </button>
             <span className="flex shrink-0 gap-3 text-[14px]">
@@ -262,7 +262,7 @@ export function ChatRoom({
             </div>
           )}
           <p><span className="text-sub">{t("상대 연락 수단")}: </span><b className="break-all">{thread.contact ? `${thread.contactType ? `${t(contactLabel(thread.contactType))} · ` : ""}${thread.contact}` : t("등록된 연락 수단이 없어요.")}</b></p>
-          {thread.cost === "fixed" && <p><span className="text-sub">{t("1인 금액")}: </span><b className="num">{money(thread.price ?? 0, lang)}</b></p>}
+          {thread.cost === "fixed" && <p><span className="text-sub">{t("카풀 비용")}: </span><b className="num">{money(thread.price ?? 0, lang)}</b></p>}
           {thread.cost === "meter" && (
             <a href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-0 items-center gap-1 font-semibold text-accent">{t("모카 미터기로 비용 나누기")} {Icon.arrow()}</a>
           )}

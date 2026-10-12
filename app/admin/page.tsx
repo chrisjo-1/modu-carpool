@@ -3,11 +3,22 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import ReportChat from "@/components/admin/ReportChat";
 
+/** 마지막 접속을 '방금·n분 전·n시간 전'으로 */
+const lastSeenText = (ms: number) => {
+  const min = Math.floor((Date.now() - ms) / 60000);
+  if (min < 1) return "방금";
+  if (min < 60) return `${min}분 전`;
+  if (min < 60 * 24) return `${Math.floor(min / 60)}시간 전`;
+  if (min < 60 * 24 * 7) return `${Math.floor(min / 60 / 24)}일 전`;
+  return new Date(ms).toLocaleDateString("ko-KR");
+};
+
 const Legacy = dynamic(() => import("@/components/admin/Legacy"), { ssr: false });
 const Credits = dynamic(() => import("@/components/admin/Credits"), { ssr: false });
 const AdminNotices = dynamic(() => import("@/components/admin/Notices"), { ssr: false });
 const AdminKeywords = dynamic(() => import("@/components/admin/Keywords"), { ssr: false });
 const AdminFeedback = dynamic(() => import("@/components/admin/Feedback"), { ssr: false });
+const AdminHelp = dynamic(() => import("@/components/admin/Help"), { ssr: false });
 const AdminStats = dynamic(() => import("@/components/admin/Stats"), { ssr: false });
 const AdminDocs = dynamic(() => import("@/components/admin/Docs"), { ssr: false });
 const AdminRadius = dynamic(() => import("@/components/admin/Radius"), { ssr: false });
@@ -15,7 +26,7 @@ const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false 
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
-  id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; posts: number;
+  id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
 };
@@ -25,7 +36,7 @@ type Flag = { id: string; reason: string; detail: string; status?: string; creat
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
-type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "demo";
+type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "demo" | "help";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", promo: "홍보성", illegal: "불법", etc: "기타" };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -45,6 +56,8 @@ export default function Admin() {
   const [member, setMember] = useState<UserRow | null>(null);
   const [edit, setEdit] = useState<PostRow | null>(null);
   const [testName, setTestName] = useState("");
+  const [withTest, setWithTest] = useState(false);
+  const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null);
 
   const refresh = useCallback(async (query = "") => {
     const a = await fetch(`/api/admin?q=${encodeURIComponent(query)}`).then((r) => r.json()).catch(() => ({ admin: false }));
@@ -170,6 +183,7 @@ export default function Admin() {
         {tabBtn("docs", "약관")}
         {tabBtn("radius", "반경")}
         {tabBtn("demo", "임시글")}
+        {tabBtn("help", "도움말")}
         {tabBtn("legacy", "구 워프 회원 이전")}
         {msg && <p role="status" className="ml-2 text-sm text-sub">{msg}</p>}
       </div>
@@ -204,7 +218,7 @@ export default function Admin() {
       )}
 
       {tab === "users" && (() => {
-        const rows = (info?.users ?? []).filter((u) => (!gen || u.gender === gen) && (!roleF || (roleF === "none" ? u.role_pref === "" : u.role_pref === roleF)));
+        const rows = (info?.users ?? []).filter((u) => (withTest || !u.test) && (!gen || u.gender === gen) && (!roleF || (roleF === "none" ? u.role_pref === "" : u.role_pref === roleF)));
         return (
         <section data-block-id="S093" data-block-name="회원 관리" className="rounded-2xl border border-line bg-white p-5 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -212,6 +226,7 @@ export default function Admin() {
             <form onSubmit={(e) => { e.preventDefault(); refresh(q); }} className="flex gap-2">
               <input data-block-id="F090" className={`${input} w-56`} type="search" placeholder="이메일·닉네임 검색" aria-label="회원 검색" value={q} onChange={(e) => setQ(e.target.value)} />
               <button className="rounded-lg bg-bg px-4 text-sm">검색</button>
+              <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-sub"><input type="checkbox" checked={withTest} onChange={(e) => setWithTest(e.target.checked)} />테스트 회원 포함</label>
             </form>
           </div>
           <div data-block-id="A205" data-block-name="회원 필터" className="mt-3 flex flex-wrap gap-2 text-sm">
@@ -229,6 +244,12 @@ export default function Admin() {
             </select>
             {(gen || roleF) && <button data-block-id="B099" className="rounded-lg bg-bg px-3 text-sub" onClick={() => { setGen(""); setRoleF(""); }}>필터 해제</button>}
           </div>
+          {zoom && (
+            <div role="dialog" aria-modal="true" aria-label="사진 크게 보기" className="fixed inset-0 z-50 grid place-items-center bg-ink/70 p-4" onClick={() => setZoom(null)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={zoom.src} alt={zoom.alt} className="max-h-[85vh] max-w-[92vw] rounded-2xl bg-white object-contain" />
+            </div>
+          )}
           {member && (
             <div data-block-id="C231" data-block-name="회원 상세" className="mt-4 rounded-xl border border-line bg-bg p-4 text-sm">
               <div className="flex items-start justify-between gap-3">
@@ -238,13 +259,14 @@ export default function Admin() {
               <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <div>
                   <p className="mb-1 text-xs text-sub">프로필 사진</p>
-                  {member.photo ? <img src={member.photo} alt="프로필 사진" className="h-28 w-28 rounded-xl border border-line object-cover" /> : <p className="grid h-28 w-28 place-items-center rounded-xl border border-dashed border-line text-xs text-sub">없음</p>}
+                  {member.photo ? <img src={member.photo} alt="프로필 사진" onClick={() => setZoom({ src: member.photo, alt: "프로필 사진" })} className="h-28 w-28 cursor-zoom-in rounded-xl border border-line object-cover" /> : <p className="grid h-28 w-28 place-items-center rounded-xl border border-dashed border-line text-xs text-sub">없음</p>}
                 </div>
                 <div>
                   <p className="mb-1 text-xs text-sub">차량 사진</p>
-                  {member.carPhoto ? <img src={member.carPhoto} alt="차량 사진" className="h-28 w-40 rounded-xl border border-line object-cover" /> : <p className="grid h-28 w-40 place-items-center rounded-xl border border-dashed border-line text-xs text-sub">없음</p>}
+                  {member.carPhoto ? <img src={member.carPhoto} alt="차량 사진" onClick={() => setZoom({ src: member.carPhoto, alt: "차량 사진" })} className="h-28 w-40 cursor-zoom-in rounded-xl border border-line object-cover" /> : <p className="grid h-28 w-40 place-items-center rounded-xl border border-dashed border-line text-xs text-sub">없음</p>}
                 </div>
                 <dl className="col-span-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 self-start">
+                  <dt className="text-sub">최근 접속</dt><dd>{member.lastSeen ? lastSeenText(member.lastSeen) : "없음"}</dd>
                   <dt className="text-sub">희망 역할</dt><dd>{ROLE_LABEL[member.role_pref] ?? "미정"}</dd>
                   <dt className="text-sub">글 기준</dt><dd>운전자 글 {member.driver_posts} · 탑승자 글 {member.rider_posts}</dd>
                   <dt className="text-sub">성별</dt><dd>{GENDER_LABEL[member.gender] ?? "미입력"}</dd>
@@ -265,12 +287,12 @@ export default function Admin() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="text-sub">
-                <tr>{["사진", "닉네임", "이메일", "역할", "성별", "차량", "가입일", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                <tr>{["사진", "닉네임", "이메일", "역할", "성별", "차량", "가입일", "최근 접속", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {rows.map((u) => (
                   <tr key={u.id}>
-                    <td className="px-2 py-2">{u.photo ? <img src={u.photo} alt="" loading="lazy" className="h-9 w-9 rounded-full border border-line object-cover" /> : <span className="grid h-9 w-9 place-items-center rounded-full bg-bg text-xs text-sub">없음</span>}</td>
+                    <td className="px-2 py-2">{u.photo ? <img src={u.photo} alt="" loading="lazy" onClick={() => setZoom({ src: u.photo, alt: u.name })} className="h-9 w-9 cursor-zoom-in rounded-full border border-line object-cover" /> : <span className="grid h-9 w-9 place-items-center rounded-full bg-bg text-xs text-sub">없음</span>}</td>
                     <td className="px-2 py-2 font-medium">{u.name || "—"}{u.test && <span className="ml-2 rounded-full bg-accentSoft px-2 py-0.5 text-xs font-semibold text-accent">테스트</span>}</td>
                     <td className="px-2 py-2">{u.email}</td>
                     <td className="px-2 py-2">
@@ -280,6 +302,7 @@ export default function Admin() {
                     <td className="px-2 py-2">{GENDER_LABEL[u.gender] ?? "미입력"}</td>
                     <td className="px-2 py-2">{u.carPhoto || u.car_no ? <span className="text-accent">등록</span> : <span className="text-sub">미등록</span>}</td>
                     <td className="num px-2 py-2">{new Date(u.created_at).toLocaleDateString("ko-KR")}</td>
+                    <td className="num whitespace-nowrap px-2 py-2">{u.lastSeen ? lastSeenText(u.lastSeen) : <span className="text-sub">없음</span>}</td>
                     <td className="num px-2 py-2">{u.posts}</td>
                     <td className="num px-2 py-2">{(u.credits ?? 0).toLocaleString("ko-KR")}</td>
                     <td className="px-2 py-2">{u.blocked ? <span className="font-semibold text-warn">차단됨</span> : "정상"}</td>
@@ -305,6 +328,7 @@ export default function Admin() {
       {tab === "notices" && <AdminNotices />}
       {tab === "keywords" && <AdminKeywords />}
       {tab === "feedback" && <AdminFeedback />}
+      {tab === "help" && <AdminHelp />}
       {tab === "stats" && <AdminStats />}
       {tab === "docs" && <AdminDocs />}
       {tab === "radius" && <AdminRadius />}

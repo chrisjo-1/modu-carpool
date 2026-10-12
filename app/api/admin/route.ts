@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       select p.id, p.origin, p.dest, p.depart_at, p.role, p.kind, p.cost, p.price, p.regular, p.days, p.time_go, p.status, p.note, u.email, u.name, u.blocked, u.test
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
     const users = await sql`
-      select u.id, u.email, u.name, u.blocked, u.test, u.credits, u.created_at, u.bio, u.contact, u.contact_type,
+      select u.id, u.email, u.name, u.blocked, u.test, u.credits, u.created_at, u.last_seen, u.bio, u.contact, u.contact_type,
              u.gender, u.role_pref, u.photo_v, u.car_v, u.car_no, u.interests,
              (select count(*)::int from posts where user_id = u.id) as posts,
              (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
@@ -53,6 +53,7 @@ export async function GET(req: Request) {
       users: users.map((u) => ({
         ...u,
         created_at: new Date(u.created_at as string).getTime(),
+        lastSeen: u.last_seen ? new Date(u.last_seen as string).getTime() : null,
         photo: photoUrl(u.id, u.photo_v),
         carPhoto: carPhotoUrl(u.id, u.car_v),
       })),

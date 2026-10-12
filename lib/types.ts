@@ -56,6 +56,8 @@ export type Thread = {
   status: "pending" | "accepted" | "declined";
   message: string;
   iAmOwner: boolean;
+  /** 상대의 역할 */
+  otherRole?: "driver" | "rider";
   other: string;
   otherBio: string;
   contact: string | null;

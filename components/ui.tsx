@@ -22,9 +22,11 @@ export const kmText = (km: number) => (km < 1 ? `${Math.max(10, Math.round(km * 
 export const money = (n: number, lang: Lang) => (lang === "ko" ? `${n.toLocaleString("ko-KR")}원` : `₩${n.toLocaleString("en-US")}`);
 
 /** 정기카풀이면 "평일 07:30 / 18:30", 아니면 출발 일시 */
+/** 출발 시각 표기. 등록 시각과 헷갈리지 않도록 뒤에 '출발'을 붙인다. */
 export function scheduleText(p: { regular?: boolean; days?: string; timeGo?: string; timeBack?: string; departAt: number }, lang: Lang) {
-  if (!p.regular) return when(p.departAt, lang);
-  return `${dayLabel(lang, p.days ?? "")} ${p.timeGo ?? ""}${p.timeBack ? ` / ${p.timeBack}` : ""}`;
+  const dep = translate(lang, "출발");
+  if (!p.regular) return `${when(p.departAt, lang)} ${dep}`;
+  return `${dayLabel(lang, p.days ?? "")} ${p.timeGo ?? ""} ${dep}${p.timeBack ? ` / ${p.timeBack} ${dep}` : ""}`;
 }
 
 /** 프로필 사진. 없으면 닉네임 첫 글자를 보여준다. */
@@ -125,6 +127,12 @@ export function Card({ children, className = "", ...rest }: { children: ReactNod
 export function Tag({ children, tone = "plain" }: { children: ReactNode; tone?: "plain" | "accent" | "warn" | "mint" }) {
   const c = tone === "accent" ? "bg-accentSoft text-accent" : tone === "warn" ? "bg-warnSoft text-warn" : tone === "mint" ? "bg-[#E7F7EE] text-[#1B7A4B]" : "bg-bg text-sub";
   return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-medium ${c}`}>{children}</span>;
+}
+
+/** 운전자(파란색)·탑승자(초록색) 표시. 프로필 사진 자리에 쓴다. */
+export function RoleTag({ role }: { role?: string }) {
+  const t = useT();
+  return <Tag tone={role === "driver" ? "accent" : "mint"}>{t(role === "driver" ? "운전자" : "탑승자")}</Tag>;
 }
 
 /** 여러 선택지 중 하나를 고르는 버튼 줄 */
