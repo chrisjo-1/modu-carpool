@@ -109,11 +109,13 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   if ((await sql`select 1 from users where email = ${email}`).length) return "taken";
   const mkt = p.marketing === true;
   // 고유코드는 가입과 동시에 자동 배정한다. 겹치면 다시 뽑는다.
+  // 닉네임은 쓰지 않는다. 표시 이름도 고유코드로 둔다.
   let ins: Record<string, unknown>[] | null = null;
   for (let i = 0; i < 10 && !ins; i++) {
+    const code = makeMemberCode();
     try {
       ins = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at, member_code)
-        values (${email}, ${String(p.pw)}, ${String(p.name)}, ${p.notify === true}, true, now(), ${mkt}, ${mkt ? new Date().toISOString() : null}, ${makeMemberCode()}) returning id`;
+        values (${email}, ${String(p.pw)}, ${code}, ${p.notify === true}, true, now(), ${mkt}, ${mkt ? new Date().toISOString() : null}, ${code}) returning id`;
     } catch (e) {
       if (!isUniqueViolation(e)) throw e;
     }
@@ -277,14 +279,12 @@ export async function PATCH(req: Request) {
       return fail(e);
     }
   }
-  const name = text(b.name, 20);
-  if (name.length < 2) return json({ error: "닉네임을 2자 이상 입력해 주세요." }, 400);
   const contactType = CONTACT_TYPES.some(([k]) => k === b.contactType) ? String(b.contactType) : "";
   try {
     await ensureSchema();
     const gender = ["female", "male"].includes(String(b.gender)) ? String(b.gender) : "";
     const rolePref = ["driver", "rider", "both"].includes(String(b.rolePref)) ? String(b.rolePref) : "";
-    await db()`update users set name = ${name}, bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType}, gender = ${gender}, role_pref = ${rolePref} where id = ${id}`;
+    await db()`update users set bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType}, gender = ${gender}, role_pref = ${rolePref} where id = ${id}`;
     return json({ user: await profile(id) });
   } catch (e) {
     return fail(e);

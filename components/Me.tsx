@@ -90,7 +90,6 @@ export default function Me({
   const lang = useLang();
   const [carNo, setCarNo] = useState("");
   const carFile = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [contact, setContact] = useState("");
   const [contactType, setContactType] = useState("");
@@ -144,7 +143,6 @@ export default function Me({
 
   useEffect(() => {
     setCarNo(user?.carNo ?? "");
-    setName(user?.name ?? "");
     setBio(user?.bio ?? "");
     setContact(user?.contact ?? "");
     setContactType(user?.contactType ?? "");
@@ -174,7 +172,7 @@ export default function Me({
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api<{ user: User }>("/api/auth", "PATCH", { name, bio, contact, contactType, gender, rolePref });
+    const r = await api<{ user: User }>("/api/auth", "PATCH", { bio, contact, contactType, gender, rolePref });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setUser(r.data.user);
@@ -221,10 +219,10 @@ export default function Me({
                   <input ref={file} data-block-id="F046" type="file" accept="image/*" className="hidden" aria-label={t("프로필 사진")} onChange={pickPhoto} />
                 </div>
               </div>
-              <label className="block text-sm text-sub">
-                {t("닉네임")}
-                <input data-block-id="F040" className={`${field} mt-1`} required minLength={2} maxLength={20} value={name} onChange={(e) => setName(e.target.value)} />
-              </label>
+              <div data-block-id="C048" data-block-name="내 고유코드" className="space-y-1 text-sm text-sub">
+                <span>{t("고유코드")}</span>
+                <p className="rounded-xl bg-bg px-4 py-3 font-mono text-[16px] font-semibold tracking-wider text-ink">{user.memberCode || "-"}</p>
+              </div>
               <label className="block text-sm text-sub">
                 {t("자기소개")}
                 <textarea data-block-id="F041" className={`${field} mt-1`} rows={2} maxLength={200} placeholder={t("예: 판교로 출퇴근해요. 영어 조금 합니다.")} value={bio} onChange={(e) => setBio(e.target.value)} />
