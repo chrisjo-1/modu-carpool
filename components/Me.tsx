@@ -5,6 +5,7 @@ import { CONTACT_TYPES, METER_URL, defaultRoleFor, type Post, type User } from "
 import AuthForm from "./AuthForm";
 import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
+import { HelpSheet } from "./Help";
 import CreditCard from "./Credits";
 import { pushHint, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
@@ -97,6 +98,7 @@ export default function Me({
   const [rolePref, setRolePref] = useState("");
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(feedbackFirst);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
@@ -197,6 +199,11 @@ export default function Me({
         <span className="text-sub">{Icon.arrow()}</span>
       </button>
       {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} onClose={() => setFeedbackOpen(false)} />}
+      <button data-block-id="B063" data-block-name="도움말 · 튜토리얼" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card" onClick={() => setHelpOpen(true)}>
+        <span><b>{t("도움말 · 튜토리얼")}</b><span className="block text-[13px] text-sub">{t("처음 쓰는 방법과 자주 묻는 질문")}</span></span>
+        <span className="text-sub">{Icon.arrow()}</span>
+      </button>
+      {helpOpen && <HelpSheet onClose={() => setHelpOpen(false)} />}
 
       <div>
         <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("언어")}</h2>
