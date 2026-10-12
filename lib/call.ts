@@ -1,0 +1,38 @@
+import { db } from "./server";
+import { sendPush, pushText } from "./push";
+
+export const DEFAULT_CALL_RADIUS_KM = 3;
+/** 호출 반경(km). 관리자가 정하고, 0.5 ~ 20km 사이로 제한한다. */
+export async function getCallRadiusKm(): Promise<number> {
+  const rows = await db()`select value from settings where key = 'call_radius_km'`;
+  const v = rows.length ? Number(rows[0].value) : DEFAULT_CALL_RADIUS_KM;
+  return Number.isFinite(v) && v >= 0.5 && v <= 20 ? v : DEFAULT_CALL_RADIUS_KM;
+}
+
+/**
+ * 내가 올린 글(출발지 좌표가 있는 글) 기준 반경 안의 운전자 글 작성자에게 알린다.
+ * 알림 대상은 운전자만, 본인과 차단된 회원은 제외, 같은 회원은 한 번만 보낸다.
+ */
+export async function callDrivers(me: string, postId: string) {
+  const sql = db();
+  const mine = await sql`select origin, dest, origin_lat, origin_lng, status from posts where id = ${postId} and user_id = ${me}`;
+  if (!mine.length) return { error: "내가 올린 글만 호출할 수 있어요." } as const;
+  const p = mine[0];
+  if (p.origin_lat == null || p.origin_lng == null) return { error: "출발지 위치가 없는 글은 호출할 수 없어요." } as const;
+  if (p.status !== "open") return { error: "진행 중이거나 닫힌 글은 호출할 수 없어요." } as const;
+  const radiusKm = await getCallRadiusKm();
+  const lat = Number(p.origin_lat);
+  const lng = Number(p.origin_lng);
+  const drivers = await sql`
+    select distinct p.user_id from posts p join users u on u.id = p.user_id
+    where p.role = 'driver' and p.status = 'open' and p.user_id <> ${me} and not u.blocked
+      and p.origin_lat is not null and p.origin_lng is not null
+      and p.depart_at > now() - interval '1 hour'
+      and 6371 * 2 * asin(sqrt(power(sin(radians(p.origin_lat - ${lat}) / 2), 2)
+        + cos(radians(${lat})) * cos(radians(p.origin_lat)) * power(sin(radians(p.origin_lng - ${lng}) / 2), 2))) <= ${radiusKm}
+    limit 500`;
+  const title = "주변 탑승자가 호출했어요";
+  const body = pushText.cut(`${String(p.origin)} → ${String(p.dest)} · 반경 ${radiusKm}km`, 120);
+  await Promise.all(drivers.map((d) => sendPush(String(d.user_id), { title, body, url: "/", tag: "call" })));
+  return { ok: true, notified: drivers.length, radiusKm } as const;
+}
