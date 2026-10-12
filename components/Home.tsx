@@ -5,7 +5,7 @@ import { HIDDEN_TEXT } from "./Me";
 import { useEffect, useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
 import { useKeywords } from "./Keywords";
-import { CallButtons } from "./CallSheet";
+import { FloatingCall, RefreshButton } from "./CallSheet";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
@@ -136,7 +136,8 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
       <header>
         <h1 data-block-id="S001-title" className="text-[22px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
       </header>
-      {onRefresh && <CallButtons onRefresh={onRefresh} toast={toast} />}
+      {onRefresh && <RefreshButton onRefresh={onRefresh} />}
+      <FloatingCall toast={toast} />
 
       <div className="space-y-2">
         {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼). 키워드 필터는 검색창 박스 안에 둔다 */}

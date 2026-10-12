@@ -3,20 +3,24 @@ import { useEffect, useState } from "react";
 import { type Post } from "@/lib/types";
 import { Card, Sheet, api, btnGhost, btnPrimary, useT } from "./ui";
 
-/** 홈 상단의 새로고침·CALL 버튼 */
-export function CallButtons({ onRefresh, toast }: { onRefresh: () => void; toast: (m: string) => void }) {
+/** 홈 상단의 새로고침 버튼 */
+export function RefreshButton({ onRefresh }: { onRefresh: () => void }) {
   const t = useT();
+  return (
+    <button type="button" data-block-id="B216" data-block-name="새로고침" className="w-full rounded-2xl border border-line bg-white py-3 text-[15px] font-semibold text-ink active:opacity-80" onClick={onRefresh}>
+      {t("새로고침")}
+    </button>
+  );
+}
+
+/** 하단 메뉴 바로 위, 가운데에 떠 있는 CALL 버튼 (홈 화면에서만 보인다) */
+export function FloatingCall({ toast }: { toast: (m: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <div className="flex gap-2">
-        <button type="button" data-block-id="B216" data-block-name="새로고침" className="flex-1 rounded-2xl border border-line bg-white py-3 text-[15px] font-semibold text-ink active:opacity-80" onClick={onRefresh}>
-          {t("새로고침")}
-        </button>
-        <button type="button" data-block-id="B217" data-block-name="CALL" className="flex-1 rounded-2xl bg-accent py-3 text-[15px] font-bold text-white active:opacity-80" onClick={() => setOpen(true)}>
-          CALL
-        </button>
-      </div>
+      <button type="button" data-block-id="B217" data-block-name="CALL" aria-label="CALL" className="fixed bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-accent px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => setOpen(true)}>
+        CALL
+      </button>
       {open && <CallSheet onClose={() => setOpen(false)} toast={toast} />}
     </>
   );
