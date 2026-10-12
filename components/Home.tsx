@@ -4,8 +4,7 @@ import FareCard from "./Fare";
 import { HIDDEN_TEXT } from "./Me";
 import { useEffect, useMemo, useState } from "react";
 import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
-import { useKeywords } from "./Keywords";
-import { FloatingCall, IncomingCall, RefreshButton } from "./CallSheet";
+import { FloatingCall, IncomingCall } from "./CallSheet";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
@@ -65,9 +64,6 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
   // 키워드 필터: 고른 키워드 중 하나라도 붙은 글만 (여러 개 고르면 OR)
-  const kw = useKeywords();
-  const [picked, setPicked] = useState<string[]>([]);
-  const allKeywords = kw ? [...kw.gift, ...kw.driver, ...kw.rider] : [];
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
   // 정렬: 최신순(기본) · 가까운 순(내 위치 필요) · 출발 임박순
@@ -116,11 +112,10 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
     const k = q.trim().toLowerCase();
     const hit = posts.filter(
       (p) =>
-        (picked.length === 0 || (p.tagIds ?? []).some((id) => picked.includes(id))) &&
         (role === "all" || p.role === role) &&
         (!regularOnly || !!p.regular) &&
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
-        (!k || `${p.origin} ${p.dest} ${p.note} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
+        (!k || `${p.origin} ${p.dest} ${p.note} ${(p.tags ?? []).map((x) => x.label).join(" ")} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
     );
     // 종료된 글은 어떤 정렬에서도 맨 아래에 둔다.
     const live = hit.filter((p) => !p.ended);
@@ -131,18 +126,22 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
     return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, role, q, regularOnly, lang, here, sort, picked]);
+  }, [posts, role, q, regularOnly, lang, here, sort]);
 
   useEffect(() => {
     setShown(PAGE);
-  }, [q, role, picked, regularOnly, sort, here]);
+  }, [q, role, regularOnly, sort, here]);
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
-      <header>
+      <header className="flex items-start justify-between gap-3">
         <h1 data-block-id="S001-title" className="text-[22px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
+        {onRefresh && (
+          <button type="button" data-block-id="B216" data-block-name="새로고침" className="min-h-0 shrink-0 py-1 text-[14px] font-semibold text-accent underline" onClick={() => { onRefresh(); toast(t("새로고침되었습니다.")); }}>
+            {t("새로고침")}
+          </button>
+        )}
       </header>
-      {onRefresh && <RefreshButton onRefresh={onRefresh} />}
       <FloatingCall toast={toast} />
       {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
 
@@ -150,31 +149,12 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
         {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼). 키워드 필터는 검색창 박스 안에 둔다 */}
         <div data-block-id="C070" data-block-name="검색 박스" className="space-y-2 rounded-2xl border border-line bg-white p-2.5">
           <div className="flex items-center gap-2">
-            <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("출발지·도착지 검색")} aria-label={t("출발지·도착지 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
+            <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("출발지, 도착지, 키워드(예: 음료) 등 검색")} aria-label={t("출발지, 도착지, 키워드(예: 음료) 등 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
             <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => setView((v) => (v === "map" ? "list" : "map"))}
               className={`min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
               {view === "map" ? t("목록") : t("지도")}
             </button>
           </div>
-          {allKeywords.length > 0 && (
-            <div className="flex items-center gap-2 pt-0.5">
-              <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5">
-                {allKeywords.map((k) => {
-                  const on = picked.includes(k.id);
-                  return (
-                    <button key={k.id} type="button" aria-pressed={on} data-block-id="B071" data-block-name="키워드 칩"
-                      onClick={() => setPicked((cur) => (cur.includes(k.id) ? cur.filter((x) => x !== k.id) : [...cur, k.id]))}
-                      className={`min-h-0 shrink-0 rounded-full border px-3 py-1 text-[13px] ${on ? "border-accent bg-accent text-white" : "border-line bg-white text-sub"}`}>
-                      {k.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {picked.length > 0 && (
-                <button type="button" data-block-id="B070" data-block-name="키워드 초기화" className="min-h-0 shrink-0 text-[13px] text-sub underline" onClick={() => setPicked([])}>{t("초기화")}</button>
-              )}
-            </div>
-          )}
         </div>
         <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}

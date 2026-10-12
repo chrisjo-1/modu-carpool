@@ -148,6 +148,8 @@ const D: Record<string, [string, string, string]> = {
   "받은 호출을 찾을 수 없어요.": ["Incoming call not found.", "受けた呼び出しが見つかりません。", "找不到收到的呼叫。"],
   "호출한 회원의 연락 방법이 없어요.": ["The caller has no contact method.", "呼び出したメンバーの連絡方法がありません。", "呼叫者没有联系方式。"],
   "호출을 찾을 수 없어요.": ["Call not found.", "呼び出しが見つかりません。", "找不到该呼叫。"],
+  "출발지, 도착지, 키워드(예: 음료) 등 검색": ["Search by origin, destination, or keyword (e.g. drinks)", "出発地・到着地・キーワード（例：飲み物）で検索", "按出发地、目的地或关键词（如：饮料）搜索"],
+  "새로고침되었습니다.": ["Refreshed.", "更新しました。", "已刷新。"],
   "같은 방향, 같이 가요": ["Same way, ride together", "同じ方向、いっしょに行こう", "同路，一起走"],
   "출퇴근길도 서울 나들이도, 방향이 같은 사람과 함께.": ["Commutes or a day out in Seoul, share the ride with someone going your way.", "通勤もソウルのお出かけも、同じ方向の人といっしょに。", "通勤也好，首尔出游也好，和同路的人一起出发。"],
   "찾기": ["Find", "さがす", "找车"],
