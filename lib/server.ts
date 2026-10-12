@@ -3,12 +3,31 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { timingSafeEqual } from "crypto";
 import { REASONS } from "./types";
+import { isUniqueViolation, makeMemberCode } from "./memberCode";
 
 export const hasDb = () => !!process.env.DATABASE_URL;
 export const authEnabled = () => hasDb() && !!process.env.SESSION_SECRET;
 
 export function db() {
   return neon(process.env.DATABASE_URL as string);
+}
+
+/** 고유코드가 없는 회원(기존 회원·테스트 회원)에게 하나씩 배정한다. 중복이면 다시 뽑는다. */
+export async function backfillMemberCodes(sql: ReturnType<typeof db>) {
+  for (let round = 0; round < 50; round++) {
+    const rows = await sql`select id from users where member_code is null limit 200`;
+    if (!rows.length) return;
+    for (const r of rows) {
+      for (let i = 0; i < 10; i++) {
+        try {
+          await sql`update users set member_code = ${makeMemberCode()} where id = ${r.id} and member_code is null`;
+          break;
+        } catch (e) {
+          if (!isUniqueViolation(e)) throw e;
+        }
+      }
+    }
+  }
 }
 
 let ready: Promise<void> | null = null;
@@ -26,6 +45,9 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists bio text not null default ''`;
       await sql`alter table users add column if not exists contact text not null default ''`;
       await sql`alter table users add column if not exists contact_type text not null default ''`;
+      // 고유코드(8자리): 가입 때 자동 배정, 아래 backfillMemberCodes 가 빈 회원에게 채운다.
+      await sql`alter table users add column if not exists member_code text`;
+      await sql`create unique index if not exists users_member_code_uniq on users (member_code)`;
       await sql`create table if not exists posts (
         id uuid primary key default gen_random_uuid(),
         user_id uuid not null references users(id) on delete cascade,
@@ -242,6 +264,7 @@ export function ensureSchema(): Promise<void> {
         created_at timestamptz not null default now(),
         primary key (request_id, rater))`;
       await sql`create index if not exists reviews_ratee_idx on reviews (ratee)`;
+      await backfillMemberCodes(sql);
     })().catch((e) => {
       ready = null;
       throw e;

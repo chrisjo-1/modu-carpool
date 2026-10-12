@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { grant, grantLegacy } from "@/lib/credits";
 import { finishVerify, startVerify } from "@/lib/verify";
 import { sendVerifyMail } from "@/lib/mail";
+import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
 import { matchNewUser } from "@/lib/legacy";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { CONTACT_TYPES } from "@/lib/types";
@@ -12,8 +13,8 @@ import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, cur
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, gender, role_pref, email_verified, terms_at, marketing, interests from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true, interests: rows[0].interests ?? null } : null;
+  const rows = await db()`select email, member_code, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, gender, role_pref, email_verified, terms_at, marketing, interests from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, memberCode: rows[0].member_code ?? "", name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true, interests: rows[0].interests ?? null } : null;
 }
 
 export async function GET() {
@@ -107,8 +108,17 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   const email = String(p.email);
   if ((await sql`select 1 from users where email = ${email}`).length) return "taken";
   const mkt = p.marketing === true;
-  const ins = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at)
-    values (${email}, ${String(p.pw)}, ${String(p.name)}, ${p.notify === true}, true, now(), ${mkt}, ${mkt ? new Date().toISOString() : null}) returning id`;
+  // 고유코드는 가입과 동시에 자동 배정한다. 겹치면 다시 뽑는다.
+  let ins: Record<string, unknown>[] | null = null;
+  for (let i = 0; i < 10 && !ins; i++) {
+    try {
+      ins = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at, member_code)
+        values (${email}, ${String(p.pw)}, ${String(p.name)}, ${p.notify === true}, true, now(), ${mkt}, ${mkt ? new Date().toISOString() : null}, ${makeMemberCode()}) returning id`;
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e;
+    }
+  }
+  if (!ins) throw new Error("고유코드를 배정하지 못했습니다.");
   const id = String(ins[0].id);
   // 구 워프 회원이면 대조 상태를 '가입됨'으로 바꾸고, 워프 이전 크레딧을 준다(인증이 끝난 뒤라 안전하다).
   await matchNewUser(id, email).catch((e) => console.error("[legacy]", e));
