@@ -44,9 +44,11 @@ function shortTime(ms: number, lang: string) {
   return d.toLocaleString(lang === "ko" ? "ko-KR" : lang, today ? { hour: "2-digit", minute: "2-digit", hour12: false } : { month: "numeric", day: "numeric" });
 }
 
-export default function Chat({ user, enabled, threads, goLogin, openChat, push, toast }: { user: User | null; enabled: boolean; threads: Thread[]; goLogin: () => void; openChat: (th: Thread) => void; push: ReturnType<typeof usePush>; toast: (m: string) => void }) {
+export default function Chat({ user, enabled, threads, goLogin, openChat, openPost, push, toast }: { user: User | null; enabled: boolean; threads: Thread[]; goLogin: () => void; openChat: (th: Thread) => void; openPost: (postId: string) => void; push: ReturnType<typeof usePush>; toast: (m: string) => void }) {
   const t = useT();
   const lang = useLang();
+  // 받은 신청(내 글에 온 신청)은 '수락 필요'로 보여 주고, 누르면 글 상세에서 수락·거절할 수 있다.
+  const statusFor = (th: Thread) => (th.iAmOwner && th.status === "pending" ? t("수락 필요") : statusText[th.status]);
   const statusText = { pending: t("수락 대기 중"), accepted: t("수락됨"), declined: t("거절됨") };
 
   return (
@@ -71,7 +73,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, push, 
       ) : (
         <Card className="divide-y divide-line">
           {threads.map((th) => (
-            <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status !== "accepted"} onClick={() => openChat(th)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
+            <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status === "declined" || (th.status === "pending" && !th.iAmOwner)} onClick={() => (th.status === "accepted" ? openChat(th) : openPost(th.postId))} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
               <Avatar src={th.otherPhoto} name={th.other} size={44} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-baseline justify-between gap-2">
@@ -90,7 +92,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, push, 
               {th.unread ? (
                 <span data-block-id="C033" data-block-name="안 읽은 메시지 수" aria-label={`${t("안 읽은 메시지")} ${th.unread}`} className="num grid h-6 min-w-6 shrink-0 place-items-center rounded-full bg-warn px-1.5 text-[12px] font-bold text-white">{th.unread > 99 ? "99+" : th.unread}</span>
               ) : (
-                <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>
+                <Tag tone={th.status === "accepted" || (th.iAmOwner && th.status === "pending") ? "accent" : "plain"}>{statusFor(th)}</Tag>
               )}
             </button>
           ))}

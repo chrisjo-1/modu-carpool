@@ -184,6 +184,7 @@ const D: Record<string, [string, string, string]> = {
   "보낸 신청": ["Request sent", "送った申請", "发出的申请"],
   "아직 신청이 없어요.": ["No requests yet.", "まだ申請がありません。", "还没有申请。"],
   "수락 대기 중": ["Pending", "承認待ち", "等待接受"],
+  "수락 필요": ["Needs your approval", "承認が必要", "需要您接受"],
   "수락됨": ["Accepted", "承認済み", "已接受"],
   "거절됨": ["Declined", "見送り", "已拒绝"],
   "수락": ["Accept", "承認", "接受"],
