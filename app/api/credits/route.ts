@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     const welcome = (await grant(me, "signup")) + (await grantLegacy(me));
     const sql = db();
     const [u, today, count, rules] = await Promise.all([
-      sql`select credits from users where id = ${me}`,
+      sql`select credits, warp_no, exists(select 1 from legacy_members l where l.matched_user = users.id) as claimed from users where id = ${me}`,
       sql`select 1 from credit_ledger where user_id = ${me} and reason = 'attend' and day = ${kstDay()}`,
       sql`select count(*)::int as n from credit_ledger where user_id = ${me}`,
       getRules(),
@@ -37,6 +37,8 @@ export async function GET(req: Request) {
       welcome,
       rules,
       historyCount: Number(count[0]?.n ?? 0),
+      // 워프 번호 질문을 숨길지: '아니오'로 답했거나 이미 워프 번호가 연결된 회원
+      warpHidden: u[0]?.warp_no === true || u[0]?.claimed === true,
     });
   } catch (e) {
     return fail(e);
@@ -49,6 +51,15 @@ export async function POST(req: Request) {
   if (!me) return needLogin();
   const b = await body(req);
   if (b.action === "claimWarp") return claimWarp(me, b.code);
+  if (b.action === "warpNo") {
+    try {
+      await ensureSchema();
+      await db()`update users set warp_no = true where id = ${me}`;
+      return json({ ok: true });
+    } catch (e) {
+      return fail(e);
+    }
+  }
   if (b.action !== "attend") return json({ error: "잘못된 요청입니다." }, 400);
   try {
     await ensureSchema();

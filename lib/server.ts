@@ -288,6 +288,8 @@ export function ensureSchema(): Promise<void> {
       await backfillMemberCodes(sql);
       // 표시 이름을 고유코드로 바꾼다. 기존 닉네임은 old_name 에 남겨 둔다(한 번만 실행).
       await sql`alter table users add column if not exists old_name text`;
+      // 워프 회원 질문에 '아니오'로 답한 회원: 다시 묻지 않는다.
+      await sql`alter table users add column if not exists warp_no boolean not null default false`;
       await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
     })().catch((e) => {
       ready = null;
