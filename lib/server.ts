@@ -196,6 +196,11 @@ export function ensureSchema(): Promise<void> {
       await sql`create index if not exists legacy_phone_idx on legacy_members (phone_norm)`;
       await sql`create index if not exists legacy_email_h_idx on legacy_members (email_h)`;
       await sql`create index if not exists legacy_match_idx on legacy_members (match_status)`;
+      await sql`create table if not exists report_chat_access (
+        id bigserial primary key,
+        report_id uuid not null,
+        ip text not null default '',
+        at timestamptz not null default now())`;
       await sql`create table if not exists legacy_access (
         id bigserial primary key, warp_id text not null, ip text not null default '', at timestamptz not null default now())`;
       await sql`create table if not exists password_resets (

@@ -1,6 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
+import ReportChat from "@/components/admin/ReportChat";
 
 const Legacy = dynamic(() => import("@/components/admin/Legacy"), { ssr: false });
 const Credits = dynamic(() => import("@/components/admin/Credits"), { ssr: false });
@@ -326,6 +327,7 @@ export default function Admin() {
                       <td className="px-2 py-2">{r.status === "done" ? "처리 완료" : <span className="font-semibold text-warn">확인 필요</span>}</td>
                       <td className="whitespace-nowrap px-2 py-2">
                         <button data-block-id="B094" data-block-name="신고 처리" className="mr-3 min-h-0 text-accent underline" onClick={() => act(call("PATCH", "/api/admin", { reportId: r.id, status: r.status === "done" ? "open" : "done" }), "신고 상태를 바꿨습니다.")}>{r.status === "done" ? "다시 열기" : "처리 완료"}</button>
+                        <ReportChat reportId={r.id} />
                         {stop(r)}
                       </td>
                     </tr>
