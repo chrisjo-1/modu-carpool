@@ -17,8 +17,10 @@ export async function getCallRadiusKm(): Promise<number> {
 export async function callerReady(me: string) {
   const rows = await db()`select contact, contact_type from users where id = ${me}`;
   if (!rows.length) return { ready: false, type: "" };
-  const ok = String(rows[0].contact ?? "").trim() !== "" && String(rows[0].contact_type ?? "") !== "";
-  return { ready: ok, type: String(rows[0].contact_type ?? "") };
+  // 목록에 없는 예전 값(예: 전화번호 삭제 전 저장분)은 등록된 것으로 보지 않는다.
+  const type = String(rows[0].contact_type ?? "");
+  const ok = String(rows[0].contact ?? "").trim() !== "" && contactLabel(type) !== "";
+  return { ready: ok, type };
 }
 
 /**

@@ -229,15 +229,13 @@ export default function Me({
               </label>
               <div className="space-y-1">
                 <label htmlFor="F045" className="block text-sm text-sub">{t("연락 방법")}</label>
-                <div className="flex gap-2">
-                  <select id="F045" data-block-id="F045" className={`${field} w-[46%] shrink-0`} value={contactType} onChange={(e) => setContactType(e.target.value)}>
-                    <option value="">{t("선택")}</option>
-                    {CONTACT_TYPES.map(([k, label]) => (
-                      <option key={k} value={k}>{t(label)}</option>
-                    ))}
-                  </select>
-                  <input data-block-id="F042" className={field} maxLength={60} aria-label={t("연락처 입력")} placeholder={t(contactType === "phone" ? "예: 010-1234-5678" : "ID 또는 번호")} inputMode={contactType === "phone" ? "tel" : "text"} value={contact} onChange={(e) => setContact(e.target.value)} />
-                </div>
+                <select id="F045" data-block-id="F045" className={field} value={contactType} onChange={(e) => setContactType(e.target.value)}>
+                  <option value="">{t("선택")}</option>
+                  {CONTACT_TYPES.map(([k, label]) => (
+                    <option key={k} value={k}>{t(label)}</option>
+                  ))}
+                </select>
+                <input data-block-id="F042" className={`${field} mt-2`} maxLength={60} disabled={!contactType} aria-label={t("아이디 입력")} placeholder={t(contactType ? "아이디를 입력하세요" : "연락 방법을 먼저 선택하세요")} autoCapitalize="none" autoCorrect="off" value={contact} onChange={(e) => setContact(e.target.value)} />
               </div>
               <p className="text-[13px] text-sub">{t("연락 수단은 신청이 수락된 상대에게만 보입니다.")}</p>
               <div className="flex gap-2">

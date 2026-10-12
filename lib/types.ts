@@ -76,11 +76,10 @@ export type User = { id: string; email: string; memberCode?: string; name: strin
 /** 연락 방법 종류. 값은 DB에 저장되는 키, 표시는 번역해서 보여준다. */
 export const CONTACT_TYPES: [string, string][] = [
   ["kakao", "카카오톡 ID"],
-  ["phone", "전화번호"],
-  ["line", "LINE"],
-  ["wechat", "WeChat"],
-  ["whatsapp", "WhatsApp"],
-  ["telegram", "Telegram"],
+  ["line", "LINE ID"],
+  ["telegram", "텔레그램 ID"],
+  ["wechat", "WeChat ID"],
+  ["whatsapp", "WhatsApp ID"],
   ["etc", "기타"],
 ];
 export const contactLabel = (type: string) => CONTACT_TYPES.find(([k]) => k === type)?.[1] ?? "";
