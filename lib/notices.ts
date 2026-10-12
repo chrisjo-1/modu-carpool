@@ -15,9 +15,9 @@ export async function targetUsers(roles: string[], genders: string[], onlyUser?:
     with a as (
       select u.id,
         coalesce(nullif(u.gender, ''), case l.gender when '여자' then 'female' when '남자' then 'male' end) as g,
-        (u.role_pref in ('driver', 'both') or (u.role_pref = '' and (u.car_no <> '' or l.kind = '드라이버'
+        (u.role_pref in ('driver') or (u.role_pref = '' and (u.car_no <> '' or l.kind = '드라이버'
           or exists (select 1 from posts p where p.user_id = u.id and p.role = 'driver')))) as is_driver,
-        (u.role_pref in ('rider', 'both') or (u.role_pref = '' and (l.kind = '라이더'
+        (u.role_pref in ('rider') or (u.role_pref = '' and (l.kind = '라이더'
           or exists (select 1 from posts p where p.user_id = u.id and p.role = 'rider')))) as is_rider
       from users u
       left join lateral (select gender, kind from legacy_members m where m.matched_user = u.id limit 1) l on true

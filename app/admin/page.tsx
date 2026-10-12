@@ -30,7 +30,7 @@ type UserRow = {
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
 };
-const ROLE_LABEL: Record<string, string> = { driver: "운전자", rider: "탑승자", both: "둘 다", "": "미정" };
+const ROLE_LABEL: Record<string, string> = { driver: "운전자", rider: "탑승자", "": "미입력" };
 const GENDER_LABEL: Record<string, string> = { female: "여", male: "남", "": "미입력" };
 type Flag = { id: string; reason: string; detail: string; status?: string; created_at: number; target_id: string; target_name: string; target_email: string; target_blocked: boolean };
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
@@ -239,8 +239,7 @@ export default function Admin() {
               <option value="">역할: 전체</option>
               <option value="driver">운전자</option>
               <option value="rider">탑승자</option>
-              <option value="both">둘 다</option>
-              <option value="none">미정</option>
+              <option value="none">미입력</option>
             </select>
             {(gen || roleF) && <button data-block-id="B099" className="rounded-lg bg-bg px-3 text-sub" onClick={() => { setGen(""); setRoleF(""); }}>필터 해제</button>}
           </div>
@@ -267,7 +266,7 @@ export default function Admin() {
                 </div>
                 <dl className="col-span-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 self-start">
                   <dt className="text-sub">최근 접속</dt><dd>{member.lastSeen ? lastSeenText(member.lastSeen) : "없음"}</dd>
-                  <dt className="text-sub">희망 역할</dt><dd>{ROLE_LABEL[member.role_pref] ?? "미정"}</dd>
+                  <dt className="text-sub">희망 역할</dt><dd>{ROLE_LABEL[member.role_pref] ?? "미입력"}</dd>
                   <dt className="text-sub">글 기준</dt><dd>운전자 글 {member.driver_posts} · 탑승자 글 {member.rider_posts}</dd>
                   <dt className="text-sub">성별</dt><dd>{GENDER_LABEL[member.gender] ?? "미입력"}</dd>
                   <dt className="text-sub">차량번호</dt><dd>{member.car_no || "미등록"}</dd>
@@ -296,7 +295,7 @@ export default function Admin() {
                     <td className="px-2 py-2 font-medium">{u.name || "—"}{u.test && <span className="ml-2 rounded-full bg-accentSoft px-2 py-0.5 text-xs font-semibold text-accent">테스트</span>}</td>
                     <td className="px-2 py-2">{u.email}</td>
                     <td className="px-2 py-2">
-                      <span className="block">희망 {ROLE_LABEL[u.role_pref] ?? "미정"}</span>
+                      <span className="block">희망 {ROLE_LABEL[u.role_pref] ?? "미입력"}</span>
                       <span className="block text-xs text-sub">운전자 {u.driver_posts} · 탑승자 {u.rider_posts}</span>
                     </td>
                     <td className="px-2 py-2">{GENDER_LABEL[u.gender] ?? "미입력"}</td>

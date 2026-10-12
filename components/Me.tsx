@@ -247,20 +247,19 @@ export default function Me({
               <p className="text-[13px] text-sub">{t("연락 수단은 신청이 수락된 상대에게만 보입니다.")}</p>
               <div className="flex gap-2">
                 <label className="block w-1/2 text-sm text-sub">
-                  {t("성별")}
-                  <select data-block-id="F053" className={`${field} mt-1`} value={gender} onChange={(e) => setGender(e.target.value)}>
-                    <option value="">{t("선택 안 함")}</option>
+                  {t("성별 (필수)")}
+                  <select data-block-id="F053" required className={`${field} mt-1`} value={gender} onChange={(e) => setGender(e.target.value)}>
+                    <option value="" disabled>{t("선택해 주세요")}</option>
                     <option value="female">{t("여성")}</option>
                     <option value="male">{t("남성")}</option>
                   </select>
                 </label>
                 <label className="block w-1/2 text-sm text-sub">
-                  {t("주로 이용")}
-                  <select data-block-id="F054" className={`${field} mt-1`} value={rolePref} onChange={(e) => setRolePref(e.target.value)}>
-                    <option value="">{t("선택 안 함")}</option>
+                  {t("역할 (필수)")}
+                  <select data-block-id="F054" required className={`${field} mt-1`} value={rolePref} onChange={(e) => setRolePref(e.target.value)}>
+                    <option value="" disabled>{t("선택해 주세요")}</option>
                     <option value="driver">{t("운전자")}</option>
                     <option value="rider">{t("탑승자")}</option>
-                    <option value="both">{t("둘 다")}</option>
                   </select>
                 </label>
               </div>

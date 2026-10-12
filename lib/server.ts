@@ -134,6 +134,8 @@ export function ensureSchema(): Promise<void> {
         created_at timestamptz not null default now(),
         replied_at timestamptz)`;
       await sql`alter table users add column if not exists role_pref text not null default ''`;
+      // 역할은 운전자·탑승자 둘 중 하나만 쓴다(운전자는 탑승도 하므로 "둘 다"는 운전자로 옮긴다).
+      await sql`update users set role_pref = 'driver' where role_pref = 'both'`;
       // 가입 뒤 희망 선택(복수): carpool · taxi · other. null이면 아직 고르지 않음.
       await sql`alter table users add column if not exists interests text[]`;
       // 이메일 인증 전 임시 가입 정보. 인증 링크를 누를 때 계정을 만든다.

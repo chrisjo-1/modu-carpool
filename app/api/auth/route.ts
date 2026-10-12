@@ -282,7 +282,10 @@ export async function PATCH(req: Request) {
   try {
     await ensureSchema();
     const gender = ["female", "male"].includes(String(b.gender)) ? String(b.gender) : "";
-    const rolePref = ["driver", "rider", "both"].includes(String(b.rolePref)) ? String(b.rolePref) : "";
+    const rolePref = ["driver", "rider"].includes(String(b.rolePref)) ? String(b.rolePref) : "";
+    // 성별과 역할은 필수다.
+    if (!gender) return json({ error: "성별을 선택해 주세요." }, 400);
+    if (!rolePref) return json({ error: "역할(운전자 또는 탑승자)을 선택해 주세요." }, 400);
     await db()`update users set bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType}, gender = ${gender}, role_pref = ${rolePref} where id = ${id}`;
     return json({ user: await profile(id) });
   } catch (e) {
