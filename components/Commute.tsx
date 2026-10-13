@@ -2,45 +2,44 @@
 import { useState } from "react";
 import { dayName } from "@/lib/i18n";
 import { priceAllowedRegular } from "@/lib/time";
-import { SHOW_METER, defaultRoleFor, initialCost, type Place, type Post, type User } from "@/lib/types";
+import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import PlaceField from "./PlaceField";
 import { Segment, Sheet, api, btnGhost, btnPrimary, field, useLang, useT } from "./ui";
 
-/** 비용 선택: 무료 / 미터기 나눔 / 금액 입력(허용될 때만). 한 번짜리 등록과 정기카풀이 함께 쓴다. */
 import { TagPicker } from "./Keywords";
 
+/**
+ * 비용: 출발 시간으로 자동 설정한다. 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시)면 금액 입력(주황색),
+ * 그 밖의 시간이면 무료(초록색). 한 번짜리 등록과 정기카풀이 함께 쓴다.
+ */
 export function CostField({
   cost,
-  setCost,
   price,
   setPrice,
   allowed,
 }: {
-  cost: "free" | "meter" | "fixed";
-  setCost: (c: "free" | "meter" | "fixed") => void;
+  cost: "free" | "fixed";
   price: string;
   setPrice: (p: string) => void;
   allowed: boolean;
 }) {
   const t = useT();
-  const shown = (cost === "fixed" && !allowed) || (cost === "meter" && !SHOW_METER) ? "free" : cost;
-  const options: ["free" | "meter" | "fixed", string][] = [["free", t("무료")]];
-  if (SHOW_METER) options.push(["meter", t("미터기로 비용 나눔")]);
-  if (allowed) options.push(["fixed", t("금액 입력")]);
   return (
     <div className="space-y-3">
-      <Segment label={t("비용")} value={shown} onChange={setCost} options={options} />
-      {shown === "fixed" && (
+      <p className="text-sm text-sub">{t("비용")}</p>
+      <div data-block-id="C298" data-block-name="비용 자동 설정" className={`rounded-xl px-4 py-3 text-[15px] font-semibold ${cost === "fixed" ? "bg-warnSoft text-warn" : "bg-[#E6F7EF] text-[#1E7F55]"}`}>
+        {t(cost === "fixed" ? "금액 입력 · 자동 설정" : "무료 · 자동 설정")}
+      </div>
+      {cost === "fixed" && (
         <>
           <label className="block text-sm text-sub">
-            {t("카풀 비용 (원)")}
+            {t("희망금액(1회)")}
             <input data-block-id="F024" className={`${field} num mt-1`} inputMode="numeric" required maxLength={6} placeholder={t("예: 3000")} value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} />
           </label>
-          <p className="text-[14px] leading-relaxed text-warn">{t("금액은 기름값·통행료 같은 실비를 나누는 범위에서 정해 주세요. 영리 목적의 운송은 법으로 금지되어 있습니다.")}</p>
+          <p className="text-[14px] leading-relaxed text-warn">{t("영리 목적의 운송은 법으로 금지되어 있습니다.")}</p>
         </>
       )}
-      {shown === "meter" && <p className="text-[14px] leading-relaxed text-warn">{t("비용 나눔은 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시) 카풀에서 실비를 나누는 경우에만 허용됩니다.")}</p>}
       {!allowed && <p className="text-[13px] leading-relaxed text-sub">{t("평일 오전 7~9시, 오후 6~8시에 출발하는 출퇴근 카풀만 금액을 적을 수 있어요.")}</p>}
     </div>
   );
@@ -74,8 +73,6 @@ export default function CommuteSheet({
   const [timeGo, setTimeGo] = useState(initial?.timeGo || "07:30");
   const [back, setBack] = useState(initial ? !!initial.timeBack : true);
   const [timeBack, setTimeBack] = useState(initial?.timeBack || "18:30");
-  const [seats, setSeats] = useState(initial?.seats ?? 2);
-  const [cost, setCost] = useState<"free" | "meter" | "fixed">(initialCost(initial?.cost));
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [note, setNote] = useState(initial?.note ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tagIds ?? []);
@@ -85,6 +82,8 @@ export default function CommuteSheet({
   const carOk = !!user?.carNo && !!user?.carPhoto;
 
   const allowed = priceAllowedRegular(days, timeGo, back ? timeBack : "");
+  // 비용은 출발 시간으로 자동 정해진다(시간대 안 = 금액 입력, 밖 = 무료).
+  const cost: "free" | "fixed" = allowed ? "fixed" : "free";
   const toggleDay = (i: number) => setDays((d) => (d.includes(String(i)) ? d.replace(String(i), "") : [...d, String(i)].sort().join("")));
 
   const submit = async (e: React.FormEvent) => {
@@ -102,7 +101,7 @@ export default function CommuteSheet({
       days,
       timeGo,
       timeBack: back ? timeBack : "",
-      seats: role === "driver" ? seats : 1,
+      seats: 1,
       cost: cost === "fixed" && !allowed ? "free" : cost,
       price: Number(price),
       note,
@@ -161,18 +160,10 @@ export default function CommuteSheet({
           {t("퇴근길도 함께")}
         </label>
 
-        {role === "driver" && <div className="flex items-center justify-between">
-          <p className="text-sm text-sub">{t("태울 수 있는 자리")}</p>
-          <div className="flex items-center gap-3">
-            <button type="button" aria-label={t("줄이기")} className="grid h-11 w-11 place-items-center rounded-full bg-bg text-xl" onClick={() => setSeats((s) => Math.max(1, s - 1))}>−</button>
-            <span className="num w-6 text-center text-xl font-bold">{seats}</span>
-            <button type="button" aria-label={t("늘리기")} className="grid h-11 w-11 place-items-center rounded-full bg-bg text-xl" onClick={() => setSeats((s) => Math.min(6, s + 1))}>+</button>
-          </div>
-        </div>}
 
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("비용")}</p>
-          <CostField cost={cost} setCost={setCost} price={price} setPrice={setPrice} allowed={allowed} />
+          <CostField cost={cost} price={price} setPrice={setPrice} allowed={allowed} />
         </div>
         <TagPicker role={role} cost={cost === "fixed" && !allowed ? "free" : cost} value={tags} onChange={setTags} />
 

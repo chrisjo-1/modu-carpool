@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { priceAllowedAt } from "@/lib/time";
-import { defaultRoleFor, initialCost, type Place, type Post, type User } from "@/lib/types";
+import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import { CostField } from "./Commute";
 import { TagPicker } from "./Keywords";
@@ -50,12 +50,10 @@ export default function PostForm({
   const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
   const [kind, setKind] = useState<"commute" | "trip">(initial?.kind ?? "commute");
   const [taxiShare, setTaxiShare] = useState(false);
-  const [cost, setCost] = useState<"free" | "meter" | "fixed">(initialCost(initial?.cost));
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [origin, setOrigin] = useState<Place>(initial ? { name: initial.origin, lat: initial.originLat ?? null, lng: initial.originLng ?? null } : empty);
   const [dest, setDest] = useState<Place>(initial ? { name: initial.dest, lat: initial.destLat ?? null, lng: initial.destLng ?? null } : empty);
   const [at, setAt] = useState(() => (initial ? toLocalInput(initial.departAt) : defaultWhen()));
-  const [seats, setSeats] = useState(initial?.seats ?? 2);
   const [note, setNote] = useState(initial?.note ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tagIds ?? []);
   const [busy, setBusy] = useState(false);
@@ -65,6 +63,8 @@ export default function PostForm({
 
   // 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시) 출발일 때만 금액을 적을 수 있다.
   const allowed = kind === "commute" && priceAllowedAt(new Date(at).getTime());
+  // 비용은 출발 시간으로 자동 정해진다(시간대 안 = 금액 입력, 밖 = 무료).
+  const cost: "free" | "fixed" = allowed ? "fixed" : "free";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,7 +83,7 @@ export default function PostForm({
       destLat: dest.lat,
       destLng: dest.lng,
       departAt: new Date(at).getTime(),
-      seats: role === "driver" ? seats : 1,
+      seats: 1,
       note,
       tags,
       taxiShare: role === "rider" && taxiShare,
@@ -133,20 +133,11 @@ export default function PostForm({
           {t("출발 일시")}
           <input data-block-id="F022" className={`${field} num mt-1`} type="datetime-local" required value={at} onChange={(e) => setAt(e.target.value)} />
         </label>
-        {role === "driver" && <div className="flex items-center justify-between">
-          <p className="text-sm text-sub">{t("태울 수 있는 자리")}</p>
-          <div className="flex items-center gap-3">
-            <button type="button" aria-label={t("줄이기")} className="grid h-11 w-11 place-items-center rounded-full bg-bg text-xl" onClick={() => setSeats((s) => Math.max(1, s - 1))}>−</button>
-            <span className="num w-6 text-center text-xl font-bold">{seats}</span>
-            <button type="button" aria-label={t("늘리기")} className="grid h-11 w-11 place-items-center rounded-full bg-bg text-xl" onClick={() => setSeats((s) => Math.min(6, s + 1))}>+</button>
-          </div>
-        </div>}
       </Card>
 
       <Card className="space-y-3 p-5">
-        <p className="text-sm text-sub">{t("비용")}</p>
         {kind === "commute" ? (
-          <CostField cost={cost} setCost={setCost} price={price} setPrice={setPrice} allowed={allowed} />
+          <CostField cost={cost} price={price} setPrice={setPrice} allowed={allowed} />
         ) : (
           <p className="text-[15px] leading-relaxed text-sub">{t("나들이·관광 카풀은 무료 운행만 등록할 수 있어요.")}</p>
         )}
