@@ -1,5 +1,6 @@
 import { CALL_COST, acceptCall, callDrivers, callerReady, getCallRadiusKm, incomingCall } from "@/lib/call";
 import { contactLabel } from "@/lib/types";
+import { PHOTO_REQUIRED, hasPhoto } from "@/lib/verify";
 import { body, currentUserId, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
   const b = await body(req);
   try {
     await ensureSchema();
+    if (!(await hasPhoto(me))) return json({ error: PHOTO_REQUIRED }, 403);
     if (b.action === "accept") {
       if (!isUuid(b.callId)) return json({ error: "잘못된 요청입니다." }, 400);
       const r = await acceptCall(me, String(b.callId));

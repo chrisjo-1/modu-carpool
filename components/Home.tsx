@@ -194,7 +194,7 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
                   <KeywordChips post={p} max={4} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
                     <span className="num">{scheduleText(p, lang)}{far(p) != null && <b className="ml-1.5 font-semibold text-accent">· {kmText(far(p) as number)}</b>}</span>
-                    <span className="flex items-center gap-1.5"><RoleTag role={p.role} />{p.owner}{p.role === "driver" && <> · {t("남은 자리")} {p.seats}</>}</span>
+                    <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} role={p.role} size={28} />{p.owner}{p.role === "driver" && <> · {t("남은 자리")} {p.seats}</>}</span>
                   </div>
                 </Card>
               </button>
@@ -285,7 +285,7 @@ export function PostDetail({
           <div className="flex justify-between"><dt className="text-sub">{t("출발")}</dt><dd className="num font-semibold">{when(post.departAt, lang)}</dd></div>
           {post.cost === "fixed" && <div className="flex justify-between"><dt className="text-sub">{t("카풀 비용")}</dt><dd className="num font-semibold text-warn">{money(post.price ?? 0, lang)}</dd></div>}
           {post.role === "driver" && <div className="flex justify-between"><dt className="text-sub">{t("남은 자리")}</dt><dd className="num font-semibold">{post.seats}</dd></div>}
-          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><RoleTag role={post.role} />{post.owner}</button> : <span className="flex items-center gap-2 font-semibold"><RoleTag role={post.role} />{post.owner}</span>}</dd></div>
+          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}</button> : <span className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}</span>}</dd></div>
         </dl>
         {post.originLat != null && post.originLng != null && (
           <a data-block-id="B014" data-block-name="출발 위치 지도" href={`https://map.kakao.com/link/map/${encodeURIComponent(post.origin)},${post.originLat},${post.originLng}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl bg-bg px-4 text-[15px] font-semibold text-ink">
@@ -320,7 +320,7 @@ export function PostDetail({
             {incoming.map((th) => (
               <div key={th.id} className="space-y-2 rounded-2xl border border-line p-4">
                 <div className="flex items-center justify-between">
-                  <button className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => th.otherId && onProfile(th.otherId)}><RoleTag role={th.otherRole} />{th.other}</button>
+                  <button className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => th.otherId && onProfile(th.otherId)}><Avatar src={th.otherPhoto} name={th.other} role={th.otherRole} size={28} />{th.other}</button>
                   <span className="flex items-center gap-2">
                     {th.otherId && <button className="min-h-0 text-[13px] text-sub underline" disabled={busy} onClick={() => onBlock(th.otherId as string, th.other)}>{t("차단")}</button>}
                     <Tag tone={th.status === "accepted" ? "accent" : "plain"}>{statusText[th.status]}</Tag>

@@ -3,7 +3,7 @@ import { notifyTaxi } from "@/lib/taxi";
 import { notifyDrivers } from "@/lib/drivers";
 import { CAR_REQUIRED, carReady } from "@/lib/car";
 import { grant } from "@/lib/credits";
-import { isVerified } from "@/lib/verify";
+import { PHOTO_REQUIRED, hasPhoto, isVerified } from "@/lib/verify";
 import { allowedTags, getKeywords, tagLabels } from "@/lib/keywords";
 import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { samplePosts } from "@/lib/sample";
@@ -128,6 +128,7 @@ export async function POST(req: Request) {
   try {
     await ensureSchema();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 글을 올릴 수 있어요. 메일함을 확인해 주세요." }, 403);
+    if (!(await hasPhoto(me))) return json({ error: PHOTO_REQUIRED }, 403);
     const sql = db();
     if (v.role === "driver" && !(await carReady(me))) return json({ error: CAR_REQUIRED }, 403);
     const open = await sql`select count(*)::int as n from posts where user_id = ${me} and status = 'open' and not regular and depart_at > now()`;
@@ -174,6 +175,7 @@ export async function PUT(req: Request) {
   try {
     await ensureSchema();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 글을 올릴 수 있어요. 메일함을 확인해 주세요." }, 403);
+    if (!(await hasPhoto(me))) return json({ error: PHOTO_REQUIRED }, 403);
     const sql = db();
     if (role === "driver" && !(await carReady(me))) return json({ error: CAR_REQUIRED }, 403);
     const updated = await sql`

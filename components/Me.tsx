@@ -102,6 +102,7 @@ export default function Me({
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
   const [mineOpen, setMineOpen] = useState(false);
+  const [zoom, setZoom] = useState(false);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
   const file = useRef<HTMLInputElement>(null);
   const regular = mine.find((p) => p.regular) ?? null;
@@ -188,6 +189,14 @@ export default function Me({
         <h1 className="text-[28px] font-bold">{t("내 정보")}</h1>
       </header>
 
+      {zoom && user?.photo && (
+        <div role="dialog" aria-label={t("프로필 사진")} data-block-id="C097" data-block-name="프로필 사진 확대" className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" onClick={() => setZoom(false)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={user.photo} alt="" className="max-h-[85vh] max-w-full rounded-2xl object-contain" />
+          <button type="button" data-block-id="B293" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-[14px] font-semibold text-ink" onClick={() => setZoom(false)}>{t("닫기")}</button>
+        </div>
+      )}
+
       {user && <CreditCard toast={toast} version={version} />}
       {user && (
         <button data-block-id="B061" data-block-name="공지사항" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left font-semibold shadow-card" onClick={() => setNoticesOpen(true)}>
@@ -216,8 +225,16 @@ export default function Me({
         <Card data-block-id="C040" data-block-name="계정" className="p-5">
           {user ? (
             <form onSubmit={saveProfile} className="space-y-3">
-              <div data-block-id="C042" data-block-name="프로필 사진" className="flex items-center gap-4">
-                <Avatar src={user.photo} name={user.name} size={72} />
+              <div data-block-id="C042" data-block-name="프로필 사진" className="space-y-3">
+                {!user.photo && (
+                  <p data-block-id="C096" data-block-name="사진 등록 안내" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-[#7C2D12]">
+                    {t("카풀을 올리거나 신청·호출하려면 프로필 사진이 필요해요. 본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.")}
+                  </p>
+                )}
+                <div className="flex items-center gap-4">
+                <button type="button" data-block-id="B294" data-block-name="프로필 사진 크게 보기" disabled={!user.photo} onClick={() => setZoom(true)} className="min-h-0 shrink-0 rounded-full disabled:cursor-default">
+                  <Avatar src={user.photo} name={user.name} size={72} />
+                </button>
                 <div className="min-w-0 space-y-1">
                   <p className="break-all text-sm text-sub">{user.email}</p>
                   <div className="flex flex-wrap gap-x-4">
@@ -225,6 +242,7 @@ export default function Me({
                     {user.photo && <button type="button" data-block-id="B045" data-block-name="사진 삭제" disabled={busy} className="min-h-0 py-1 text-[15px] text-sub underline" onClick={() => savePhoto("")}>{t("사진 삭제")}</button>}
                   </div>
                   <input ref={file} data-block-id="F046" type="file" accept="image/*" className="hidden" aria-label={t("프로필 사진")} onChange={pickPhoto} />
+                </div>
                 </div>
               </div>
               <div data-block-id="C055" data-block-name="내 고유코드" className="space-y-1 text-sm text-sub">

@@ -29,14 +29,27 @@ export function scheduleText(p: { regular?: boolean; days?: string; timeGo?: str
   return `${dayLabel(lang, p.days ?? "")} ${p.timeGo ?? ""} ${dep}${p.timeBack ? ` / ${p.timeBack} ${dep}` : ""}`;
 }
 
-/** 프로필 사진. 없으면 닉네임 첫 글자를 보여준다. */
-export function Avatar({ src, name, size = 40 }: { src?: string; name: string; size?: number }) {
-  const style = { width: size, height: size, fontSize: Math.round(size * 0.42) };
-  return src ? (
+const PLACEHOLDER_BG = ["#DCE8FF", "#D9F5EA", "#FFF1D6", "#F3E1FF", "#FFE1E1", "#E0F4FF"];
+
+/** 사진을 등록하지 않은 회원에게 보여 줄 임의의 기본 이미지(이름마다 고정된 색의 실루엣). */
+function placeholderSrc(name: string) {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const bg = PLACEHOLDER_BG[h % PLACEHOLDER_BG.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${bg}"/><circle cx="50" cy="40" r="18" fill="#ffffff" opacity="0.9"/><ellipse cx="50" cy="92" rx="32" ry="24" fill="#ffffff" opacity="0.9"/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * 프로필 사진. 운전자는 네모(둥근 사각형), 탑승자는 동그라미로 보여 구분한다.
+ * 사진이 없으면 임의의 기본 이미지를 쓴다.
+ */
+export function Avatar({ src, name, size = 40, role }: { src?: string; name: string; size?: number; role?: string }) {
+  const style = { width: size, height: size };
+  const shape = role === "driver" ? "rounded-2xl" : "rounded-full";
+  return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt="" loading="lazy" style={style} className="shrink-0 rounded-full border border-line object-cover" />
-  ) : (
-    <span aria-hidden style={style} className="grid shrink-0 place-items-center rounded-full bg-accentSoft font-semibold text-accent">{[...name][0] ?? "?"}</span>
+    <img src={src || placeholderSrc(name)} alt="" loading="lazy" style={style} className={`shrink-0 border border-line object-cover ${shape}`} />
   );
 }
 

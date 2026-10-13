@@ -74,7 +74,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, openPo
         <Card className="divide-y divide-line">
           {threads.map((th) => (
             <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status === "declined" || (th.status === "pending" && !th.iAmOwner)} onClick={() => (th.status === "accepted" ? openChat(th) : openPost(th.postId))} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
-              <RoleTag role={th.otherRole} />
+              <Avatar src={th.otherPhoto} name={th.other} role={th.otherRole} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-baseline justify-between gap-2">
                   <span className="truncate font-semibold">{th.other} <span className="font-normal text-sub">· {th.origin} → {th.dest}</span></span>
@@ -240,7 +240,7 @@ export function ChatRoom({
         {thread.otherId && (
           <div className="flex items-center justify-between gap-3">
             <button data-block-id="B032" data-block-name="상대 프로필" className="flex min-h-0 min-w-0 items-center gap-2 font-semibold" onClick={() => onProfile(thread.otherId as string)}>
-              <RoleTag role={thread.otherRole} />
+              <Avatar src={thread.otherPhoto} name={thread.other} role={thread.otherRole} size={32} />
               <span className="truncate underline decoration-line underline-offset-4">{thread.other}</span>
             </button>
             <span className="flex shrink-0 gap-3 text-[14px]">

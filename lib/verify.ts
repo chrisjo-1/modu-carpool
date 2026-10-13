@@ -32,3 +32,11 @@ export async function isVerified(userId: string) {
   const r = await db()`select email_verified from users where id = ${userId}`;
   return !!r[0]?.email_verified;
 }
+
+/** 카풀 게시·신청·호출 같은 액션 앞에서 프로필 사진 등록 여부 확인(가입은 사진 없이 가능) */
+export async function hasPhoto(userId: string) {
+  const r = await db()`select photo_v from users where id = ${userId}`;
+  return Number(r[0]?.photo_v) > 0;
+}
+
+export const PHOTO_REQUIRED = "카풀을 올리거나 신청·호출하려면 프로필 사진을 먼저 등록해 주세요. 본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.";
