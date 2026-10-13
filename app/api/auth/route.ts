@@ -49,11 +49,10 @@ export async function POST(req: Request) {
       // 닉네임은 가입 때 묻지 않는다. 입력이 있으면 쓰고, 없으면 이메일 앞부분으로 정한다(내 정보에서 바꿀 수 있다).
       const name = text(b.name, 20) || defaultNickname(email);
       if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
-      // 위치 권한 허용은 모든 가입자에게 필수다(주변 CALL과 위치 기반 알림에 쓴다).
-      const la = Math.round(Number(b.lat) * 1e4) / 1e4;
-      const ln = Math.round(Number(b.lng) * 1e4) / 1e4;
-      if (b.lat == null || b.lng == null || !Number.isFinite(la) || !Number.isFinite(ln) || Math.abs(la) > 90 || Math.abs(ln) > 180)
-        return json({ error: "위치 권한을 허용해야 가입할 수 있어요. 브라우저의 위치 권한을 허용하고 다시 시도해 주세요." }, 400);
+      // 가입 때 위치는 받지 않는다. 위치가 필요한 기능(CALL, 운전자 글)을 쓸 때 권한을 요청한다.
+      const la = b.lat == null || b.lng == null ? null : Math.round(Number(b.lat) * 1e4) / 1e4;
+      const ln = b.lat == null || b.lng == null ? null : Math.round(Number(b.lng) * 1e4) / 1e4;
+      const locOk = la != null && ln != null && Number.isFinite(la) && Number.isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180;
       const exists = await sql`select 1 from users where email = ${email}`;
       if (exists.length) return json({ error: "이미 가입된 이메일입니다." }, 409);
       // 인증 메일은 1분에 한 번만 다시 보낸다.
@@ -66,7 +65,7 @@ export async function POST(req: Request) {
       const mkt = b.marketing === true;
       // 이메일 인증을 마치기 전에는 계정을 만들지 않는다. 임시 가입 정보만 둔다.
       await sql`insert into pending_signups (email, pw, name, notify, marketing, token_hash, ip, expires_at, loc_lat, loc_lng)
-        values (${email}, ${hash}, ${name}, ${b.notify !== false}, ${mkt}, ${hashToken(token)}, ${ip}, now() + interval '24 hours', ${la}, ${ln})
+        values (${email}, ${hash}, ${name}, ${b.notify !== false}, ${mkt}, ${hashToken(token)}, ${ip}, now() + interval '24 hours', ${locOk ? la : null}, ${locOk ? ln : null})
         on conflict (email) do update set pw = excluded.pw, name = excluded.name, notify = excluded.notify, marketing = excluded.marketing,
           token_hash = excluded.token_hash, ip = excluded.ip, created_at = now(), expires_at = excluded.expires_at,
           loc_lat = excluded.loc_lat, loc_lng = excluded.loc_lng`;

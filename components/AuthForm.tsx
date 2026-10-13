@@ -7,17 +7,6 @@ import { Segment, Sheet, api, btnPrimary, field, useLang, useT } from "./ui";
 
 export const EMAIL_KEY = "modu.email";
 
-/** 현재 위치를 받는다. 권한이 없거나 실패하면 null. (가입 때 위치 권한은 필수다) */
-function currentHere() {
-  return new Promise<{ lat: number; lng: number } | null>((resolve) => {
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return resolve(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve(null),
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
-    );
-  });
-}
 
 export type Agree = { terms: boolean; privacy: boolean; marketing: boolean };
 
@@ -99,11 +88,8 @@ export default function AuthForm({
     // 알림 권한 창은 버튼을 누른 그 순간에 띄워야 하는 브라우저가 있어 먼저 요청한다.
     const perm = canPush && wantPush && typeof Notification !== "undefined" ? Notification.requestPermission().catch(() => "default" as NotificationPermission) : null;
     if (mode === "signup" && !(agree.terms && agree.privacy)) return toast(t("이용약관과 개인정보 수집·이용에 동의해 주세요."));
-    // 가입은 위치 권한 허용이 필수다. 허용하지 않으면 가입을 진행하지 않는다.
-    const loc = mode === "signup" ? await currentHere() : null;
-    if (mode === "signup" && !loc) return toast(t("위치 권한을 허용해야 가입할 수 있어요."));
     setBusy(true);
-    const r = await api<{ user: User; credit?: number; verify?: string }>("/api/auth", "POST", { action: mode, email, password, notify: mode === "signup" ? true : undefined, ...(mode === "signup" ? agree : {}), ...(loc ? { lat: loc.lat, lng: loc.lng } : {}) });
+    const r = await api<{ user: User; credit?: number; verify?: string }>("/api/auth", "POST", { action: mode, email, password, notify: mode === "signup" ? true : undefined, ...(mode === "signup" ? agree : {}) });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setPassword("");
@@ -171,7 +157,6 @@ export default function AuthForm({
           {check(remember, setRemember, t("이 기기에서 이메일 기억하기"), "F047")}
         </div>
         {mode === "signup" && <Consent value={agree} onChange={setAgree} />}
-        {mode === "signup" && <p className="text-[13px] leading-relaxed text-sub">{t("가입하려면 위치 권한을 허용해 주세요. 주변 CALL 호출과 위치 기반 알림에 쓰여요.")}</p>}
         {mode === "signup" && pending && <p data-block-id="C061" data-block-name="인증 메일 안내" role="status" className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">{t("인증 메일을 보냈어요. 메일함에서 인증 링크를 눌러 가입을 마쳐 주세요.")}<br /><span className="font-semibold">{pending}</span></p>}
         <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
         {mode === "login" && (

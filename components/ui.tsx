@@ -67,6 +67,21 @@ export async function api<T = Record<string, unknown>>(url: string, method = "GE
   }
 }
 
+/**
+ * 현재 위치를 받는다. 권한이 없거나 실패하면 null.
+ * 위치가 필요한 동작(CALL, 운전자 글 올리기)을 할 때만 부른다.
+ */
+export function currentHere() {
+  return new Promise<{ lat: number; lng: number } | null>((resolve) => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    );
+  });
+}
+
 const base = {
   width: 24,
   height: 24,

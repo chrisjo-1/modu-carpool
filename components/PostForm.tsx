@@ -6,7 +6,7 @@ import CarGateSheet from "./CarGate";
 import { CostField } from "./Commute";
 import { TagPicker } from "./Keywords";
 import PlaceField from "./PlaceField";
-import { Card, Segment, api, btnPrimary, field, useT } from "./ui";
+import { Card, Segment, api, btnPrimary, currentHere, field, useT } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
 function toLocalInput(ms: number) {
@@ -69,6 +69,12 @@ export default function PostForm({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (role === "driver" && !carOk) return setCarGate(true);
+    // 운전자 글은 위치 권한을 허용해야 올릴 수 있다. 권한을 요청하고, 받은 위치를 서버에 기록한다.
+    if (role === "driver") {
+      const here = await currentHere();
+      if (!here) return toast(t("운전자는 위치 권한을 허용해야 글을 올릴 수 있어요."));
+      void api("/api/location", "POST", { lat: here.lat, lng: here.lng });
+    }
     setBusy(true);
     const r = await api<{ id?: string; credit?: number }>("/api/posts", initial ? "PATCH" : "POST", {
       id: initial?.id,
