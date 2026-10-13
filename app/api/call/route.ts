@@ -1,4 +1,4 @@
-import { CALL_COST, acceptCall, callDrivers, callerReady, getCallRadiusKm, incomingCall } from "@/lib/call";
+import { CALL_COST, acceptCall, callDrivers, callStatus, callerReady, getCallRadiusKm, incomingCall } from "@/lib/call";
 import { contactLabel } from "@/lib/types";
 import { PHOTO_REQUIRED, hasPhoto } from "@/lib/verify";
 import { body, currentUserId, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
@@ -19,7 +19,8 @@ export async function GET(req: Request) {
       return json(c);
     }
     const ready = me ? await callerReady(me) : { ready: false, type: "" };
-    return json({ radiusKm: await getCallRadiusKm(), cost: CALL_COST, ready: ready.ready, contactType: contactLabel(ready.type) });
+    const today = me ? await callStatus(me) : null;
+    return json({ radiusKm: await getCallRadiusKm(), cost: CALL_COST, ready: ready.ready, contactType: contactLabel(ready.type), callsLeft: today?.left ?? null, callsLimit: today?.limit ?? null });
   } catch (e) {
     return fail(e);
   }

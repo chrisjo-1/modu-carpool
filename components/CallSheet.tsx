@@ -38,14 +38,19 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
   const [ready, setReady] = useState<boolean | null>(null);
   const [contactType, setContactType] = useState("");
   const [busy, setBusy] = useState(false);
+  const [callsLeft, setCallsLeft] = useState<number | null>(null);
+  const [callsLimit, setCallsLimit] = useState<number | null>(null);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    api<{ radiusKm: number; cost: number; ready: boolean; contactType: string }>("/api/call").then((r) => {
+    api<{ radiusKm: number; cost: number; ready: boolean; contactType: string; callsLeft: number | null; callsLimit: number | null }>("/api/call").then((r) => {
       if (!r.ok) return;
       setRadius(r.data.radiusKm);
       setCost(r.data.cost);
       setReady(r.data.ready);
       setContactType(r.data.contactType);
+      setCallsLeft(r.data.callsLeft);
+      setCallsLimit(r.data.callsLimit);
     });
   }, []);
 
@@ -94,7 +99,12 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
     if (!here) return setBusy(false);
     const r = await api<{ notified: number; radiusKm: number }>("/api/call", "POST", { postId: picked.id, lat: here.lat, lng: here.lng });
     setBusy(false);
-    if (!r.ok) return toast(t(r.error));
+    if (!r.ok) {
+      setErr(t(r.error));
+      return toast(t(r.error));
+    }
+    setErr("");
+    if (callsLeft !== null) setCallsLeft(Math.max(0, callsLeft - 1));
     const who = r.data.notified > 0 ? `${t("운전자")} ${r.data.notified.toLocaleString("ko-KR")}${t("명에게 알림을 보냈어요.")}` : t("반경 안에 알릴 운전자가 없어요.");
     toast(`${who} -${cost.toLocaleString("ko-KR")} ${t("크레딧")}`);
     onClose();
@@ -106,7 +116,9 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
         <div className="space-y-3">
           <button type="button" data-block-id="B218" data-block-name="택시 호출" className={btnGhost} onClick={taxi}>{t("택시 호출")}</button>
           {ready === false && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("CALL을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요.")}</p>}
-          <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnPrimary} disabled={ready === false} onClick={pickStep}>{t("주변 운전자 호출")}</button>
+          {callsLeft !== null && callsLimit !== null && <p className="text-[14px] text-sub">{t("오늘 남은 CALL")} {callsLeft}/{callsLimit}</p>}
+          {callsLeft === 0 && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("오늘 CALL 횟수를 모두 썼어요. 내일 다시 이용해 주세요.")}</p>}
+          <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnPrimary} disabled={ready === false || callsLeft === 0} onClick={pickStep}>{t("주변 운전자 호출")}</button>
         </div>
       )}
       {step === "pick" && (
@@ -143,7 +155,8 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
             <p className="text-sm text-sub">{t("응답하는 운전자가 없어도 크레딧은 환불되지 않아요.")}</p>
             <p className="text-sm text-sub">{t("수락한 운전자에게 내 연락 방법과 아이디가 보여요.")} ({contactType})</p>
           </Card>
-          <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnPrimary} disabled={busy} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost.toLocaleString("ko-KR")} ${t("크레딧")})`}</button>
+          {err && <p role="alert" className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{err}</p>}
+          <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnPrimary} disabled={busy || callsLeft === 0} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost.toLocaleString("ko-KR")} ${t("크레딧")})`}</button>
           <button type="button" className={btnGhost} onClick={() => setStep("pick")}>{t("뒤로")}</button>
         </div>
       )}

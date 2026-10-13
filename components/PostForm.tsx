@@ -108,6 +108,7 @@ export default function PostForm({
           <p className="text-sm text-sub">{t("나는")}</p>
           <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
           <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : t("탑승자: 같이 탈 차를 찾는 글이에요.")}</p>
+          {role === "driver" && <p className="text-[13px] leading-relaxed text-sub">{t("운전자는 위치 권한을 허용해야 주변 CALL 알림을 받을 수 있어요.")}</p>}
         </div>
         {role === "rider" && !initial && (
           <label data-block-id="F025" data-block-name="택시 동승 찾기" className="flex cursor-pointer items-start gap-3 rounded-xl bg-bg p-3">

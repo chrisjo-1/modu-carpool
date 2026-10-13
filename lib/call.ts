@@ -3,11 +3,34 @@ import { sendPush, pushText } from "./push";
 import { adjust, spend } from "./credits";
 import { contactLabel } from "./types";
 import { boundingBox } from "./radius";
+import { REASON_LABEL, getRules } from "./credits";
 
-export const DEFAULT_CALL_RADIUS_KM = 2;
+export const DEFAULT_CALL_RADIUS_KM = 5;
 export const CALL_COST = 1000;
+/** 하루(한국 시간 기준) CALL 횟수 */
+export const DAILY_CALL_LIMIT = 2;
 /** 회원이 앱을 열 때 기록한 위치를 쓸 수 있는 시간(분). 이보다 오래된 위치의 운전자는 찾지 않는다. */
-export const LOCATION_FRESH_MIN = 30;
+export const LOCATION_FRESH_MIN = 60;
+
+/** 오늘 남은 CALL 횟수 (한국 시간 자정 기준) */
+export async function callStatus(me: string) {
+  const rows = await db()`select count(*)::int as n from calls
+    where caller = ${me} and created_at >= date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul'`;
+  const used = Number(rows[0]?.n ?? 0);
+  return { used, left: Math.max(0, DAILY_CALL_LIMIT - used), limit: DAILY_CALL_LIMIT };
+}
+
+/** 크레딧이 모자랄 때 채우는 방법 안내. 적립 기준은 관리자가 바꿀 수 있어서 현재 값으로 만든다. */
+async function chargeGuide(): Promise<string> {
+  const r = await getRules();
+  const parts = [
+    `${REASON_LABEL.attend} 하루 ${r.attend.toLocaleString("ko-KR")}`,
+    `${REASON_LABEL.post} 하루 1회 ${r.post.toLocaleString("ko-KR")}`,
+    `${REASON_LABEL.car} ${r.car.toLocaleString("ko-KR")}`,
+    `${REASON_LABEL.nudge} ${r.nudge.toLocaleString("ko-KR")}`,
+  ];
+  return `크레딧은 ${parts.join(" · ")}으로 채울 수 있어요. 내 정보에서 확인해 보세요.`;
+}
 
 /** 회원의 현재 위치를 기록한다. 소수점 넷째 자리(약 11m)까지만 저장한다. */
 export async function saveLocation(me: string, lat: number, lng: number) {
@@ -36,7 +59,7 @@ export async function callerReady(me: string) {
 /**
  * CALL: 연락 방법이 등록된 회원이 내 글 하나를 골라 1,000 크레딧을 쓰면,
  * 같은 글을 지금 시간으로 다시 올리고, 호출하는 순간 내 현재 위치(lat, lng) 반경 안에서
- * 최근 30분 안에 위치를 갱신한 운전자에게 알린다. 거리 계산과 대상 선정은 모두 서버에서 한다.
+ * 최근 1시간 안에 위치를 갱신한 운전자에게 알린다. 거리 계산과 대상 선정은 모두 서버에서 한다.
  * 응답하는 운전자가 없어도 크레딧은 환불되지 않는다. (글을 다시 올리지 못한 기술 오류만 환불)
  */
 export async function callDrivers(me: string, postId: string, lat: number, lng: number) {
@@ -50,10 +73,15 @@ export async function callDrivers(me: string, postId: string, lat: number, lng: 
   if (!mine.length) return { error: "내가 올린 글만 호출할 수 있어요." } as const;
   const p = mine[0];
   if (p.status !== "open") return { error: "진행 중이거나 닫힌 글은 호출할 수 없어요." } as const;
+  const st = await callStatus(me);
+  if (st.left <= 0) return { error: `오늘 CALL은 ${DAILY_CALL_LIMIT}번까지 쓸 수 있어요. 내일 다시 이용해 주세요.` } as const;
   const radiusKm = await getCallRadiusKm();
   const box = boundingBox(lat, lng, radiusKm);
   const paid = await spend(me, CALL_COST, "call", `글 ${postId.slice(0, 8)}`);
-  if (!paid) return { error: `크레딧이 부족해요. CALL에는 ${CALL_COST.toLocaleString("ko-KR")} 크레딧이 필요해요.` } as const;
+  if (!paid) {
+    const guide = await chargeGuide();
+    return { error: `크레딧이 부족해요. CALL에는 ${CALL_COST.toLocaleString("ko-KR")} 크레딧이 필요해요. ${guide}` } as const;
+  }
   const copied = await sql`insert into posts (user_id, role, kind, cost, origin, dest, depart_at, seats, note, status, origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share)
     select user_id, role, 'trip', cost, origin, dest, now(), seats, note, 'open', origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share
     from posts where id = ${postId} and user_id = ${me} returning id`;
@@ -63,7 +91,7 @@ export async function callDrivers(me: string, postId: string, lat: number, lng: 
   }
   const call = await sql`insert into calls (caller, post_id, radius_km, caller_lat, caller_lng) values (${me}, ${String(copied[0].id)}, ${radiusKm}, ${lat}, ${lng}) returning id`;
   const callId = String(call[0].id);
-  // 대상: 호출자 현위치 반경 안, 최근 30분 안에 위치를 갱신한 차량 등록 운전자.
+  // 대상: 호출자 현위치 반경 안, 최근 1시간 안에 위치를 갱신한 차량 등록 운전자.
   // 차단한 사이, 관리자 차단, 테스트 회원, 알림을 끈 회원은 뺀다.
   const drivers = await sql`
     select u.id as user_id from users u
