@@ -153,6 +153,9 @@ export function ensureSchema(): Promise<void> {
       // 가입 때 받은 현재 위치(위치 권한 허용 필수). 인증이 끝나면 회원의 위치로 옮긴다.
       await sql`alter table pending_signups add column if not exists loc_lat double precision`;
       await sql`alter table pending_signups add column if not exists loc_lng double precision`;
+      // 가입하게 된 경로(기존 회원 소개·검색·지인 추천·기타). 기존 회원은 비어 있다.
+      await sql`alter table pending_signups add column if not exists join_source text not null default ''`;
+      await sql`alter table users add column if not exists join_source text not null default ''`;
       // 탑승자가 '택시 동승도 찾기'를 체크한 글
       await sql`alter table posts add column if not exists taxi_share boolean not null default false`;
       await sql`alter table posts add column if not exists demo boolean not null default false`;

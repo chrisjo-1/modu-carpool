@@ -6,7 +6,7 @@ import { finishVerify, startVerify } from "@/lib/verify";
 import { sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
 import { sendResetMail, siteUrl } from "@/lib/mail";
-import { CONTACT_TYPES } from "@/lib/types";
+import { CONTACT_TYPES, JOIN_SOURCES } from "@/lib/types";
 import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +49,8 @@ export async function POST(req: Request) {
       // 닉네임은 가입 때 묻지 않는다. 입력이 있으면 쓰고, 없으면 이메일 앞부분으로 정한다(내 정보에서 바꿀 수 있다).
       const name = text(b.name, 20) || defaultNickname(email);
       if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
+      const joinSource = JOIN_SOURCES.some(([k]) => k === b.joinSource) ? String(b.joinSource) : "";
+      if (!joinSource) return json({ error: "가입 경로를 골라 주세요." }, 400);
       // 가입 때 위치는 받지 않는다. 위치가 필요한 기능(CALL, 운전자 글)을 쓸 때 권한을 요청한다.
       const la = b.lat == null || b.lng == null ? null : Math.round(Number(b.lat) * 1e4) / 1e4;
       const ln = b.lat == null || b.lng == null ? null : Math.round(Number(b.lng) * 1e4) / 1e4;
@@ -64,11 +66,11 @@ export async function POST(req: Request) {
       const token = randomBytes(32).toString("hex");
       const mkt = b.marketing === true;
       // 이메일 인증을 마치기 전에는 계정을 만들지 않는다. 임시 가입 정보만 둔다.
-      await sql`insert into pending_signups (email, pw, name, notify, marketing, token_hash, ip, expires_at, loc_lat, loc_lng)
-        values (${email}, ${hash}, ${name}, ${b.notify !== false}, ${mkt}, ${hashToken(token)}, ${ip}, now() + interval '24 hours', ${locOk ? la : null}, ${locOk ? ln : null})
+      await sql`insert into pending_signups (email, pw, name, notify, marketing, token_hash, ip, expires_at, loc_lat, loc_lng, join_source)
+        values (${email}, ${hash}, ${name}, ${b.notify !== false}, ${mkt}, ${hashToken(token)}, ${ip}, now() + interval '24 hours', ${locOk ? la : null}, ${locOk ? ln : null}, ${joinSource})
         on conflict (email) do update set pw = excluded.pw, name = excluded.name, notify = excluded.notify, marketing = excluded.marketing,
           token_hash = excluded.token_hash, ip = excluded.ip, created_at = now(), expires_at = excluded.expires_at,
-          loc_lat = excluded.loc_lat, loc_lng = excluded.loc_lng`;
+          loc_lat = excluded.loc_lat, loc_lng = excluded.loc_lng, join_source = excluded.join_source`;
       const sent = await sendVerifyMail(email, `${siteUrl()}/?verify=${token}`).catch(() => false);
       if (!sent) {
         await sql`delete from pending_signups where email = ${email}`;
@@ -106,7 +108,7 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   if (!/^[a-f0-9]{64}$/.test(token)) return null;
   const sql = db();
   const rows = await sql`delete from pending_signups where token_hash = ${hashToken(token)} and expires_at > now()
-    returning email, pw, name, notify, marketing, loc_lat, loc_lng`;
+    returning email, pw, name, notify, marketing, loc_lat, loc_lng, join_source`;
   if (!rows.length) return null;
   const p = rows[0];
   const email = String(p.email);
@@ -118,9 +120,9 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   for (let i = 0; i < 10 && !ins; i++) {
     const code = makeMemberCode();
     try {
-      ins = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at, member_code, loc_lat, loc_lng, loc_at)
+      ins = await sql`insert into users (email, pw, name, notify, email_verified, terms_at, marketing, marketing_at, member_code, loc_lat, loc_lng, loc_at, join_source)
         values (${email}, ${String(p.pw)}, ${code}, ${p.notify === true}, true, now(), ${mkt}, ${mkt ? new Date().toISOString() : null}, ${code},
-          ${p.loc_lat == null ? null : Number(p.loc_lat)}, ${p.loc_lng == null ? null : Number(p.loc_lng)}, ${p.loc_lat == null ? null : new Date().toISOString()}) returning id`;
+          ${p.loc_lat == null ? null : Number(p.loc_lat)}, ${p.loc_lng == null ? null : Number(p.loc_lng)}, ${p.loc_lat == null ? null : new Date().toISOString()}, ${String(p.join_source ?? "")}) returning id`;
     } catch (e) {
       if (!isUniqueViolation(e)) throw e;
     }

@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import ReportChat from "@/components/admin/ReportChat";
+import { JOIN_SOURCES } from "@/lib/types";
 
 /** 마지막 접속을 '방금·n분 전·n시간 전'으로 */
 const lastSeenText = (ms: number) => {
@@ -28,10 +29,11 @@ const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
   id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number;
-  bio: string; contact: string; contact_type: string; gender: string; role_pref: string; car_no: string; car_v: number; photo: string; carPhoto: string;
+  bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
 };
 const ROLE_LABEL: Record<string, string> = { driver: "운전자", rider: "탑승자", "": "미입력" };
+const JOIN_LABEL: Record<string, string> = Object.fromEntries(JOIN_SOURCES);
 const GENDER_LABEL: Record<string, string> = { female: "여", male: "남", "": "미입력" };
 type Flag = { id: string; reason: string; detail: string; status?: string; created_at: number; target_id: string; target_name: string; target_email: string; target_blocked: boolean };
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
@@ -269,6 +271,7 @@ export default function Admin() {
                 <dl className="col-span-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 self-start">
                   <dt className="text-sub">최근 접속</dt><dd>{member.lastSeen ? lastSeenText(member.lastSeen) : "없음"}</dd>
                   <dt className="text-sub">희망 역할</dt><dd>{ROLE_LABEL[member.role_pref] ?? "미입력"}</dd>
+                  <dt className="text-sub">가입 경로</dt><dd>{JOIN_LABEL[member.join_source] ?? "미입력"}</dd>
                   <dt className="text-sub">글 기준</dt><dd>운전자 글 {member.driver_posts} · 탑승자 글 {member.rider_posts}</dd>
                   <dt className="text-sub">성별</dt><dd>{GENDER_LABEL[member.gender] ?? "미입력"}</dd>
                   <dt className="text-sub">차량번호</dt><dd>{member.car_no || "미등록"}</dd>
