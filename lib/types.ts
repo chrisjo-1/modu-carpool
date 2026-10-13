@@ -113,6 +113,12 @@ export type Place = { name: string; lat: number | null; lng: number | null };
 
 export const METER_URL = process.env.NEXT_PUBLIC_METER_URL || "https://moca-meter.vercel.app";
 
+/** 미터기 기능 노출 여부. 현재 버전에서는 숨김(true로 바꾸면 비용 선택과 미터기 링크가 다시 나타난다). */
+export const SHOW_METER = false;
+
+/** 숨긴 미터기 선택은 무료로 본다(기존 미터기 게시물도 같은 방식으로 표시). */
+export const initialCost = (c?: "free" | "meter" | "fixed"): "free" | "meter" | "fixed" => (c === "meter" && !SHOW_METER ? "free" : c ?? "free");
+
 /** 기본 역할: 차량 번호와 차량 사진을 모두 등록한 회원은 운전자, 아직 등록하지 않았다면 탑승자 */
 export const defaultRoleFor = (u: { carNo?: string; carPhoto?: string } | null | undefined): "driver" | "rider" =>
   u?.carNo && u?.carPhoto ? "driver" : "rider";

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { METER_URL, contactLabel, type Thread, type User } from "@/lib/types";
+import { METER_URL, SHOW_METER, contactLabel, type Thread, type User } from "@/lib/types";
 import { Stars } from "./Member";
 import type { usePush } from "./Push";
 import { RoleTag, Avatar, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
@@ -263,7 +263,7 @@ export function ChatRoom({
           )}
           <p><span className="text-sub">{t("상대 연락 수단")}: </span><b className="break-all">{thread.contact ? `${thread.contactType ? `${t(contactLabel(thread.contactType))} · ` : ""}${thread.contact}` : t("등록된 연락 수단이 없어요.")}</b></p>
           {thread.cost === "fixed" && <p><span className="text-sub">{t("카풀 비용")}: </span><b className="num">{money(thread.price ?? 0, lang)}</b></p>}
-          {thread.cost === "meter" && (
+          {thread.cost === "meter" && SHOW_METER && (
             <a href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-0 items-center gap-1 font-semibold text-accent">{t("모카 미터기로 비용 나누기")} {Icon.arrow()}</a>
           )}
         </div>

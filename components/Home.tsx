@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { HIDDEN_TEXT } from "./Me";
 import { useEffect, useMemo, useState } from "react";
-import { METER_URL, type Post, type Thread, type User } from "@/lib/types";
+import { METER_URL, SHOW_METER, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall } from "./CallSheet";
 import { RoleTag, Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
@@ -38,7 +38,7 @@ function PostTags({ post }: { post: Post }) {
       <Tag tone={post.role === "driver" ? "accent" : "mint"}>{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
       {!post.regular && <Tag>{post.kind === "commute" ? t("출퇴근") : t("나들이·관광")}</Tag>}
       {post.taxiShare && <Tag tone="accent">{t("택시 동승 찾는 중")}</Tag>}
-      <Tag tone={post.cost === "free" ? "plain" : "warn"}>{post.cost === "fixed" ? money(post.price ?? 0, lang) : post.cost === "meter" ? t("비용 나눔") : t("무료")}</Tag>
+      <Tag tone={post.cost === "free" || (post.cost === "meter" && !SHOW_METER) ? "plain" : "warn"}>{post.cost === "fixed" ? money(post.price ?? 0, lang) : post.cost === "meter" && SHOW_METER ? t("비용 나눔") : t("무료")}</Tag>
     </div>
   );
 }
@@ -302,7 +302,7 @@ export function PostDetail({
 
         {post.cost === "fixed" ? (
           <p className="rounded-2xl border border-[#F6D9C4] bg-warnSoft p-4 text-[14px] leading-relaxed text-[#7C2D12]">{t("운전자가 정한 카풀 비용입니다. 출퇴근 실비를 나누는 용도이며 결제는 당사자끼리 직접 합니다.")}</p>
-        ) : post.cost === "meter" ? (
+        ) : post.cost === "meter" && SHOW_METER ? (
           <div className="space-y-2 rounded-2xl border border-[#F6D9C4] bg-warnSoft p-4 text-[14px] leading-relaxed text-[#7C2D12]">
             <p>{t("비용 나눔은 출퇴근 카풀에 한해 실비를 나누는 용도입니다. 영리 목적의 운송은 법으로 금지되어 있습니다.")}</p>
             <a data-block-id="B010" data-block-name="미터기 열기" href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-xl bg-white px-4 font-semibold text-ink">

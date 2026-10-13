@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { dayName } from "@/lib/i18n";
 import { priceAllowedRegular } from "@/lib/time";
-import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
+import { SHOW_METER, defaultRoleFor, initialCost, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import PlaceField from "./PlaceField";
 import { Segment, Sheet, api, btnGhost, btnPrimary, field, useLang, useT } from "./ui";
@@ -24,8 +24,9 @@ export function CostField({
   allowed: boolean;
 }) {
   const t = useT();
-  const shown = cost === "fixed" && !allowed ? "free" : cost;
-  const options: ["free" | "meter" | "fixed", string][] = [["free", t("무료")], ["meter", t("미터기로 비용 나눔")]];
+  const shown = (cost === "fixed" && !allowed) || (cost === "meter" && !SHOW_METER) ? "free" : cost;
+  const options: ["free" | "meter" | "fixed", string][] = [["free", t("무료")]];
+  if (SHOW_METER) options.push(["meter", t("미터기로 비용 나눔")]);
   if (allowed) options.push(["fixed", t("금액 입력")]);
   return (
     <div className="space-y-3">
@@ -74,7 +75,7 @@ export default function CommuteSheet({
   const [back, setBack] = useState(initial ? !!initial.timeBack : true);
   const [timeBack, setTimeBack] = useState(initial?.timeBack || "18:30");
   const [seats, setSeats] = useState(initial?.seats ?? 2);
-  const [cost, setCost] = useState<"free" | "meter" | "fixed">(initial?.cost ?? "free");
+  const [cost, setCost] = useState<"free" | "meter" | "fixed">(initialCost(initial?.cost));
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [note, setNote] = useState(initial?.note ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tagIds ?? []);

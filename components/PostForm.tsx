@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { priceAllowedAt } from "@/lib/time";
-import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
+import { defaultRoleFor, initialCost, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import { CostField } from "./Commute";
 import { TagPicker } from "./Keywords";
@@ -50,7 +50,7 @@ export default function PostForm({
   const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
   const [kind, setKind] = useState<"commute" | "trip">(initial?.kind ?? "commute");
   const [taxiShare, setTaxiShare] = useState(false);
-  const [cost, setCost] = useState<"free" | "meter" | "fixed">(initial?.cost ?? "free");
+  const [cost, setCost] = useState<"free" | "meter" | "fixed">(initialCost(initial?.cost));
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [origin, setOrigin] = useState<Place>(initial ? { name: initial.origin, lat: initial.originLat ?? null, lng: initial.originLng ?? null } : empty);
   const [dest, setDest] = useState<Place>(initial ? { name: initial.dest, lat: initial.destLat ?? null, lng: initial.destLng ?? null } : empty);

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
-import { CONTACT_TYPES, METER_URL, defaultRoleFor, type Post, type User } from "@/lib/types";
+import { CONTACT_TYPES, METER_URL, SHOW_METER, defaultRoleFor, type Post, type User } from "@/lib/types";
 import AuthForm from "./AuthForm";
 import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
@@ -413,6 +413,7 @@ export default function Me({
         </div>
       )}
 
+      {SHOW_METER && (
       <Card data-block-id="C041" data-block-name="모카 미터기" className="p-5">
         <p className="text-sm font-medium text-accent">{t("모카 미터기")}</p>
         <p className="mt-1 text-lg font-semibold">{t("출퇴근 카풀 비용, 미터기로 깔끔하게")}</p>
@@ -421,6 +422,7 @@ export default function Me({
           {t("모카 미터기 열기")} {Icon.arrow()}
         </a>
       </Card>
+      )}
 
       <a data-block-id="B048" data-block-name="관리자 페이지" href="/admin" className="flex items-center justify-between rounded-2xl border border-line bg-white px-5 text-[15px] text-sub">
         {t("관리자 페이지")} {Icon.arrow()}
