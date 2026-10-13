@@ -167,9 +167,11 @@ function CallSheet({ onClose, toast, onGoProfile }: { onClose: () => void; toast
               {t("현재 위치 기준")} · {bandText[band] ?? ""}
             </p>
           )}
-          {band === "0" && <p className="text-[14px] leading-relaxed text-sub">{t("지금은 알릴 운전자가 없어요. 운전자가 앱을 열면 다시 확인해 보세요.")}</p>}
-          {callsLeft !== null && callsLimit !== null && <p className="text-[14px] text-sub">{t("오늘 남은 CALL")} {callsLeft}/{callsLimit}</p>}
-          {callsLeft === 0 && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("오늘 CALL 횟수를 모두 썼어요. 내일 다시 이용해 주세요.")}</p>}
+          {callsLeft === 0 ? (
+            <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("오늘 CALL 횟수를 모두 썼어요. 내일 다시 이용해 주세요.")}</p>
+          ) : (
+            callsLeft !== null && callsLimit !== null && <p className="px-1 text-[14px] text-sub">{t("오늘 남은 CALL")} {callsLeft}/{callsLimit}</p>
+          )}
           <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnPrimary} disabled={ready === false || callsLeft === 0 || band === "0"} onClick={pickStep}>{t("주변 운전자 호출")}</button>
         </div>
       )}
@@ -323,8 +325,11 @@ function TaxiForm({ onBack, onDone, toast, onGoProfile }: { onBack: () => void; 
     <div className="space-y-4">
       <p className="text-sm text-sub">{t("함께 탈 택시의 출발지·도착지와 동승 조건을 적어 주세요. 근처 운전자와 탑승자 모두에게 알려요.")}</p>
       {ready === false && <RegisterContact onGoProfile={onGoProfile} />}
-      {left !== null && limit !== null && <p className="text-[14px] text-sub">{t("오늘 남은 택시동승 호출")} {left}/{limit} · {t("택시동승 호출은 무료예요.")}</p>}
-      {left === 0 && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("오늘 택시동승 호출 횟수를 모두 썼어요. 내일 다시 이용해 주세요.")}</p>}
+      {left === 0 ? (
+        <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("오늘 택시동승 호출 횟수를 모두 썼어요. 내일 다시 이용해 주세요.")}</p>
+      ) : (
+        left !== null && limit !== null && <p className="px-1 text-[14px] text-sub">{t("오늘 남은 택시동승 호출")} {left}/{limit} · {t("무료")}</p>
+      )}
       <PlaceField blockId="F101" label={t("출발지")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
       <PlaceField blockId="F102" label={t("도착지")} placeholder={t("예: 강남역")} value={dest} onChange={setDest} toast={toast} />
       <label className="block text-sm text-sub">
