@@ -40,18 +40,6 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   if (!(await isAdmin())) return denied();
   const b = await body(req);
-  // 호출 반경(km) 설정: {callRadiusKm}
-  if (b.callRadiusKm !== undefined) {
-    const km = Number(b.callRadiusKm);
-    if (!Number.isFinite(km) || km < 0.5 || km > 20) return json({ error: "호출 반경은 0.5 ~ 20km 사이로 입력해 주세요." }, 400);
-    try {
-      await ensureSchema();
-      await db()`insert into settings (key, value) values ('call_radius_km', ${String(km)}) on conflict (key) do update set value = excluded.value`;
-      return json({ ok: true, callRadiusKm: km });
-    } catch (e) {
-      return fail(e);
-    }
-  }
   const next = {} as Rules;
   for (const k of Object.keys(DEFAULT_RULES) as (keyof Rules)[]) {
     const v = Math.round(Number(b[k]));

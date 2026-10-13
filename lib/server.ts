@@ -294,6 +294,13 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists warp_no boolean not null default false`;
       // 마지막 접속 시각(관리자 회원 목록용). 요청 때마다 쓰지 않도록 5분에 한 번만 기록한다.
       await sql`alter table users add column if not exists last_seen timestamptz`;
+      // 회원이 앱을 열 때 기록하는 현재 위치(CALL 대상 찾기용). 30분이 지나면 쓰지 않는다. 화면에는 보이지 않는다.
+      await sql`alter table users add column if not exists loc_lat double precision`;
+      await sql`alter table users add column if not exists loc_lng double precision`;
+      await sql`alter table users add column if not exists loc_at timestamptz`;
+      // CALL을 보낼 때의 호출자 현위치(호출 기록용)
+      await sql`alter table calls add column if not exists caller_lat double precision`;
+      await sql`alter table calls add column if not exists caller_lng double precision`;
       // 도움말(튜토리얼·자주 묻는 질문·의견 안내). 관리자 화면에서 고친다.
       await sql`create table if not exists help_items (
         id bigserial primary key,

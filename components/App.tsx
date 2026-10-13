@@ -38,6 +38,37 @@ export default function App() {
   const [member, setMember] = useState<string | null>(null);
   const [why, setWhy] = useState<{ mode: "report" | "block"; userId: string; name: string; requestId?: string } | null>(null);
   const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean; prefill?: { origin: Place; dest: Place } } | null>(null);
+
+  // 로그인한 회원의 현재 위치를 앱을 열 때 기록한다(CALL 대상 찾기용).
+  // 위치 권한이 이미 허용된 경우에만 조용히 보내고, 권한 창은 띄우지 않는다. 5분에 한 번만 보낸다.
+  const lastPing = useRef(0);
+  useEffect(() => {
+    if (!user) return;
+    const ping = () => {
+      if (Date.now() - lastPing.current < 5 * 60_000) return;
+      if (!("geolocation" in navigator) || !navigator.permissions) return;
+      navigator.permissions
+        .query({ name: "geolocation" })
+        .then((s) => {
+          if (s.state !== "granted") return;
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              lastPing.current = Date.now();
+              void api("/api/location", "POST", { lat: pos.coords.latitude, lng: pos.coords.longitude });
+            },
+            () => {},
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+          );
+        })
+        .catch(() => {});
+    };
+    ping();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") ping();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [user]);
   const [commuteStart, setCommuteStart] = useState(false);
   const [pickInterests, setPickInterests] = useState(false);
   // 첫 화면 로딩: 로그인 확인과 글 목록이 끝나면 사라진다. 8초가 지나도 안 끝나면 그냥 넘어간다.

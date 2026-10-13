@@ -36,15 +36,6 @@ export default function Credits() {
     load();
   }, [load]);
 
-  const [radius, setRadius] = useState("");
-  useEffect(() => {
-    fetch("/api/call").then((r) => r.json()).then((j) => setRadius(String(j.radiusKm ?? "")));
-  }, []);
-  const saveRadius = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const r = await call("PATCH", "/api/admin/credits", { callRadiusKm: Number(radius) });
-    setMsg(r.ok ? `호출 반경을 ${r.j.callRadiusKm}km로 저장했습니다.` : r.j.error);
-  };
   const saveRules = async (e: React.FormEvent) => {
     e.preventDefault();
     const r = await call("PATCH", "/api/admin/credits", rules);
@@ -64,15 +55,6 @@ export default function Credits() {
   const t = d?.totals;
   return (
     <div className="space-y-6">
-      <section data-block-id="S114" data-block-name="CALL 호출 반경" className="rounded-2xl border border-line bg-white p-5 shadow-card">
-        <form onSubmit={saveRadius} className="flex flex-wrap items-end gap-3">
-          <label className="text-sm text-sub">
-            CALL 호출 반경 (km, 0.5 ~ 20)
-            <input data-block-id="F216" className={`${input} mt-1 block w-32`} type="number" step="0.5" min="0.5" max="20" value={radius} onChange={(e) => setRadius(e.target.value)} />
-          </label>
-          <button data-block-id="B222" data-block-name="호출 반경 저장" className="rounded-lg bg-accent px-4 py-2 font-semibold text-white">저장</button>
-        </form>
-      </section>
       <section data-block-id="S110" data-block-name="크레딧 현황" className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
           ["지급 누계", t ? n(t.issued) : "—"],

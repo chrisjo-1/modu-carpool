@@ -70,10 +70,29 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
 
   const taxi = () => toast(t("택시 호출은 준비 중입니다."));
 
+  /** 호출하는 순간의 현재 위치를 받는다. 위치를 못 받으면 호출하지 않는다(크레딧도 차감되지 않는다). */
+  const locate = () =>
+    new Promise<{ lat: number; lng: number } | null>((resolve) => {
+      if (!("geolocation" in navigator)) {
+        toast(t("이 기기는 위치 확인을 지원하지 않아요."));
+        return resolve(null);
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => {
+          toast(t(err.code === err.PERMISSION_DENIED ? "위치 권한을 허용해 주세요." : "현재 위치를 찾지 못했어요."));
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+      );
+    });
+
   const send = async () => {
     if (!picked) return;
     setBusy(true);
-    const r = await api<{ notified: number; radiusKm: number }>("/api/call", "POST", { postId: picked.id });
+    const here = await locate();
+    if (!here) return setBusy(false);
+    const r = await api<{ notified: number; radiusKm: number }>("/api/call", "POST", { postId: picked.id, lat: here.lat, lng: here.lng });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     const who = r.data.notified > 0 ? `${t("운전자")} ${r.data.notified.toLocaleString("ko-KR")}${t("명에게 알림을 보냈어요.")}` : t("반경 안에 알릴 운전자가 없어요.");
@@ -117,7 +136,7 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
           <Card className="space-y-1 p-4">
             <p className="font-semibold">{picked.origin} → {picked.dest}</p>
             <p className="text-sm text-sub">
-              {radius !== null ? `${t("반경")} ${radius}km ${t("안의 운전자에게 알림을 보냅니다.")}` : t("주변 운전자에게 알림을 보냅니다.")}
+              {radius !== null ? `${t("현재 위치 기준")} ${t("반경")} ${radius}km ${t("안의 운전자에게 알림을 보냅니다.")}` : t("현재 위치 주변의 운전자에게 알림을 보냅니다.")}
             </p>
             <p className="text-sm font-semibold text-warn">{t("CALL은")} {cost.toLocaleString("ko-KR")} {t("크레딧이 차감됩니다.")}</p>
             <p className="text-sm text-sub">{t("이 글은 지금 시간으로 다시 올라갑니다.")}</p>

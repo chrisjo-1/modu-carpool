@@ -40,7 +40,12 @@ export async function POST(req: Request) {
       return json(r);
     }
     if (!isUuid(b.postId)) return json({ error: "호출할 글을 골라 주세요." }, 400);
-    const r = await callDrivers(me, String(b.postId));
+    const lat = Number(b.lat);
+    const lng = Number(b.lng);
+    if (b.lat == null || b.lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return json({ error: "현재 위치를 확인하지 못했어요. 위치 권한을 허용하고 다시 시도해 주세요." }, 400);
+    }
+    const r = await callDrivers(me, String(b.postId), lat, lng);
     if ("error" in r) return json({ error: r.error }, 400);
     return json(r);
   } catch (e) {

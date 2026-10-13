@@ -2,9 +2,19 @@ import { db } from "./server";
 import { sendPush, pushText } from "./push";
 import { adjust, spend } from "./credits";
 import { contactLabel } from "./types";
+import { boundingBox } from "./radius";
 
-export const DEFAULT_CALL_RADIUS_KM = 3;
+export const DEFAULT_CALL_RADIUS_KM = 2;
 export const CALL_COST = 1000;
+/** 회원이 앱을 열 때 기록한 위치를 쓸 수 있는 시간(분). 이보다 오래된 위치의 운전자는 찾지 않는다. */
+export const LOCATION_FRESH_MIN = 30;
+
+/** 회원의 현재 위치를 기록한다. 소수점 넷째 자리(약 11m)까지만 저장한다. */
+export async function saveLocation(me: string, lat: number, lng: number) {
+  const la = Math.round(lat * 1e4) / 1e4;
+  const ln = Math.round(lng * 1e4) / 1e4;
+  await db()`update users set loc_lat = ${la}, loc_lng = ${ln}, loc_at = now() where id = ${me}`;
+}
 
 /** 호출 반경(km). 관리자가 정하고, 0.5 ~ 20km 사이로 제한한다. */
 export async function getCallRadiusKm(): Promise<number> {
@@ -25,21 +35,23 @@ export async function callerReady(me: string) {
 
 /**
  * CALL: 연락 방법이 등록된 회원이 내 글 하나를 골라 1,000 크레딧을 쓰면,
- * 같은 글을 지금 시간으로 다시 올리고 출발지 반경 안의 운전자 글 작성자에게 알린다.
+ * 같은 글을 지금 시간으로 다시 올리고, 호출하는 순간 내 현재 위치(lat, lng) 반경 안에서
+ * 최근 30분 안에 위치를 갱신한 운전자에게 알린다. 거리 계산과 대상 선정은 모두 서버에서 한다.
  * 응답하는 운전자가 없어도 크레딧은 환불되지 않는다. (글을 다시 올리지 못한 기술 오류만 환불)
  */
-export async function callDrivers(me: string, postId: string) {
+export async function callDrivers(me: string, postId: string, lat: number, lng: number) {
   const sql = db();
   const cr = await callerReady(me);
   if (!cr.ready) return { error: "CALL을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요." } as const;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return { error: "현재 위치를 확인하지 못했어요. 위치 권한을 허용하고 다시 시도해 주세요." } as const;
+  }
   const mine = await sql`select origin, dest, origin_lat, origin_lng, status from posts where id = ${postId} and user_id = ${me}`;
   if (!mine.length) return { error: "내가 올린 글만 호출할 수 있어요." } as const;
   const p = mine[0];
-  if (p.origin_lat == null || p.origin_lng == null) return { error: "출발지 위치가 없는 글은 호출할 수 없어요." } as const;
   if (p.status !== "open") return { error: "진행 중이거나 닫힌 글은 호출할 수 없어요." } as const;
   const radiusKm = await getCallRadiusKm();
-  const lat = Number(p.origin_lat);
-  const lng = Number(p.origin_lng);
+  const box = boundingBox(lat, lng, radiusKm);
   const paid = await spend(me, CALL_COST, "call", `글 ${postId.slice(0, 8)}`);
   if (!paid) return { error: `크레딧이 부족해요. CALL에는 ${CALL_COST.toLocaleString("ko-KR")} 크레딧이 필요해요.` } as const;
   const copied = await sql`insert into posts (user_id, role, kind, cost, origin, dest, depart_at, seats, note, status, origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share)
@@ -49,20 +61,25 @@ export async function callDrivers(me: string, postId: string) {
     await adjust(me, CALL_COST, "CALL 실패 환불").catch(() => null);
     return { error: "글을 다시 올리지 못했어요. 크레딧은 돌려 드렸어요." } as const;
   }
-  const call = await sql`insert into calls (caller, post_id, radius_km) values (${me}, ${String(copied[0].id)}, ${radiusKm}) returning id`;
+  const call = await sql`insert into calls (caller, post_id, radius_km, caller_lat, caller_lng) values (${me}, ${String(copied[0].id)}, ${radiusKm}, ${lat}, ${lng}) returning id`;
   const callId = String(call[0].id);
+  // 대상: 호출자 현위치 반경 안, 최근 30분 안에 위치를 갱신한 차량 등록 운전자.
+  // 차단한 사이, 관리자 차단, 테스트 회원, 알림을 끈 회원은 뺀다.
   const drivers = await sql`
-    select distinct p.user_id from posts p join users u on u.id = p.user_id
-    where p.role = 'driver' and p.status = 'open' and p.user_id <> ${me} and not u.blocked
-      and p.origin_lat is not null and p.origin_lng is not null
-      and p.depart_at > now() - interval '1 hour'
-      and 6371 * 2 * asin(sqrt(power(sin(radians(p.origin_lat - ${lat}) / 2), 2)
-        + cos(radians(${lat})) * cos(radians(p.origin_lat)) * power(sin(radians(p.origin_lng - ${lng}) / 2), 2))) <= ${radiusKm}
+    select u.id as user_id from users u
+    where u.id <> ${me} and not u.blocked and not u.test and u.notify
+      and u.car_no <> '' and u.car_v > 0
+      and u.loc_lat is not null and u.loc_lng is not null
+      and u.loc_at > now() - make_interval(mins => ${LOCATION_FRESH_MIN})
+      and u.loc_lat between ${box.minLat} and ${box.maxLat} and u.loc_lng between ${box.minLng} and ${box.maxLng}
+      and 6371 * 2 * asin(sqrt(power(sin(radians(u.loc_lat - ${lat}) / 2), 2)
+        + cos(radians(${lat})) * cos(radians(u.loc_lat)) * power(sin(radians(u.loc_lng - ${lng}) / 2), 2))) <= ${radiusKm}
+      and not exists (select 1 from blocks k where (k.blocker = u.id and k.blocked = ${me}) or (k.blocker = ${me} and k.blocked = u.id))
     limit 500`;
   const ids = drivers.map((d) => String(d.user_id));
   if (ids.length) await sql`insert into call_recipients (call_id, user_id) select ${callId}, unnest(${ids}::uuid[]) on conflict do nothing`;
   const title = "주변 탑승자가 호출했어요";
-  const body = pushText.cut(`${String(p.origin)} → ${String(p.dest)} · 반경 ${radiusKm}km · 수락하면 연락처가 보여요`, 120);
+  const body = pushText.cut(`${String(p.origin)} → ${String(p.dest)} · 내 위치 반경 ${radiusKm}km · 수락하면 연락처가 보여요`, 120);
   await Promise.all(ids.map((id) => sendPush(id, { title, body, url: `/?call=${callId}`, tag: `call-${callId}` })));
   return { ok: true, callId, notified: ids.length, radiusKm, spent: CALL_COST, newPostId: String(copied[0].id) } as const;
 }
