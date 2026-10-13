@@ -290,6 +290,24 @@ export function ensureSchema(): Promise<void> {
         user_id uuid not null references users(id) on delete cascade,
         accepted_at timestamptz not null default now(),
         primary key (call_id, user_id))`;
+      // 택시동승 호출(CALL과 별도): 현재 위치 반경의 운전자·탑승자에게 보내고, 수락하면 호출자 연락처를 보여 준다.
+      await sql`create table if not exists taxi_calls (
+        id uuid primary key default gen_random_uuid(),
+        caller uuid not null references users(id) on delete cascade,
+        origin text not null, dest text not null,
+        origin_lat double precision, origin_lng double precision,
+        depart_at timestamptz not null, note text not null default '',
+        radius_km double precision not null,
+        created_at timestamptz not null default now())`;
+      await sql`create table if not exists taxi_call_recipients (
+        call_id uuid not null references taxi_calls(id) on delete cascade,
+        user_id uuid not null references users(id) on delete cascade,
+        primary key (call_id, user_id))`;
+      await sql`create table if not exists taxi_call_accepts (
+        call_id uuid not null references taxi_calls(id) on delete cascade,
+        user_id uuid not null references users(id) on delete cascade,
+        accepted_at timestamptz not null default now(),
+        primary key (call_id, user_id))`;
       await backfillMemberCodes(sql);
       // 표시 이름을 고유코드로 바꾼다. 기존 닉네임은 old_name 에 남겨 둔다(한 번만 실행).
       await sql`alter table users add column if not exists old_name text`;

@@ -1,5 +1,4 @@
 import { notifyRouteAlerts } from "@/lib/alerts";
-import { notifyTaxi } from "@/lib/taxi";
 import { notifyDrivers } from "@/lib/drivers";
 import { CAR_REQUIRED, carReady } from "@/lib/car";
 import { grant } from "@/lib/credits";
@@ -114,7 +113,7 @@ function oneTime(b: Record<string, unknown>) {
   if (!(seats >= 1 && seats <= 6)) return { error: "인원은 1~6명으로 입력해 주세요." };
   const c = costOf(b, kind === "commute", priceAllowedAt(departAt.getTime()));
   if (c.error) return { error: c.error };
-  return { v: { role, kind, origin, dest, at: departAt.toISOString(), seats, oLat, oLng, dLat, dLng, cost: c.cost, price: c.price, note: text(b.note, 300), taxiShare: b.taxiShare === true && role === "rider" } };
+  return { v: { role, kind, origin, dest, at: departAt.toISOString(), seats, oLat, oLng, dLat, dLng, cost: c.cost, price: c.price, note: text(b.note, 300), taxiShare: false } };
 }
 
 /** 한 번짜리 카풀 등록 */
@@ -141,8 +140,6 @@ export async function POST(req: Request) {
       returning id`;
     const credit = await grant(me, "post").catch(() => 0);
     await notifyRouteAlerts(String(rows[0].id));
-    // 탑승자가 '택시 동승도 찾기'를 체크했으면 근처 운전자·탑승자에게 알린다.
-    if (v.taxiShare) await notifyTaxi(String(rows[0].id));
     if (v.role === "rider") await notifyDrivers(String(rows[0].id));
     return json({ id: rows[0].id, credit });
   } catch (e) {

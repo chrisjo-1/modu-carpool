@@ -49,7 +49,6 @@ export default function PostForm({
   const empty: Place = { name: "", lat: null, lng: null };
   const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
   const [kind, setKind] = useState<"commute" | "trip">(initial?.kind ?? "commute");
-  const [taxiShare, setTaxiShare] = useState(false);
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [origin, setOrigin] = useState<Place>(initial ? { name: initial.origin, lat: initial.originLat ?? null, lng: initial.originLng ?? null } : empty);
   const [dest, setDest] = useState<Place>(initial ? { name: initial.dest, lat: initial.destLat ?? null, lng: initial.destLng ?? null } : empty);
@@ -92,7 +91,6 @@ export default function PostForm({
       seats: 1,
       note,
       tags,
-      taxiShare: role === "rider" && taxiShare,
     });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
@@ -116,15 +114,6 @@ export default function PostForm({
           <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : t("탑승자: 같이 탈 차를 찾는 글이에요.")}</p>
           {role === "driver" && <p className="text-[13px] leading-relaxed text-sub">{t("운전자는 위치 권한을 허용해야 주변 CALL 알림을 받을 수 있어요.")}</p>}
         </div>
-        {role === "rider" && !initial && (
-          <label data-block-id="F025" data-block-name="택시 동승 찾기" className="flex cursor-pointer items-start gap-3 rounded-xl bg-bg p-3">
-            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={taxiShare} onChange={(e) => setTaxiShare(e.target.checked)} />
-            <span>
-              <span className="block text-[15px] font-semibold">{t("택시 동승도 같이 찾아볼게요")}</span>
-              <span className="block text-[13px] leading-relaxed text-sub">{t("체크하면 근처 운전자와 탑승자에게 택시 동승 상대를 찾는다고 알려요.")}</span>
-            </span>
-          </label>
-        )}
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("종류")}</p>
           {initial ? (

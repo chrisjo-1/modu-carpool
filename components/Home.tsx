@@ -4,7 +4,7 @@ import FareCard from "./Fare";
 import { HIDDEN_TEXT } from "./Me";
 import { useEffect, useMemo, useState } from "react";
 import { METER_URL, SHOW_METER, type Post, type Thread, type User } from "@/lib/types";
-import { FloatingCall, IncomingCall } from "./CallSheet";
+import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
 import { RoleTag, Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
@@ -73,9 +73,14 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
   const [view, setView] = useState<"list" | "map">("list");
   // 호출 알림을 누르고 들어오면(?call=ID) 받은 호출 창을 연다.
   const [incomingId, setIncomingId] = useState<string | null>(null);
+  // 택시동승 호출 알림(?taxicall=ID)도 같은 방식으로 연다.
+  const [incomingTaxiId, setIncomingTaxiId] = useState<string | null>(null);
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("call");
+    const sp = new URLSearchParams(window.location.search);
+    const id = sp.get("call");
     if (id) setIncomingId(id);
+    const tid = sp.get("taxicall");
+    if (tid) setIncomingTaxiId(tid);
   }, []);
   // 목록은 12개씩 나눠 보여 준다. 필터가 바뀌면 처음 12개로 돌아간다.
   const PAGE = 12;
@@ -144,6 +149,7 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
       </header>
       <FloatingCall toast={toast} />
       {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
+      {incomingTaxiId && <IncomingTaxiCall callId={incomingTaxiId} toast={toast} onClose={() => { setIncomingTaxiId(null); window.history.replaceState(null, "", "/"); }} />}
 
       <div className="space-y-2">
         {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼). 키워드 필터는 검색창 박스 안에 둔다 */}
