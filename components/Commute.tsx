@@ -27,10 +27,6 @@ export function CostField({
   const t = useT();
   return (
     <div className="space-y-3">
-      <p className="text-sm text-sub">{t("비용")}</p>
-      <div data-block-id="C298" data-block-name="비용 자동 설정" className={`rounded-xl px-4 py-3 text-[15px] font-semibold ${cost === "fixed" ? "bg-warnSoft text-warn" : "bg-[#E6F7EF] text-[#1E7F55]"}`}>
-        {t(cost === "fixed" ? "금액 입력 · 자동 설정" : "무료 · 자동 설정")}
-      </div>
       {cost === "fixed" && (
         <>
           <label className="block text-sm text-sub">
