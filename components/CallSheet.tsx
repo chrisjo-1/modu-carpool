@@ -26,16 +26,6 @@ function RegisterContact({ onGoProfile }: { onGoProfile?: () => void }) {
   );
 }
 
-/** 홈 상단의 새로고침 버튼 */
-export function RefreshButton({ onRefresh }: { onRefresh: () => void }) {
-  const t = useT();
-  return (
-    <button type="button" data-block-id="B216" data-block-name="새로고침" className="w-full rounded-2xl border border-line bg-white py-3 text-[15px] font-semibold text-ink active:opacity-80" onClick={onRefresh}>
-      {t("새로고침")}
-    </button>
-  );
-}
-
 /** 하단 메뉴 바로 위, 가운데에 떠 있는 CALL 버튼 (홈 화면에서만 보인다) */
 export function FloatingCall({ toast, onGoProfile }: { toast: (m: string) => void; onGoProfile?: () => void }) {
   const [open, setOpen] = useState(false);

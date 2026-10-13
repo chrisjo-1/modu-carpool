@@ -94,7 +94,6 @@ export const REASONS: [string, string][] = [
   ["illegal", "불법"],
   ["etc", "기타"],
 ];
-export const reasonLabel = (key: string) => REASONS.find(([k]) => k === key)?.[1] ?? "";
 
 /** 다른 회원에게 보이는 프로필 */
 export type Member = {
@@ -117,7 +116,6 @@ export const METER_URL = process.env.NEXT_PUBLIC_METER_URL || "https://moca-mete
 export const SHOW_METER = false;
 
 /** 숨긴 미터기 선택은 무료로 본다(기존 미터기 게시물도 같은 방식으로 표시). */
-export const initialCost = (c?: "free" | "meter" | "fixed"): "free" | "meter" | "fixed" => (c === "meter" && !SHOW_METER ? "free" : c ?? "free");
 
 /** 기본 역할: 차량 번호와 차량 사진을 모두 등록한 회원은 운전자, 아직 등록하지 않았다면 탑승자 */
 export const defaultRoleFor = (u: { carNo?: string; carPhoto?: string } | null | undefined): "driver" | "rider" =>
