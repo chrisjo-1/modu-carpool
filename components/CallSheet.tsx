@@ -41,6 +41,13 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
   const [callsLeft, setCallsLeft] = useState<number | null>(null);
   const [callsLimit, setCallsLimit] = useState<number | null>(null);
   const [err, setErr] = useState("");
+  const [band, setBand] = useState<string | null>(null);
+  const bandText: Record<string, string> = {
+    "0": t("주변 운전자 없음"),
+    "1-2": t("주변 운전자 1~2명"),
+    "3-5": t("주변 운전자 3~5명"),
+    "6+": t("주변 운전자 6명 이상"),
+  };
 
   useEffect(() => {
     api<{ radiusKm: number; cost: number; ready: boolean; contactType: string; callsLeft: number | null; callsLimit: number | null }>("/api/call").then((r) => {
@@ -92,6 +99,22 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
       );
     });
 
+  // 열 때 현재 위치를 받아 주변 운전자 수(구간)를 보여 준다. 0명이면 호출 버튼을 막는다.
+  useEffect(() => {
+    let alive = true;
+    locate().then((here) => {
+      if (!here || !alive) return;
+      api<{ band: string | null }>(`/api/call?lat=${here.lat}&lng=${here.lng}`).then((r) => {
+        if (alive && r.ok) setBand(r.data.band);
+      });
+    });
+    return () => {
+      alive = false;
+    };
+    // 처음 한 번만 확인한다(호출할 때 위치를 다시 받는다).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const send = async () => {
     if (!picked) return;
     setBusy(true);
@@ -116,9 +139,15 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
         <div className="space-y-3">
           <button type="button" data-block-id="B218" data-block-name="택시 호출" className={btnGhost} onClick={taxi}>{t("택시 호출")}</button>
           {ready === false && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("CALL을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요.")}</p>}
+          {band !== null && (
+            <p data-block-id="C500" data-block-name="주변 운전자 수" className="rounded-2xl bg-bg px-4 py-3 text-[15px] font-semibold text-ink">
+              {t("현재 위치 기준")} · {bandText[band] ?? ""}
+            </p>
+          )}
+          {band === "0" && <p className="text-[14px] leading-relaxed text-sub">{t("지금은 알릴 운전자가 없어요. 운전자가 앱을 열면 다시 확인해 보세요.")}</p>}
           {callsLeft !== null && callsLimit !== null && <p className="text-[14px] text-sub">{t("오늘 남은 CALL")} {callsLeft}/{callsLimit}</p>}
           {callsLeft === 0 && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("오늘 CALL 횟수를 모두 썼어요. 내일 다시 이용해 주세요.")}</p>}
-          <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnPrimary} disabled={ready === false || callsLeft === 0} onClick={pickStep}>{t("주변 운전자 호출")}</button>
+          <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnPrimary} disabled={ready === false || callsLeft === 0 || band === "0"} onClick={pickStep}>{t("주변 운전자 호출")}</button>
         </div>
       )}
       {step === "pick" && (

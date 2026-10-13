@@ -1,4 +1,4 @@
-import { CALL_COST, acceptCall, callDrivers, callStatus, callerReady, getCallRadiusKm, incomingCall } from "@/lib/call";
+import { CALL_COST, acceptCall, callDrivers, callStatus, callerReady, getCallRadiusKm, incomingCall, nearbyBand } from "@/lib/call";
 import { contactLabel } from "@/lib/types";
 import { PHOTO_REQUIRED, hasPhoto } from "@/lib/verify";
 import { body, currentUserId, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
@@ -20,7 +20,13 @@ export async function GET(req: Request) {
     }
     const ready = me ? await callerReady(me) : { ready: false, type: "" };
     const today = me ? await callStatus(me) : null;
-    return json({ radiusKm: await getCallRadiusKm(), cost: CALL_COST, ready: ready.ready, contactType: contactLabel(ready.type), callsLeft: today?.left ?? null, callsLimit: today?.limit ?? null });
+    // 현재 위치 주변 운전자 수(구간만). lat·lng 가 있고 로그인한 경우에만 계산한다.
+    const sp = new URL(req.url).searchParams;
+    const lat = Number(sp.get("lat"));
+    const lng = Number(sp.get("lng"));
+    const hasPos = me && sp.get("lat") !== null && sp.get("lng") !== null && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    const band = me && hasPos ? await nearbyBand(me, lat, lng) : null;
+    return json({ radiusKm: await getCallRadiusKm(), cost: CALL_COST, ready: ready.ready, contactType: contactLabel(ready.type), callsLeft: today?.left ?? null, callsLimit: today?.limit ?? null, band });
   } catch (e) {
     return fail(e);
   }

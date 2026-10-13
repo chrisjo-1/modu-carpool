@@ -46,6 +46,39 @@ export async function getCallRadiusKm(): Promise<number> {
   return Number.isFinite(v) && v >= 0.5 && v <= 20 ? v : DEFAULT_CALL_RADIUS_KM;
 }
 
+/**
+ * 호출자 현위치 반경 안의 운전자 id 목록.
+ * 조건: 최근 1시간 안에 위치 갱신, 차량 등록, 알림 켬, 관리자 차단·테스트 아님, 차단한 사이 아님.
+ */
+export async function findDrivers(me: string, lat: number, lng: number, radiusKm: number): Promise<string[]> {
+  const box = boundingBox(lat, lng, radiusKm);
+  const rows = await db()`
+    select u.id as user_id from users u
+    where u.id <> ${me} and not u.blocked and not u.test and u.notify
+      and u.car_no <> '' and u.car_v > 0
+      and u.loc_lat is not null and u.loc_lng is not null
+      and u.loc_at > now() - make_interval(mins => ${LOCATION_FRESH_MIN})
+      and u.loc_lat between ${box.minLat} and ${box.maxLat} and u.loc_lng between ${box.minLng} and ${box.maxLng}
+      and 6371 * 2 * asin(sqrt(power(sin(radians(u.loc_lat - ${lat}) / 2), 2)
+        + cos(radians(${lat})) * cos(radians(u.loc_lat)) * power(sin(radians(u.loc_lng - ${lng}) / 2), 2))) <= ${radiusKm}
+      and not exists (select 1 from blocks k where (k.blocker = u.id and k.blocked = ${me}) or (k.blocker = ${me} and k.blocked = u.id))
+    limit 500`;
+  return rows.map((r) => String(r.user_id));
+}
+
+/**
+ * 주변 운전자 수를 구간으로만 알려 준다(정확한 수·위치를 숨겨 위치 추적에 쓰지 못하게 한다).
+ * 0 · 1-2 · 3-5 · 6+
+ */
+export async function nearbyBand(me: string, lat: number, lng: number): Promise<"0" | "1-2" | "3-5" | "6+"> {
+  const radiusKm = await getCallRadiusKm();
+  const n = (await findDrivers(me, lat, lng, radiusKm)).length;
+  if (n === 0) return "0";
+  if (n <= 2) return "1-2";
+  if (n <= 5) return "3-5";
+  return "6+";
+}
+
 /** 호출자가 연락 방법과 아이디를 모두 등록했는지 */
 export async function callerReady(me: string) {
   const rows = await db()`select contact, contact_type from users where id = ${me}`;
@@ -76,7 +109,9 @@ export async function callDrivers(me: string, postId: string, lat: number, lng: 
   const st = await callStatus(me);
   if (st.left <= 0) return { error: `오늘 CALL은 ${DAILY_CALL_LIMIT}번까지 쓸 수 있어요. 내일 다시 이용해 주세요.` } as const;
   const radiusKm = await getCallRadiusKm();
-  const box = boundingBox(lat, lng, radiusKm);
+  // 알릴 운전자가 없으면 크레딧을 쓰기 전에 멈춘다.
+  const ids = await findDrivers(me, lat, lng, radiusKm);
+  if (!ids.length) return { error: "근처 1시간 안에 위치를 기록한 운전자가 없어요. 호출하지 않았고 크레딧도 차감되지 않았어요." } as const;
   const paid = await spend(me, CALL_COST, "call", `글 ${postId.slice(0, 8)}`);
   if (!paid) {
     const guide = await chargeGuide();
@@ -91,20 +126,6 @@ export async function callDrivers(me: string, postId: string, lat: number, lng: 
   }
   const call = await sql`insert into calls (caller, post_id, radius_km, caller_lat, caller_lng) values (${me}, ${String(copied[0].id)}, ${radiusKm}, ${lat}, ${lng}) returning id`;
   const callId = String(call[0].id);
-  // 대상: 호출자 현위치 반경 안, 최근 1시간 안에 위치를 갱신한 차량 등록 운전자.
-  // 차단한 사이, 관리자 차단, 테스트 회원, 알림을 끈 회원은 뺀다.
-  const drivers = await sql`
-    select u.id as user_id from users u
-    where u.id <> ${me} and not u.blocked and not u.test and u.notify
-      and u.car_no <> '' and u.car_v > 0
-      and u.loc_lat is not null and u.loc_lng is not null
-      and u.loc_at > now() - make_interval(mins => ${LOCATION_FRESH_MIN})
-      and u.loc_lat between ${box.minLat} and ${box.maxLat} and u.loc_lng between ${box.minLng} and ${box.maxLng}
-      and 6371 * 2 * asin(sqrt(power(sin(radians(u.loc_lat - ${lat}) / 2), 2)
-        + cos(radians(${lat})) * cos(radians(u.loc_lat)) * power(sin(radians(u.loc_lng - ${lng}) / 2), 2))) <= ${radiusKm}
-      and not exists (select 1 from blocks k where (k.blocker = u.id and k.blocked = ${me}) or (k.blocker = ${me} and k.blocked = u.id))
-    limit 500`;
-  const ids = drivers.map((d) => String(d.user_id));
   if (ids.length) await sql`insert into call_recipients (call_id, user_id) select ${callId}, unnest(${ids}::uuid[]) on conflict do nothing`;
   const title = "주변 탑승자가 호출했어요";
   const body = pushText.cut(`${String(p.origin)} → ${String(p.dest)} · 내 위치 반경 ${radiusKm}km · 수락하면 연락처가 보여요`, 120);
