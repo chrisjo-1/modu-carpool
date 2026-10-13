@@ -25,6 +25,14 @@ const LANG_KEY = "modu.lang";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("home");
+  // 홈 상단 주제목(관리자 > 사이트에서 바꾼 문구). 못 받으면 기본 문구.
+  const [slogan, setSlogan] = useState("같은 방향, 같이 가요");
+  useEffect(() => {
+    fetch("/api/site")
+      .then((r) => r.json())
+      .then((j) => { if (typeof j.slogan === "string" && j.slogan) setSlogan(j.slogan); })
+      .catch(() => null);
+  }, []);
   const [lang, setLangState] = useState<Lang>("ko");
   const [posts, setPosts] = useState<Post[]>([]);
   const [sample, setSample] = useState(false);
@@ -354,7 +362,7 @@ export default function App() {
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-white">{Icon.car(1.8)}</span>
           <div>
             <p className="text-xl font-bold leading-tight">{t("모두의카풀")}</p>
-            <p className="text-[13px] leading-tight text-sub">{t("같은 방향, 같이 가요")}</p>
+            <p className="text-[13px] leading-tight text-sub">{t(slogan)}</p>
           </div>
         </header>
 
