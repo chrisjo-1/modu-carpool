@@ -32,8 +32,8 @@ export async function GET() {
           (select count(*)::int from requests r join users u on u.id = r.user_id where not u.test) as requests,
           (select count(*)::int from requests r join users u on u.id = r.user_id where not u.test and r.status = 'accepted') as accepted,
           (select count(distinct user_id)::int from push_subs) as push,
-          (select count(*)::int from route_alerts) as alerts,
-          (select count(*)::int from legacy_members where matched_user is not null) as legacy`,
+          (select count(*)::int from route_alerts a join users u on u.id = a.user_id where not u.test) as alerts,
+          (select count(*)::int from legacy_members l join users u on u.id = l.matched_user where not u.test) as legacy`,
     ]);
     // 오늘까지 30일 날짜 축(한국 시간)
     const days: string[] = [];
