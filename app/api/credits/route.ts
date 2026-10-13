@@ -1,4 +1,5 @@
 import { REASON_LABEL, getRules, grant, grantLegacy, kstDay } from "@/lib/credits";
+import { CALL_COST } from "@/lib/call";
 import { body, currentUserId, db, ensureSchema, fail, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
   try {
     await ensureSchema();
     // 로그인 전에는 안내용으로 기준만 알려 준다.
-    if (!me) return json({ rules: await getRules() });
+    if (!me) return json({ rules: await getRules(), callCost: CALL_COST });
     // 내역은 늘어나므로 따로, 20건씩 이어서 받는다(before = 마지막으로 받은 id).
     if (q.get("history")) {
       const before = /^\d{1,18}$/.test(q.get("before") ?? "") ? String(q.get("before")) : null;
@@ -39,6 +40,7 @@ export async function GET(req: Request) {
       attended: today.length > 0,
       welcome,
       rules,
+      callCost: CALL_COST,
       historyCount: Number(count[0]?.n ?? 0),
       // 워프 번호 질문을 숨길지: '아니오'로 답했거나 이미 워프 번호가 연결된 회원
       warpHidden: u[0]?.warp_no === true || u[0]?.claimed === true,

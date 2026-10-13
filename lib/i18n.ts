@@ -329,6 +329,7 @@ const D: Record<string, [string, string, string]> = {
   "환불": ["Refund", "返金", "退还"],
   "출석하기 (하루 1번)": ["Check-in (daily)", "出席（1日1回）", "签到（每天1次）"],
   "카풀 게시 (하루 1번)": ["Post a carpool (daily)", "カープール投稿（1日1回）", "发布拼车（每天1次）"],
+  "CALL 호출 (글 1건)": ["CALL (per post)", "CALL呼び出し（投稿1件）", "CALL 呼叫（每篇 1 条）"],
   "채팅에서 메일로 알리기": ["Email reminder in chat", "チャットでメール通知", "聊天邮件提醒"],
   "최근 내역": ["Recent activity", "最近の履歴", "最近记录"],
   "전체 보기": ["Show all", "すべて表示", "查看全部"],
