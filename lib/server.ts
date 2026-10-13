@@ -150,6 +150,9 @@ export function ensureSchema(): Promise<void> {
         created_at timestamptz not null default now(),
         expires_at timestamptz not null)`;
       await sql`create unique index if not exists pending_token_uniq on pending_signups (token_hash)`;
+      // 가입 때 받은 현재 위치(위치 권한 허용 필수). 인증이 끝나면 회원의 위치로 옮긴다.
+      await sql`alter table pending_signups add column if not exists loc_lat double precision`;
+      await sql`alter table pending_signups add column if not exists loc_lng double precision`;
       // 탑승자가 '택시 동승도 찾기'를 체크한 글
       await sql`alter table posts add column if not exists taxi_share boolean not null default false`;
       await sql`alter table posts add column if not exists demo boolean not null default false`;

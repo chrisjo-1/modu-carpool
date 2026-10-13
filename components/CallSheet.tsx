@@ -80,7 +80,7 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
     );
   };
 
-  const taxi = () => toast(t("택시 호출은 준비 중입니다."));
+  const taxi = () => toast(t("택시동승 호출은 준비 중입니다."));
 
   /** 호출하는 순간의 현재 위치를 받는다. 위치를 못 받으면 호출하지 않는다(크레딧도 차감되지 않는다). */
   const locate = () =>
@@ -137,7 +137,7 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
     <Sheet title="CALL" blockId="S011" onClose={onClose}>
       {step === "choose" && (
         <div className="space-y-3">
-          <button type="button" data-block-id="B218" data-block-name="택시 호출" className={btnGhost} onClick={taxi}>{t("택시 호출")}</button>
+          <button type="button" data-block-id="B218" data-block-name="택시동승 호출" className={btnGhost} onClick={taxi}>{t("택시동승 호출")}</button>
           {ready === false && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("CALL을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요.")}</p>}
           {band !== null && (
             <p data-block-id="C500" data-block-name="주변 운전자 수" className="rounded-2xl bg-bg px-4 py-3 text-[15px] font-semibold text-ink">
