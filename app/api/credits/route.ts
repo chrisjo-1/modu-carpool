@@ -23,14 +23,17 @@ export async function GET(req: Request) {
       });
     }
     // 크레딧 도입 전에 가입한 회원도 가입 축하(와 워프 이전) 크레딧을 한 번 받는다.
-    const welcome = (await grant(me, "signup")) + (await grantLegacy(me));
+    // 적립 확인과 나머지 조회를 동시에 보내 응답을 빠르게 한다. 잔액은 적립이 끝난 뒤에 읽는다.
     const sql = db();
-    const [u, today, count, rules] = await Promise.all([
-      sql`select credits, warp_no, exists(select 1 from legacy_members l where l.matched_user = users.id) as claimed from users where id = ${me}`,
+    const [signup, legacy, today, count, rules] = await Promise.all([
+      grant(me, "signup"),
+      grantLegacy(me),
       sql`select 1 from credit_ledger where user_id = ${me} and reason = 'attend' and day = ${kstDay()}`,
       sql`select count(*)::int as n from credit_ledger where user_id = ${me}`,
       getRules(),
     ]);
+    const welcome = signup + legacy;
+    const u = await sql`select credits, warp_no, exists(select 1 from legacy_members l where l.matched_user = users.id) as claimed from users where id = ${me}`;
     return json({
       balance: Number(u[0]?.credits ?? 0),
       attended: today.length > 0,

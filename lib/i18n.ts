@@ -54,6 +54,8 @@ const D: Record<string, [string, string, string]> = {
   "출발 시각을 골라 주세요.": ["Please pick a departure time.", "出発時刻を選んでください。", "请选择出发时间。"],
   "출발지를 목록에서 골라 주세요.": ["Please pick the origin from the list.", "出発地を一覧から選んでください。", "请从列表中选择出发地。"],
   "불러오는 중…": ["Loading…", "読み込み中…", "加载中…"],
+  "크레딧을 불러오지 못했어요.": ["Couldn't load your credits.", "クレジットを読み込めませんでした。", "无法加载积分。"],
+  "다시 시도": ["Try again", "再試行", "重试"],
   "더 보기": ["Load more", "もっと見る", "加载更多"],
   "안 읽음": ["Unread", "未読", "未读"],
   "가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.": ["Too many sign-ups. Please try again later.", "登録リクエストが多すぎます。しばらくしてからお試しください。", "注册请求过多，请稍后再试。"],

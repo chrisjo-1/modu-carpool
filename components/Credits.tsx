@@ -13,6 +13,7 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
   const t = useT();
   const lang = useLang();
   const [d, setD] = useState<Data | null>(null);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   // 내역은 처음엔 접어 두고, 버튼을 누르면 20건씩 불러온다.
   const [open, setOpen] = useState(false);
@@ -40,7 +41,8 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
 
   const load = useCallback(async (first = false) => {
     const r = await api<Data>("/api/credits");
-    if (!r.ok) return;
+    if (!r.ok) return setFailed(true);
+    setFailed(false);
     setD(r.data);
     if (first && r.data.welcome > 0) toast(`${t("가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.welcome, lang)}`);
     // 처음 한 번만 환영 알림을 띄운다.
@@ -85,7 +87,30 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
     if (!r.ok) toast(t(r.error));
   };
 
-  if (!d) return <div className="h-40 animate-pulse rounded-3xl bg-white" aria-hidden />;
+  // 데이터가 오기 전에도 카드 틀을 먼저 보여 빈 화면처럼 보이지 않게 한다.
+  if (!d) {
+    return (
+      <div>
+        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("크레딧")}</h2>
+        <Card data-block-id="C048" data-block-name="크레딧" className="space-y-4 p-5" aria-busy={!failed}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-sub">{t("보유 크레딧")}</p>
+              <p className="num text-[28px] font-bold leading-tight text-sub">{failed ? "-" : "…"}</p>
+            </div>
+          </div>
+          {failed ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-bg px-4 py-3 text-[14px]">
+              <span className="text-sub">{t("크레딧을 불러오지 못했어요.")}</span>
+              <button type="button" data-block-id="B290" data-block-name="크레딧 다시 불러오기" className="min-h-0 font-semibold text-accent underline" onClick={() => load(true)}>{t("다시 시도")}</button>
+            </div>
+          ) : (
+            <p role="status" className="py-2 text-center text-[13px] text-sub">{t("불러오는 중…")}</p>
+          )}
+        </Card>
+      </div>
+    );
+  }
   const rules: [string, string][] = [
     [t("가입 축하"), `+${creditText(d.rules.signup, lang)}`],
     [t("출석하기 (하루 1번)"), `+${creditText(d.rules.attend, lang)}`],
