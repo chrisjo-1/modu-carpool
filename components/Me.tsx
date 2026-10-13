@@ -101,6 +101,7 @@ export default function Me({
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
+  const [mineOpen, setMineOpen] = useState(false);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
   const file = useRef<HTMLInputElement>(null);
   const regular = mine.find((p) => p.regular) ?? null;
@@ -372,7 +373,14 @@ export default function Me({
           {mine.length === 0 ? (
             <Card className="px-6 py-8 text-center text-sub">{t("아직 올린 글이 없어요.")}</Card>
           ) : (
-            <Card className="divide-y divide-line">
+            <div className="space-y-2">
+              {/* 내역은 접어 두고, 버튼을 누르면 펼친다. */}
+              <button type="button" data-block-id="B292" data-block-name="내가 올린 카풀 내역 보기" aria-expanded={mineOpen} aria-controls="my-posts" onClick={() => setMineOpen((v) => !v)} className="flex w-full items-center justify-between rounded-xl border border-line bg-white px-4 py-3 text-[15px]">
+                <span>{mineOpen ? t("내역 접기") : t("내역 보기")} <span className="num text-sub">({mine.length.toLocaleString("ko-KR")})</span></span>
+                <span className={`text-sub transition-transform ${mineOpen ? "rotate-90" : ""}`}>{Icon.arrow()}</span>
+              </button>
+              {mineOpen && (
+            <Card id="my-posts" className="divide-y divide-line">
               {mine.map((p) => (
                 <div key={p.id} data-block-id="C045" data-block-name="내 글">
                 <button onClick={() => onOpen(p)} className="flex w-full items-center justify-between gap-3 px-5 pb-1 pt-4 text-left">
@@ -395,6 +403,8 @@ export default function Me({
                 </div>
               ))}
             </Card>
+              )}
+            </div>
           )}
         </div>
       )}
