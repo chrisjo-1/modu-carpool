@@ -55,7 +55,17 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
     if (mine) return;
     const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
     if (!r.ok) return toast(t(r.error));
-    setMine(r.data.posts.filter((p) => p.status === "open" && p.originLat != null && p.originLng != null));
+    // 같은 출발지·도착지 글은 한 건만 보여 준다(최신 글 우선). 호출은 그 글 기준으로 나간다.
+    const seen = new Set<string>();
+    setMine(
+      r.data.posts.filter((p) => {
+        if (p.status !== "open" || p.originLat == null || p.originLng == null) return false;
+        const key = `${p.origin}|${p.dest}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }),
+    );
   };
 
   const taxi = () => toast(t("택시 호출은 준비 중입니다."));
