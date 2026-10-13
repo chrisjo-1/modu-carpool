@@ -139,8 +139,7 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh, onGoProf
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
-      <header className="flex items-start justify-between gap-3">
-        <h1 data-block-id="S001-title" className="text-[22px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
+      <header className="flex items-center justify-end gap-3">
         {onRefresh && (
           <button type="button" data-block-id="B216" data-block-name="새로고침" className="min-h-0 shrink-0 py-1 text-[14px] font-semibold text-accent underline" onClick={() => { onRefresh(); toast(t("새로고침되었습니다.")); }}>
             {t("새로고침")}
