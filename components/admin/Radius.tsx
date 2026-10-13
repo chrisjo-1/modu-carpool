@@ -49,7 +49,7 @@ export default function AdminRadius() {
     <section data-block-id="A203" data-block-name="반경 설정" className="space-y-6 rounded-2xl bg-white p-5 shadow-card">
       <form onSubmit={saveCall} className="space-y-2" data-block-id="S114" data-block-name="CALL 호출 반경">
         <p className="text-[15px] font-semibold text-ink">CALL 호출 반경 (km)</p>
-        <p className="text-[13px] text-sub">호출한 회원의 현재 위치에서 이 거리 안에 최근 1시간 안으로 위치를 기록한 운전자에게 알려요. 0.5 ~ 20km, 0.5km 단위.</p>
+        <p className="text-[13px] text-sub">호출한 회원의 현재 위치에서 이 거리 안에 있는 운전자에게 알려요. 최근 1시간 안에 위치를 기록한 운전자, 그리고 이 거리 안에 출발지나 도착지가 있는 운전자 글 이력이 있는 운전자를 함께 셉니다. 0.5 ~ 20km, 0.5km 단위.</p>
         <div className="flex items-center gap-2">
           <input data-block-id="F216" className={input} type="number" step="0.5" min="0.5" max="20" value={callKm} onChange={(e) => setCallKm(e.target.value)} aria-label="CALL 호출 반경 km" />
           <button data-block-id="B222" data-block-name="호출 반경 저장" disabled={busy} className="min-h-0 rounded-xl bg-accent px-4 py-2 text-[15px] font-semibold text-white disabled:opacity-50">저장</button>

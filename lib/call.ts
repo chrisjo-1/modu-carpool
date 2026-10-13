@@ -47,8 +47,10 @@ export async function getCallRadiusKm(): Promise<number> {
 }
 
 /**
- * 호출자 현위치 반경 안의 운전자 id 목록.
- * 조건: 최근 1시간 안에 위치 갱신, 차량 등록, 알림 켬, 관리자 차단·테스트 아님, 차단한 사이 아님.
+ * 호출자 현위치 반경 안에 들어오는 운전자 id 목록. 두 경로를 합쳐 중복 없이 센다.
+ *  1) 현재 위치: 최근 1시간 안에 위치를 기록한 운전자가 호출 위치 반경 안에 있음
+ *  2) 이력: 운전자로 올린 카풀 글(출퇴근·정기 포함)의 출발지나 도착지가 호출 위치 반경 안에 있음
+ * 공통 조건: 차량 등록, 알림 켬, 관리자 차단·테스트 아님, 차단한 사이 아님, 위치 권한을 허용한 적이 있음(loc_at 있음).
  */
 export async function findDrivers(me: string, lat: number, lng: number, radiusKm: number): Promise<string[]> {
   const box = boundingBox(lat, lng, radiusKm);
@@ -56,12 +58,19 @@ export async function findDrivers(me: string, lat: number, lng: number, radiusKm
     select u.id as user_id from users u
     where u.id <> ${me} and not u.blocked and not u.test and u.notify
       and u.car_no <> '' and u.car_v > 0
-      and u.loc_lat is not null and u.loc_lng is not null
-      and u.loc_at > now() - make_interval(mins => ${LOCATION_FRESH_MIN})
-      and u.loc_lat between ${box.minLat} and ${box.maxLat} and u.loc_lng between ${box.minLng} and ${box.maxLng}
-      and 6371 * 2 * asin(sqrt(power(sin(radians(u.loc_lat - ${lat}) / 2), 2)
-        + cos(radians(${lat})) * cos(radians(u.loc_lat)) * power(sin(radians(u.loc_lng - ${lng}) / 2), 2))) <= ${radiusKm}
+      and u.loc_at is not null
       and not exists (select 1 from blocks k where (k.blocker = u.id and k.blocked = ${me}) or (k.blocker = ${me} and k.blocked = u.id))
+      and (
+        (u.loc_at > now() - make_interval(mins => ${LOCATION_FRESH_MIN})
+          and u.loc_lat between ${box.minLat} and ${box.maxLat} and u.loc_lng between ${box.minLng} and ${box.maxLng}
+          and 6371 * 2 * asin(sqrt(power(sin(radians(u.loc_lat - ${lat}) / 2), 2)
+            + cos(radians(${lat})) * cos(radians(u.loc_lat)) * power(sin(radians(u.loc_lng - ${lng}) / 2), 2))) <= ${radiusKm})
+        or exists (select 1 from posts p where p.user_id = u.id and p.role = 'driver'
+          and ((p.origin_lat is not null and 6371 * 2 * asin(sqrt(power(sin(radians(p.origin_lat - ${lat}) / 2), 2)
+              + cos(radians(${lat})) * cos(radians(p.origin_lat)) * power(sin(radians(p.origin_lng - ${lng}) / 2), 2))) <= ${radiusKm})
+            or (p.dest_lat is not null and 6371 * 2 * asin(sqrt(power(sin(radians(p.dest_lat - ${lat}) / 2), 2)
+              + cos(radians(${lat})) * cos(radians(p.dest_lat)) * power(sin(radians(p.dest_lng - ${lng}) / 2), 2))) <= ${radiusKm})))
+      )
     limit 500`;
   return rows.map((r) => String(r.user_id));
 }
@@ -111,7 +120,7 @@ export async function callDrivers(me: string, postId: string, lat: number, lng: 
   const radiusKm = await getCallRadiusKm();
   // 알릴 운전자가 없으면 크레딧을 쓰기 전에 멈춘다.
   const ids = await findDrivers(me, lat, lng, radiusKm);
-  if (!ids.length) return { error: "근처 1시간 안에 위치를 기록한 운전자가 없어요. 호출하지 않았고 크레딧도 차감되지 않았어요." } as const;
+  if (!ids.length) return { error: "근처에 알릴 운전자가 없어요. 호출하지 않았고 크레딧도 차감되지 않았어요." } as const;
   const paid = await spend(me, CALL_COST, "call", `글 ${postId.slice(0, 8)}`);
   if (!paid) {
     const guide = await chargeGuide();
