@@ -55,7 +55,6 @@ export default function AuthForm({
   const [saved, setSaved] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
-  const [wantRegular, setWantRegular] = useState(false);
   // 가입 때는 알림을 따로 고르지 않는다: 메일·푸시 모두 켠 상태로 시작하고, 내 정보에서 바꿀 수 있다.
   const wantPush = true;
   const [busy, setBusy] = useState(false);
@@ -151,14 +150,6 @@ export default function AuthForm({
           {t("비밀번호 (8자 이상)")}
           <input data-block-id="F044" className={`${field} mt-1`} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} required autoFocus={usingSaved} value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
-        {mode === "signup" && (
-          <div className="space-y-1.5">
-            <button type="button" data-block-id="B047" data-block-name="정기카풀 키워드" role="switch" aria-checked={wantRegular} onClick={() => setWantRegular((v) => !v)} className={`rounded-full border px-4 text-[15px] ${wantRegular ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-              {wantRegular ? "✓ " : "+ "}{t("정기카풀(출퇴근)")}
-            </button>
-            <p className="text-[13px] text-sub">{t("고르면 가입하자마자 출퇴근 정보를 입력해 정기카풀로 바로 등록됩니다.")}</p>
-          </div>
-        )}
         <div className="space-y-2 rounded-xl border border-line px-4 py-3">
           {mode === "login" && canPush && check(wantPush, () => {}, t("푸시 알림 받기"), "F052", t("카풀 신청과 채팅 메시지를 이 기기로 바로 알려 드려요."))}
           {!canPush && mode === "login" && pushHint[push.state] && push.state !== "disabled" && <p className="text-[12px] text-sub">{t("푸시 알림")}: {t(pushHint[push.state] as string)}</p>}

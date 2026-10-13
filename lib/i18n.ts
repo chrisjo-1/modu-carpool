@@ -531,7 +531,6 @@ const D: Record<string, [string, string, string]> = {
   "금액은 500원에서 50,000원 사이로 입력해 주세요.": ["Enter an amount between ₩500 and ₩50,000.", "金額は500〜50,000ウォンの範囲で入力してください。", "金额请填写500至50,000韩元。"],
   "정기카풀(출퇴근)": ["Regular carpool (commute)", "定期カープール（通勤）", "固定拼车（通勤）"],
   "1회 출퇴근": ["One-time commute", "1回だけの通勤", "单次通勤"],
-  "고르면 가입하자마자 출퇴근 정보를 입력해 정기카풀로 바로 등록됩니다.": ["Pick this to enter your commute right after signing up and post it as a regular carpool.", "選ぶと、登録後すぐ通勤情報を入力して定期カープールとして掲載されます。", "选择后，注册完成即可填写通勤信息并立即发布为固定拼车。"],
   "글 수정": ["Edit post", "投稿を編集", "修改发布"],
   "글을 수정했어요.": ["Post updated.", "投稿を更新しました。", "已修改。"],
   "관리자 페이지": ["Admin page", "管理者ページ", "管理页面"],
