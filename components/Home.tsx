@@ -59,7 +59,7 @@ export function Route({ origin, dest }: { origin: string; dest: string }) {
   );
 }
 
-export default function Home({ posts, sample, onOpen, toast, onRefresh }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void }) {
+export default function Home({ posts, sample, onOpen, toast, onRefresh, onGoProfile }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void }) {
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
@@ -147,7 +147,7 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh }: { post
           </button>
         )}
       </header>
-      <FloatingCall toast={toast} />
+      <FloatingCall toast={toast} onGoProfile={onGoProfile} />
       {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
       {incomingTaxiId && <IncomingTaxiCall callId={incomingTaxiId} toast={toast} onClose={() => { setIncomingTaxiId(null); window.history.replaceState(null, "", "/"); }} />}
 

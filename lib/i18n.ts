@@ -165,6 +165,7 @@ const D: Record<string, [string, string, string]> = {
   "동승 조건을 적어 주세요.": ["Please enter the ride-share conditions.", "相乗りの条件を入力してください。", "请填写拼车条件。"],
   "받은 택시동승 호출": ["Taxi ride-share call received", "受けたタクシー相乗りの呼び出し", "收到的拼车打车呼叫"],
   "근처에 알릴 회원이 없어요. 호출하지 않았어요.": ["No nearby members to notify. The call was not sent.", "近くに通知する会員がいません。呼び出しは送信されませんでした。", "附近没有可通知的会员，呼叫未发送。"],
+  "프로필에서 등록하기": ["Register in profile", "プロフィールで登録する", "在个人资料中登记"],
   "받은 호출": ["Incoming call", "受けた呼び出し", "收到的呼叫"],
   "호출한 회원": ["Caller", "呼び出したメンバー", "呼叫的会员"],
   "수락하면 호출한 회원의 연락 방법과 아이디가 보여요.": ["Accepting shows the caller's contact method and ID.", "受け入れると、呼び出したメンバーの連絡方法とIDが表示されます。", "接受后将显示呼叫者的联系方式和账号。"],

@@ -11,6 +11,21 @@ function toLocalInput(ms: number) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** 연락 방법·아이디가 없을 때 안내하고, 프로필(내 정보)의 입력란으로 바로 이동시킨다. */
+function RegisterContact({ onGoProfile }: { onGoProfile?: () => void }) {
+  const t = useT();
+  return (
+    <div className="space-y-2 rounded-2xl bg-warnSoft px-4 py-3">
+      <p className="text-[14px] leading-relaxed text-warn">{t("CALL을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요.")}</p>
+      {onGoProfile && (
+        <button type="button" data-block-id="B280" data-block-name="프로필에서 연락 방법 등록" className="w-full rounded-xl bg-white py-2.5 text-[15px] font-semibold text-accent" onClick={onGoProfile}>
+          {t("프로필에서 등록하기")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** 홈 상단의 새로고침 버튼 */
 export function RefreshButton({ onRefresh }: { onRefresh: () => void }) {
   const t = useT();
@@ -22,21 +37,21 @@ export function RefreshButton({ onRefresh }: { onRefresh: () => void }) {
 }
 
 /** 하단 메뉴 바로 위, 가운데에 떠 있는 CALL 버튼 (홈 화면에서만 보인다) */
-export function FloatingCall({ toast }: { toast: (m: string) => void }) {
+export function FloatingCall({ toast, onGoProfile }: { toast: (m: string) => void; onGoProfile?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" data-block-id="B217" data-block-name="CALL" aria-label="CALL" className="fixed bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-accent px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => setOpen(true)}>
         CALL
       </button>
-      {open && <CallSheet onClose={() => setOpen(false)} toast={toast} />}
+      {open && <CallSheet onClose={() => setOpen(false)} toast={toast} onGoProfile={onGoProfile} />}
     </>
   );
 }
 
 type Step = "choose" | "pick" | "confirm" | "taxi";
 
-function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string) => void }) {
+function CallSheet({ onClose, toast, onGoProfile }: { onClose: () => void; toast: (m: string) => void; onGoProfile?: () => void }) {
   const t = useT();
   const [step, setStep] = useState<Step>("choose");
   const [mine, setMine] = useState<Post[] | null>(null);
@@ -146,7 +161,7 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
       {step === "choose" && (
         <div className="space-y-3">
           <button type="button" data-block-id="B218" data-block-name="택시동승 호출" className={btnGhost} onClick={taxi}>{t("택시동승 호출")}</button>
-          {ready === false && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("CALL을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요.")}</p>}
+          {ready === false && <RegisterContact onGoProfile={onGoProfile} />}
           {band !== null && (
             <p data-block-id="C500" data-block-name="주변 운전자 수" className="rounded-2xl bg-bg px-4 py-3 text-[15px] font-semibold text-ink">
               {t("현재 위치 기준")} · {bandText[band] ?? ""}
@@ -180,7 +195,7 @@ function CallSheet({ onClose, toast }: { onClose: () => void; toast: (m: string)
           <button type="button" className={btnGhost} onClick={() => setStep("choose")}>{t("뒤로")}</button>
         </div>
       )}
-      {step === "taxi" && <TaxiForm onBack={() => setStep("choose")} onDone={onClose} toast={toast} />}
+      {step === "taxi" && <TaxiForm onBack={() => setStep("choose")} onDone={onClose} toast={toast} onGoProfile={onGoProfile} />}
       {step === "confirm" && picked && (
         <div className="space-y-3">
           <Card className="space-y-1 p-4">
@@ -258,7 +273,7 @@ export function IncomingCall({ callId, onClose, toast }: { callId: string; onClo
  * 택시동승 호출 입력. 출발지·도착지·출발 시각·동승 조건을 적는다. 요금은 입력하지 않는다.
  * 보낼 때 현재 위치를 받아 근처 운전자·탑승자에게 알린다. 무료, 하루 2회.
  */
-function TaxiForm({ onBack, onDone, toast }: { onBack: () => void; onDone: () => void; toast: (m: string) => void }) {
+function TaxiForm({ onBack, onDone, toast, onGoProfile }: { onBack: () => void; onDone: () => void; toast: (m: string) => void; onGoProfile?: () => void }) {
   const t = useT();
   const [origin, setOrigin] = useState<Place>({ name: "", lat: null, lng: null });
   const [dest, setDest] = useState<Place>({ name: "", lat: null, lng: null });
@@ -307,7 +322,7 @@ function TaxiForm({ onBack, onDone, toast }: { onBack: () => void; onDone: () =>
   return (
     <div className="space-y-4">
       <p className="text-sm text-sub">{t("함께 탈 택시의 출발지·도착지와 동승 조건을 적어 주세요. 근처 운전자와 탑승자 모두에게 알려요.")}</p>
-      {ready === false && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("택시동승 호출을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요.")}</p>}
+      {ready === false && <RegisterContact onGoProfile={onGoProfile} />}
       {left !== null && limit !== null && <p className="text-[14px] text-sub">{t("오늘 남은 택시동승 호출")} {left}/{limit} · {t("택시동승 호출은 무료예요.")}</p>}
       {left === 0 && <p className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{t("오늘 택시동승 호출 횟수를 모두 썼어요. 내일 다시 이용해 주세요.")}</p>}
       <PlaceField blockId="F101" label={t("출발지")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
