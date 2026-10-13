@@ -117,7 +117,7 @@ export function Sheet({ title, onClose, children, blockId }: { title: string; on
     };
   }, []);
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fade-in fixed inset-0 z-50 flex items-end justify-center bg-ink/30" role="dialog" aria-modal="true" aria-label={title}>
       <div data-block-id={blockId} data-block-name={title} className="sheet safe-b flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-[28px] bg-surface shadow-card">
         <div className="flex items-center justify-between px-6 pb-2 pt-4">
           <p className="text-sm font-medium text-sub">{title}</p>
@@ -160,7 +160,7 @@ export function Segment<T extends string>({ value, options, onChange, label, com
   return (
     <div role="radiogroup" aria-label={label} className={`flex gap-1 rounded-xl bg-bg ${compact ? "p-0.5" : "p-1"}`}>
       {options.map(([v, text]) => (
-        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-lg px-2 ${compact ? "py-1.5 text-[14px]" : "py-2 text-[15px]"} ${value === v ? onStyle(v) : "text-sub"}`}>
+        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-lg px-2 motion-safe:transition-all motion-safe:duration-200 ${compact ? "py-1.5 text-[14px]" : "py-2 text-[15px]"} ${value === v ? onStyle(v) : "text-sub"}`}>
           {text}
         </button>
       ))}
@@ -168,6 +168,6 @@ export function Segment<T extends string>({ value, options, onChange, label, com
   );
 }
 
-export const btnPrimary = "w-full rounded-2xl bg-accent px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40";
-export const btnGhost = "w-full rounded-2xl bg-bg px-5 py-4 text-[17px] font-semibold text-ink active:opacity-80";
+export const btnPrimary = "w-full rounded-2xl bg-accent px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
+export const btnGhost = "w-full rounded-2xl bg-bg px-5 py-4 text-[17px] font-semibold text-ink active:opacity-80 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
 export const field = "w-full rounded-xl border border-line bg-white px-3 py-3 text-[16px] text-ink outline-none focus:border-accent";
