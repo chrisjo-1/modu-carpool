@@ -4,7 +4,7 @@ import { translate, type Lang } from "@/lib/i18n";
 import type { Post, Thread, User } from "@/lib/types";
 import Chat, { ChatRoom } from "./Chat";
 import CommuteSheet from "./Commute";
-import Home, { PostDetail } from "./Home";
+import Home, { PostDetail, RoleSwitch } from "./Home";
 import Me from "./Me";
 import { MemberSheet, ReasonSheet } from "./Member";
 import ResetSheet from "./Reset";
@@ -358,17 +358,18 @@ export default function App() {
           </p>
         )}
         {user && <VerifyBanner user={user} toast={setToastMsg} />}
-        <header className="flex items-center gap-3 px-5 pb-2 pt-5">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-white">{Icon.car(1.8)}</span>
-          <div>
+        <header className="flex items-start gap-3 px-5 pb-2 pt-5">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-white">{Icon.car(1.8)}</span>
+          <div className="min-w-0 flex-1">
             <p className="text-xl font-bold leading-tight">{t("모두의카풀")}</p>
             <p className="text-[13px] leading-tight text-sub">{t(slogan)}</p>
           </div>
+          {tab === "home" && <RoleSwitch user={user ?? null} onUser={setUser} toast={setToastMsg} onGoProfile={() => { setOpen(null); setTab("me"); }} />}
         </header>
 
         <main className="flex-1 px-4 pb-28 pt-3">
           {tab === "home" &&
-            (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} user={user} onUser={setUser} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
+            (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} onChanged={loadThreads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {
             // 받은 신청: 내 글 목록에서 찾아 글 상세(수락·거절 버튼)를 연다.
