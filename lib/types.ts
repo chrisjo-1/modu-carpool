@@ -120,5 +120,9 @@ export const SHOW_METER = false;
 export const initialCost = (c?: "free" | "meter" | "fixed"): "free" | "meter" | "fixed" => (c === "meter" && !SHOW_METER ? "free" : c ?? "free");
 
 /** 기본 역할: 차량 번호와 차량 사진을 모두 등록한 회원은 운전자, 아직 등록하지 않았다면 탑승자 */
-export const defaultRoleFor = (u: { carNo?: string; carPhoto?: string } | null | undefined): "driver" | "rider" =>
-  u?.carNo && u?.carPhoto ? "driver" : "rider";
+export const defaultRoleFor = (u: { carNo?: string; carPhoto?: string; rolePref?: string } | null | undefined): "driver" | "rider" => {
+  const registered = !!(u?.carNo && u?.carPhoto);
+  if (u?.rolePref === "rider") return "rider";
+  if (u?.rolePref === "driver" && registered) return "driver";
+  return registered ? "driver" : "rider";
+};

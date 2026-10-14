@@ -253,6 +253,16 @@ export async function PATCH(req: Request) {
   const id = await currentUserId();
   if (!id) return needLogin();
   const b = await body(req);
+  // 현재 역할 스위치: 역할만 보내면 그 값만 바꾼다(다른 프로필 정보는 건드리지 않는다).
+  if ((b.rolePref === "driver" || b.rolePref === "rider") && Object.keys(b).every((k) => k === "rolePref")) {
+    try {
+      await ensureSchema();
+      await db()`update users set role_pref = ${String(b.rolePref)} where id = ${id}`;
+      return json({ user: await profile(id) });
+    } catch (e) {
+      return fail(e);
+    }
+  }
   if (typeof b.marketing === "boolean" && b.name === undefined) {
     try {
       await ensureSchema();
