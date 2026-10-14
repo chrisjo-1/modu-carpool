@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FEEDBACK_STATUS, catLabel, statusLabel } from "@/lib/feedback";
 
-type Item = { id: number; name: string; email: string; member: boolean; category: string; body: string; status: string; reply: string; at: number };
+type Item = { id: number; name: string; email: string; member: boolean; category: string; body: string; status: string; reply: string; reward: number; rewardedAt: number; at: number };
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 
 export default function AdminFeedback() {
@@ -11,6 +11,8 @@ export default function AdminFeedback() {
   const [filter, setFilter] = useState("");
   const [edit, setEdit] = useState<Record<number, { status: string; reply: string }>>({});
   const [msg, setMsg] = useState("");
+  const [amt, setAmt] = useState<Record<number, string>>({});
+  const [paying, setPaying] = useState<number | null>(null);
 
   const load = useCallback(async (f = filter) => {
     const r = await fetch(`/api/admin/feedback?status=${f}`).then((x) => x.json()).catch(() => null);
@@ -27,6 +29,21 @@ export default function AdminFeedback() {
     const e = edit[it.id] ?? { status: it.status, reply: it.reply };
     const r = await fetch("/api/admin/feedback", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id, ...e }) });
     setMsg(r.ok ? (e.reply && e.reply !== it.reply && it.member ? "저장했습니다. 회원에게 답변 알림을 보냈습니다." : "저장했습니다.") : "저장하지 못했습니다.");
+    load();
+  };
+
+  /** 의견 보낸 회원에게 크레딧 지급 + 푸시. 한 번만 지급되고, 지급 후에는 기록만 보인다. */
+  const pay = async (it: Item) => {
+    const amount = Math.round(Number(amt[it.id]));
+    if (!(amount >= 1)) return setMsg("지급할 크레딧을 입력해 주세요.");
+    if (!window.confirm(`${it.name || "회원"}님에게 ${amount.toLocaleString("ko-KR")} 크레딧을 지급할까요? 지급 후에는 되돌릴 수 없고, 회원에게 푸시 알림이 갑니다.`)) return;
+    setPaying(it.id);
+    const r = await fetch("/api/admin/feedback/reward", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id, amount }) }).then((x) => x.json()).catch(() => null);
+    setPaying(null);
+    if (!r?.ok) return setMsg(r?.error ?? "지급하지 못했습니다.");
+    setMsg(r.pushed > 0
+      ? `${amount.toLocaleString("ko-KR")} 크레딧을 지급했고 푸시 알림을 보냈습니다.`
+      : `${amount.toLocaleString("ko-KR")} 크레딧을 지급했지만 푸시가 가지 않았습니다. 회원이 알림을 켜지 않았거나 기기 구독이 없습니다.`);
     load();
   };
 
@@ -53,6 +70,16 @@ export default function AdminFeedback() {
                 <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${it.status === "new" ? "bg-warnSoft text-warn" : "bg-accentSoft text-accent"}`}>{statusLabel(it.status)}</span>
               </p>
               <p className="whitespace-pre-wrap break-words text-[15px]">{it.body}</p>
+              {it.member && (
+                it.rewardedAt ? (
+                  <p className="text-sm text-accent">크레딧 {it.reward.toLocaleString("ko-KR")} 지급 완료 ({new Date(it.rewardedAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })})</p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input data-block-id="F140" aria-label="지급 크레딧" inputMode="numeric" className={`${input} w-36`} placeholder="크레딧 금액" value={amt[it.id] ?? ""} onChange={(x) => setAmt({ ...amt, [it.id]: x.target.value.replace(/[^0-9]/g, "") })} />
+                    <button type="button" data-block-id="B141" data-block-name="의견 크레딧 지급" disabled={paying === it.id} className="rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent disabled:opacity-50" onClick={() => pay(it)}>{paying === it.id ? "지급 중…" : "크레딧 지급 + 푸시"}</button>
+                  </div>
+                )
+              )}
               <div className="flex flex-wrap gap-2">
                 <select aria-label="상태" className={`${input} w-32`} value={e.status} onChange={(x) => setEdit({ ...edit, [it.id]: { ...e, status: x.target.value } })}>
                   {FEEDBACK_STATUS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}

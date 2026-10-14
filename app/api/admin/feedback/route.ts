@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     ]);
     return json({
       counts: Object.fromEntries(counts.map((c) => [c.status, c.n])),
-      items: rows.map((r) => ({ id: Number(r.id), name: r.name ?? "", email: r.email, member: !!r.user_id, category: r.category, body: r.body, status: r.status, reply: r.reply, at: new Date(r.created_at as string).getTime() })),
+      items: rows.map((r) => ({ id: Number(r.id), name: r.name ?? "", email: r.email, member: !!r.user_id, category: r.category, body: r.body, status: r.status, reply: r.reply, reward: Number(r.reward ?? 0), rewardedAt: r.rewarded_at ? new Date(r.rewarded_at as string).getTime() : 0, at: new Date(r.created_at as string).getTime() })),
     });
   } catch (e) {
     return fail(e);

@@ -8,6 +8,7 @@ export const REASON_LABEL: Record<string, string> = {
   legacy: "워프 회원 이전 축하",
   car: "차량 등록 축하",
   photo: "프로필 사진 등록 축하",
+  feedback: "의견 감사",
   photo_del: "프로필 사진 삭제 차감",
   attend: "출석",
   post: "카풀 게시",

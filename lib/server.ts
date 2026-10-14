@@ -157,6 +157,9 @@ export function ensureSchema(): Promise<void> {
         ip text not null default '',
         created_at timestamptz not null default now(),
         replied_at timestamptz)`;
+      // 의견 감사 크레딧: 관리자가 한 번만 지급한다(지급액·지급 시각 기록)
+      await sql`alter table feedback add column if not exists reward integer not null default 0`;
+      await sql`alter table feedback add column if not exists rewarded_at timestamptz`;
       await sql`alter table users add column if not exists role_pref text not null default ''`;
       // 역할은 운전자·탑승자 둘 중 하나만 쓴다(운전자는 탑승도 하므로 "둘 다"는 운전자로 옮긴다).
       await sql`update users set role_pref = 'driver' where role_pref = 'both'`;
