@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { User } from "@/lib/types";
+import { JOIN_SOURCES, type User } from "@/lib/types";
 import { creditText } from "./Credits";
 import { pushHint, type usePush } from "./Push";
 import { Segment, Sheet, api, btnPrimary, field, useLang, useT } from "./ui";
@@ -63,6 +63,7 @@ export default function AuthForm({
   const [sentMsg, setSentMsg] = useState("");
   const [legacyBonus, setLegacyBonus] = useState(0);
   const [agree, setAgree] = useState({ terms: false, privacy: false, marketing: false });
+  const [joinSource, setJoinSource] = useState("");
   useEffect(() => {
     api<{ rules?: { legacy?: number } }>("/api/credits").then((r) => r.ok && setLegacyBonus(r.data.rules?.legacy ?? 0));
   }, []);
@@ -87,9 +88,10 @@ export default function AuthForm({
     e.preventDefault();
     // 알림 권한 창은 버튼을 누른 그 순간에 띄워야 하는 브라우저가 있어 먼저 요청한다.
     const perm = canPush && wantPush && typeof Notification !== "undefined" ? Notification.requestPermission().catch(() => "default" as NotificationPermission) : null;
+    if (mode === "signup" && !joinSource) return toast(t("가입 경로를 골라 주세요."));
     if (mode === "signup" && !(agree.terms && agree.privacy)) return toast(t("이용약관과 개인정보 수집·이용에 동의해 주세요."));
     setBusy(true);
-    const r = await api<{ user: User; credit?: number; verify?: string }>("/api/auth", "POST", { action: mode, email, password, notify: mode === "signup" ? true : undefined, ...(mode === "signup" ? agree : {}) });
+    const r = await api<{ user: User; credit?: number; verify?: string }>("/api/auth", "POST", { action: mode, email, password, notify: mode === "signup" ? true : undefined, ...(mode === "signup" ? { ...agree, joinSource } : {}) });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setPassword("");
@@ -156,6 +158,15 @@ export default function AuthForm({
           {!canPush && mode === "login" && pushHint[push.state] && push.state !== "disabled" && <p className="text-[12px] text-sub">{t("푸시 알림")}: {t(pushHint[push.state] as string)}</p>}
           {check(remember, setRemember, t("이 기기에서 이메일 기억하기"), "F047")}
         </div>
+        {mode === "signup" && (
+          <label data-block-id="F217" className="block text-sm text-sub">
+            {t("가입하게 된 경로")}
+            <select data-block-id="F218" required className={`${field} mt-1`} value={joinSource} onChange={(e) => setJoinSource(e.target.value)}>
+              <option value="">{t("선택해 주세요")}</option>
+              {JOIN_SOURCES.map(([k, label]) => <option key={k} value={k}>{t(label)}</option>)}
+            </select>
+          </label>
+        )}
         {mode === "signup" && <Consent value={agree} onChange={setAgree} />}
         {mode === "signup" && pending && <p data-block-id="C061" data-block-name="인증 메일 안내" role="status" className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">{t("인증 메일을 보냈어요. 메일함에서 인증 링크를 눌러 가입을 마쳐 주세요.")}<br /><span className="font-semibold">{pending}</span></p>}
         <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>

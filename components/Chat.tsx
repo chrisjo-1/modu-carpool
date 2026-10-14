@@ -44,9 +44,20 @@ function shortTime(ms: number, lang: string) {
   return d.toLocaleString(lang === "ko" ? "ko-KR" : lang, today ? { hour: "2-digit", minute: "2-digit", hour12: false } : { month: "numeric", day: "numeric" });
 }
 
-export default function Chat({ user, enabled, threads, goLogin, openChat, openPost, push, toast }: { user: User | null; enabled: boolean; threads: Thread[]; goLogin: () => void; openChat: (th: Thread) => void; openPost: (postId: string) => void; push: ReturnType<typeof usePush>; toast: (m: string) => void }) {
+export default function Chat({ user, enabled, threads, goLogin, openChat, openPost, push, toast, onChanged }: { user: User | null; enabled: boolean; threads: Thread[]; goLogin: () => void; openChat: (th: Thread) => void; openPost: (postId: string) => void; push: ReturnType<typeof usePush>; toast: (m: string) => void; onChanged?: () => void }) {
   const t = useT();
   const lang = useLang();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // 수락 전 신청만 목록에서 바로 취소한다(서버도 대기 중인 신청만 지운다).
+  const cancel = async (th: Thread) => {
+    if (!window.confirm(t("신청을 취소할까요? 수락 전이라 언제든 다시 신청할 수 있어요."))) return;
+    setBusyId(th.id);
+    const r = await api(`/api/requests?id=${th.id}`, "DELETE");
+    setBusyId(null);
+    if (!r.ok) return toast(t(r.error));
+    toast(t("신청을 취소했어요."));
+    onChanged?.();
+  };
   // 받은 신청(내 글에 온 신청)은 '수락 필요'로 보여 주고, 누르면 글 상세에서 수락·거절할 수 있다.
   const statusFor = (th: Thread) => (th.iAmOwner && th.status === "pending" ? t("수락 필요") : statusText[th.status]);
   const statusText = { pending: t("수락 대기 중"), accepted: t("수락됨"), declined: t("거절됨") };
@@ -73,7 +84,8 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, openPo
       ) : (
         <Card className="divide-y divide-line">
           {threads.map((th) => (
-            <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status === "declined" || (th.status === "pending" && !th.iAmOwner)} onClick={() => (th.status === "accepted" ? openChat(th) : openPost(th.postId))} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
+            <div key={th.id} className="flex items-center gap-2 px-5 py-4">
+              <button data-block-id="C030" data-block-name="대화 항목" disabled={th.status === "declined"} onClick={() => (th.status === "accepted" ? openChat(th) : openPost(th.postId))} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left disabled:opacity-70">
               <Avatar src={th.otherPhoto} name={th.other} role={th.otherRole} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-baseline justify-between gap-2">
@@ -94,7 +106,13 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, openPo
               ) : (
                 <Tag tone={th.status === "accepted" || (th.iAmOwner && th.status === "pending") ? "accent" : "plain"}>{statusFor(th)}</Tag>
               )}
-            </button>
+              </button>
+              {th.status === "pending" && !th.iAmOwner && (
+                <button type="button" data-block-id="B305" data-block-name="신청 취소(목록)" disabled={busyId === th.id} onClick={() => cancel(th)} className="shrink-0 rounded-xl border border-line bg-white px-3 py-2 text-[14px] font-semibold text-ink disabled:opacity-50">
+                  {busyId === th.id ? t("처리 중…") : t("신청 취소")}
+                </button>
+              )}
+            </div>
           ))}
         </Card>
       )}

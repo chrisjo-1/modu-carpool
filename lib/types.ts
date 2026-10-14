@@ -94,7 +94,6 @@ export const REASONS: [string, string][] = [
   ["illegal", "불법"],
   ["etc", "기타"],
 ];
-export const reasonLabel = (key: string) => REASONS.find(([k]) => k === key)?.[1] ?? "";
 
 /** 다른 회원에게 보이는 프로필 */
 export type Member = {
@@ -117,9 +116,14 @@ export const METER_URL = process.env.NEXT_PUBLIC_METER_URL || "https://moca-mete
 export const SHOW_METER = false;
 
 /** 숨긴 미터기 선택은 무료로 본다(기존 미터기 게시물도 같은 방식으로 표시). */
-export const initialCost = (c?: "free" | "meter" | "fixed"): "free" | "meter" | "fixed" => (c === "meter" && !SHOW_METER ? "free" : c ?? "free");
 
-/** 기본 역할: 차량 번호와 차량 사진을 모두 등록한 회원은 운전자, 아직 등록하지 않았다면 탑승자 */
+/** 가입하게 된 경로(가입 때 한 번 고른다). 값은 저장용 코드, 뒤는 화면 문구. */
+export const JOIN_SOURCES: [string, string][] = [["member", "기존 회원 소개"], ["search", "검색"], ["friend", "지인 추천"], ["other", "기타"]];
+
+/**
+ * 기본 역할: 프로필의 희망 역할을 먼저 따른다(탑승자면 탑승자, 운전자면 차량 등록이 있을 때만 운전자).
+ * 희망 역할을 정하지 않았다면 차량 번호와 차량 사진을 모두 등록한 회원은 운전자, 아니면 탑승자.
+ */
 export const defaultRoleFor = (u: { carNo?: string; carPhoto?: string; rolePref?: string } | null | undefined): "driver" | "rider" => {
   const registered = !!(u?.carNo && u?.carPhoto);
   if (u?.rolePref === "rider") return "rider";

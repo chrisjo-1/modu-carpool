@@ -25,7 +25,7 @@ export async function GET(req: Request) {
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
     const users = await sql`
       select u.id, u.email, u.name, u.blocked, u.test, u.credits, u.created_at, u.last_seen, u.bio, u.contact, u.contact_type,
-             u.gender, u.role_pref, u.photo_v, u.car_v, u.car_no, u.interests,
+             u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.interests,
              (select count(*)::int from posts where user_id = u.id) as posts,
              (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
              (select count(*)::int from posts where user_id = u.id and role = 'rider') as rider_posts
