@@ -368,7 +368,7 @@ export default function App() {
 
         <main className="flex-1 px-4 pb-28 pt-3">
           {tab === "home" &&
-            (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
+            (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} user={user} onUser={setUser} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {
             // 받은 신청: 내 글 목록에서 찾아 글 상세(수락·거절 버튼)를 연다.

@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { HIDDEN_TEXT } from "./Me";
 import { useEffect, useMemo, useState } from "react";
-import { METER_URL, SHOW_METER, type Post, type Thread, type User } from "@/lib/types";
+import { METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
 import { RoleTag, Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
@@ -59,7 +59,32 @@ export function Route({ origin, dest }: { origin: string; dest: string }) {
   );
 }
 
-export default function Home({ posts, sample, onOpen, toast, onRefresh, onGoProfile }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void }) {
+/**
+ * 현재 역할 스위치: 지금 운전자 역할인지 탑승자 역할인지 보여 주고 바꾼다.
+ * 바꾼 역할은 프로필 희망 역할로 저장되며, 카풀 등록의 기본 역할이 된다.
+ */
+function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?: (u: User) => void; toast: (m: string) => void }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  if (!user) return null;
+  const current = defaultRoleFor(user);
+  const change = async (r: "driver" | "rider") => {
+    if (r === current || busy) return;
+    setBusy(true);
+    const res = await api<{ user: User }>("/api/auth", "PATCH", { rolePref: r });
+    setBusy(false);
+    if (!res.ok) return toast(t(res.error));
+    onUser?.(res.data.user);
+    toast(r === "driver" && !(user.carNo && user.carPhoto) ? t("운전자 글은 차량 등록 후 올릴 수 있어요.") : t("역할을 바꿨어요."));
+  };
+  return (
+    <div data-block-id="C075" data-block-name="현재 역할" className="min-w-0">
+      <Segment compact label={t("현재 역할")} value={current} onChange={change} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
+    </div>
+  );
+}
+
+export default function Home({ posts, sample, onOpen, toast, onRefresh, onGoProfile, user, onUser }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; user?: User | null; onUser?: (u: User) => void }) {
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
@@ -139,7 +164,8 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh, onGoProf
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
-      <header className="flex items-center justify-end gap-3">
+      <header className="flex items-center justify-between gap-3">
+        <RoleSwitch user={user ?? null} onUser={onUser} toast={toast} />
         {onRefresh && (
           <button type="button" data-block-id="B216" data-block-name="새로고침" className="min-h-0 shrink-0 py-1 text-[14px] font-semibold text-accent underline" onClick={() => { onRefresh(); toast(t("새로고침되었습니다.")); }}>
             {t("새로고침")}
