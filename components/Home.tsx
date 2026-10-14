@@ -60,31 +60,46 @@ export function Route({ origin, dest }: { origin: string; dest: string }) {
 }
 
 /**
- * 현재 역할 스위치: 지금 운전자 역할인지 탑승자 역할인지 보여 주고 바꾼다.
+ * 현재 역할 알약 버튼(헤더 한 줄). 누르면 운전자 ↔ 탑승자가 바뀐다.
+ * 차량이 없는 상태에서 운전자로 바꾸려 하면 내 정보(차량 등록)로 보낸다.
  * 바꾼 역할은 프로필 희망 역할로 저장되며, 카풀 등록의 기본 역할이 된다.
  */
-function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?: (u: User) => void; toast: (m: string) => void }) {
+function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | null; onUser?: (u: User) => void; toast: (m: string) => void; onGoProfile?: () => void }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   if (!user) return null;
   const current = defaultRoleFor(user);
-  const change = async (r: "driver" | "rider") => {
-    if (r === current || busy) return;
+  const registered = !!(user.carNo && user.carPhoto);
+  const toggle = async () => {
+    if (busy) return;
+    const next = current === "driver" ? "rider" : "driver";
+    if (next === "driver" && !registered) {
+      toast(t("운전자는 차량을 등록한 뒤 쓸 수 있어요."));
+      return onGoProfile?.();
+    }
     setBusy(true);
-    const res = await api<{ user: User }>("/api/auth", "PATCH", { rolePref: r });
+    const res = await api<{ user: User }>("/api/auth", "PATCH", { rolePref: next });
     setBusy(false);
     if (!res.ok) return toast(t(res.error));
     onUser?.(res.data.user);
-    toast(r === "driver" && !(user.carNo && user.carPhoto) ? t("운전자 글은 차량 등록 후 올릴 수 있어요.") : t("역할을 바꿨어요."));
   };
+  const isDriver = current === "driver";
   return (
-    <div data-block-id="C075" data-block-name="현재 역할" className="min-w-0">
-      <Segment compact label={t("현재 역할")} value={current} onChange={change} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
-    </div>
+    <button
+      type="button"
+      data-block-id="B302"
+      data-block-name="현재 역할 바꾸기"
+      aria-label={`${t("현재 역할")}: ${isDriver ? t("운전자") : t("탑승자")}`}
+      onClick={toggle}
+      disabled={busy}
+      className={`min-h-0 shrink-0 rounded-full px-3.5 py-1.5 text-[14px] motion-safe:transition-colors ${isDriver ? "bg-accent font-bold text-white" : "bg-[#1B7A4B] font-bold text-white"}`}
+    >
+      {isDriver ? t("운전자") : t("탑승자")}
+    </button>
   );
 }
 
-export default function Home({ posts, sample, onOpen, toast, onRefresh, onGoProfile, user, onUser }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; user?: User | null; onUser?: (u: User) => void }) {
+export default function Home({ posts, sample, onOpen, toast, onGoProfile, user, onUser }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; user?: User | null; onUser?: (u: User) => void }) {
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
@@ -164,14 +179,9 @@ export default function Home({ posts, sample, onOpen, toast, onRefresh, onGoProf
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
-      <RoleSwitch user={user ?? null} onUser={onUser} toast={toast} />
-      <header className="flex items-start justify-between gap-3">
+      <header className="flex items-center justify-between gap-3">
         <h1 data-block-id="S001-title" className="text-[22px] font-bold leading-tight">{t("같은 방향, 같이 가요")}</h1>
-        {onRefresh && (
-          <button type="button" data-block-id="B216" data-block-name="새로고침" className="min-h-0 shrink-0 py-1 text-[14px] font-semibold text-accent underline" onClick={() => { onRefresh(); toast(t("새로고침되었습니다.")); }}>
-            {t("새로고침")}
-          </button>
-        )}
+        <RoleSwitch user={user ?? null} onUser={onUser} toast={toast} onGoProfile={onGoProfile} />
       </header>
       <FloatingCall toast={toast} onGoProfile={onGoProfile} />
       {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
