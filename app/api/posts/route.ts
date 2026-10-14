@@ -133,12 +133,13 @@ export async function POST(req: Request) {
     const open = await sql`select count(*)::int as n from posts where user_id = ${me} and status = 'open' and not regular and depart_at > now()`;
     if ((open[0].n as number) >= 10) return json({ error: "진행 중인 글은 10개까지 올릴 수 있습니다." }, 429);
     const tags = allowedTags(await getKeywords(), r.tags, v.role, v.cost);
+    const hadPost = (await sql`select 1 from posts where user_id = ${me} limit 1`).length > 0;
     const rows = await sql`
       insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng, tags, taxi_share)
       values (${me}, ${v.role}, ${v.kind}, ${v.cost}, ${v.price}, ${v.origin}, ${v.dest}, ${v.at}, ${v.seats}, ${v.note},
               ${v.oLat}, ${v.oLng}, ${v.dLat}, ${v.dLng}, ${tags}::text[], ${v.taxiShare})
       returning id`;
-    const credit = await grant(me, "post").catch(() => 0);
+    const credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
     await notifyRouteAlerts(String(rows[0].id));
     if (v.role === "rider") await notifyDrivers(String(rows[0].id));
     return json({ id: rows[0].id, credit });
@@ -182,13 +183,14 @@ export async function PUT(req: Request) {
         seats = ${seats}, note = ${text(b.note, 300)}, status = 'open', tags = ${allowedTags(await getKeywords(), b.tags, role, c.cost)}::text[]
       where user_id = ${me} and regular returning id`;
     if (updated.length) return json({ id: updated[0].id, updated: true });
+    const hadPost = (await sql`select 1 from posts where user_id = ${me} limit 1`).length > 0;
     const rows = await sql`
       insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
                          regular, days, time_go, time_back, tags)
       values (${me}, ${role}, 'commute', ${c.cost}, ${c.price}, ${origin}, ${dest}, ${next}, ${seats}, ${text(b.note, 300)},
               ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${timeBack}, ${allowedTags(await getKeywords(), b.tags, role, c.cost)}::text[])
       returning id`;
-    const credit = await grant(me, "post").catch(() => 0);
+    const credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
     await notifyRouteAlerts(String(rows[0].id));
     return json({ id: rows[0].id, updated: false, credit });
   } catch (e) {

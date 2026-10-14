@@ -132,7 +132,8 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   // 구 워프 회원이면 대조 상태를 '가입됨'으로 바꾸고, 워프 이전 크레딧을 준다(인증이 끝난 뒤라 안전하다).
   // 이메일로 워프 명단을 맞추지 않는다. 워프 이전 크레딧은 번호 입력으로만 받는다.
   const welcome = await grant(id, "signup").catch(() => 0);
-  const legacy = await grantLegacy(id).catch(() => 0);
+  // 가입 경로에서 워프(풀럭) 기존 회원을 고른 경우에도 이전 축하 크레딧을 한 번 준다(장부 유일 인덱스로 중복 방지).
+  const legacy = (await grantLegacy(id).catch(() => 0)) || (String(p.join_source) === "warp" ? await grant(id, "legacy").catch(() => 0) : 0);
   await setUserSession(id);
   return { id, welcome, legacy };
 }

@@ -13,7 +13,7 @@ import { NoticePopup } from "./Notices";
 import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
 import Interests from "./Interests";
-import CommuteStart, { COMMUTE_LATER_KEY } from "./CommuteStart";
+import CommuteStart from "./CommuteStart";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import PostForm from "./PostForm";
@@ -78,6 +78,8 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [user]);
   const [commuteStart, setCommuteStart] = useState(false);
+  // 가입 직후 필수 등록 흐름(희망 선택 → 출퇴근 출발·도착지 → 정기카풀 게시). 끝날 때까지 닫을 수 없다.
+  const [joinFlow, setJoinFlow] = useState(false);
   const [pickInterests, setPickInterests] = useState(false);
   // 첫 화면 로딩: 로그인 확인과 글 목록이 끝나면 사라진다. 8초가 지나도 안 끝나면 그냥 넘어간다.
   const [splashGone, setSplashGone] = useState(false);
@@ -248,31 +250,6 @@ export default function App() {
     if (user && !user.test && user.interests == null) setPickInterests(true);
   }, [user]);
 
-  // '기타'로 미뤄 둔 출퇴근 정보: 로그인한 뒤 처음 앱을 열 때 한 번 다시 묻는다.
-  const askedLater = useRef(false);
-  useEffect(() => {
-    if (!user || askedLater.current || user.test) return;
-    let later = false;
-    try {
-      later = localStorage.getItem(COMMUTE_LATER_KEY) === "1";
-    } catch {
-      /* 무시 */
-    }
-    if (!later) return;
-    askedLater.current = true;
-    api<{ posts: Post[] }>("/api/posts?mine=1").then((r) => {
-      if (!r.ok) return;
-      if (r.data.posts.some((p) => p.regular)) {
-        try {
-          localStorage.removeItem(COMMUTE_LATER_KEY);
-        } catch {
-          /* 무시 */
-        }
-        return;
-      }
-      setCommute({ post: null, onboarding: true });
-    });
-  }, [user]);
 
   const refresh = async () => {
     const list = await loadPosts();
@@ -300,16 +277,7 @@ export default function App() {
   /** 출발지·도착지를 고른 뒤 전체 출퇴근 창을 연다. */
   const commuteNext = (origin: Place, dest: Place) => {
     setCommuteStart(false);
-    setCommute({ post: null, onboarding: false, prefill: { origin, dest } });
-  };
-  /** '기타'를 골랐을 때: 지금은 건너뛰고 다음 앱 실행 때 다시 묻는다. */
-  const commuteLater = () => {
-    try {
-      localStorage.setItem(COMMUTE_LATER_KEY, "1");
-    } catch {
-      /* 무시 */
-    }
-    setCommuteStart(false);
+    setCommute({ post: null, onboarding: joinFlow, prefill: { origin, dest } });
   };
 
   /** 사유 창에서 제출: 신고는 접수만 하고, 차단은 관련 창을 닫고 목록을 새로 받는다. */
@@ -411,17 +379,19 @@ export default function App() {
         )}
         {pickInterests && user && (
           <Interests
-            onClose={() => setPickInterests(false)}
             onSaved={(u, picked) => {
               setUser(u);
               setPickInterests(false);
-              if (picked.includes("carpool")) setCommuteStart(true);
-              else if (picked.includes("other")) commuteLater();
+              // 출퇴근 카풀 등록은 필수라서 건너뛸 수 없다.
+              if (picked.includes("carpool")) {
+                setJoinFlow(true);
+                setCommuteStart(true);
+              }
             }}
           />
         )}
-        {commuteStart && <CommuteStart onNext={commuteNext} onLater={commuteLater} onClose={() => setCommuteStart(false)} toast={setToastMsg} />}
-        {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); try { localStorage.removeItem(COMMUTE_LATER_KEY); } catch { /* 무시 */ } refresh(); setTab("home"); }} />}
+        {commuteStart && <CommuteStart onNext={commuteNext} onClose={() => setCommuteStart(false)} locked={joinFlow} toast={setToastMsg} />}
+        {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); setJoinFlow(false); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {enabled && checked && !user && !preview && !resetToken && (

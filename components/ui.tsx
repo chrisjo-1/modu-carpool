@@ -123,7 +123,7 @@ export const Icon = {
   ),
 };
 
-export function Sheet({ title, onClose, children, blockId }: { title: string; onClose: () => void; children: ReactNode; blockId: string }) {
+export function Sheet({ title, onClose, children, blockId, locked = false }: { title: string; onClose: () => void; children: ReactNode; blockId: string; locked?: boolean }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -136,7 +136,7 @@ export function Sheet({ title, onClose, children, blockId }: { title: string; on
       <div data-block-id={blockId} data-block-name={title} className="sheet safe-b flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-[28px] bg-surface shadow-card">
         <div className="flex items-center justify-between px-6 pb-2 pt-4">
           <p className="text-sm font-medium text-sub">{title}</p>
-          <button onClick={onClose} aria-label="닫기" className="-mr-2 grid w-11 place-items-center text-sub">{Icon.close()}</button>
+          {!locked && <button onClick={onClose} aria-label="닫기" className="-mr-2 grid w-11 place-items-center text-sub">{Icon.close()}</button>}
         </div>
         <div className="overflow-y-auto px-6 pb-6">{children}</div>
       </div>

@@ -110,7 +110,7 @@ export default function CommuteSheet({
   };
 
   return (
-    <Sheet title={t("내 출퇴근 정보")} blockId="S060" onClose={onClose}>
+    <Sheet title={t("내 출퇴근 정보")} blockId="S060" onClose={onClose} locked={onboarding}>
       <form onSubmit={submit} className="space-y-4">
         {carGate && <CarGateSheet onClose={() => setCarGate(false)} />}
         {onboarding && (
@@ -170,7 +170,6 @@ export default function CommuteSheet({
 
         <div className="space-y-2">
           <button data-block-id="B060" data-block-name="정기카풀 게시" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : initial ? t("저장") : t("정기카풀로 게시하기")}</button>
-          {onboarding && <button type="button" data-block-id="B061" data-block-name="나중에" className={btnGhost} onClick={onClose}>{t("나중에 할게요")}</button>}
         </div>
       </form>
     </Sheet>

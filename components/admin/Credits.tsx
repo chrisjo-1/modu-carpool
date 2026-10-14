@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
-type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number; car: number; photo: number };
+type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number; car: number; photo: number; firstpost: number };
 type Row = { id: number; amount: number; reason: string; memo: string; created_at: number; user_id: string; name: string; email: string; credits: number };
 type Data = { rules: Rules; labels: Record<string, string>; totals: { issued: number; used: number; balance: number; attendToday: number }; ledger: Row[] };
 
@@ -14,6 +14,7 @@ const RULE_ROWS: [keyof Rules, string, string][] = [
   ["signup", "가입 축하", "가입할 때 한 번 (기존 회원은 내 정보를 처음 열 때)"],
   ["legacy", "워프 회원 이전 축하", "구 워프 가입 이메일로 가입한 회원에게 한 번 (추가 지급)"],
   ["car", "차량 등록 축하", "차량번호와 차량 사진을 모두 등록한 운전자에게 한 번"],
+  ["firstpost", "첫 카풀 등록 축하", "카풀(정기 포함)을 처음 올린 회원에게 한 번"],
   ["photo", "프로필 사진 등록 축하", "프로필 사진을 처음 등록한 회원에게 한 번. 사진을 삭제하면 같은 금액을 차감(음수 잔액 허용)"],
   ["attend", "출석하기", "하루 한 번, 내 정보의 출석 버튼"],
   ["post", "카풀 게시", "하루 한 번, 일회성·정기카풀 글 등록"],

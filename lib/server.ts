@@ -95,6 +95,7 @@ export function ensureSchema(): Promise<void> {
       await sql`create unique index if not exists credit_car_uniq on credit_ledger (user_id) where reason = 'car'`;
       await sql`create unique index if not exists credit_legacy_uniq on credit_ledger (user_id) where reason = 'legacy'`;
       await sql`create unique index if not exists credit_photo_uniq on credit_ledger (user_id) where reason = 'photo'`;
+      await sql`create unique index if not exists credit_firstpost_uniq on credit_ledger (user_id) where reason = 'firstpost'`;
       // 나의 당근함: 회원이 당근마켓 상품을 소개하는 진열(로그인 회원에게만 보임, 거래는 당근마켓에서)
       await sql`create table if not exists karrot_items (
         id uuid primary key default gen_random_uuid(),
