@@ -148,7 +148,7 @@ const D: Record<string, [string, string, string]> = {
   "현재 역할": ["Current role", "現在の役割", "当前角色"],
   "로그인하면 역할을 바꿀 수 있어요.": ["Log in to change your role.", "ログインすると役割を変更できます。", "登录后即可更改角色。"],
   "역할을 바꿨어요.": ["Role changed.", "役割を変更しました。", "角色已更改。"],
-  "운전자 글은 차량 등록 후 올릴 수 있어요.": ["You can post as a driver after registering your vehicle.", "運転者の投稿は車両登録後にできます。", "登记车辆后才能以司机身份发布。"],
+  "운전자는 차량을 등록한 뒤 쓸 수 있어요.": ["You can use the driver role after registering your vehicle.", "運転者は車両を登録してから使えます。", "注册车辆后才能使用司机身份。"],
   "받은 호출": ["Incoming call", "受けた呼び出し", "收到的呼叫"],
   "호출한 회원": ["Caller", "呼び出したメンバー", "呼叫的会员"],
   "수락하면 호출한 회원의 연락 방법과 아이디가 보여요.": ["Accepting shows the caller's contact method and ID.", "受け入れると、呼び出したメンバーの連絡方法とIDが表示されます。", "接受后将显示呼叫者的联系方式和账号。"],
