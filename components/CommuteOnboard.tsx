@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { estimate, type FareEstimate } from "@/lib/fare";
-import type { Place } from "@/lib/types";
-import { MAX_PRICE } from "@/lib/time";
+import type { Place, User } from "@/lib/types";
+import { MAX_PRICE, priceAllowedRegular, toMinutes } from "@/lib/time";
+import CarInput from "./CarInput";
 import PlaceField from "./PlaceField";
 import { Sheet, api, btnPrimary, field, useT } from "./ui";
 
@@ -10,10 +11,12 @@ type Kind = "commute" | "other";
 
 /**
  * 가입 직후 출퇴근 정보 입력(필수, 닫을 수 없음).
- * 출퇴근이면 출발지·도착지·출근 시간·1회 희망 금액을 받아 정기카풀로 올린다(요일 등은 나중에 보완).
- * 출퇴근이 아니면 '기타'를 고르고 주요 이동경로만 입력한다.
+ * - 출퇴근: 출발지·도착지·출근 시간을 받아 정기카풀로 올린다(요일 등은 나중에 보완).
+ *   출근 시간이 정기카풀 시간대(평일 출퇴근 시간대) 안이면 1회 희망 금액을 적고, 밖이면 무료 카풀로 올린다.
+ *   운전자로 올리는 경우 차량번호·차량 사진이 없으면 그 자리에서 먼저 등록한다.
+ * - 기타: 주요 이동경로만 입력한다(게시하지 않는다).
  */
-export default function CommuteOnboard({ onDone, toast }: { onDone: (msg: string) => void; toast: (m: string) => void }) {
+export default function CommuteOnboard({ user, onDone, toast }: { user: User | null; onDone: (msg: string) => void; toast: (m: string) => void }) {
   const t = useT();
   const empty: Place = { name: "", lat: null, lng: null };
   const [kind, setKind] = useState<Kind | "">("");
@@ -41,11 +44,18 @@ export default function CommuteOnboard({ onDone, toast }: { onDone: (msg: string
   }, [routeOk, origin.lat, origin.lng, dest.lat, dest.lng]);
 
   const routeNamed = origin.name.trim().length >= 2 && dest.name.trim().length >= 2;
-  const ready = kind !== "" && routeNamed && (kind === "other" || (/^\d{2}:\d{2}$/.test(timeGo) && Number(price) >= 500 && Number(price) <= MAX_PRICE));
+  const timeValid = toMinutes(timeGo) >= 0;
+  // 정기카풀 시간대 규칙과 같은 기준(서버와 공유): 시간대 안이면 금액을 적고, 밖이면 무료.
+  const allowed = kind === "commute" && timeValid && priceAllowedRegular("12345", timeGo, "");
+  const driver = user?.rolePref !== "rider";
+  const carOk = !!user?.carNo && !!user?.carPhoto;
+  const needCar = kind === "commute" && driver && !carOk;
+  const priceOk = Number(price) >= 500 && Number(price) <= MAX_PRICE;
+  const ready = kind !== "" && routeNamed && (kind === "other" || (timeValid && !needCar && (!allowed || priceOk)));
 
   const save = async () => {
     setBusy(true);
-    const r = await api<{ ok: boolean; posted: boolean; reason?: string; updated?: boolean; credit?: number }>("/api/commute/onboard", "POST", {
+    const r = await api<{ ok: boolean; posted: boolean; reason?: string; updated?: boolean; free?: boolean; credit?: number }>("/api/commute/onboard", "POST", {
       kind,
       origin: origin.name,
       dest: dest.name,
@@ -54,14 +64,17 @@ export default function CommuteOnboard({ onDone, toast }: { onDone: (msg: string
       destLat: dest.lat,
       destLng: dest.lng,
       timeGo,
-      price: Number(price),
+      price: allowed ? Number(price) : 0,
     });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     if (kind === "other") return onDone(t("주요 이동경로를 저장했어요."));
     if (!r.data.posted) return onDone(`${t("출퇴근 정보를 저장했어요.")} ${t(r.data.reason ?? "")}`.trim());
     const credit = r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : "";
-    onDone(t("정기카풀로 올렸어요. 요일과 복귀 시간은 내 정보에서 나중에 보완해 주세요.") + credit);
+    const done = r.data.free
+      ? t("무료 카풀로 올렸어요. 요일과 복귀 시간은 내 정보에서 나중에 보완해 주세요.")
+      : t("정기카풀로 올렸어요. 요일과 복귀 시간은 내 정보에서 나중에 보완해 주세요.");
+    onDone(done + credit);
   };
 
   const pick = (k: Kind) => setKind(k);
@@ -95,15 +108,29 @@ export default function CommuteOnboard({ onDone, toast }: { onDone: (msg: string
               {t("출근 시간")}
               <input type="time" required className={`${field} mt-1`} value={timeGo} onChange={(e) => setTimeGo(e.target.value)} />
             </label>
-            <label data-block-id="F323" className="block text-sm text-sub">
-              {t("1회 희망 금액 (원)")}
-              <input type="number" inputMode="numeric" min={500} max={MAX_PRICE} step={100} required className={`${field} mt-1`} value={price} placeholder="예: 3000" onChange={(e) => setPrice(e.target.value)} />
-              <span className="mt-1 block text-[13px] leading-relaxed text-sub">{t("500원 이상 자유롭게 적어 주세요. 100원 단위로 저장돼요.")}</span>
-            </label>
+            {allowed ? (
+              <label data-block-id="F323" className="block text-sm text-sub">
+                {t("1회 희망 금액 (원)")}
+                <input type="number" inputMode="numeric" min={500} max={MAX_PRICE} step={100} required className={`${field} mt-1`} value={price} placeholder="예: 3000" onChange={(e) => setPrice(e.target.value)} />
+                <span className="mt-1 block text-[13px] leading-relaxed text-sub">{t("500원 이상 자유롭게 적어 주세요. 100원 단위로 저장돼요.")}</span>
+              </label>
+            ) : (
+              timeValid && (
+                <p data-block-id="C322" data-block-name="무료 카풀 안내" role="note" className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">
+                  {t("출근 시간이 출퇴근 시간대 밖이라 무료 카풀로 올라가요. 시간대: 평일 오전 7~9시, 오후 6~8시.")}
+                </p>
+              )
+            )}
             {est && (
               <p data-block-id="C321" data-block-name="택시 기준 참고" className="rounded-xl border border-line px-4 py-3 text-[14px] text-sub">
                 {t("택시 기준 참고 (예상)")}: {est.taxi.low.toLocaleString("ko-KR")}~{est.taxi.high.toLocaleString("ko-KR")}원
               </p>
+            )}
+            {needCar && (
+              <div className="space-y-2">
+                <p className="text-[14px] leading-relaxed text-accent">{t("운전자로 글을 올리려면 차량번호와 차량 사진을 먼저 등록해야 해요. 아래에서 바로 등록할 수 있어요.")}</p>
+                <CarInput user={user} toast={toast} onSaved={(u) => window.dispatchEvent(new CustomEvent("moducarpool:user", { detail: u }))} />
+              </div>
             )}
           </>
         )}

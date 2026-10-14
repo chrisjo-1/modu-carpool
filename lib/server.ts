@@ -356,6 +356,15 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists old_name text`;
       // 워프 회원 질문에 '아니오'로 답한 회원: 다시 묻지 않는다.
       await sql`alter table users add column if not exists warp_no boolean not null default false`;
+      // 워프 이메일 확인 링크: 가입 이메일과 다른 워프 이메일로 확인하면, 그 메일로 보낸 링크를 눌러야 이전 크레딧을 준다.
+      await sql`create table if not exists legacy_claims (
+        token_hash text primary key,
+        user_id uuid not null references users(id) on delete cascade,
+        warp_id text not null,
+        created_at timestamptz not null default now(),
+        expires_at timestamptz not null,
+        used boolean not null default false)`;
+      await sql`create index if not exists legacy_claims_user_idx on legacy_claims (user_id)`;
       // 마지막 접속 시각(관리자 회원 목록용). 요청 때마다 쓰지 않도록 5분에 한 번만 기록한다.
       await sql`alter table users add column if not exists last_seen timestamptz`;
       // 회원이 앱을 열 때 기록하는 현재 위치(CALL 대상 찾기용). 30분이 지나면 쓰지 않는다. 화면에는 보이지 않는다.

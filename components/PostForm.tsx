@@ -106,7 +106,7 @@ export default function PostForm({
 
   const form = (
     <form onSubmit={submit} className="space-y-4">
-      {carGate && <CarGateSheet onClose={() => setCarGate(false)} />}
+      {carGate && <CarGateSheet onClose={() => setCarGate(false)} user={user} toast={toast} />}
       <Card className="space-y-4 p-5">
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("나는")}</p>

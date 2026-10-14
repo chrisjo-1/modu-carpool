@@ -4,7 +4,7 @@ import { Card, Icon, api, useLang, useT } from "./ui";
 
 type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number; car: number; photo?: number; firstpost?: number };
 type Item = { id: string; amount: number; reason: string; label: string; memo: string; at: number };
-type Data = { balance: number; attended: boolean; welcome: number; rules: Rules; callCost?: number; historyCount: number; warpHidden?: boolean };
+type Data = { balance: number; attended: boolean; welcome: number; rules: Rules; callCost?: number; historyCount: number; warpHidden?: boolean; legacyPending?: string | null };
 
 export const creditText = (n: number, lang: string) => `${n.toLocaleString(lang === "ko" ? "ko-KR" : "en-US")}`;
 
@@ -22,6 +22,8 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
   const [showRules, setShowRules] = useState(false);
   const [loading, setLoading] = useState(false);
   const [warpCode, setWarpCode] = useState("");
+  const [legacyEmail, setLegacyEmail] = useState("");
+  const [legacyBusy, setLegacyBusy] = useState(false);
   const [warpBusy, setWarpBusy] = useState(false);
   // '예'를 누르면 고유번호 입력칸을 펼친다.
   const [warpOpen, setWarpOpen] = useState(false);
@@ -77,6 +79,17 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
     if (!r.ok) return toast(t(r.error));
     setWarpCode("");
     toast(`${t("워프 회원 크레딧이 적립됐어요.")} +${creditText(r.data.added, lang)} ${t("크레딧")}`);
+    load();
+  };
+
+  // 워프 이메일 확인 메일을 다른 주소로 바꾸거나 다시 보낸다.
+  const changeLegacy = async () => {
+    setLegacyBusy(true);
+    const r = await api<{ ok: boolean; sentTo: string }>("/api/auth", "POST", { action: "legacyChange", email: legacyEmail.trim() });
+    setLegacyBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    setLegacyEmail("");
+    toast(t("확인 메일을 보냈어요. 메일의 링크를 눌러 주세요."));
     load();
   };
 
@@ -152,6 +165,15 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
             </li>
           ))}
         </ul>
+        )}
+        {d.legacyPending && (
+          <div data-block-id="C058" data-block-name="워프 이메일 확인 대기" className="space-y-2 rounded-xl bg-accentSoft px-4 py-3">
+            <p className="text-[14px] leading-relaxed text-accent">{t("워프 회원 확인 메일을 보냈어요. 메일의 링크를 누르면 이전 축하 크레딧을 드려요.")} <span className="num">{d.legacyPending}</span></p>
+            <div className="flex gap-2">
+              <input data-block-id="F223" type="email" aria-label={t("다른 워프 이메일로 바꾸기")} className="min-w-0 flex-1 rounded-xl border border-line bg-white px-4 py-3 text-[15px]" placeholder={t("다른 워프 이메일로 바꾸기")} value={legacyEmail} onChange={(e) => setLegacyEmail(e.target.value)} />
+              <button type="button" data-block-id="B225" data-block-name="워프 이메일 다시 보내기" disabled={legacyBusy || !legacyEmail.trim()} className="shrink-0 rounded-xl bg-accent px-4 py-3 text-[15px] font-semibold text-white disabled:bg-bg disabled:text-sub" onClick={changeLegacy}>{legacyBusy ? t("처리 중…") : t("다시 보내기")}</button>
+            </div>
+          </div>
         )}
         {!d.warpHidden && (
           <div data-block-id="C056" data-block-name="워프 회원 번호 입력" className="rounded-2xl bg-bg p-4">

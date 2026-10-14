@@ -1,5 +1,6 @@
 import { REASON_LABEL, getRules, grant, grantLegacy, kstDay } from "@/lib/credits";
 import { CALL_COST } from "@/lib/call";
+import { maskEmail } from "@/lib/legacy";
 import { body, currentUserId, db, ensureSchema, fail, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,8 @@ export async function GET(req: Request) {
     ]);
     const welcome = signup + legacy;
     const u = await sql`select credits, warp_no, exists(select 1 from legacy_members l where l.matched_user = users.id) as claimed from users where id = ${me}`;
+    // 워프 이메일 확인 메일을 보내 둔 상태라면 그 주소를 가려서 보여 준다.
+    const pend = await sql`select l.email_norm from legacy_claims c join legacy_members l on l.warp_id = c.warp_id where c.user_id = ${me} and not c.used and c.expires_at > now() limit 1`;
     return json({
       balance: Number(u[0]?.credits ?? 0),
       attended: today.length > 0,
@@ -44,6 +47,7 @@ export async function GET(req: Request) {
       historyCount: Number(count[0]?.n ?? 0),
       // 워프 번호 질문을 숨길지: '아니오'로 답했거나 이미 워프 번호가 연결된 회원
       warpHidden: u[0]?.warp_no === true || u[0]?.claimed === true,
+      legacyPending: pend.length ? maskEmail(String(pend[0].email_norm)) : null,
     });
   } catch (e) {
     return fail(e);

@@ -3,7 +3,7 @@ import { CAR_REQUIRED, carReady } from "@/lib/car";
 import { grant } from "@/lib/credits";
 import { PHOTO_REQUIRED, hasPhoto, isVerified } from "@/lib/verify";
 import { body, currentUserId, db, ensureSchema, fail, json, needLogin, text } from "@/lib/server";
-import { MAX_PRICE, nextOccurrence, toMinutes } from "@/lib/time";
+import { MAX_PRICE, nextOccurrence, priceAllowedRegular, toMinutes } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ function coord(lat: unknown, lng: unknown): [number | null, number | null] {
  * - commute: 출발지·도착지·출근 시간·1회 희망 금액을 프로필에 저장하고, 정기카풀 글로 자동 게시한다.
  *   요일과 복귀 시간은 나중에 내 정보에서 보완한다(기본값: 평일 매일).
  * - other: 출퇴근이 아니면 주요 이동경로만 프로필에 저장한다(게시하지 않는다).
- * 금액은 시간대 제한 없이 자유롭게 적는다(택시 기준 요금은 화면에서 참고로만 보여 준다).
+ * 금액은 정기카풀 시간대 규칙(평일 출근 시간대)에 맞을 때만 받는다. 아니면 무료 카풀로 올린다.
  */
 export async function POST(req: Request) {
   const me = await currentUserId();
@@ -34,11 +34,14 @@ export async function POST(req: Request) {
   const [oLat, oLng] = coord(b.originLat, b.originLng);
   const [dLat, dLng] = coord(b.destLat, b.destLng);
   const timeGo = kind === "commute" ? text(b.timeGo, 5) : "";
-  const price = kind === "commute" ? Math.round(Number(b.price) / 100) * 100 : 0;
+  // 금액은 정기카풀 시간대 규칙(평일 출퇴근 시간대)에 맞을 때만 받는다. 아니면 무료 카풀로 올린다.
+  const allowed = kind === "commute" && priceAllowedRegular("12345", timeGo, "");
+  const price = allowed ? Math.round(Number(b.price) / 100) * 100 : 0;
   if (kind === "commute") {
     if (toMinutes(timeGo) < 0) return json({ error: "출근 시간을 확인해 주세요." }, 400);
-    if (!(price >= 500 && price <= MAX_PRICE)) return json({ error: `희망 금액은 500원에서 ${MAX_PRICE.toLocaleString("ko-KR")}원 사이로 입력해 주세요.` }, 400);
+    if (allowed && !(price >= 500 && price <= MAX_PRICE)) return json({ error: `희망 금액은 500원에서 ${MAX_PRICE.toLocaleString("ko-KR")}원 사이로 입력해 주세요.` }, 400);
   }
+  const cost = allowed ? "fixed" : "free";
   try {
     await ensureSchema();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 등록할 수 있어요. 메일함을 확인해 주세요." }, 403);
@@ -57,22 +60,22 @@ export async function POST(req: Request) {
     const days = "12345";
     const next = new Date(nextOccurrence(days, timeGo)).toISOString();
     const updated = await sql`
-      update posts set role = ${role}, cost = 'fixed', price = ${price}, origin = ${origin}, dest = ${dest},
+      update posts set role = ${role}, cost = ${cost}, price = ${price}, origin = ${origin}, dest = ${dest},
         origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng},
         days = ${days}, time_go = ${timeGo}, time_back = '', depart_at = ${next}, seats = 1, status = 'open', tags = '{}'::text[]
       where user_id = ${me} and regular returning id`;
-    if (updated.length) return json({ ok: true, posted: true, updated: true, id: updated[0].id });
+    if (updated.length) return json({ ok: true, posted: true, updated: true, free: !allowed, id: updated[0].id });
 
     const hadPost = (await sql`select 1 from posts where user_id = ${me} limit 1`).length > 0;
     const rows = await sql`
       insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
                          regular, days, time_go, time_back, tags)
-      values (${me}, ${role}, 'commute', 'fixed', ${price}, ${origin}, ${dest}, ${next}, 1, '',
+      values (${me}, ${role}, 'commute', ${cost}, ${price}, ${origin}, ${dest}, ${next}, 1, '',
               ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${days}, ${timeGo}, '', '{}'::text[])
       returning id`;
     const credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
     await notifyRouteAlerts(String(rows[0].id)).catch(() => {});
-    return json({ ok: true, posted: true, updated: false, id: rows[0].id, credit });
+    return json({ ok: true, posted: true, updated: false, free: !allowed, id: rows[0].id, credit });
   } catch (e) {
     return fail(e);
   }

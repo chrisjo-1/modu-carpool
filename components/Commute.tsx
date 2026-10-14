@@ -112,7 +112,7 @@ export default function CommuteSheet({
   return (
     <Sheet title={t("내 출퇴근 정보")} blockId="S060" onClose={onClose} locked={onboarding}>
       <form onSubmit={submit} className="space-y-4">
-        {carGate && <CarGateSheet onClose={() => setCarGate(false)} />}
+        {carGate && <CarGateSheet onClose={() => setCarGate(false)} user={user ?? null} toast={toast} />}
         {onboarding && (
           <div>
             <h2 className="text-2xl font-bold leading-snug">{t("출퇴근 정보를 알려 주세요")}</h2>

@@ -13,27 +13,10 @@ import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
+import { shrinkCar } from "./CarInput";
 
 /** 고른 사진을 가운데 정사각형으로 잘라 240px JPEG로 줄인다. */
 /** 차량 사진: 긴 변 800px JPEG */
-async function shrinkCar(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, 800 / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas");
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  let q = 0.8;
-  let out = canvas.toDataURL("image/jpeg", q);
-  while (out.length > 290_000 && q > 0.4) out = canvas.toDataURL("image/jpeg", (q -= 0.1));
-  return out;
-}
 
 
 /** 내 글이 다른 회원 목록에 보이지 않는 이유 */
@@ -213,7 +196,6 @@ export default function Me({
       )}
       <div>
         <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t(user ? "마이 프로필" : "계정")}</h2>
-        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("계정")}</h2>
         <Card data-block-id="C040" data-block-name="계정" className="p-5">
           {user ? (
             <form onSubmit={saveProfile} className="space-y-3">
@@ -246,14 +228,14 @@ export default function Me({
                 <textarea data-block-id="F041" className={`${field} mt-1`} rows={2} maxLength={200} placeholder={t("예: 판교로 출퇴근해요. 영어 조금 합니다.")} value={bio} onChange={(e) => setBio(e.target.value)} />
               </label>
               <div className="space-y-1">
-                <label htmlFor="F045" className="block text-sm text-sub">{t("연락 방법")}</label>
-                <select id="F045" data-block-id="F045" className={field} value={contactType} onChange={(e) => setContactType(e.target.value)}>
+                <label htmlFor="F045" className="block text-sm text-sub">{t("연락 방법 (필수)")}</label>
+                <select id="F045" data-block-id="F045" required className={field} value={contactType} onChange={(e) => setContactType(e.target.value)}>
                   <option value="">{t("선택")}</option>
                   {CONTACT_TYPES.map(([k, label]) => (
                     <option key={k} value={k}>{t(label)}</option>
                   ))}
                 </select>
-                <input data-block-id="F042" className={`${field} mt-2`} maxLength={60} disabled={!contactType} aria-label={t("아이디 입력")} placeholder={t(contactType ? "아이디를 입력하세요" : "연락 방법을 먼저 선택하세요")} autoCapitalize="none" autoCorrect="off" value={contact} onChange={(e) => setContact(e.target.value)} />
+                <input data-block-id="F042" className={`${field} mt-2`} maxLength={60} required disabled={!contactType} aria-label={t("아이디 입력")} placeholder={t(contactType ? "아이디를 입력하세요" : "연락 방법을 먼저 선택하세요")} autoCapitalize="none" autoCorrect="off" value={contact} onChange={(e) => setContact(e.target.value)} />
               </div>
               <p className="text-[13px] text-sub">{t("연락 수단은 신청이 수락된 상대에게만 보입니다.")}</p>
               <div className="flex gap-2">
@@ -274,6 +256,7 @@ export default function Me({
                   </select>
                 </label>
               </div>
+              <p className="text-[13px] text-sub">{t("운전과 탑승을 모두 하신다면 운전자를 선택해 주세요.")}</p>
               <p className="text-[13px] text-sub">{t("성별과 이용 역할은 공개되지 않고, 맞춤 공지를 보낼 때만 써요.")}</p>
               <button data-block-id="B040" data-block-name="프로필 저장" className={btnPrimary} disabled={busy}>{t("저장")}</button>
             </form>

@@ -10,7 +10,7 @@ const OPTIONS: [Choice, string, string][] = [
 ];
 
 /**
- * 가입(이메일 인증) 뒤 처음 한 번 묻는 희망 선택. 출퇴근 카풀은 필수라서 항상 포함되고, 택시 동승은 함께 고를 수 있다.
+ * 가입(이메일 인증) 뒤 처음 한 번 묻는 희망 선택. 여러 개를 고를 수 있다. 출퇴근 정보는 다음 화면에서 받는다.
  * 닫기·나중에 버튼은 없다.
  */
 export default function Interests({ onSaved }: { onSaved: (user: User, picked: Choice[]) => void }) {
@@ -18,13 +18,10 @@ export default function Interests({ onSaved }: { onSaved: (user: User, picked: C
   const [picked, setPicked] = useState<Choice[]>(["carpool"]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const toggle = (c: Choice) => {
-    if (c === "carpool") return; // 출퇴근 카풀은 필수
-    setPicked((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]));
-  };
+  const toggle = (c: Choice) => setPicked((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]));
 
   const save = async () => {
-    if (!picked.includes("carpool")) return setErr("출퇴근 카풀은 꼭 등록해야 해요.");
+    if (!picked.length) return setErr("하나 이상 골라 주세요.");
     setBusy(true);
     const r = await api<{ user: User }>("/api/auth", "POST", { action: "interests", interests: picked });
     setBusy(false);
@@ -40,7 +37,7 @@ export default function Interests({ onSaved }: { onSaved: (user: User, picked: C
           {OPTIONS.map(([id, label, hint]) => (
             <li key={id}>
               <label data-block-id={id === "carpool" ? "F310" : id === "taxi" ? "F311" : "F312"} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${picked.includes(id) ? "border-accent bg-accentSoft" : "border-line bg-white"}`}>
-                <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={picked.includes(id)} disabled={id === "carpool"} onChange={() => toggle(id)} />
+                <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={picked.includes(id)} onChange={() => toggle(id)} />
                 <span>
                   <span className="block text-[16px] font-semibold">{t(label)}</span>
                   <span className="block text-[13px] leading-relaxed text-sub">{t(hint)}</span>

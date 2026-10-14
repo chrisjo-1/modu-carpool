@@ -81,6 +81,12 @@ export default function App() {
   const [commuteStart, setCommuteStart] = useState(false);
   // 가입 직후 필수 등록 흐름(희망 선택 → 출퇴근 출발·도착지 → 정기카풀 게시). 끝날 때까지 닫을 수 없다.
   const [joinFlow, setJoinFlow] = useState(false);
+  // 차량 등록 시트 등에서 회원 정보가 바뀌면 여기서도 같은 값을 쓰도록 맞춘다.
+  useEffect(() => {
+    const onUser = (e: Event) => setUser((e as CustomEvent<User>).detail);
+    window.addEventListener("moducarpool:user", onUser);
+    return () => window.removeEventListener("moducarpool:user", onUser);
+  }, []);
   const [pickInterests, setPickInterests] = useState(false);
   // 첫 화면 로딩: 로그인 확인과 글 목록이 끝나면 사라진다. 8초가 지나도 안 끝나면 그냥 넘어간다.
   const [splashGone, setSplashGone] = useState(false);
@@ -155,10 +161,20 @@ export default function App() {
       const q = new URLSearchParams(location.search);
       const reset = q.get("reset");
       if (reset) setResetToken(reset);
+      // 워프 이메일 확인 링크: 누른 회원에게 연결하고 이전 축하 크레딧을 한 번 준다.
+      const legacyToken = q.get("legacy");
+      if (legacyToken) {
+        history.replaceState(null, "", location.pathname);
+        api<{ ok: boolean; legacy?: number }>("/api/auth", "POST", { action: "legacyConfirm", token: legacyToken }).then((r) => {
+          if (!r.ok) return setToastMsg(translate(langNow(), r.error));
+          setToastMsg(`${translate(langNow(), "워프 회원 확인이 끝났어요.")}${r.data.legacy ? ` +${creditText(r.data.legacy, langNow())} ${translate(langNow(), "크레딧")}` : ""}`);
+          setTab("me");
+        });
+      }
       const verify = q.get("verify");
       if (verify) {
         history.replaceState(null, "", location.pathname);
-        api<{ user: User; legacy?: number; welcome?: number; created?: boolean }>("/api/auth", "POST", { action: "verify", token: verify }).then((r) => {
+        api<{ user: User; legacy?: number; welcome?: number; created?: boolean; legacyPending?: boolean }>("/api/auth", "POST", { action: "verify", token: verify }).then((r) => {
           if (!r.ok) return setToastMsg(translate(langNow(), r.error));
           setUser(r.data.user);
           setPreview(false);
@@ -166,7 +182,8 @@ export default function App() {
           // 인증 링크로 가입이 끝난 경우: 가입 축하 크레딧과 워프 이전 크레딧을 함께 알린다.
           const msg = translate(langNow(), r.data.created ? "가입을 마쳤어요. 환영합니다!" : "이메일 인증을 마쳤어요. 이제 글쓰기와 카풀 신청을 할 수 있어요.");
           const bonus = [r.data.welcome ? `${translate(langNow(), "가입 축하 크레딧이 적립됐어요.")} +${creditText(r.data.welcome, langNow())}` : "", r.data.legacy ? `${translate(langNow(), "워프 회원 이전 축하")} +${creditText(r.data.legacy, langNow())}` : ""].filter(Boolean).join(" · ");
-          setToastMsg(bonus ? `${msg} ${bonus}` : msg);
+          const pendingMsg = r.data.legacyPending ? translate(langNow(), "워프 회원 확인 메일을 보냈어요. 메일의 링크를 누르면 이전 축하 크레딧을 드려요.") : "";
+          setToastMsg([bonus ? `${msg} ${bonus}` : msg, pendingMsg].filter(Boolean).join(" "));
         });
       }
       // 푸시·메일 알림에서 들어온 경우: ?tab=chat 이면 채팅 탭, ?room=신청ID 면 그 대화방
@@ -383,15 +400,13 @@ export default function App() {
             onSaved={(u, picked) => {
               setUser(u);
               setPickInterests(false);
-              // 출퇴근 카풀 등록은 필수라서 건너뛸 수 없다.
-              if (picked.includes("carpool")) {
-                setJoinFlow(true);
-                setCommuteStart(true);
-              }
+              // 다음은 출퇴근 정보 선택: 출퇴근이면 경로·시간·금액을 받고, 아니면 기타로 끝낸다.
+              setJoinFlow(true);
+              setCommuteStart(true);
             }}
           />
         )}
-        {commuteStart && joinFlow && <CommuteOnboard toast={setToastMsg} onDone={(msg) => { setCommuteStart(false); setJoinFlow(false); setToastMsg(msg); refresh(); setTab("home"); }} />}
+        {commuteStart && joinFlow && <CommuteOnboard user={user} toast={setToastMsg} onDone={(msg) => { setCommuteStart(false); setJoinFlow(false); setToastMsg(msg); refresh(); setTab("home"); }} />}
         {commuteStart && !joinFlow && <CommuteStart onNext={commuteNext} onClose={() => setCommuteStart(false)} toast={setToastMsg} />}
         {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); setJoinFlow(false); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}

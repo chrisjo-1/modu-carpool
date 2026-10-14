@@ -3,10 +3,10 @@ import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { charge, getRules, grant, grantLegacy } from "@/lib/credits";
 import { finishVerify, startVerify } from "@/lib/verify";
-import { sendVerifyMail } from "@/lib/mail";
+import { sendLegacyConfirmMail, sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
 import { sendResetMail, siteUrl } from "@/lib/mail";
-import { findLegacyByKey } from "@/lib/legacy";
+import { findLegacyByKey, maskEmail, normEmail } from "@/lib/legacy";
 import { CONTACT_TYPES, JOIN_SOURCES } from "@/lib/types";
 import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
 
@@ -34,6 +34,8 @@ export async function POST(req: Request) {
   const b = await body(req);
   if (b.action === "reset") return resetPassword(b);
   if (b.action === "verify") return verifyEmail(b);
+  if (b.action === "legacyConfirm") return legacyConfirm(b);
+  if (b.action === "legacyChange") return legacyChange(b);
   if (b.action === "resendVerify" || b.action === "consent" || b.action === "interests") return accountAction(b);
   const email = text(b.email, 120).toLowerCase();
   const password = typeof b.password === "string" ? b.password : "";
@@ -111,7 +113,7 @@ export async function POST(req: Request) {
  * 인증 링크의 토큰으로 임시 가입 정보를 찾아 계정을 만든다.
  * 성공하면 회원 id와 지급 크레딧, 이미 가입된 이메일이면 "taken", 링크가 아니면 null.
  */
-async function createFromPending(token: string): Promise<{ id: string; welcome: number; legacy: number } | "taken" | null> {
+async function createFromPending(token: string): Promise<{ id: string; welcome: number; legacy: number; legacyPending: boolean } | "taken" | null> {
   if (!/^[a-f0-9]{64}$/.test(token)) return null;
   const sql = db();
   const rows = await sql`delete from pending_signups where token_hash = ${hashToken(token)} and expires_at > now()
@@ -137,17 +139,70 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   if (!ins) throw new Error("고유코드를 배정하지 못했습니다.");
   const id = String(ins[0].id);
   const welcome = await grant(id, "signup").catch(() => 0);
-  // 가입 경로가 워프(풀럭) 기존 회원이면, 인증이 끝난 지금 고유번호나 이메일을 다시 대조해 연결하고 이전 축하 크레딧을 한 번 준다.
-  // 대조 행은 조건부 update로 한 번만 연결하고, 장부 유일 인덱스로 중복 지급을 막는다.
+  // 가입 경로가 워프(풀럭) 기존 회원이면 이전 축하 크레딧을 준다.
+  // 고유번호이거나 가입 이메일과 워프 이메일이 같으면 바로 연결한다. 다른 워프 이메일이면 그 주소로 확인 링크를 보내고, 눌러야 연결·지급한다.
   let legacy = 0;
-  const hit = String(p.join_source) === "warp" && p.legacy_key ? await findLegacyByKey(String(p.legacy_key)) : null;
-  if (hit) {
-    const claimed = await sql`update legacy_members set matched_user = ${id}, match_status = '가입됨', matched_by = ${hit.by}
-      where warp_id = ${hit.warpId} and matched_user is null returning warp_id`;
-    if (claimed.length) legacy = await grant(id, "legacy").catch(() => 0);
+  let legacyPending = false;
+  const key = String(p.legacy_key ?? "");
+  const hit = String(p.join_source) === "warp" && key ? await findLegacyByKey(key) : null;
+  if (hit && (hit.by === "번호입력" || normEmail(email) === normEmail(key))) {
+    legacy = await claimLegacy(id, hit.warpId, hit.by);
+  } else if (hit) {
+    const token = randomBytes(32).toString("hex");
+    await sql`insert into legacy_claims (token_hash, user_id, warp_id, expires_at) values (${hashToken(token)}, ${id}, ${hit.warpId}, now() + interval '72 hours')`;
+    await sendLegacyConfirmMail(key, `${siteUrl()}/?legacy=${token}`).catch(() => false);
+    legacyPending = true;
   }
   await setUserSession(id);
-  return { id, welcome, legacy };
+  return { id, welcome, legacy, legacyPending };
+}
+
+/** 워프 대조 행을 이 회원에게 연결하고, 처음이면 이전 축하 크레딧을 준다. 다른 회원이 이미 쓴 행이면 0. */
+async function claimLegacy(userId: string, warpId: string, by: string): Promise<number> {
+  const claimed = await db()`update legacy_members set matched_user = ${userId}, match_status = '가입됨', matched_by = ${by}
+    where warp_id = ${warpId} and matched_user is null returning warp_id`;
+  return claimed.length ? grant(userId, "legacy").catch(() => 0) : 0;
+}
+
+/** 워프 이메일 확인 링크를 눌렀을 때: 링크를 만든 회원에게 연결하고 이전 축하 크레딧을 한 번 준다. */
+async function legacyConfirm(b: Record<string, unknown>) {
+  const token = typeof b.token === "string" && /^[a-f0-9]{64}$/.test(b.token) ? b.token : "";
+  if (!token) return json({ error: "링크가 올바르지 않습니다." }, 400);
+  try {
+    await ensureSchema();
+    const sql = db();
+    const c = await sql`select user_id, warp_id from legacy_claims where token_hash = ${hashToken(token)} and not used and expires_at > now()`;
+    if (!c.length) return json({ error: "확인 링크가 만료되었거나 이미 사용되었습니다. 내 정보의 크레딧에서 다시 받아 주세요." }, 400);
+    const legacy = await claimLegacy(String(c[0].user_id), String(c[0].warp_id), "이메일");
+    await sql`update legacy_claims set used = true where token_hash = ${hashToken(token)}`;
+    if (!legacy) return json({ error: "이미 다른 회원이 사용한 워프 정보예요. 운영자에게 문의해 주세요." }, 409);
+    return json({ ok: true, legacy });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 워프 이메일 확인 중인 회원이 다른 워프 이메일로 바꾸거나 다시 보낸다(로그인 필요). */
+async function legacyChange(b: Record<string, unknown>) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const email = normEmail(b.email);
+  if (!email) return json({ error: "이메일 형식을 확인해 주세요." }, 400);
+  try {
+    await ensureSchema();
+    const sql = db();
+    const pending = await sql`select 1 from legacy_claims where user_id = ${me} and not used and expires_at > now()`;
+    if (!pending.length) return json({ error: "확인 중인 워프 정보가 없어요." }, 400);
+    const hit = await findLegacyByKey(email);
+    if (!hit) return json({ error: "워프 명단에서 찾을 수 없거나 이미 사용된 이메일이에요." }, 400);
+    const token = randomBytes(32).toString("hex");
+    await sql`delete from legacy_claims where user_id = ${me} and not used`;
+    await sql`insert into legacy_claims (token_hash, user_id, warp_id, expires_at) values (${hashToken(token)}, ${me}, ${hit.warpId}, now() + interval '72 hours')`;
+    await sendLegacyConfirmMail(email, `${siteUrl()}/?legacy=${token}`).catch(() => false);
+    return json({ ok: true, sentTo: maskEmail(email) });
+  } catch (e) {
+    return fail(e);
+  }
 }
 
 /** 메일 링크(?verify=)로 인증 완료 → 워프 이전 크레딧 지급 */
@@ -158,7 +213,7 @@ async function verifyEmail(b: Record<string, unknown>) {
     // 가입 전 인증: 임시 가입 정보로 계정을 만든다.
     const created = await createFromPending(token);
     if (created === "taken") return json({ error: "이미 가입된 이메일입니다. 로그인해 주세요." }, 409);
-    if (created) return json({ ok: true, created: true, welcome: created.welcome, legacy: created.legacy, user: await profile(created.id) });
+    if (created) return json({ ok: true, created: true, welcome: created.welcome, legacy: created.legacy, legacyPending: created.legacyPending, user: await profile(created.id) });
     // 예전 방식(이미 가입된 회원의 인증 메일)
     const id = await finishVerify(token);
     if (!id) return json({ error: "인증 링크가 만료되었거나 이미 사용되었습니다. 로그인 후 위쪽 안내에서 인증 메일을 다시 받아 주세요." }, 400);
@@ -317,6 +372,8 @@ export async function PATCH(req: Request) {
     // 성별과 역할은 필수다.
     if (!gender) return json({ error: "성별을 선택해 주세요." }, 400);
     if (!rolePref) return json({ error: "역할(운전자 또는 탑승자)을 선택해 주세요." }, 400);
+    // 연락 방법과 아이디는 필수다(신청이 수락된 상대에게만 보인다).
+    if (!contactType || !text(b.contact, 60)) return json({ error: "연락 방법과 아이디를 입력해 주세요." }, 400);
     await db()`update users set bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType}, gender = ${gender}, role_pref = ${rolePref} where id = ${id}`;
     return json({ user: await profile(id) });
   } catch (e) {
