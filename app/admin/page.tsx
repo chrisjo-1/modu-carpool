@@ -32,6 +32,7 @@ type UserRow = {
   id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
+  commute_kind: string; commute_origin: string; commute_dest: string; commute_time: string; commute_price: number;
 };
 const ROLE_LABEL: Record<string, string> = { driver: "운전자", rider: "탑승자", "": "미입력" };
 const JOIN_LABEL: Record<string, string> = Object.fromEntries(JOIN_SOURCES);
@@ -274,6 +275,7 @@ export default function Admin() {
                   <dt className="text-sub">최근 접속</dt><dd>{member.lastSeen ? lastSeenText(member.lastSeen) : "없음"}</dd>
                   <dt className="text-sub">희망 역할</dt><dd>{ROLE_LABEL[member.role_pref] ?? "미입력"}</dd>
                   <dt className="text-sub">가입 경로</dt><dd>{JOIN_LABEL[member.join_source] ?? "미입력"}</dd>
+                  <dt className="text-sub">출퇴근 정보</dt><dd className="break-words">{member.commute_kind === "commute" ? `${member.commute_origin} → ${member.commute_dest} · ${member.commute_time} · ${member.commute_price.toLocaleString("ko-KR")}원` : member.commute_kind === "other" ? `기타 · ${member.commute_origin} → ${member.commute_dest}` : "미입력"}</dd>
                   <dt className="text-sub">글 기준</dt><dd>운전자 글 {member.driver_posts} · 탑승자 글 {member.rider_posts}</dd>
                   <dt className="text-sub">성별</dt><dd>{GENDER_LABEL[member.gender] ?? "미입력"}</dd>
                   <dt className="text-sub">차량번호</dt><dd>{member.car_no || "미등록"}</dd>

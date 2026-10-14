@@ -26,6 +26,7 @@ export async function GET(req: Request) {
     const users = await sql`
       select u.id, u.email, u.name, u.blocked, u.test, u.credits, u.created_at, u.last_seen, u.bio, u.contact, u.contact_type,
              u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.interests,
+             u.commute_kind, u.commute_origin, u.commute_dest, u.commute_time, u.commute_price,
              (select count(*)::int from posts where user_id = u.id) as posts,
              (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
              (select count(*)::int from posts where user_id = u.id and role = 'rider') as rider_posts

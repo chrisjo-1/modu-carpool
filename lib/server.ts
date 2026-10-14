@@ -186,6 +186,16 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists join_source text not null default ''`;
       // 워프(풀럭) 기존 회원 확인에 쓴 값(고유번호 또는 워프 이메일). 인증이 끝나면 대조해 이전 크레딧을 준다.
       await sql`alter table pending_signups add column if not exists legacy_key text not null default ''`;
+      // 가입 때 입력한 출퇴근 정보(프로필). kind: commute(출퇴근) | other(기타, 주요 이동경로만)
+      await sql`alter table users add column if not exists commute_kind text not null default ''`;
+      await sql`alter table users add column if not exists commute_origin text not null default ''`;
+      await sql`alter table users add column if not exists commute_dest text not null default ''`;
+      await sql`alter table users add column if not exists commute_olat double precision`;
+      await sql`alter table users add column if not exists commute_olng double precision`;
+      await sql`alter table users add column if not exists commute_dlat double precision`;
+      await sql`alter table users add column if not exists commute_dlng double precision`;
+      await sql`alter table users add column if not exists commute_time text not null default ''`;
+      await sql`alter table users add column if not exists commute_price integer not null default 0`;
       // 탑승자가 '택시 동승도 찾기'를 체크한 글
       await sql`alter table posts add column if not exists taxi_share boolean not null default false`;
       await sql`alter table posts add column if not exists demo boolean not null default false`;

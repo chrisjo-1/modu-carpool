@@ -14,6 +14,7 @@ import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
 import Interests from "./Interests";
 import CommuteStart from "./CommuteStart";
+import CommuteOnboard from "./CommuteOnboard";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import PostForm from "./PostForm";
@@ -390,7 +391,8 @@ export default function App() {
             }}
           />
         )}
-        {commuteStart && <CommuteStart onNext={commuteNext} onClose={() => setCommuteStart(false)} locked={joinFlow} toast={setToastMsg} />}
+        {commuteStart && joinFlow && <CommuteOnboard toast={setToastMsg} onDone={(msg) => { setCommuteStart(false); setJoinFlow(false); setToastMsg(msg); refresh(); setTab("home"); }} />}
+        {commuteStart && !joinFlow && <CommuteStart onNext={commuteNext} onClose={() => setCommuteStart(false)} toast={setToastMsg} />}
         {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); setJoinFlow(false); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
