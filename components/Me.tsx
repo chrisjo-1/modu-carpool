@@ -8,6 +8,7 @@ import FeedbackSheet from "./Feedback";
 import { HelpSheet } from "./Help";
 import CreditCard from "./Credits";
 import MyCallHistory from "./CallHistory";
+import { KarrotRewards, KarrotShowcase } from "./Karrot";
 import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
@@ -109,11 +110,20 @@ export default function Me({
   const regular = mine.find((p) => p.regular) ?? null;
 
   const savePhoto = async (photo: string) => {
+    // 삭제는 크레딧이 차감되므로 금액을 알리고 확인받는다. 변경(다른 사진으로 바꾸기)은 차감 없음.
+    let amount = 0;
+    if (!photo) {
+      const c = await api<{ rules: { photo?: number } }>("/api/credits", "GET");
+      amount = c.ok ? (c.data.rules.photo ?? 0) : 0;
+      if (amount > 0 && !window.confirm(`${t("사진을 삭제하면 크레딧이 차감돼요.")} (-${amount.toLocaleString("ko-KR")}) ${t("계속할까요?")}`)) return;
+    }
     setBusy(true);
-    const r = await api<{ user: User }>("/api/auth", "PUT", { photo });
+    const r = await api<{ user: User; credit?: number }>("/api/auth", "PUT", { photo });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setUser(r.data.user);
+    if (photo && r.data.credit) return toast(`${t("사진을 등록했어요.")} ${t("프로필 사진 등록 축하 크레딧이 적립됐어요.")} +${r.data.credit.toLocaleString("ko-KR")}`);
+    if (!photo && r.data.credit) return toast(`${t("사진을 삭제했어요.")} ${r.data.credit.toLocaleString("ko-KR")}`);
     toast(t(photo ? "사진을 등록했어요." : "사진을 삭제했어요."));
   };
 
@@ -385,6 +395,8 @@ export default function Me({
       )}
 
       {user && <MyCallHistory />}
+      {user && <KarrotShowcase toast={toast} />}
+      {user && <KarrotRewards toast={toast} />}
 
       {user && <RouteAlerts regular={regular} toast={toast} push={push} />}
 

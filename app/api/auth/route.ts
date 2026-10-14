@@ -1,7 +1,7 @@
 import { grantCarIfReady } from "@/lib/car";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
-import { grant, grantLegacy } from "@/lib/credits";
+import { charge, getRules, grant, grantLegacy } from "@/lib/credits";
 import { finishVerify, startVerify } from "@/lib/verify";
 import { sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
@@ -331,9 +331,18 @@ export async function PUT(req: Request) {
   try {
     await ensureSchema();
     const v = data ? Math.floor(Date.now() / 1000) : 0;
-    if (car) await db()`update users set car_photo = ${data}, car_v = ${v} where id = ${id}`;
-    else await db()`update users set photo = ${data}, photo_v = ${v} where id = ${id}`;
-    const credit = car ? await grantCarIfReady(id) : 0;
+    let credit = 0;
+    if (car) {
+      await db()`update users set car_photo = ${data}, car_v = ${v} where id = ${id}`;
+      credit = await grantCarIfReady(id);
+    } else {
+      // 삭제 시에만 기존 사진 여부를 본다(사진이 있었을 때만 차감).
+      const before = data ? [] : await db()`select photo_v from users where id = ${id}`;
+      const hadPhoto = Number(before[0]?.photo_v ?? 0) > 0;
+      await db()`update users set photo = ${data}, photo_v = ${v} where id = ${id}`;
+      if (data) credit = await grant(id, "photo");
+      else if (hadPhoto) credit = await charge(id, (await getRules()).photo, "photo_del", "프로필 사진 삭제");
+    }
     return json({ user: await profile(id), credit });
   } catch (e) {
     return fail(e);
