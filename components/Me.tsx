@@ -106,6 +106,7 @@ export default function Me({
   const [mineOpen, setMineOpen] = useState(false);
   const [zoom, setZoom] = useState(false);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const regular = mine.find((p) => p.regular) ?? null;
 
@@ -196,8 +197,11 @@ export default function Me({
 
   return (
     <section data-block-id="S004" data-block-name="내 정보" className="space-y-5">
-      <header>
+      <header className="flex items-center justify-between">
         <h1 className="text-[28px] font-bold">{t("내 정보")}</h1>
+        <button type="button" data-block-id="B070" data-block-name="설정 열기" aria-label={t("설정")} onClick={() => setSettingsOpen(true)} className="grid h-11 w-11 min-h-0 place-items-center rounded-full text-ink active:bg-bg">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
+        </button>
       </header>
 
       {zoom && user?.photo && (
@@ -207,31 +211,8 @@ export default function Me({
           <button type="button" data-block-id="B293" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-[14px] font-semibold text-ink" onClick={() => setZoom(false)}>{t("닫기")}</button>
         </div>
       )}
-
-      {user && <CreditCard toast={toast} version={version} />}
-      {user && (
-        <button data-block-id="B061" data-block-name="공지사항" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left font-semibold shadow-card" onClick={() => setNoticesOpen(true)}>
-          {t("공지사항")} <span className="text-sub">{Icon.arrow()}</span>
-        </button>
-      )}
-      {noticesOpen && <NoticeList onClose={() => setNoticesOpen(false)} />}
-      <button data-block-id="B062" data-block-name="의견 보내기" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card" onClick={() => setFeedbackOpen(true)}>
-        <span><b>{t("의견 보내기")}</b><span className="block text-[13px] text-sub">{t("건의, 불편한 점, 아이디어를 들려주세요.")}</span></span>
-        <span className="text-sub">{Icon.arrow()}</span>
-      </button>
-      {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} onClose={() => setFeedbackOpen(false)} />}
-      <button data-block-id="B063" data-block-name="도움말 · 튜토리얼" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card" onClick={() => setHelpOpen(true)}>
-        <span><b>{t("도움말 · 튜토리얼")}</b><span className="block text-[13px] text-sub">{t("처음 쓰는 방법과 자주 묻는 질문")}</span></span>
-        <span className="text-sub">{Icon.arrow()}</span>
-      </button>
-      {helpOpen && <HelpSheet onClose={() => setHelpOpen(false)} onOpenFeedback={() => { setHelpOpen(false); setFeedbackOpen(true); }} />}
-
       <div>
-        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("언어")}</h2>
-        <Segment label={t("언어")} value={lang} onChange={setLang} options={LANGS} />
-      </div>
-
-      <div>
+        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t(user ? "마이 프로필" : "계정")}</h2>
         <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("계정")}</h2>
         <Card data-block-id="C040" data-block-name="계정" className="p-5">
           {user ? (
@@ -295,38 +276,6 @@ export default function Me({
               </div>
               <p className="text-[13px] text-sub">{t("성별과 이용 역할은 공개되지 않고, 맞춤 공지를 보낼 때만 써요.")}</p>
               <button data-block-id="B040" data-block-name="프로필 저장" className={btnPrimary} disabled={busy}>{t("저장")}</button>
-              <label data-block-id="F045" data-block-name="메일 알림" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 text-[15px]">
-                <span>{t("메일 알림")}<span className="block text-[13px] text-sub">{t("카풀 신청, 수락, 첫 메시지를 가입 메일로 알려 드려요.")}</span></span>
-                <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={user.notify !== false} onChange={async (e) => {
-                  const r = await api<{ user: User }>("/api/auth", "PATCH", { notify: e.target.checked });
-                  if (!r.ok) return toast(t(r.error));
-                  setUser(r.data.user);
-                  toast(t(r.data.user.notify ? "메일 알림을 켰어요." : "메일 알림을 껐어요."));
-                }} />
-              </label>
-              <div data-block-id="F050" data-block-name="푸시 알림" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 py-2 text-[15px]">
-                <span>{t("푸시 알림")}<span className="block text-[13px] text-sub">{pushHint[push.state] ? t(pushHint[push.state] as string) : t("카풀 신청과 채팅 메시지를 이 기기로 바로 알려 드려요.")}</span></span>
-                <input type="checkbox" aria-label={t("푸시 알림")} className="h-5 w-5 shrink-0 accent-[#2F6BFF]" disabled={push.state !== "on" && push.state !== "off"} checked={push.state === "on"} onChange={async (e) => {
-                  if (e.target.checked) {
-                    const err = await push.turnOn();
-                    toast(t(err || "푸시 알림을 켰어요."));
-                  } else {
-                    await push.turnOff();
-                    toast(t("푸시 알림을 껐어요."));
-                  }
-                }} />
-              </div>
-              {push.state === "unsupported" && <UnsupportedNotice />}
-              <label data-block-id="F208" data-block-name="마케팅 수신" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 text-[15px]">
-                <span>{t("이벤트·혜택 정보 받기")}<span className="block text-[13px] text-sub">{t("선택 사항이에요. 언제든 끌 수 있어요.")}</span></span>
-                <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={user.marketing === true} onChange={async (e) => {
-                  const r = await api<{ user: User }>("/api/auth", "PATCH", { marketing: e.target.checked });
-                  if (!r.ok) return toast(t(r.error));
-                  setUser(r.data.user);
-                  toast(t(r.data.user.marketing ? "이벤트·혜택 정보 수신에 동의했어요." : "이벤트·혜택 정보 수신을 철회했어요."));
-                }} />
-              </label>
-              <button type="button" data-block-id="B041" data-block-name="로그아웃" className={btnGhost} onClick={async () => { await api("/api/auth", "DELETE"); setUser(null); }}>{t("로그아웃")}</button>
             </form>
           ) : !enabled ? (
             <p className="text-[15px] leading-relaxed text-sub">{t("회원 기능은 준비 중입니다. 곧 열립니다.")}</p>
@@ -335,13 +284,31 @@ export default function Me({
           )}
         </Card>
       </div>
-
       {user && (
         <button data-block-id="B050" data-block-name="내 프로필" onClick={() => onProfile(user.id)} className="flex w-full items-center justify-between rounded-2xl border border-line bg-white px-5 text-left text-[16px] font-semibold shadow-card">
           {t("내 별점 · 지난 카풀 보기")} <span className="text-sub">{Icon.arrow()}</span>
         </button>
       )}
-
+      {user && <CreditCard toast={toast} version={version} />}
+      <div>
+        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("카풀 정보")}</h2>
+      </div>
+      {user && (
+        <div>
+          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 출퇴근 정보")}</h2>
+          <Card data-block-id="C043" data-block-name="내 출퇴근 정보" className="space-y-3 p-5">
+            {regular ? (
+              <div>
+                <p className="font-semibold">{regular.origin} → {regular.dest}</p>
+                <p className="num text-[14px] text-sub">{scheduleText(regular, lang)}</p>
+              </div>
+            ) : (
+              <p className="text-[15px] text-sub">{t("아직 출퇴근 정보를 입력하지 않았어요.")}</p>
+            )}
+            <button type="button" data-block-id="B046" data-block-name="출퇴근 정보" className={`${btnGhost} py-3 text-[15px]`} onClick={() => onCommute(regular, false)}>{regular ? t("출퇴근 정보 수정") : t("출퇴근 정보 입력")}</button>
+          </Card>
+        </div>
+      )}
       {user && (
         <div>
           <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 차량 (운전자)")}</h2>
@@ -376,30 +343,11 @@ export default function Me({
           </Card>
         </div>
       )}
-
-      {user && (
-        <div>
-          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 출퇴근 정보")}</h2>
-          <Card data-block-id="C043" data-block-name="내 출퇴근 정보" className="space-y-3 p-5">
-            {regular ? (
-              <div>
-                <p className="font-semibold">{regular.origin} → {regular.dest}</p>
-                <p className="num text-[14px] text-sub">{scheduleText(regular, lang)}</p>
-              </div>
-            ) : (
-              <p className="text-[15px] text-sub">{t("아직 출퇴근 정보를 입력하지 않았어요.")}</p>
-            )}
-            <button type="button" data-block-id="B046" data-block-name="출퇴근 정보" className={`${btnGhost} py-3 text-[15px]`} onClick={() => onCommute(regular, false)}>{regular ? t("출퇴근 정보 수정") : t("출퇴근 정보 입력")}</button>
-          </Card>
-        </div>
-      )}
-
-      {user && <MyCallHistory />}
       {user && <KarrotShowcase toast={toast} />}
       {user && <KarrotRewards toast={toast} />}
-
-      {user && <RouteAlerts regular={regular} toast={toast} push={push} />}
-
+      <div>
+        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 카풀")}</h2>
+      </div>
       {user && (
         <div>
           <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내가 올린 카풀")}</h2>
@@ -441,7 +389,8 @@ export default function Me({
           )}
         </div>
       )}
-
+      {user && <RouteAlerts regular={regular} toast={toast} push={push} />}
+      {user && <MyCallHistory />}
       {user && blocks.length > 0 && (
         <div>
           <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("차단한 회원")}</h2>
@@ -455,7 +404,6 @@ export default function Me({
           </Card>
         </div>
       )}
-
       {SHOW_METER && (
       <Card data-block-id="C041" data-block-name="모카 미터기" className="p-5">
         <p className="text-sm font-medium text-accent">{t("모카 미터기")}</p>
@@ -466,15 +414,87 @@ export default function Me({
         </a>
       </Card>
       )}
-
+      {noticesOpen && <NoticeList onClose={() => setNoticesOpen(false)} />}
+      {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} onClose={() => setFeedbackOpen(false)} />}
+      {helpOpen && <HelpSheet onClose={() => setHelpOpen(false)} onOpenFeedback={() => { setHelpOpen(false); setFeedbackOpen(true); }} />}
+      {settingsOpen && (
+        <Sheet title={t("설정")} blockId="S005" onClose={() => setSettingsOpen(false)}>
+          <div className="space-y-6">
+            <div>
+              <h3 className="mb-2 px-1 text-sm font-semibold text-sub">{t("언어")}</h3>
+              <Segment label={t("언어")} value={lang} onChange={setLang} options={LANGS} />
+            </div>
+            {user && (
+              <div className="space-y-3">
+                <h3 className="px-1 text-sm font-semibold text-sub">{t("알림")}</h3>
+              <label data-block-id="F059" data-block-name="메일 알림" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 text-[15px]">
+                <span>{t("메일 알림")}<span className="block text-[13px] text-sub">{t("카풀 신청, 수락, 첫 메시지를 가입 메일로 알려 드려요.")}</span></span>
+                <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={user.notify !== false} onChange={async (e) => {
+                  const r = await api<{ user: User }>("/api/auth", "PATCH", { notify: e.target.checked });
+                  if (!r.ok) return toast(t(r.error));
+                  setUser(r.data.user);
+                  toast(t(r.data.user.notify ? "메일 알림을 켰어요." : "메일 알림을 껐어요."));
+                }} />
+              </label>
+              <div data-block-id="F050" data-block-name="푸시 알림" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 py-2 text-[15px]">
+                <span>{t("푸시 알림")}<span className="block text-[13px] text-sub">{pushHint[push.state] ? t(pushHint[push.state] as string) : t("카풀 신청과 채팅 메시지를 이 기기로 바로 알려 드려요.")}</span></span>
+                <input type="checkbox" aria-label={t("푸시 알림")} className="h-5 w-5 shrink-0 accent-[#2F6BFF]" disabled={push.state !== "on" && push.state !== "off"} checked={push.state === "on"} onChange={async (e) => {
+                  if (e.target.checked) {
+                    const err = await push.turnOn();
+                    toast(t(err || "푸시 알림을 켰어요."));
+                  } else {
+                    await push.turnOff();
+                    toast(t("푸시 알림을 껐어요."));
+                  }
+                }} />
+              </div>
+              {push.state === "unsupported" && <UnsupportedNotice />}
+              <label data-block-id="F208" data-block-name="마케팅 수신" className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-line px-4 text-[15px]">
+                <span>{t("이벤트·혜택 정보 받기")}<span className="block text-[13px] text-sub">{t("선택 사항이에요. 언제든 끌 수 있어요.")}</span></span>
+                <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#2F6BFF]" checked={user.marketing === true} onChange={async (e) => {
+                  const r = await api<{ user: User }>("/api/auth", "PATCH", { marketing: e.target.checked });
+                  if (!r.ok) return toast(t(r.error));
+                  setUser(r.data.user);
+                  toast(t(r.data.user.marketing ? "이벤트·혜택 정보 수신에 동의했어요." : "이벤트·혜택 정보 수신을 철회했어요."));
+                }} />
+              </label>
+              </div>
+            )}
+            {user && (
+              <div className="space-y-2">
+              <button type="button" data-block-id="B041" data-block-name="로그아웃" className={btnGhost} onClick={async () => { await api("/api/auth", "DELETE"); setUser(null); }}>{t("로그아웃")}</button>
+              </div>
+            )}
+            <div className="space-y-2">
+              <h3 className="px-1 text-sm font-semibold text-sub">{t("안내")}</h3>
+              {user && (
+          <button data-block-id="B061" data-block-name="공지사항" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left font-semibold shadow-card" onClick={() => { setSettingsOpen(false); setNoticesOpen(true); }}>
+            {t("공지사항")} <span className="text-sub">{Icon.arrow()}</span>
+          </button>
+              )}
+      <button data-block-id="B062" data-block-name="의견 보내기" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card" onClick={() => { setSettingsOpen(false); setFeedbackOpen(true); }}>
+        <span><b>{t("의견 보내기")}</b><span className="block text-[13px] text-sub">{t("건의, 불편한 점, 아이디어를 들려주세요.")}</span></span>
+        <span className="text-sub">{Icon.arrow()}</span>
+      </button>
+      <button data-block-id="B063" data-block-name="도움말 · 튜토리얼" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card" onClick={() => { setSettingsOpen(false); setHelpOpen(true); }}>
+        <span><b>{t("도움말 · 튜토리얼")}</b><span className="block text-[13px] text-sub">{t("처음 쓰는 방법과 자주 묻는 질문")}</span></span>
+        <span className="text-sub">{Icon.arrow()}</span>
+      </button>
+            </div>
+            <div className="space-y-2">
       <a data-block-id="B048" data-block-name="관리자 페이지" href="/admin" className="flex items-center justify-between rounded-2xl border border-line bg-white px-5 text-[15px] text-sub">
         {t("관리자 페이지")} {Icon.arrow()}
       </a>
-
+            </div>
+            <div className="space-y-3 text-[13px] leading-relaxed text-sub">
       <p className="px-1 text-[13px] leading-relaxed text-sub">
         {t("모두의카풀은 무료 운행을 원칙으로 하며, 출퇴근 카풀에 한해 실비 분담을 돕습니다. 영리 목적의 유상운송은 「여객자동차 운수사업법」에 따라 금지되어 있습니다. 만남과 이동에 대한 책임은 당사자에게 있으니 공개된 장소에서 만나 주세요.")}
       </p>
       <DocLinks />
+            </div>
+          </div>
+        </Sheet>
+      )}
     </section>
   );
 }
