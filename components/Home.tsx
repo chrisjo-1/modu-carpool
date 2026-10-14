@@ -419,7 +419,18 @@ export function PostDetail({
               <button className={`${btnPrimary} py-3 text-[15px]`} onClick={() => openChat(mineThread)}>{t("대화하기")}</button>
             ) : (
               mineThread.status === "pending" && (
-                <button disabled={busy} className="min-h-0 text-[15px] text-sub underline" onClick={() => run(`/api/requests?id=${mineThread.id}`, "DELETE", undefined, "신청을 취소했어요.")}>{t("신청 취소")}</button>
+                <button
+                  data-block-id="B014"
+                  data-block-name="신청 취소"
+                  disabled={busy}
+                  className={`${btnGhost} py-3 text-[15px]`}
+                  onClick={() => {
+                    if (!window.confirm(t("신청을 취소할까요? 수락 전이라 언제든 다시 신청할 수 있어요."))) return;
+                    run(`/api/requests?id=${mineThread.id}`, "DELETE", undefined, "신청을 취소했어요.");
+                  }}
+                >
+                  {t("신청 취소")}
+                </button>
               )
             )}
           </div>

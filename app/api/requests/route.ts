@@ -144,7 +144,9 @@ export async function DELETE(req: Request) {
   if (!isUuid(id)) return json({ error: "잘못된 요청입니다." }, 400);
   try {
     await ensureSchema();
-    await db()`delete from requests where id = ${id} and user_id = ${me}`;
+    // 수락 전(대기 중)인 신청만 취소할 수 있다. 수락된 뒤에는 대화방에서 이야기한다.
+    const gone = await db()`delete from requests where id = ${id} and user_id = ${me} and status = 'pending' returning id`;
+    if (!gone.length) return json({ error: "이미 수락되었거나 취소된 신청이에요." }, 409);
     return json({ ok: true });
   } catch (e) {
     return fail(e);

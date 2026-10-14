@@ -73,7 +73,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, openPo
       ) : (
         <Card className="divide-y divide-line">
           {threads.map((th) => (
-            <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status === "declined" || (th.status === "pending" && !th.iAmOwner)} onClick={() => (th.status === "accepted" ? openChat(th) : openPost(th.postId))} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
+            <button key={th.id} data-block-id="C030" data-block-name="대화 항목" disabled={th.status === "declined"} onClick={() => (th.status === "accepted" ? openChat(th) : openPost(th.postId))} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left disabled:opacity-70">
               <Avatar src={th.otherPhoto} name={th.other} role={th.otherRole} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-baseline justify-between gap-2">
