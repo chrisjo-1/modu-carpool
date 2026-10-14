@@ -167,3 +167,39 @@ export async function acceptCall(me: string, callId: string) {
   if (!type || !contact) return { error: "호출한 회원의 연락 방법이 없어요." } as const;
   return { ok: true, contactType: contactLabel(type), contact } as const;
 }
+
+export type CallHistoryRow = {
+  id: string;
+  created_at: string;
+  radius_km: number;
+  origin: string | null;
+  dest: string | null;
+  recipients: number;
+  accepts: number;
+  name?: string;
+  email?: string;
+};
+
+/**
+ * CALL 이력 조회. caller 를 주면 그 회원이 보낸 호출만(알림·수락 인원만 보여 준다),
+ * 없으면 관리자용 전체 목록(호출자 이름·이메일 포함).
+ */
+export async function listCalls(opts: { caller?: string; limit: number }): Promise<CallHistoryRow[]> {
+  const lim = Math.max(1, Math.min(opts.limit, 500));
+  const sql = db();
+  if (opts.caller) {
+    return (await sql`
+      select c.id, c.created_at, c.radius_km, p.origin, p.dest,
+        (select count(*)::int from call_recipients r where r.call_id = c.id) as recipients,
+        (select count(*)::int from call_accepts a where a.call_id = c.id) as accepts
+      from calls c left join posts p on p.id = c.post_id
+      where c.caller = ${opts.caller}
+      order by c.created_at desc limit ${lim}`) as CallHistoryRow[];
+  }
+  return (await sql`
+    select c.id, c.created_at, c.radius_km, p.origin, p.dest, u.name, u.email,
+      (select count(*)::int from call_recipients r where r.call_id = c.id) as recipients,
+      (select count(*)::int from call_accepts a where a.call_id = c.id) as accepts
+    from calls c join users u on u.id = c.caller left join posts p on p.id = c.post_id
+    order by c.created_at desc limit ${lim}`) as CallHistoryRow[];
+}

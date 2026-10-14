@@ -24,6 +24,7 @@ const AdminStats = dynamic(() => import("@/components/admin/Stats"), { ssr: fals
 const AdminDocs = dynamic(() => import("@/components/admin/Docs"), { ssr: false });
 const AdminRadius = dynamic(() => import("@/components/admin/Radius"), { ssr: false });
 const AdminSite = dynamic(() => import("@/components/admin/Site"), { ssr: false });
+const AdminCallHistory = dynamic(() => import("@/components/admin/CallHistory"), { ssr: false });
 const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false });
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
@@ -39,7 +40,7 @@ type Flag = { id: string; reason: string; detail: string; status?: string; creat
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
-type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "site" | "demo" | "help";
+type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", promo: "홍보성", illegal: "불법", etc: "기타" };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -185,6 +186,7 @@ export default function Admin() {
         {tabBtn("credits", "크레딧")}
         {tabBtn("docs", "약관")}
         {tabBtn("radius", "반경")}
+        {tabBtn("calls", "CALL")}
         {tabBtn("site", "사이트")}
         {tabBtn("demo", "임시글")}
         {tabBtn("help", "도움말")}
@@ -334,6 +336,7 @@ export default function Admin() {
       {tab === "feedback" && <AdminFeedback />}
       {tab === "help" && <AdminHelp />}
       {tab === "stats" && <AdminStats />}
+      {tab === "calls" && <AdminCallHistory />}
       {tab === "site" && <AdminSite />}
       {tab === "docs" && <AdminDocs />}
       {tab === "radius" && <AdminRadius />}
