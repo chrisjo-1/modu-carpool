@@ -7,6 +7,7 @@ import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
 import { HelpSheet } from "./Help";
 import CreditCard from "./Credits";
+import MyCallHistory from "./CallHistory";
 import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
@@ -382,6 +383,8 @@ export default function Me({
           </Card>
         </div>
       )}
+
+      {user && <MyCallHistory />}
 
       {user && <RouteAlerts regular={regular} toast={toast} push={push} />}
 
