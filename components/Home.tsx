@@ -64,7 +64,7 @@ export function Route({ origin, dest }: { origin: string; dest: string }) {
  * 차량이 없는 상태에서 운전자로 바꾸려 하면 내 정보(차량 등록)로 보낸다.
  * 바꾼 역할은 프로필 희망 역할로 저장되며, 카풀 등록의 기본 역할이 된다.
  */
-function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | null; onUser?: (u: User) => void; toast: (m: string) => void; onGoProfile?: () => void }) {
+export function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | null; onUser?: (u: User) => void; toast: (m: string) => void; onGoProfile?: () => void }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   if (!user) return null;
@@ -99,7 +99,7 @@ function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | null; o
   );
 }
 
-export default function Home({ posts, sample, onOpen, toast, onGoProfile, user, onUser }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; user?: User | null; onUser?: (u: User) => void }) {
+export default function Home({ posts, sample, onOpen, toast, onGoProfile }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void }) {
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
@@ -179,9 +179,6 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, user, 
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
-      <header className="flex items-center justify-end gap-3">
-        <RoleSwitch user={user ?? null} onUser={onUser} toast={toast} onGoProfile={onGoProfile} />
-      </header>
       <FloatingCall toast={toast} onGoProfile={onGoProfile} />
       {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
       {incomingTaxiId && <IncomingTaxiCall callId={incomingTaxiId} toast={toast} onClose={() => { setIncomingTaxiId(null); window.history.replaceState(null, "", "/"); }} />}
