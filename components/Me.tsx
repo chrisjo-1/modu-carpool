@@ -8,6 +8,7 @@ import FeedbackSheet from "./Feedback";
 import { HelpSheet } from "./Help";
 import CreditCard from "./Credits";
 import MyCallHistory from "./CallHistory";
+import { KarrotRewards, KarrotShowcase } from "./Karrot";
 import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
@@ -394,6 +395,8 @@ export default function Me({
       )}
 
       {user && <MyCallHistory />}
+      {user && <KarrotShowcase toast={toast} />}
+      {user && <KarrotRewards toast={toast} />}
 
       {user && <RouteAlerts regular={regular} toast={toast} push={push} />}
 

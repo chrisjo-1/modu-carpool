@@ -95,6 +95,29 @@ export function ensureSchema(): Promise<void> {
       await sql`create unique index if not exists credit_car_uniq on credit_ledger (user_id) where reason = 'car'`;
       await sql`create unique index if not exists credit_legacy_uniq on credit_ledger (user_id) where reason = 'legacy'`;
       await sql`create unique index if not exists credit_photo_uniq on credit_ledger (user_id) where reason = 'photo'`;
+      // 나의 당근함: 회원이 당근마켓 상품을 소개하는 진열(로그인 회원에게만 보임, 거래는 당근마켓에서)
+      await sql`create table if not exists karrot_items (
+        id uuid primary key default gen_random_uuid(),
+        user_id uuid not null references users(id) on delete cascade,
+        title text not null,
+        note text not null default '',
+        link text not null,
+        photos text[] not null default '{}',
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists karrot_items_user_idx on karrot_items (user_id)`;
+      // 카풀 보상: 탑승자가 같이 탄 운전자에게 당근함 물품을 골라 보내고, 운전자가 받았다고 확인한다.
+      await sql`create table if not exists karrot_rewards (
+        id uuid primary key default gen_random_uuid(),
+        post_id uuid not null references posts(id) on delete cascade,
+        rider uuid not null references users(id) on delete cascade,
+        driver uuid not null references users(id) on delete cascade,
+        item_id uuid references karrot_items(id) on delete set null,
+        item_title text not null default '',
+        item_link text not null default '',
+        status text not null default 'chosen',
+        created_at timestamptz not null default now(),
+        confirmed_at timestamptz,
+        unique (post_id, rider))`;
       await sql`create table if not exists settings (key text primary key, value text not null)`;
       // 공지 대상 고르기용: 성별, 주로 이용하는 역할(비어 있으면 글·차량·구 회원 정보로 판단)
       await sql`alter table users add column if not exists gender text not null default ''`;
