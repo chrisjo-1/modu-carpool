@@ -94,6 +94,7 @@ export function ensureSchema(): Promise<void> {
       await sql`create unique index if not exists credit_signup_uniq on credit_ledger (user_id) where reason = 'signup'`;
       await sql`create unique index if not exists credit_car_uniq on credit_ledger (user_id) where reason = 'car'`;
       await sql`create unique index if not exists credit_legacy_uniq on credit_ledger (user_id) where reason = 'legacy'`;
+      await sql`create unique index if not exists credit_photo_uniq on credit_ledger (user_id) where reason = 'photo'`;
       await sql`create table if not exists settings (key text primary key, value text not null)`;
       // 공지 대상 고르기용: 성별, 주로 이용하는 역할(비어 있으면 글·차량·구 회원 정보로 판단)
       await sql`alter table users add column if not exists gender text not null default ''`;
