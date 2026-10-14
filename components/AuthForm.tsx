@@ -64,6 +64,7 @@ export default function AuthForm({
   const [legacyBonus, setLegacyBonus] = useState(0);
   const [agree, setAgree] = useState({ terms: false, privacy: false, marketing: false });
   const [joinSource, setJoinSource] = useState("");
+  const [warpKey, setWarpKey] = useState("");
   useEffect(() => {
     api<{ rules?: { legacy?: number } }>("/api/credits").then((r) => r.ok && setLegacyBonus(r.data.rules?.legacy ?? 0));
   }, []);
@@ -89,9 +90,10 @@ export default function AuthForm({
     // 알림 권한 창은 버튼을 누른 그 순간에 띄워야 하는 브라우저가 있어 먼저 요청한다.
     const perm = canPush && wantPush && typeof Notification !== "undefined" ? Notification.requestPermission().catch(() => "default" as NotificationPermission) : null;
     if (mode === "signup" && !joinSource) return toast(t("가입 경로를 골라 주세요."));
+    if (mode === "signup" && joinSource === "warp" && !warpKey.trim()) return toast(t("워프 고유번호(8자리) 또는 워프에 쓴 이메일을 입력해 주세요."));
     if (mode === "signup" && !(agree.terms && agree.privacy)) return toast(t("이용약관과 개인정보 수집·이용에 동의해 주세요."));
     setBusy(true);
-    const r = await api<{ user: User; credit?: number; verify?: string }>("/api/auth", "POST", { action: mode, email, password, notify: mode === "signup" ? true : undefined, ...(mode === "signup" ? { ...agree, joinSource } : {}) });
+    const r = await api<{ user: User; credit?: number; verify?: string }>("/api/auth", "POST", { action: mode, email, password, notify: mode === "signup" ? true : undefined, ...(mode === "signup" ? { ...agree, joinSource, warpKey: joinSource === "warp" ? warpKey.trim() : "" } : {}) });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setPassword("");
@@ -165,6 +167,13 @@ export default function AuthForm({
               <option value="">{t("선택해 주세요")}</option>
               {JOIN_SOURCES.map(([k, label]) => <option key={k} value={k}>{t(label)}</option>)}
             </select>
+          </label>
+        )}
+        {mode === "signup" && joinSource === "warp" && (
+          <label data-block-id="F219" className="block text-sm text-sub">
+            {t("워프 고유번호 또는 워프에 쓴 이메일")}
+            <input data-block-id="F220" required className={`${field} mt-1`} value={warpKey} placeholder={t("예: 0000000A 또는 워프 이메일")} onChange={(e) => setWarpKey(e.target.value)} />
+            <span className="mt-1 block text-[13px] leading-relaxed text-sub">{t("확인되면 이전 축하 크레딧을 한 번 드려요.")}</span>
           </label>
         )}
         {mode === "signup" && <Consent value={agree} onChange={setAgree} />}

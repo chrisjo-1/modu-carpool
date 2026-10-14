@@ -6,6 +6,7 @@ import { finishVerify, startVerify } from "@/lib/verify";
 import { sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
 import { sendResetMail, siteUrl } from "@/lib/mail";
+import { findLegacyByKey } from "@/lib/legacy";
 import { CONTACT_TYPES, JOIN_SOURCES } from "@/lib/types";
 import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
 
@@ -51,6 +52,12 @@ export async function POST(req: Request) {
       if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
       const joinSource = JOIN_SOURCES.some(([k]) => k === b.joinSource) ? String(b.joinSource) : "";
       if (!joinSource) return json({ error: "가입 경로를 골라 주세요." }, 400);
+      // 워프(풀럭) 기존 회원은 워프 고유번호 또는 워프에 쓴 이메일로 확인한다(이메일 인증 뒤 한 번만 이전 크레딧 지급).
+      const warpKey = joinSource === "warp" ? text(b.warpKey, 120) : "";
+      if (joinSource === "warp") {
+        if (!warpKey) return json({ error: "워프 고유번호(8자리) 또는 워프에 쓴 이메일을 입력해 주세요." }, 400);
+        if (!(await findLegacyByKey(warpKey))) return json({ error: "워프 명단에서 찾을 수 없거나 이미 사용된 번호·이메일이에요. 다시 확인해 주세요." }, 400);
+      }
       // 가입 때 위치는 받지 않는다. 위치가 필요한 기능(CALL, 운전자 글)을 쓸 때 권한을 요청한다.
       const la = b.lat == null || b.lng == null ? null : Math.round(Number(b.lat) * 1e4) / 1e4;
       const ln = b.lat == null || b.lng == null ? null : Math.round(Number(b.lng) * 1e4) / 1e4;
@@ -66,11 +73,11 @@ export async function POST(req: Request) {
       const token = randomBytes(32).toString("hex");
       const mkt = b.marketing === true;
       // 이메일 인증을 마치기 전에는 계정을 만들지 않는다. 임시 가입 정보만 둔다.
-      await sql`insert into pending_signups (email, pw, name, notify, marketing, token_hash, ip, expires_at, loc_lat, loc_lng, join_source)
-        values (${email}, ${hash}, ${name}, ${b.notify !== false}, ${mkt}, ${hashToken(token)}, ${ip}, now() + interval '24 hours', ${locOk ? la : null}, ${locOk ? ln : null}, ${joinSource})
+      await sql`insert into pending_signups (email, pw, name, notify, marketing, token_hash, ip, expires_at, loc_lat, loc_lng, join_source, legacy_key)
+        values (${email}, ${hash}, ${name}, ${b.notify !== false}, ${mkt}, ${hashToken(token)}, ${ip}, now() + interval '24 hours', ${locOk ? la : null}, ${locOk ? ln : null}, ${joinSource}, ${warpKey})
         on conflict (email) do update set pw = excluded.pw, name = excluded.name, notify = excluded.notify, marketing = excluded.marketing,
           token_hash = excluded.token_hash, ip = excluded.ip, created_at = now(), expires_at = excluded.expires_at,
-          loc_lat = excluded.loc_lat, loc_lng = excluded.loc_lng, join_source = excluded.join_source`;
+          loc_lat = excluded.loc_lat, loc_lng = excluded.loc_lng, join_source = excluded.join_source, legacy_key = excluded.legacy_key`;
       const sent = await sendVerifyMail(email, `${siteUrl()}/?verify=${token}`).catch(() => false);
       if (!sent) {
         await sql`delete from pending_signups where email = ${email}`;
@@ -108,7 +115,7 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   if (!/^[a-f0-9]{64}$/.test(token)) return null;
   const sql = db();
   const rows = await sql`delete from pending_signups where token_hash = ${hashToken(token)} and expires_at > now()
-    returning email, pw, name, notify, marketing, loc_lat, loc_lng, join_source`;
+    returning email, pw, name, notify, marketing, loc_lat, loc_lng, join_source, legacy_key`;
   if (!rows.length) return null;
   const p = rows[0];
   const email = String(p.email);
@@ -129,11 +136,16 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   }
   if (!ins) throw new Error("고유코드를 배정하지 못했습니다.");
   const id = String(ins[0].id);
-  // 구 워프 회원이면 대조 상태를 '가입됨'으로 바꾸고, 워프 이전 크레딧을 준다(인증이 끝난 뒤라 안전하다).
-  // 이메일로 워프 명단을 맞추지 않는다. 워프 이전 크레딧은 번호 입력으로만 받는다.
   const welcome = await grant(id, "signup").catch(() => 0);
-  // 가입 경로에서 워프(풀럭) 기존 회원을 고른 경우에도 이전 축하 크레딧을 한 번 준다(장부 유일 인덱스로 중복 방지).
-  const legacy = (await grantLegacy(id).catch(() => 0)) || (String(p.join_source) === "warp" ? await grant(id, "legacy").catch(() => 0) : 0);
+  // 가입 경로가 워프(풀럭) 기존 회원이면, 인증이 끝난 지금 고유번호나 이메일을 다시 대조해 연결하고 이전 축하 크레딧을 한 번 준다.
+  // 대조 행은 조건부 update로 한 번만 연결하고, 장부 유일 인덱스로 중복 지급을 막는다.
+  let legacy = 0;
+  const hit = String(p.join_source) === "warp" && p.legacy_key ? await findLegacyByKey(String(p.legacy_key)) : null;
+  if (hit) {
+    const claimed = await sql`update legacy_members set matched_user = ${id}, match_status = '가입됨', matched_by = ${hit.by}
+      where warp_id = ${hit.warpId} and matched_user is null returning warp_id`;
+    if (claimed.length) legacy = await grant(id, "legacy").catch(() => 0);
+  }
   await setUserSession(id);
   return { id, welcome, legacy };
 }

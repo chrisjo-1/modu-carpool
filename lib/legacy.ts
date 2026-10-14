@@ -79,3 +79,21 @@ export async function matchNewUser(userId: string, email: string) {
   await db()`update legacy_members set match_status = '가입됨', matched_user = ${userId}, matched_by = '이메일'
              where email_norm = ${e} or email_h = ${keyedHash(e)}`;
 }
+
+/**
+ * 가입 때 쓰는 워프 확인: 워프 고유번호(8자리) 또는 워프에 등록된 이메일로 아직 연결되지 않은 구 워프 회원을 찾는다.
+ * 탈퇴 회원과 이미 다른 계정에 연결된 회원은 찾지 않는다.
+ */
+export async function findLegacyByKey(key: string): Promise<{ warpId: string; by: "번호입력" | "이메일" } | null> {
+  const raw = key.trim();
+  if (!raw) return null;
+  const sql = db();
+  if (/^[0-9A-Za-z]{8}$/.test(raw)) {
+    const r = await sql`select warp_id from legacy_members where upper(warp_id) = ${raw.toUpperCase()} and matched_user is null and not coalesce(withdrawn, false) limit 1`;
+    return r.length ? { warpId: String(r[0].warp_id), by: "번호입력" } : null;
+  }
+  const e = normEmail(raw);
+  if (!e) return null;
+  const r = await sql`select warp_id from legacy_members where (email_norm = ${e} or email_h = ${keyedHash(e)}) and matched_user is null and not coalesce(withdrawn, false) limit 1`;
+  return r.length ? { warpId: String(r[0].warp_id), by: "이메일" } : null;
+}
