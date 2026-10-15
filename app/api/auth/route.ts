@@ -91,11 +91,12 @@ export async function POST(req: Request) {
       // 비밀번호 무차별 대입 방지: 같은 이메일 15분에 10번, 같은 곳 15분에 30번 틀리면 잠깐 막는다.
       if ((await overLimit("login-email", email, 10, 15)) || (await overLimit("login-ip", ip, 30, 15)))
         return json({ error: "로그인 시도가 너무 많습니다. 15분 뒤에 다시 시도하거나 비밀번호 찾기를 이용해 주세요." }, 429);
-      const rows = await sql`select id, pw, blocked, withdrawn_at from users where email = ${email}`;
+      const rows = await sql`select id, pw, blocked, withdrawn_at, pw_reset_required from users where email = ${email}`;
       const ok = rows.length > 0 && (await bcrypt.compare(password, String(rows[0].pw)));
       if (!ok) {
         await recordAttempt("login-email", email);
         await recordAttempt("login-ip", ip);
+        if (rows.length && rows[0].pw_reset_required) return json({ error: "개인정보를 삭제한 계정이에요. 비밀번호 찾기로 새 비밀번호를 정해 주세요." }, 403);
         return json({ error: "이메일 또는 비밀번호가 맞지 않습니다." }, 401);
       }
       if (rows[0].blocked) return json({ error: "이용이 정지된 계정입니다. 문의가 필요하면 운영자에게 연락해 주세요." }, 403);
@@ -309,7 +310,7 @@ async function resetPassword(b: Record<string, unknown>) {
     if (!used.length) return json({ error: "링크가 만료되었거나 이미 사용되었습니다. 비밀번호 찾기를 다시 해 주세요." }, 400);
     const id = String(used[0].user_id);
     const hash = await bcrypt.hash(password, 10);
-    const rows = await sql`update users set pw = ${hash}, pw_at = date_trunc('second', now()) - interval '2 seconds' where id = ${id} and not blocked and withdrawn_at is null returning id`;
+    const rows = await sql`update users set pw = ${hash}, pw_reset_required = false, pw_at = date_trunc('second', now()) - interval '2 seconds' where id = ${id} and not blocked and withdrawn_at is null returning id`;
     if (!rows.length) return json({ error: "이용이 정지된 계정입니다." }, 403);
     await sql`update password_resets set used = true where user_id = ${id}`;
     await setUserSession(id);

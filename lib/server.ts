@@ -368,12 +368,14 @@ export function ensureSchema(): Promise<void> {
       // 탈퇴: 탈퇴한 시각만 남긴다(메일 주소는 계정·워프 행에 그대로 둔다). 탈퇴 확인 메일 링크 저장소.
       await sql`alter table users add column if not exists withdrawn_at timestamptz`;
       await sql`alter table legacy_members add column if not exists withdrawn_at timestamptz`;
+      await sql`alter table users add column if not exists pw_reset_required boolean not null default false`;
       await sql`create table if not exists withdraw_claims (
         token_hash text primary key,
         email_norm text not null,
         created_at timestamptz not null default now(),
         expires_at timestamptz not null,
         used boolean not null default false)`;
+      await sql`alter table withdraw_claims add column if not exists kind text not null default 'withdraw'`;
       // 마지막 접속 시각(관리자 회원 목록용). 요청 때마다 쓰지 않도록 5분에 한 번만 기록한다.
       await sql`alter table users add column if not exists last_seen timestamptz`;
       // 회원이 앱을 열 때 기록하는 현재 위치(CALL 대상 찾기용). 30분이 지나면 쓰지 않는다. 화면에는 보이지 않는다.

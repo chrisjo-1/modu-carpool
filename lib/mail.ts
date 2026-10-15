@@ -181,10 +181,13 @@ ${quote ? `<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border
 }
 
 /** 탈퇴 확인 링크. 탈퇴 여부 확인 창에서 탈퇴를 신청했을 때 그 메일 주소로 보낸다. */
-export async function sendWithdrawConfirmMail(to: string, link: string) {
+export async function sendWithdrawConfirmMail(to: string, link: string, kind: "withdraw" | "purge" = "withdraw") {
   if (!mailEnabled()) return false;
-  const subject = "[모두의카풀] 탈퇴 신청 확인";
-  const lead = "모두의카풀 탈퇴를 신청하셨어요. 본인이 맞다면 아래 버튼을 눌러 탈퇴를 완료해 주세요.";
+  const purge = kind === "purge";
+  const subject = purge ? "[모두의카풀] 개인정보 삭제 확인" : "[모두의카풀] 탈퇴 신청 확인";
+  const lead = purge
+    ? "계속 이용하시려면 가입 때 받은 개인정보(이름, 전화번호, 연락처, SNS 아이디 등)를 삭제해야 해요. 본인이 맞다면 아래 버튼을 눌러 확인해 주세요. 이메일 주소는 남아요. 확인 후에는 비밀번호 찾기로 새 비밀번호를 정해 주세요."
+    : "모두의카풀 탈퇴를 신청하셨어요. 본인이 맞다면 아래 버튼을 눌러 탈퇴를 완료해 주세요. 탈퇴하면 개인정보는 삭제되고 이메일 주소만 남아요.";
   const note = "본인이 요청하지 않았다면 이 메일을 무시해 주세요. 링크는 72시간 동안 쓸 수 있어요.";
   if (process.env.MAIL_DRYRUN === "1") {
     console.log(`[mail] to=${to} | ${subject} | ${link}`);
@@ -194,7 +197,7 @@ export async function sendWithdrawConfirmMail(to: string, link: string) {
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
 <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
 <p style="margin:0 0 16px;font-size:16px;line-height:1.6">${lead}</p>
-<a href="${esc(link)}" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">탈퇴 확인하기</a>
+<a href="${esc(link)}" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">${purge ? "개인정보 삭제 확인하기" : "탈퇴 확인하기"}</a>
 <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${note}</p>
 </div></div>`;
   try {
