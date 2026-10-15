@@ -394,6 +394,7 @@ const D: Record<string, [string, string, string]> = {
   "음주": ["After drinking", "飲酒後", "酒后"],
   "일시정지": ["Pause", "一時停止", "暂停"],
   "정렬": ["Sort", "並べ替え", "排序"],
+  "출발순": ["Departure", "出発順", "出发顺"],
   "출발 임박순": ["Departing soon", "出発が近い順", "即将出发"],
   "최신순": ["Newest", "新着順", "最新"],
   "출발 시각이 지나 종료된 카풀이에요.": ["This carpool has ended.", "出発時刻を過ぎて終了したカープールです。", "已过出发时间，拼车已结束。"],

@@ -205,14 +205,14 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
         <div className={`flex flex-wrap items-center gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
           <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex flex-wrap gap-1.5">
-            {([["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")], ["soon", t("출발 임박순")]] as const).map(([k, label]) => (
+            {([["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")], ["soon", t("출발순")]] as const).map(([k, label]) => (
               <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-[44px] rounded-full border px-3.5 py-2 text-[14px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
                 {label}
               </button>
             ))}
           </div>
           <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`ml-auto min-h-[44px] rounded-full border px-3.5 py-2 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-            {t("정기카풀만 보기")}
+            {t("정기카풀")}
           </button>
         </div>
         {view === "list" && sort !== "near" && <Bubble blockId="C932" align="left">{t("가까운 순은 내 위치를 허용하면 쓸 수 있어요. 출발지가 가까운 글부터 보여요.")}</Bubble>}
