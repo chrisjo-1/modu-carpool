@@ -1,3 +1,5 @@
+import { driverTier } from "@/lib/types";
+import { sendSuspendMail } from "@/lib/mail";
 import { authEnabled, body, carPhotoUrl, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, photoUrl, setAdminSession, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +59,7 @@ export async function GET(req: Request) {
         lastSeen: u.last_seen ? new Date(u.last_seen as string).getTime() : null,
         photo: photoUrl(u.id, u.photo_v),
         carPhoto: carPhotoUrl(u.id, u.car_v),
+        tier: driverTier({ carNo: u.car_no, carPhoto: carPhotoUrl(u.id, u.car_v), photo: photoUrl(u.id, u.photo_v) }),
       })),
     });
   } catch (e) {
@@ -129,8 +132,21 @@ export async function PATCH(req: Request) {
     await ensureSchema();
     const sql = db();
     if (isUuid(b.userId)) {
-      await sql`update users set blocked = ${b.blocked === true} where id = ${b.userId}`;
-      return json({ ok: true });
+      // 프로필 사진만 삭제(신고된 타인 사진 처리)
+      if (b.removePhoto === true) {
+        await sql`update users set photo = '', photo_v = 0 where id = ${b.userId}`;
+        return json({ ok: true });
+      }
+      const before = await sql`select email, name, blocked from users where id = ${b.userId}`;
+      if (!before.length) return json({ error: "회원을 찾을 수 없습니다." }, 404);
+      const blocked = b.blocked === true;
+      await sql`update users set blocked = ${blocked} where id = ${b.userId}`;
+      // 이용 정지(새로 정지한 경우)에만 안내 메일을 보낸다
+      let mailed: boolean | null = null;
+      if (blocked && !before[0].blocked && b.notify === true) {
+        mailed = await sendSuspendMail(String(before[0].email), String(before[0].name ?? ""), text(b.reason, 100));
+      }
+      return json({ ok: true, mailed });
     }
     if (isUuid(b.reportId)) {
       await sql`update reports set status = ${b.status === "open" ? "open" : "done"} where id = ${b.reportId}`;

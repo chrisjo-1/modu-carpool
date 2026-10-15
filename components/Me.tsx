@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
-import { CONTACT_TYPES, METER_URL, SHOW_METER, defaultRoleFor, type Post, type User } from "@/lib/types";
+import { CONTACT_TYPES, METER_URL, SHOW_METER, TIER_LABEL, defaultRoleFor, type Post, type User } from "@/lib/types";
 import AuthForm from "./AuthForm";
 import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
@@ -216,9 +216,17 @@ export default function Me({
                     <button type="button" data-block-id="B044" data-block-name="사진 등록" disabled={busy} className="min-h-0 py-1 text-[15px] font-semibold text-accent" onClick={() => file.current?.click()}>{user.photo ? t("사진 변경") : t("사진 등록")}</button>
                     {user.photo && <button type="button" data-block-id="B045" data-block-name="사진 삭제" disabled={busy} className="min-h-0 py-1 text-[15px] text-sub underline" onClick={() => savePhoto("")}>{t("사진 삭제")}</button>}
                   </div>
+                  <p data-block-id="C058" data-block-name="사진 안내" className="text-[13px] leading-relaxed text-sub">{t("본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.")}</p>
                   <input ref={file} data-block-id="F046" type="file" accept="image/*" className="hidden" aria-label={t("프로필 사진")} onChange={pickPhoto} />
                 </div>
                 </div>
+              </div>
+              <div data-block-id="C057" data-block-name="운전자 등급" className="space-y-2 rounded-xl bg-bg px-4 py-3 text-[14px] leading-relaxed text-sub">
+                <p className="font-semibold text-ink">
+                  {t("운전자 등급")}: {user.tier ? t(TIER_LABEL[user.tier]) : t("미부여")}
+                </p>
+                {!user.tier && <p>{t("차량 번호와 차량 사진, 프로필 사진을 모두 등록하면 브론즈 등급이 자동으로 부여돼요.")}</p>}
+                <p>{t("타인의 사진으로 신고되면 확인 후 이용이 정지될 수 있어요.")}</p>
               </div>
               <div data-block-id="C055" data-block-name="내 고유코드" className="space-y-1 text-sm text-sub">
                 <span>{t("고유코드")}</span>

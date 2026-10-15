@@ -30,7 +30,7 @@ const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false 
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
-  id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number;
+  id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number; tier: string;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
   commute_kind: string; commute_origin: string; commute_dest: string; commute_time: string; commute_price: number;
@@ -43,7 +43,8 @@ type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
 type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help";
-const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", promo: "홍보성", illegal: "불법", etc: "기타" };
+const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
+const TIER_NAME: Record<string, string> = { bronze: "브론즈" };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const day = (ms: number) => new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -93,12 +94,24 @@ export default function Admin() {
   const removePost = (p: PostRow) => {
     if (window.confirm(`"${p.origin} → ${p.dest}" 글을 삭제할까요? 신청과 대화도 함께 지워집니다.`)) act(call("DELETE", `/api/admin?post=${p.id}`), "글을 삭제했습니다.");
   };
-  const blockTarget = (f: Flag) => {
-    if (window.confirm(`${f.target_name || f.target_email} 회원을 이용 정지할까요? 로그인과 글쓰기가 막힙니다.`)) act(call("PATCH", "/api/admin", { userId: f.target_id, blocked: true }), "이용을 정지했습니다.");
+  const blockTarget = async (f: Flag) => {
+    if (!window.confirm(`${f.target_name || f.target_email} 회원을 이용 정지할까요? 로그인과 글쓰기가 막힙니다. 회원에게 정지 안내 메일이 발송됩니다.`)) return;
+    const r = await call("PATCH", "/api/admin", { userId: f.target_id, blocked: true, notify: true, reason: REASON[f.reason] ?? "" });
+    const d = await r.json().catch(() => ({}));
+    setMsg(!r.ok ? d.error ?? "처리하지 못했습니다." : d.mailed === false ? "이용을 정지했습니다. 안내 메일은 보내지 못했어요(메일 설정 확인)." : "이용을 정지하고 안내 메일을 보냈습니다.");
+    refresh(q);
+  };
+  const removeTargetPhoto = (f: Flag) => {
+    if (window.confirm(`${f.target_name || f.target_email} 회원의 프로필 사진을 삭제할까요?`)) act(call("PATCH", "/api/admin", { userId: f.target_id, removePhoto: true }), "프로필 사진을 삭제했습니다.");
   };
   const who = (name: string, email: string) => (<>{name || "—"} <span className="block text-xs text-sub">{email}</span></>);
   const why = (f: Flag) => (<><b>{REASON[f.reason] ?? (f.reason || "사유 없음")}</b>{f.detail && <span className="block max-w-[280px] whitespace-pre-wrap text-xs text-sub">{f.detail}</span>}</>);
-  const stop = (f: Flag) => f.target_blocked ? <span className="text-warn">정지됨</span> : <button data-block-id="B095" data-block-name="이용 정지" className="min-h-0 text-warn underline" onClick={() => blockTarget(f)}>이용 정지</button>;
+  const stop = (f: Flag) => (
+    <span className="flex flex-wrap gap-x-3">
+      {f.reason === "photo" && <button data-block-id="B096" data-block-name="신고 사진 삭제" className="min-h-0 text-sub underline" onClick={() => removeTargetPhoto(f)}>사진 삭제</button>}
+      {f.target_blocked ? <span className="text-warn">정지됨</span> : <button data-block-id="B095" data-block-name="이용 정지" className="min-h-0 text-warn underline" onClick={() => blockTarget(f)}>이용 정지</button>}
+    </span>
+  );
   const makeTest = async (e: React.FormEvent) => {
     e.preventDefault();
     await act(call("POST", "/api/admin", { action: "testUser", name: testName }), "테스트 회원을 만들었습니다.");
@@ -296,7 +309,7 @@ export default function Admin() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="text-sub">
-                <tr>{["사진", "닉네임", "이메일", "역할", "성별", "차량", "가입일", "최근 접속", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                <tr>{["프로필 사진", "닉네임", "이메일", "역할", "성별", "차량", "차량 사진", "운전자 등급", "가입일", "최근 접속", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {rows.map((u) => (
@@ -309,7 +322,9 @@ export default function Admin() {
                       <span className="block text-xs text-sub">운전자 {u.driver_posts} · 탑승자 {u.rider_posts}</span>
                     </td>
                     <td className="px-2 py-2">{GENDER_LABEL[u.gender] ?? "미입력"}</td>
-                    <td className="px-2 py-2">{u.carPhoto || u.car_no ? <span className="text-accent">등록</span> : <span className="text-sub">미등록</span>}</td>
+                    <td className="px-2 py-2">{u.car_no ? <span className="text-accent">{u.car_no}</span> : <span className="text-sub">미등록</span>}</td>
+                    <td className="px-2 py-2">{u.carPhoto ? <img src={u.carPhoto} alt="" loading="lazy" onClick={() => setZoom({ src: u.carPhoto, alt: `${u.name} 차량` })} className="h-9 w-12 cursor-zoom-in rounded-lg border border-line object-cover" /> : <span className="grid h-9 w-12 place-items-center rounded-lg bg-bg text-xs text-sub">없음</span>}</td>
+                    <td className="px-2 py-2">{u.tier ? <span className="font-semibold text-accent">{TIER_NAME[u.tier] ?? u.tier}</span> : <span className="text-sub">미부여</span>}</td>
                     <td className="num px-2 py-2">{new Date(u.created_at).toLocaleDateString("ko-KR")}</td>
                     <td className="num whitespace-nowrap px-2 py-2">{u.lastSeen ? lastSeenText(u.lastSeen) : <span className="text-sub">없음</span>}</td>
                     <td className="num px-2 py-2">{u.posts}</td>

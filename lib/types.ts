@@ -73,7 +73,7 @@ export type Thread = {
   unread?: number;
 };
 
-export type User = { id: string; email: string; memberCode?: string; name: string; bio: string; contact: string; contactType: string; photo: string; test?: boolean; notify?: boolean; carNo?: string; carPhoto?: string; gender?: string; rolePref?: string; verified?: boolean; consented?: boolean; marketing?: boolean; interests?: string[] | null };
+export type User = { id: string; email: string; memberCode?: string; name: string; bio: string; contact: string; contactType: string; photo: string; test?: boolean; notify?: boolean; carNo?: string; carPhoto?: string; gender?: string; rolePref?: string; tier?: DriverTier | ""; verified?: boolean; consented?: boolean; marketing?: boolean; interests?: string[] | null };
 
 /** 연락 방법 종류. 값은 DB에 저장되는 키, 표시는 번역해서 보여준다. */
 export const CONTACT_TYPES: [string, string][] = [
@@ -90,6 +90,7 @@ export const contactLabel = (type: string) => CONTACT_TYPES.find(([k]) => k === 
 export const REASONS: [string, string][] = [
   ["noshow", "노쇼"],
   ["rude", "비매너"],
+  ["photo", "타인 사진"],
   ["promo", "홍보성"],
   ["illegal", "불법"],
   ["etc", "기타"],
@@ -119,6 +120,19 @@ export const SHOW_METER = false;
 
 /** 가입하게 된 경로(가입 때 한 번 고른다). 값은 저장용 코드, 뒤는 화면 문구. */
 export const JOIN_SOURCES: [string, string][] = [["member", "기존 회원 소개"], ["warp", "워프(풀럭) 기존 회원"], ["search", "검색"], ["friend", "지인 추천"], ["other", "기타"]];
+
+/** 운전자 등급. 지금은 브론즈만 자동 부여하며, 실버 이상의 기준은 추후 정한다. */
+export type DriverTier = "bronze";
+
+/**
+ * 운전자 등급을 계산한다(저장하지 않고 항상 현재 상태로 판정).
+ * 브론즈 = 차량번호 + 차량 사진 + 프로필 사진. 프로필 사진이 본인 얼굴인지는 자동으로 알 수 없어서,
+ * 타인 사진이 신고되면 이용이 정지될 수 있다고 안내한다.
+ */
+export const driverTier = (u: { carNo?: string; carPhoto?: string; photo?: string } | null | undefined): DriverTier | "" =>
+  u?.carNo && u?.carPhoto && u?.photo ? "bronze" : "";
+
+export const TIER_LABEL: Record<DriverTier, string> = { bronze: "브론즈" };
 
 /**
  * 기본 역할: 프로필의 희망 역할을 먼저 따른다(탑승자면 탑승자, 운전자면 차량 등록이 있을 때만 운전자).
