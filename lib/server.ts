@@ -277,6 +277,29 @@ export function ensureSchema(): Promise<void> {
         status text not null default 'open',
         created_at timestamptz not null default now())`;
       await sql`create index if not exists reports_created_idx on reports (created_at)`;
+      await sql`create table if not exists mail_log (
+        id uuid primary key default gen_random_uuid(),
+        created_at timestamptz not null default now(),
+        kind text not null,
+        category text not null,
+        to_email text not null,
+        user_id uuid,
+        subject text not null default '',
+        status text not null,
+        error text not null default '',
+        provider_id text not null default '')`;
+      await sql`create index if not exists mail_log_created_idx on mail_log (created_at)`;
+      await sql`create table if not exists mail_policy (
+        id int primary key,
+        daily_cap int not null default 100,
+        quiet_on boolean not null default true,
+        quiet_from int not null default 21,
+        quiet_to int not null default 8,
+        marketing_on boolean not null default false,
+        require_consent boolean not null default true,
+        updated_at timestamptz not null default now(),
+        constraint mail_policy_one_row check (id = 1))`;
+      await sql`insert into mail_policy (id) values (1) on conflict do nothing`;
       await sql`create table if not exists admin_attempts (ip text not null, at timestamptz not null default now())`;
       await sql`create index if not exists admin_attempts_at_idx on admin_attempts (at)`;
       // 회원 로그인 실패·가입 횟수 제한용 기록(kind: login-email, login-ip, signup-ip)
