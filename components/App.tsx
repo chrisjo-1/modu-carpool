@@ -261,7 +261,8 @@ export default function App() {
 
   useEffect(() => {
     if (!toastMsg) return;
-    const id = setTimeout(() => setToastMsg(""), 2600);
+    // 글자가 길수록 오래 보여 준다(최소 3.4초)
+    const id = setTimeout(() => setToastMsg(""), Math.max(3400, toastMsg.length * 80));
     return () => clearTimeout(id);
   }, [toastMsg]);
 
@@ -462,7 +463,10 @@ export default function App() {
         )}
         {why && <ReasonSheet mode={why.mode} name={why.name} onClose={() => setWhy(null)} onSubmit={submitWhy} />}
         {toastMsg && (
-          <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-medium text-ink shadow-card">{toastMsg}</div>
+          <div role="status" aria-live="polite" data-block-id="C099" data-block-name="알림 문구" className="fixed inset-x-4 bottom-24 z-[60] mx-auto flex max-w-sm items-center gap-3 rounded-2xl bg-accent px-5 py-4 text-left text-[16px] font-semibold leading-snug text-white shadow-[0_12px_32px_rgba(47,107,255,0.35)] ring-4 ring-accentSoft">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.22)" stroke="none" /><path d="M12 11v5.5" /><path d="M12 7.5h.01" /></svg>
+            <span className="min-w-0 flex-1 break-keep">{toastMsg}</span>
+          </div>
         )}
       </div>
       </HintContext.Provider>
