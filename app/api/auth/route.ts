@@ -33,6 +33,7 @@ export async function POST(req: Request) {
   if (!authEnabled()) return json({ error: "로그인 기능이 아직 준비 중입니다." }, 503);
   const b = await body(req);
   if (b.action === "reset") return resetPassword(b);
+  if (b.action === "changePassword") return changePassword(b);
   if (b.action === "verify") return verifyEmail(b);
   if (b.action === "legacyConfirm") return legacyConfirm(b);
   if (b.action === "legacyChange") return legacyChange(b);
@@ -315,6 +316,34 @@ async function resetPassword(b: Record<string, unknown>) {
     await sql`update password_resets set used = true where user_id = ${id}`;
     await setUserSession(id);
     return json({ user: await profile(id) });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 로그인한 회원이 설정에서 현재 비밀번호를 확인한 뒤 새 비밀번호로 바꾼다. 다른 기기의 로그인은 끊기고 이 기기는 유지된다. */
+async function changePassword(b: Record<string, unknown>) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const current = typeof b.current === "string" ? b.current : "";
+  const next = typeof b.password === "string" ? b.password : "";
+  if (!current) return json({ error: "현재 비밀번호를 입력해 주세요." }, 400);
+  if (next.length < 8 || next.length > 72) return json({ error: "새 비밀번호는 8자 이상이어야 합니다." }, 400);
+  if (next === current) return json({ error: "현재 비밀번호와 다른 비밀번호를 정해 주세요." }, 400);
+  try {
+    await ensureSchema();
+    const sql = db();
+    if (await overLimit("pw-change", me, 5, 15)) return json({ error: "비밀번호 확인을 여러 번 틀렸어요. 15분 뒤에 다시 해 주세요." }, 429);
+    const rows = await sql`select pw from users where id = ${me} and not blocked and withdrawn_at is null`;
+    if (!rows.length) return needLogin();
+    if (!(await bcrypt.compare(current, String(rows[0].pw)))) {
+      await recordAttempt("pw-change", me);
+      return json({ error: "현재 비밀번호가 맞지 않아요." }, 400);
+    }
+    const hash = await bcrypt.hash(next, 10);
+    await sql`update users set pw = ${hash}, pw_reset_required = false, pw_at = date_trunc('second', now()) - interval '2 seconds' where id = ${me}`;
+    await setUserSession(me);
+    return json({ ok: true });
   } catch (e) {
     return fail(e);
   }

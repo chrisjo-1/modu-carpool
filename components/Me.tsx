@@ -12,6 +12,7 @@ import { KarrotRewards, KarrotShowcase } from "./Karrot";
 import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
+import ChangePassword from "./ChangePassword";
 import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 import { shrinkCar } from "./CarInput";
 
@@ -441,6 +442,12 @@ export default function Me({
                   toast(t(r.data.user.marketing ? "이벤트·혜택 정보 수신에 동의했어요." : "이벤트·혜택 정보 수신을 철회했어요."));
                 }} />
               </label>
+              </div>
+            )}
+            {user && (
+              <div className="space-y-2">
+              <h3 className="px-1 text-sm font-semibold text-sub">{t("계정")}</h3>
+              <ChangePassword toast={toast} />
               </div>
             )}
             {user && (

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { keyedHash, maskEmail, maskPhone, normEmail, normPhone, runMatch } from "@/lib/legacy";
 import { body, clientIp, db, ensureSchema, fail, hasDb, isAdmin, json } from "@/lib/server";
 
@@ -154,7 +155,33 @@ export async function POST(req: Request) {
           marketing = excluded.marketing, promo = excluded.promo,
           memo = case when excluded.memo <> '' then excluded.memo else legacy_members.memo end, imported_at = now()`;
     }
-    return json({ ok: true, saved: cols.id.length, skipped });
+    let created = 0;
+    if (b.source === "신워프" && cols.id.length) {
+      // 신워프(현 워프 플랫폼 가입자) 명단은 이메일이 있는 회원에게 계정을 만든다.
+      // 비밀번호는 아무도 알 수 없는 값으로 두고, 회원이 '비밀번호 찾기'로 새로 정하게 한다(bcrypt 형식이 아니라 로그인은 되지 않는다).
+      // 약관 동의는 아직 받지 않았으므로 로그인 뒤 동의 화면을 거친다. 이미 같은 이메일·고유코드 계정이 있으면 건너뛰고, 아래 대조에서 그 계정과 연결된다.
+      const ac = { email: [] as string[], name: [] as string[], contact: [] as string[], type: [] as string[], code: [] as string[], pw: [] as string[] };
+      const seen = new Set<string>();
+      for (let i = 0; i < cols.id.length; i++) {
+        const e = cols.emailN[i];
+        if (!e || cols.withdrawn[i] || seen.has(String(e))) continue;
+        seen.add(String(e));
+        const p = fmtPhone(String(cols.phoneN[i] ?? "") || null);
+        ac.email.push(String(e));
+        ac.name.push(String(cols.nick[i] ?? "").slice(0, 40));
+        ac.contact.push(p);
+        ac.type.push(p ? "phone" : "");
+        ac.code.push(String(cols.id[i]));
+        ac.pw.push(`unset:${randomBytes(32).toString("hex")}`);
+      }
+      if (ac.email.length) {
+        const rows = await sql`insert into users (email, pw, name, contact, contact_type, member_code, pw_reset_required, email_verified)
+          select e, p, n, c, t, m, true, true from unnest(${ac.email}::text[], ${ac.pw}::text[], ${ac.name}::text[], ${ac.contact}::text[], ${ac.type}::text[], ${ac.code}::text[]) as x(e, p, n, c, t, m)
+          on conflict do nothing returning id`;
+        created = rows.length;
+      }
+    }
+    return json({ ok: true, saved: cols.id.length, skipped, created });
   } catch (e) {
     return fail(e);
   }

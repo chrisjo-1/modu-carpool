@@ -18,6 +18,39 @@ const HEAD: Record<string, string> = {
   카카오톡ID: "kakao", 원본레코드수: "records", 마케팅동의상태: "marketing", 홍보대상상태: "promo", 관리자메모: "memo",
 };
 
+/**
+ * 현재 모두의카풀 관리자 '회원 목록' 내보내기(신워프) 를 구워프 대조 표와 같은 열로 바꾼다.
+ * 회원ID는 고유번호(고유코드, 8자리)를 그대로 쓰고, 원본번호를 '신워프 N' 으로 적어 구워프와 구분한다.
+ * 고유번호로 가입 때 워프 확인을 하므로(findLegacyByKey) 접두사를 붙이지 않는다.
+ */
+function fromNewWarp(table: unknown[][]): Record<string, unknown>[] {
+  const head = (table[0] ?? []).map((h) => String(h ?? "").trim());
+  const at = (name: string) => head.indexOf(name);
+  const c = { no: at("번호"), joined: at("등록일"), code: at("고유번호"), nick: at("닉네임"), gender: at("성별"), phone: at("휴대폰번호"), status: at("상태"), email: at("이메일"), type: at("가입 회원 유형") };
+  const seen = new Map<string, Record<string, unknown>>();
+  for (const r of table.slice(1)) {
+    const code = r && c.code >= 0 ? String(r[c.code] ?? "").trim() : "";
+    if (!code) continue;
+    const id = code;
+    const type = String(r[c.type] ?? "").trim();
+    const status = String(r[c.status] ?? "").trim();
+    seen.set(id, {
+      id,
+      no: `신워프 ${String(r[c.no] ?? "").trim()}`.trim(),
+      gender: r[c.gender],
+      nick: r[c.nick],
+      kind: type === "운전자" ? "드라이버" : type === "탑승자" ? "라이더" : null,
+      joined: r[c.joined],
+      status: status === "승인" ? "사용중" : status || null,
+      phone: r[c.phone],
+      email: r[c.email],
+      memo: "신워프: 현 모두의카풀 회원 목록 내보내기",
+      records: 1,
+    });
+  }
+  return [...seen.values()];
+}
+
 export default function Legacy() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
@@ -51,35 +84,46 @@ export default function Legacy() {
     try {
       const XLSX = await import("xlsx");
       const wb = XLSX.read(await file.arrayBuffer(), { type: "array", dense: true });
-      const ws = wb.Sheets["회원통합"] ?? wb.Sheets[wb.SheetNames.find((nm) => {
-        const first = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[nm], { header: 1, range: 0 })[0] as unknown[] | undefined;
-        return !!first?.includes("구워프_회원ID");
-      }) ?? ""];
-      if (!ws) throw new Error("'회원통합' 시트(구워프_회원ID 열)를 찾지 못했습니다.");
-      const table = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: false, defval: null });
-      const head = (table[0] ?? []).map((h) => HEAD[String(h ?? "").trim()] ?? "");
-      if (!head.includes("id")) throw new Error("구워프_회원ID 열이 없습니다.");
-      const data = table.slice(1).filter((r) => r && r[head.indexOf("id")]).map((r) => {
-        const o: Record<string, unknown> = {};
-        head.forEach((k, i) => k && (o[k] = r[i]));
-        return o;
-      });
-      if (!window.confirm(`구 워프 회원 ${n(data.length)}명을 올립니다. 같은 회원ID는 새 값으로 덮어씁니다. 탈퇴 회원은 이름·연락처 없이 대조용 값만 저장됩니다. 진행할까요?`)) {
+      const firstTable = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: null });
+      const firstHead = (firstTable[0] ?? []).map((h) => String(h ?? "").trim());
+      const isNewWarp = firstHead.includes("고유번호") && firstHead.includes("가입 회원 유형");
+      let data: Record<string, unknown>[];
+      if (isNewWarp) {
+        data = fromNewWarp(firstTable);
+      } else {
+        const ws = wb.Sheets["회원통합"] ?? wb.Sheets[wb.SheetNames.find((nm) => {
+          const first = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[nm], { header: 1, range: 0 })[0] as unknown[] | undefined;
+          return !!first?.includes("구워프_회원ID");
+        }) ?? ""];
+        if (!ws) throw new Error("'회원통합' 시트(구워프_회원ID 열)를 찾지 못했습니다.");
+        const table = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: false, defval: null });
+        const head = (table[0] ?? []).map((h) => HEAD[String(h ?? "").trim()] ?? "");
+        if (!head.includes("id")) throw new Error("구워프_회원ID 열이 없습니다.");
+        data = table.slice(1).filter((r) => r && r[head.indexOf("id")]).map((r) => {
+          const o: Record<string, unknown> = {};
+          head.forEach((k, i) => k && (o[k] = r[i]));
+          return o;
+        });
+      }
+      if (!data.length) throw new Error("올릴 회원 행을 찾지 못했습니다.");
+      const label = isNewWarp ? "신워프" : "구 워프";
+      if (!window.confirm(`${label} 회원 ${n(data.length)}명을 올립니다. 같은 회원ID(고유번호)는 새 값으로 덮어씁니다. ${isNewWarp ? "원본번호에 '신워프'로 적혀 구워프 회원과 구분됩니다. 이메일이 있는 회원은 새 계정을 만들고(이미 있는 계정은 건너뜀), 비밀번호는 '비밀번호 찾기'로 새로 정하게 됩니다. " : ""}탈퇴 회원은 이름·연락처 없이 대조용 값만 저장됩니다. 진행할까요?`)) {
         setProgress("");
         return;
       }
-      let saved = 0, skipped = 0;
+      let saved = 0, skipped = 0, created = 0;
       for (let i = 0; i < data.length; i += 500) {
         setProgress(`올리는 중… ${n(Math.min(i + 500, data.length))} / ${n(data.length)}`);
-        const res = await call("POST", "/api/admin/legacy", { action: "import", rows: data.slice(i, i + 500) });
+        const res = await call("POST", "/api/admin/legacy", { action: "import", source: isNewWarp ? "신워프" : undefined, rows: data.slice(i, i + 500) });
         const j = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(`${i + 1}번째 행부터 저장하지 못했습니다: ${j.error ?? res.status}`);
         saved += j.saved;
         skipped += j.skipped;
+        created += j.created ?? 0;
       }
       setProgress("현재 회원과 대조하는 중…");
       const m = await call("POST", "/api/admin/legacy", { action: "match" }).then((x) => x.json());
-      setProgress(`완료: ${n(saved)}명 저장${skipped ? `, ${n(skipped)}행 건너뜀(회원ID 형식 오류)` : ""} · 대조 결과 가입됨 ${n(m.joined)}명`);
+      setProgress(`완료: ${n(saved)}명 저장${isNewWarp ? `, 새 계정 ${n(created)}명 생성(비밀번호는 '비밀번호 찾기'로 설정)` : ""}${skipped ? `, ${n(skipped)}행 건너뜀(회원ID 형식 오류)` : ""} · 대조 결과 가입됨 ${n(m.joined)}명`);
       load(0);
     } catch (e) {
       setProgress(e instanceof Error ? e.message : "업로드하지 못했습니다.");
