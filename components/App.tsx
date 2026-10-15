@@ -19,7 +19,7 @@ import CommuteOnboard from "./CommuteOnboard";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import PostForm from "./PostForm";
-import { Bubble, Icon, LangContext, Sheet, api } from "./ui";
+import { Bubble, HintContext, Icon, LangContext, Sheet, api } from "./ui";
 import type { Place } from "@/lib/types";
 
 type Tab = "home" | "post" | "chat" | "me";
@@ -95,6 +95,10 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [withdrawToken, setWithdrawToken] = useState("");
+  const [bubbleTexts, setBubbleTexts] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch("/api/bubbles").then((r) => r.json()).then((j) => setBubbleTexts(j.texts ?? {})).catch(() => {});
+  }, []);
   const [wantRoom, setWantRoom] = useState("");
   // 로그인 확인이 끝났는지, 로그인 없이 둘러보는 중인지(이 탭에서만 기억)
   const [checked, setChecked] = useState(false);
@@ -345,6 +349,7 @@ export default function App() {
 
   return (
     <LangContext.Provider value={lang}>
+      <HintContext.Provider value={{ on: !!user, texts: bubbleTexts }}>
       <div className="mx-auto flex min-h-dvh max-w-md flex-col">
         {user?.test && (
           <p data-block-id="C090" data-block-name="테스트 회원 안내" className="flex items-center justify-between gap-3 border-b border-line bg-accentSoft px-5 py-2 text-[13px] text-ink">
@@ -460,6 +465,7 @@ export default function App() {
           <div role="status" className="fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-sm rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-medium text-ink shadow-card">{toastMsg}</div>
         )}
       </div>
+      </HintContext.Provider>
     </LangContext.Provider>
   );
 }

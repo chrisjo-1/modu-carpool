@@ -187,8 +187,17 @@ export function Segment<T extends string>({ value, options, onChange, label, com
  * 말풍선 안내. 의미가 헷갈릴 만한 버튼 옆에 둔다. 닫으면 이 기기에서는 다시 보이지 않는다(localStorage, 실패해도 그냥 보임).
  * pointer: 화살표가 위(기본)·아래 중 어디로 향할지. align: 화살표 위치(왼쪽·가운데·오른쪽).
  */
+/** 말풍선 표시 상태: 로그인한 회원에게만 보이고, 관리자가 바꾼 한국어 문구를 담는다. */
+export const HintContext = createContext<{ on: boolean; texts: Record<string, string> }>({ on: false, texts: {} });
+
+/**
+ * 말풍선: 진한 회색 바탕에 흰 글자. 로그인한 회원에게만 보인다.
+ * 관리자가 바꾼 한국어 문구가 있으면 한국어 화면에서 그 문구를 쓴다. 닫으면 이 기기에서 다시 안 보인다.
+ */
 export function Bubble({ blockId, children, pointer = "top", align = "left" }: { blockId: string; children: ReactNode; pointer?: "top" | "bottom"; align?: "left" | "center" | "right" }) {
   const t = useT();
+  const lang = useLang();
+  const hint = useContext(HintContext);
   const key = `hint:${blockId}`;
   const [gone, setGone] = useState(false);
   useEffect(() => {
@@ -198,7 +207,7 @@ export function Bubble({ blockId, children, pointer = "top", align = "left" }: {
       /* 저장소를 못 쓰면 매번 보여 준다 */
     }
   }, [key]);
-  if (gone) return null;
+  if (!hint.on || gone) return null;
   const close = () => {
     setGone(true);
     try {
@@ -209,11 +218,12 @@ export function Bubble({ blockId, children, pointer = "top", align = "left" }: {
   };
   const arrowPos = align === "center" ? "left-1/2 -translate-x-1/2" : align === "right" ? "right-10" : "left-5";
   const arrowEdge = pointer === "top" ? "-top-1.5" : "-bottom-1.5";
+  const text = lang === "ko" && hint.texts[blockId] ? hint.texts[blockId] : children;
   return (
-    <div role="note" data-block-id={blockId} className={`relative inline-flex max-w-full items-start gap-2 rounded-xl bg-accentSoft px-3.5 py-2.5 text-[14px] font-medium leading-snug text-accent ${pointer === "top" ? "mt-2" : "mb-2"}`}>
-      <span aria-hidden className={`absolute ${arrowEdge} ${arrowPos} h-3 w-3 rotate-45 bg-accentSoft`} />
-      <span className="min-w-0">{children}</span>
-      <button type="button" aria-label={t("닫기")} onClick={close} className="min-h-0 shrink-0 px-0.5 text-[15px] leading-none text-accent/70">×</button>
+    <div role="note" data-block-id={blockId} className={`relative inline-flex max-w-full items-start gap-2 rounded-xl bg-[#374151] px-3.5 py-2.5 text-[14px] font-medium leading-snug text-white shadow-card ${pointer === "top" ? "mt-2" : "mb-2"}`}>
+      <span aria-hidden className={`absolute ${arrowEdge} ${arrowPos} h-3 w-3 rotate-45 bg-[#374151]`} />
+      <span className="min-w-0">{text}</span>
+      <button type="button" aria-label={t("닫기")} onClick={close} className="min-h-0 shrink-0 px-0.5 text-[15px] leading-none text-white/80">×</button>
     </div>
   );
 }
