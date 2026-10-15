@@ -149,8 +149,8 @@ export default function PostForm({
         </label>
       </Card>
 
-      <button data-block-id={initial ? "B022" : "B021"} data-block-name={initial ? "수정 저장" : "등록"} className={btnPrimary} disabled={busy}>
-        {busy ? t("처리 중…") : initial ? t("저장") : t("등록하기")}
+      <button data-block-id={initial ? "B022" : "B021"} data-block-name={initial ? "수정 저장" : "등록"} className={role === "rider" ? btnPrimary.replace("bg-accent", "bg-mint") : btnPrimary} disabled={busy}>
+        {busy ? t("처리 중…") : initial ? t("저장") : t(role === "driver" ? "탑승자 구해요 등록" : "운전자 구해요 등록")}
       </button>
     </form>
   );

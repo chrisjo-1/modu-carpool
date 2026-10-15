@@ -204,6 +204,8 @@ const D: Record<string, [string, string, string]> = {
   "전체": ["All", "すべて", "全部"],
   "출퇴근": ["Commute", "通勤", "通勤"],
   "나들이·관광": ["Outing", "お出かけ・観光", "出游·观光"],
+  "탑승자 구해요 등록": ["Post: looking for riders", "同乗者募集で登録", "发布：招募乘客"],
+  "운전자 구해요 등록": ["Post: looking for a driver", "ドライバー募集で登録", "发布：寻找司机"],
   "운전자입니다": ["Driver", "ドライバーです", "我是司机"],
   "탑승자입니다": ["Rider", "同乗者です", "我是乘客"],
   "운전자에게 신청하기": ["Request from driver", "ドライバーに申請", "向司机申请"],
