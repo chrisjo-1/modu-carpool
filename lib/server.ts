@@ -300,6 +300,17 @@ export function ensureSchema(): Promise<void> {
         updated_at timestamptz not null default now(),
         constraint mail_policy_one_row check (id = 1))`;
       await sql`insert into mail_policy (id) values (1) on conflict do nothing`;
+      await sql`create table if not exists mail_suppressions (
+        email text primary key,
+        reason text not null,
+        created_at timestamptz not null default now())`;
+      await sql`create table if not exists marketing_consent_log (
+        id uuid primary key default gen_random_uuid(),
+        created_at timestamptz not null default now(),
+        user_id uuid,
+        email text not null,
+        action text not null,
+        source text not null default '')`;
       await sql`create table if not exists admin_attempts (ip text not null, at timestamptz not null default now())`;
       await sql`create index if not exists admin_attempts_at_idx on admin_attempts (at)`;
       // 회원 로그인 실패·가입 횟수 제한용 기록(kind: login-email, login-ip, signup-ip)

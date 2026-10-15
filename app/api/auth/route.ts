@@ -7,6 +7,7 @@ import { sendLegacyConfirmMail, sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { findLegacyByKey, maskEmail, normEmail } from "@/lib/legacy";
+import { logConsent } from "@/lib/unsub";
 import { CONTACT_TYPES, JOIN_SOURCES, driverTier } from "@/lib/types";
 import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
 
@@ -141,6 +142,7 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   }
   if (!ins) throw new Error("고유코드를 배정하지 못했습니다.");
   const id = String(ins[0].id);
+  if (mkt) await logConsent(id, email, true, "signup").catch(() => {});
   const welcome = await grant(id, "signup").catch(() => 0);
   // 가입 경로가 워프(풀럭) 기존 회원이면 이전 축하 크레딧을 준다.
   // 고유번호이거나 가입 이메일과 워프 이메일이 같으면 바로 연결한다. 다른 워프 이메일이면 그 주소로 확인 링크를 보내고, 눌러야 연결·지급한다.
@@ -253,7 +255,8 @@ async function accountAction(b: Record<string, unknown>) {
     }
     if (b.terms !== true || b.privacy !== true) return json({ error: "이용약관과 개인정보 수집·이용에 동의해 주세요." }, 400);
     const mkt = b.marketing === true;
-    await sql`update users set terms_at = coalesce(terms_at, now()), marketing = ${mkt}, marketing_at = now() where id = ${me}`;
+    const r = await sql`update users set terms_at = coalesce(terms_at, now()), marketing = ${mkt}, marketing_at = now() where id = ${me} returning email`;
+    if (r.length) await logConsent(me, String(r[0].email), mkt, "verify");
     return json({ user: await profile(me) });
   } catch (e) {
     return fail(e);
@@ -367,7 +370,8 @@ export async function PATCH(req: Request) {
   if (typeof b.marketing === "boolean" && b.name === undefined) {
     try {
       await ensureSchema();
-      await db()`update users set marketing = ${b.marketing}, marketing_at = now() where id = ${id}`;
+      const r = await db()`update users set marketing = ${b.marketing}, marketing_at = now() where id = ${id} returning email`;
+      if (r.length) await logConsent(id, String(r[0].email), b.marketing === true, "profile");
       return json({ user: await profile(id) });
     } catch (e) {
       return fail(e);

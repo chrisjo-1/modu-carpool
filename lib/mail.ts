@@ -1,5 +1,6 @@
 import { db, ensureSchema } from "./server";
 import { SITE_URL as SITE } from "./site";
+import { suppressedNow, unsubUrl } from "./unsub";
 
 /**
  * 메일 발송 공통 경로. 모든 메일은 deliver()를 거쳐 나가고, 결과(발송·실패·차단·테스트)가 mail_log에 남는다.
@@ -54,6 +55,9 @@ async function record(m: Mail, status: string, error = "", providerId = "") {
 async function blockReason(m: Mail): Promise<string> {
   const p = await getPolicy();
   if (!p.marketingOn) return "광고성 메일 발송이 꺼져 있음";
+  if (!process.env.SESSION_SECRET) return "수신거부 링크를 만들 수 없음(SESSION_SECRET 없음)";
+  const why = await suppressedNow(m.to);
+  if (why) return why;
   if (inQuietHours(p)) return `야간 발송 제한 시간(${p.quietFrom}시~${p.quietTo}시)`;
   if (p.requireConsent) {
     if (!m.userId) return "수신 동의 확인 불가(가입 회원이 아님)";
@@ -77,6 +81,12 @@ export async function deliver(m: Mail): Promise<boolean> {
         return false;
       }
     }
+    // 광고성 메일에는 수신거부 링크와 원클릭 수신거부 헤더를 붙인다.
+    const url = m.category === "marketing" ? unsubUrl(m.to) : "";
+    const html = m.category === "marketing"
+      ? `${m.html}<div style="max-width:480px;margin:0 auto;padding:12px 4px;font-size:12px;line-height:1.6;color:#8B95A1;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">광고성 메일을 원하지 않으시면 <a href="${url}" style="color:#8B95A1">수신거부</a>를 눌러 주세요.</div>`
+      : m.html;
+    const text = m.category === "marketing" ? `${m.text}\n\n수신거부: ${url}` : m.text;
     if (process.env.MAIL_DRYRUN === "1") {
       console.log(`[mail] to=${m.to} | ${m.subject}`);
       await record(m, "dryrun");
@@ -89,7 +99,10 @@ export async function deliver(m: Mail): Promise<boolean> {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: process.env.MAIL_FROM, to: [m.to], subject: m.subject, html: m.html, text: m.text }),
+      body: JSON.stringify({
+        from: process.env.MAIL_FROM, to: [m.to], subject: m.subject, html, text,
+        headers: url ? { "List-Unsubscribe": `<${url}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : undefined,
+      }),
       signal: AbortSignal.timeout(6000),
     });
     const j = (await res.json().catch(() => ({}))) as { id?: string; message?: string };

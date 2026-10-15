@@ -34,12 +34,14 @@ export async function GET(req: Request) {
              count(*) filter (where status = 'blocked')::int as blocked,
              count(*) filter (where status = 'failed')::int as failed
       from mail_log where created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
+    const sup = await sql`select count(*)::int as n from mail_suppressions`;
     const policy = await getPolicy();
     return json({
       policy,
       defaults: DEFAULT_POLICY,
       kinds: KINDS,
       today: today[0],
+      suppressed: sup[0].n,
       logs: rows.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
     });
   } catch (e) {
