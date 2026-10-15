@@ -52,6 +52,15 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
   const needCar = kind === "commute" && driver && !carOk;
   const priceOk = Number(price) >= 500 && Number(price) <= MAX_PRICE;
   const ready = kind !== "" && routeNamed && (kind === "other" || (timeValid && !needCar && (!allowed || priceOk)));
+  // 아직 빠진 필수 항목을 버튼 위에 적어 준다(버튼이 왜 안 눌리는지 알 수 있게).
+  const missing: string[] = [];
+  if (kind === "") missing.push(t("출퇴근 종류"));
+  if (kind !== "" && !routeNamed) missing.push(t("출발지·도착지"));
+  if (kind === "commute") {
+    if (!timeValid) missing.push(t("출근 시간"));
+    if (allowed && !priceOk) missing.push(t("희망 금액"));
+    if (needCar) missing.push(t("차량 등록"));
+  }
 
   const save = async () => {
     setBusy(true);
@@ -107,6 +116,7 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
             <label data-block-id="F322" className="block text-sm text-sub">
               {t("출근 시간")}
               <input type="time" required className={`${field} mt-1`} value={timeGo} onChange={(e) => setTimeGo(e.target.value)} />
+              <span className="mt-1 block text-[13px] leading-relaxed text-sub">{t("평일 오전 7~9시, 오후 6~8시에 출발하면 금액을 적을 수 있어요.")}</span>
             </label>
             {allowed ? (
               <label data-block-id="F323" className="block text-sm text-sub">
@@ -134,6 +144,7 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
             )}
           </>
         )}
+        {!ready && missing.length > 0 && <p data-block-id="C323" className="text-[14px] font-medium text-accent">{t("아직 필요한 항목")}: {missing.join(", ")}</p>}
         <button type="button" data-block-id="B322" data-block-name="출퇴근 정보 저장" className={btnPrimary} disabled={!ready || busy} onClick={save}>
           {busy ? t("처리 중…") : t("저장하고 시작하기")}
         </button>

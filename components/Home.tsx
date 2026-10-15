@@ -5,7 +5,7 @@ import { HIDDEN_TEXT } from "./Me";
 import { useEffect, useMemo, useState } from "react";
 import { METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
-import { RoleTag, Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
+import { Bubble, RoleTag, Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
@@ -20,11 +20,11 @@ export function KeywordChips({ post, max }: { post: Post; max?: number }) {
   return (
     <div data-block-id="C015" data-block-name="키워드" className="flex flex-wrap gap-1.5">
       {shown.map((k) => (
-        <span key={k.label} className={`rounded-full px-2.5 py-0.5 text-[12px] ${k.group === "gift" ? "bg-[#FFF7E6] text-[#9A5B00]" : "bg-bg text-sub"}`}>
+        <span key={k.label} className={`rounded-full px-2.5 py-1 text-[13px] ${k.group === "gift" ? "bg-[#FFF7E6] text-[#9A5B00]" : "bg-bg text-sub"}`}>
           {k.group === "gift" ? `${t("감사")} · ` : "#"}{t(k.label)}
         </span>
       ))}
-      {max && list.length > max && <span className="px-1 text-[12px] text-sub">+{list.length - max}</span>}
+      {max && list.length > max && <span className="px-1 text-[13px] text-sub">+{list.length - max}</span>}
     </div>
   );
 }
@@ -38,7 +38,7 @@ function PostTags({ post }: { post: Post }) {
       <Tag tone={post.role === "driver" ? "accent" : "mint"}>{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
       {!post.regular && <Tag>{post.kind === "commute" ? t("출퇴근") : t("나들이·관광")}</Tag>}
       {post.taxiShare && <Tag tone="accent">{t("택시 동승 찾는 중")}</Tag>}
-      <Tag tone={post.cost === "free" || (post.cost === "meter" && !SHOW_METER) ? "plain" : "warn"}>{post.cost === "fixed" ? money(post.price ?? 0, lang) : post.cost === "meter" && SHOW_METER ? t("비용 나눔") : t("무료")}</Tag>
+      <Tag tone={post.cost === "free" || (post.cost === "meter" && !SHOW_METER) ? "plain" : "warn"}>{post.cost === "fixed" ? `${t("희망")} ${money(post.price ?? 0, lang)}` : post.cost === "meter" && SHOW_METER ? t("비용 나눔") : t("무료")}</Tag>
     </div>
   );
 }
@@ -92,14 +92,14 @@ export function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | 
       aria-label={`${t("현재 역할")}: ${isDriver ? t("운전자") : t("탑승자")}`}
       onClick={toggle}
       disabled={busy}
-      className={`min-h-0 shrink-0 rounded-full px-3.5 py-1.5 text-[14px] motion-safe:transition-colors ${isDriver ? "bg-accent font-bold text-white" : "bg-[#1B7A4B] font-bold text-white"}`}
+      className={`min-h-[44px] shrink-0 rounded-full px-4 py-2 text-[15px] motion-safe:transition-colors ${isDriver ? "bg-accent font-bold text-white" : "bg-mint font-bold text-white"}`}
     >
       {isDriver ? t("운전자") : t("탑승자")}
     </button>
   );
 }
 
-export default function Home({ posts, sample, onOpen, toast, onGoProfile }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void }) {
+export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void }) {
   const t = useT();
   const lang = useLang();
   const [role, setRole] = useState<Role>("all");
@@ -150,6 +150,12 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile }: { po
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     );
   };
+  const resetFilters = () => {
+    setRole("all");
+    setQ("");
+    setRegularOnly(false);
+    setSort("new");
+  };
   /** 내 위치에서 글의 출발지까지 거리(km). 위치가 없는 글은 null. */
   const far = (p: Post) => (here && p.originLat != null && p.originLng != null ? distanceKm(here.lat, here.lng, p.originLat, p.originLng) : null);
 
@@ -193,21 +199,23 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile }: { po
               {view === "map" ? t("목록") : t("지도")}
             </button>
           </div>
+          {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 글의 출발지 위치를 볼 수 있어요.")}</Bubble></div>}
         </div>
         <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
         <div className={`flex flex-wrap items-center gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
           <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex flex-wrap gap-1.5">
             {([["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")], ["soon", t("출발 임박순")]] as const).map(([k, label]) => (
-              <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-0 rounded-full border px-3 py-1 text-[13px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+              <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-[44px] rounded-full border px-3.5 py-2 text-[14px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
                 {label}
               </button>
             ))}
           </div>
-          <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`ml-auto min-h-0 rounded-full border px-3 py-1 text-[13px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+          <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`ml-auto min-h-[44px] rounded-full border px-3.5 py-2 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
             {t("정기카풀만 보기")}
           </button>
         </div>
+        {view === "list" && sort !== "near" && <Bubble blockId="C932" align="left">{t("가까운 순은 내 위치를 허용하면 쓸 수 있어요. 출발지가 가까운 글부터 보여요.")}</Bubble>}
         {sort === "near" && here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 순서입니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
       </div>
 
@@ -216,7 +224,14 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile }: { po
       {view === "map" ? (
         <PostMap posts={list} onOpen={onOpen} here={here} />
       ) : list.length === 0 ? (
-        <Card className="px-6 py-12 text-center text-sub">{t("조건에 맞는 카풀이 아직 없어요.")}</Card>
+        <Card className="space-y-3 px-6 py-10 text-center">
+          <p className="text-[16px] font-semibold text-ink">{t("조건에 맞는 카풀이 아직 없어요.")}</p>
+          <p className="text-[14px] text-sub">{t("검색어나 필터를 바꾸거나, 직접 카풀을 올려 보세요.")}</p>
+          <div className="flex flex-col gap-2 pt-2">
+            <button type="button" data-block-id="B006" data-block-name="필터 초기화" className={btnGhost} onClick={resetFilters}>{t("필터 초기화")}</button>
+            {onPost && <button type="button" data-block-id="B007" data-block-name="카풀 올리기" className={btnPrimary} onClick={onPost}>{t("카풀 올리기")}</button>}
+          </div>
+        </Card>
       ) : (
         <>
         <ul className="space-y-3">
@@ -229,7 +244,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile }: { po
                     <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
                   </div>
                   <Route origin={p.origin} dest={p.dest} />
-                  <KeywordChips post={p} max={4} />
+                  <KeywordChips post={p} max={2} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
                     <span className="num">{scheduleText(p, lang)}{far(p) != null && <b className="ml-1.5 font-semibold text-accent">· {kmText(far(p) as number)}</b>}</span>
                     <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} role={p.role} size={28} />{p.owner}</span>

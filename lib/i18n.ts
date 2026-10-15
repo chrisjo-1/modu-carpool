@@ -700,6 +700,21 @@ const D: Record<string, [string, string, string]> = {
   "워프 명단에서 찾을 수 없거나 이미 사용된 이메일이에요.": ["This email isn't in the Warp list or has already been used.", "このメールはワープの名簿になかったか、すでに使用されています。", "该邮箱不在 Warp 名单中，或已被使用。"],
   "무료 카풀로 올렸어요. 요일과 복귀 시간은 내 정보에서 나중에 보완해 주세요.": ["Posted as a free carpool. You can add days and return time later in My Info.", "無料カープールとして投稿しました。曜日と帰りの時間は、マイ情報で後から追加できます。", "已作为免费拼车发布。星期和返程时间可稍后在“我的信息”中补充。"],
   "출근 시간이 출퇴근 시간대 밖이라 무료 카풀로 올라가요. 시간대: 평일 오전 7~9시, 오후 6~8시.": ["This departure time is outside the commute hours, so it will be a free carpool. Commute hours: weekdays 7–9 AM and 6–8 PM.", "出発時刻が通勤時間帯の外のため、無料カープールになります。通勤時間帯：平日 午前7〜9時、午後6〜8時。", "出发时间不在通勤时段内，将作为免费拼车发布。通勤时段：工作日 上午7–9点、下午6–8点。"],
+  "가까운 순은 내 위치를 허용하면 쓸 수 있어요. 출발지가 가까운 글부터 보여요.": ["Nearest first works once you allow your location. Posts with nearby starts show first.", "「近い順」は現在地を許可すると使えます。出発地が近い投稿から表示します。", "“距离最近”需允许获取您的位置，将优先显示出发地较近的帖子。"],
+  "지도에서 글의 출발지 위치를 볼 수 있어요.": ["See where each post starts on the map.", "地図で投稿の出発地の位置を見られます。", "可以在地图上查看帖子的出发地位置。"],
+  "지금 내 기본 역할이에요. 누르면 운전자와 탑승자가 바뀌고, 카풀을 올릴 때 기본값이 돼요.": ["This is your current default role. Tap to switch between driver and rider. It is also the default when you post a carpool.", "今のあなたの基本の役割です。タップすると運転者と乗車者が切り替わり、投稿時の初期値になります。", "这是您当前的默认角色。点击可在司机与乘客之间切换，也是发布拼车时的默认值。"],
+  "주변 운전자에게 바로 호출을 보내요. 하루 횟수가 정해져 있어요.": ["Send a call to nearby drivers right away. There is a daily limit.", "近くのドライバーにすぐ呼び出しを送ります。1日の回数は決まっています。", "立即向附近司机发送呼叫，每天次数有限。"],
+  "닫기": ["Close", "閉じる", "关闭"],
+  "희망": ["Target", "希望", "期望"],
+  "희망 금액": ["Target amount", "希望金額", "期望金额"],
+  "필터 초기화": ["Reset filters", "フィルターをリセット", "重置筛选"],
+  "카풀 올리기": ["Post a carpool", "カープールを投稿", "发布拼车"],
+  "검색어나 필터를 바꾸거나, 직접 카풀을 올려 보세요.": ["Try a different search or filter, or post your own carpool.", "検索語やフィルターを変えるか、自分でカープールを投稿してみてください。", "可以更换搜索词或筛选条件，或直接发布拼车。"],
+  "아직 필요한 항목": ["Still needed", "まだ必要な項目", "还需填写"],
+  "출퇴근 종류": ["commute type", "通勤の種類", "通勤类型"],
+  "출발지·도착지": ["start and destination", "出発地・到着地", "出发地和目的地"],
+  "차량 등록": ["car registration", "車両登録", "车辆登记"],
+  "평일 오전 7~9시, 오후 6~8시에 출발하면 금액을 적을 수 있어요.": ["You can enter a price for departures on weekdays 7–9 AM or 6–8 PM.", "平日の午前7〜9時、午後6〜8時に出発する場合に金額を入力できます。", "工作日上午7–9点或下午6–8点出发时，可以填写金额。"],
 };
 
 const INDEX: Record<Lang, number> = { ko: -1, en: 0, ja: 1, zh: 2 };

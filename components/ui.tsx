@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { dayLabel, translate, type Lang } from "@/lib/i18n";
 
 export const LangContext = createContext<Lang>("ko");
@@ -153,7 +153,7 @@ export function Card({ children, className = "", ...rest }: { children: ReactNod
 }
 
 export function Tag({ children, tone = "plain" }: { children: ReactNode; tone?: "plain" | "accent" | "warn" | "mint" }) {
-  const c = tone === "accent" ? "bg-accentSoft text-accent" : tone === "warn" ? "bg-warnSoft text-warn" : tone === "mint" ? "bg-[#E7F7EE] text-[#1B7A4B]" : "bg-bg text-sub";
+  const c = tone === "accent" ? "bg-accentSoft text-accent" : tone === "warn" ? "bg-warnSoft text-warn" : tone === "mint" ? "bg-mintSoft text-mint" : "bg-bg text-sub";
   return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-medium ${c}`}>{children}</span>;
 }
 
@@ -169,16 +169,51 @@ export function Segment<T extends string>({ value, options, onChange, label, com
   const onStyle = (v: T) => {
     const a = accents?.[v];
     if (a === "accent") return "bg-accent font-bold text-white shadow-card";
-    if (a === "mint") return "bg-[#1B7A4B] font-bold text-white shadow-card";
+    if (a === "mint") return "bg-mint font-bold text-white shadow-card";
     return "bg-white font-semibold text-ink shadow-sm";
   };
   return (
     <div role="radiogroup" aria-label={label} className={`flex gap-1 rounded-xl bg-bg ${compact ? "p-0.5" : "p-1"}`}>
       {options.map(([v, text]) => (
-        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-lg px-2 motion-safe:transition-all motion-safe:duration-200 ${compact ? "py-1.5 text-[14px]" : "py-2 text-[15px]"} ${value === v ? onStyle(v) : "text-sub"}`}>
+        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-lg px-2 motion-safe:transition-all motion-safe:duration-200 ${compact ? "min-h-[44px] py-2 text-[15px]" : "min-h-[44px] py-2 text-[15px]"} ${value === v ? onStyle(v) : "text-sub"}`}>
           {text}
         </button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * 말풍선 안내. 의미가 헷갈릴 만한 버튼 옆에 둔다. 닫으면 이 기기에서는 다시 보이지 않는다(localStorage, 실패해도 그냥 보임).
+ * pointer: 화살표가 위(기본)·아래 중 어디로 향할지. align: 화살표 위치(왼쪽·가운데·오른쪽).
+ */
+export function Bubble({ blockId, children, pointer = "top", align = "left" }: { blockId: string; children: ReactNode; pointer?: "top" | "bottom"; align?: "left" | "center" | "right" }) {
+  const t = useT();
+  const key = `hint:${blockId}`;
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(key)) setGone(true);
+    } catch {
+      /* 저장소를 못 쓰면 매번 보여 준다 */
+    }
+  }, [key]);
+  if (gone) return null;
+  const close = () => {
+    setGone(true);
+    try {
+      localStorage.setItem(key, "1");
+    } catch {
+      /* 무시 */
+    }
+  };
+  const arrowPos = align === "center" ? "left-1/2 -translate-x-1/2" : align === "right" ? "right-10" : "left-5";
+  const arrowEdge = pointer === "top" ? "-top-1.5" : "-bottom-1.5";
+  return (
+    <div role="note" data-block-id={blockId} className={`relative inline-flex max-w-full items-start gap-2 rounded-xl bg-accentSoft px-3.5 py-2.5 text-[14px] font-medium leading-snug text-accent ${pointer === "top" ? "mt-2" : "mb-2"}`}>
+      <span aria-hidden className={`absolute ${arrowEdge} ${arrowPos} h-3 w-3 rotate-45 bg-accentSoft`} />
+      <span className="min-w-0">{children}</span>
+      <button type="button" aria-label={t("닫기")} onClick={close} className="min-h-0 shrink-0 px-0.5 text-[15px] leading-none text-accent/70">×</button>
     </div>
   );
 }
