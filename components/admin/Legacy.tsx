@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Row = { warp_id: string; name: string | null; nickname: string | null; gender: string | null; kind: string | null; joined_on: string | null; status: string | null; phone: string; email: string; records: number; withdrawn: boolean; match_status: string; matched_by: string | null; marketing: string; promo: string };
-type Stats = { total: number; withdrawn: number; joined: number; not_joined: number; pending: number; riders: number; drivers: number; both_keys: number; review: number; agreed: number; imported_at: number | null };
+type Stats = { total: number; withdrawn: number; joined: number; not_joined: number; pending: number; riders: number; drivers: number; both_keys: number; review: number; agreed: number; legacy_joined: number; new_warp_joined: number; imported_at: number | null };
 type Detail = Row & { src_no: string; naver_id: string; kakao_id: string; memo: string; user_name: string | null; user_email: string | null; revealed: boolean };
 
 const input = "rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -56,14 +56,14 @@ export default function Legacy() {
   const [rows, setRows] = useState<Row[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(0);
-  const [f, setF] = useState({ q: "", kind: "", match: "", status: "", review: false });
+  const [f, setF] = useState({ q: "", kind: "", match: "", status: "", review: false, src: "" });
   const [detail, setDetail] = useState<Detail | null>(null);
   const [progress, setProgress] = useState("");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (pg = 0, filt = f) => {
-    const qs = new URLSearchParams({ q: filt.q, kind: filt.kind, match: filt.match, status: filt.status, review: filt.review ? "1" : "", page: String(pg) });
+    const qs = new URLSearchParams({ q: filt.q, kind: filt.kind, match: filt.match, status: filt.status, review: filt.review ? "1" : "", src: filt.src, page: String(pg) });
     const r = await fetch(`/api/admin/legacy?${qs}`).then((x) => x.json()).catch(() => null);
     if (!r || r.error) return setProgress(r?.error ?? "불러오지 못했습니다.");
     setStats(r.stats);
@@ -151,25 +151,33 @@ export default function Legacy() {
     setF(next);
     load(0, next);
   };
+  // 숫자판을 누르면 그 숫자에 해당하는 회원 목록으로 바꾸고, 목록 위치로 내려간다.
+  const go = (patch: Partial<typeof f>) => {
+    apply({ q: "", kind: "", match: "", status: "", review: false, src: "", ...patch });
+    document.getElementById("legacy-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const s = stats;
   const pages = Math.max(1, Math.ceil(count / 50));
 
+  const tiles: { id: string; k: string; v: string; sub: string; go: Partial<typeof f> }[] = [
+    { id: "B101", k: "통합 회원", v: s ? `${n(s.total)}명` : "—", sub: s?.imported_at ? `올린 날 ${new Date(s.imported_at).toLocaleDateString("ko-KR")}` : "아직 없음", go: {} },
+    { id: "B102", k: "구워프 → 이전", v: s ? `${n(s.legacy_joined)}명` : "—", sub: s ? `이메일 일치 · 신워프 ${n(s.new_warp_joined)}명 제외` : "", go: { src: "legacy_joined" } },
+    { id: "B103", k: "가입됨", v: s ? `${n(s.joined)}명` : "—", sub: s ? pct(s.joined, s.total) : "", go: { match: "가입됨" } },
+    { id: "B104", k: "미가입", v: s ? `${n(s.not_joined)}명` : "—", sub: s ? pct(s.not_joined, s.total) : "", go: { match: "미가입" } },
+    { id: "B105", k: "비교대기", v: s ? `${n(s.pending)}명` : "—", sub: "대조 전", go: { match: "비교대기" } },
+    { id: "B106", k: "탈퇴(개인정보 없음)", v: s ? `${n(s.withdrawn)}명` : "—", sub: "대조용 해시만 보관", go: { status: "탈퇴" } },
+    { id: "B107", k: "검토 필요", v: s ? `${n(s.review)}명` : "—", sub: "원본 6건↑·상태값 오류", go: { review: true } },
+  ];
+
   return (
     <div className="space-y-6">
-      <section data-block-id="S100" data-block-name="이전 현황" className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        {[
-          ["통합 회원", s ? `${n(s.total)}명` : "—", s?.imported_at ? `올린 날 ${new Date(s.imported_at).toLocaleDateString("ko-KR")}` : "아직 없음"],
-          ["가입됨", s ? `${n(s.joined)}명` : "—", s ? pct(s.joined, s.total) : ""],
-          ["미가입", s ? `${n(s.not_joined)}명` : "—", s ? pct(s.not_joined, s.total) : ""],
-          ["비교대기", s ? `${n(s.pending)}명` : "—", "대조 전"],
-          ["탈퇴(개인정보 없음)", s ? `${n(s.withdrawn)}명` : "—", "대조용 해시만 보관"],
-          ["검토 필요", s ? `${n(s.review)}명` : "—", "원본 6건↑·상태값 오류"],
-        ].map(([k, v, sub]) => (
-          <div key={k} className="rounded-2xl border border-line bg-white p-4 shadow-card">
-            <p className="text-sm text-sub">{k}</p>
-            <p className="num mt-1 text-xl font-bold">{v}</p>
-            <p className="num text-xs text-sub">{sub}</p>
-          </div>
+      <section data-block-id="S100" data-block-name="이전 현황" className="grid grid-cols-2 gap-3 md:grid-cols-7">
+        {tiles.map((t) => (
+          <button key={t.id} type="button" data-block-id={t.id} data-block-name={`이전 현황 ${t.k}`} onClick={() => go(t.go)} className="rounded-2xl border border-line bg-white p-4 text-left shadow-card active:opacity-80">
+            <p className="text-sm text-sub">{t.k}</p>
+            <p className="num mt-1 text-xl font-bold">{t.v}</p>
+            <p className="num text-xs text-sub">{t.sub}</p>
+          </button>
         ))}
       </section>
       {s && s.total > 0 && (
@@ -194,7 +202,7 @@ export default function Legacy() {
         <p className="text-xs text-sub">새로 가입한 회원은 가입 즉시 자동으로 &lsquo;가입됨&rsquo;으로 바뀝니다. 휴대폰 대조는 연락 수단을 &lsquo;전화번호&rsquo;로 등록한 회원만 해당됩니다.</p>
       </section>
 
-      <section data-block-id="S102" data-block-name="구 워프 회원 목록" className="rounded-2xl border border-line bg-white p-5 shadow-card">
+      <section id="legacy-list" data-block-id="S102" data-block-name="구 워프 회원 목록" className="rounded-2xl border border-line bg-white p-5 shadow-card">
         <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); apply(f); }}>
           <input data-block-id="F100" className={`${input} w-60`} type="search" placeholder="회원ID·이름·닉네임·이메일·휴대폰" aria-label="구 워프 회원 검색" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
           <select aria-label="구분" className={input} value={f.kind} onChange={(e) => apply({ ...f, kind: e.target.value })}>
@@ -205,6 +213,9 @@ export default function Legacy() {
           </select>
           <select aria-label="회원 상태" className={input} value={f.status} onChange={(e) => apply({ ...f, status: e.target.value })}>
             <option value="">상태 전체</option><option>사용중</option><option>탈퇴</option><option>정지중</option><option>기타</option>
+          </select>
+          <select aria-label="출처" className={input} value={f.src} onChange={(e) => apply({ ...f, src: e.target.value })}>
+            <option value="">출처 전체</option><option value="legacy_joined">구워프 이전(이메일 일치)</option><option value="new_warp">신워프 명단</option>
           </select>
           <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={f.review} onChange={(e) => apply({ ...f, review: e.target.checked })} />검토 필요만</label>
           <button className="rounded-lg bg-bg px-4 py-2 text-sm">검색</button>

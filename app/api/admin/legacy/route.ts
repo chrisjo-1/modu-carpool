@@ -50,6 +50,8 @@ export async function GET(req: Request) {
     const match = s(p.get("match"), 10);
     const status = s(p.get("status"), 10);
     const review = p.get("review") === "1";
+    // 이전 현황 숫자판에서 고른 출처: legacy_joined = 구워프 회원 중 이메일로 가입 연결된 사람, new_warp = 신워프 명단
+    const src = s(p.get("src"), 20);
     const page = Math.max(0, Math.min(2000, Number(p.get("page")) || 0));
     const digits = q.replace(/\D/g, "");
     const plike = digits ? `%${digits}%` : like;
@@ -64,6 +66,8 @@ export async function GET(req: Request) {
             count(*) filter (where email_norm is not null and phone_norm is not null)::int as both_keys,
             count(*) filter (where records >= 6 or status is null or not (status = any(${STD_STATUS})))::int as review,
             count(*) filter (where marketing = '동의')::int as agreed,
+            count(*) filter (where src_no not like '신워프%' and matched_user is not null and matched_by like '이메일%')::int as legacy_joined,
+            count(*) filter (where src_no like '신워프%' and matched_user is not null)::int as new_warp_joined,
             max(imported_at) as imported_at
           from legacy_members`,
       sql`select l.warp_id, l.name, l.nickname, l.gender, l.kind, l.joined_on, l.status, coalesce(l.phone_norm, l.phone) as phone, l.email, l.records, l.withdrawn,
@@ -73,12 +77,14 @@ export async function GET(req: Request) {
       and (${match} = '' or l.match_status = ${match})
       and (${status} = '' or (${status} = '기타' and (l.status is null or not (l.status = any(${STD_STATUS})))) or l.status = ${status})
       and (not ${review} or l.records >= 6 or l.status is null or not (l.status = any(${STD_STATUS})))
+      and (${src} = '' or (${src} = 'legacy_joined' and l.src_no not like '신워프%' and l.matched_user is not null and l.matched_by like '이메일%') or (${src} = 'new_warp' and l.src_no like '신워프%'))
           order by l.warp_id limit 50 offset ${page * 50}`,
       sql`select count(*)::int as n from legacy_members l where (${q} = '' or l.warp_id ilike ${like} or l.name ilike ${like} or l.nickname ilike ${like} or l.email_norm like ${like} or l.phone_norm like ${plike})
       and (${kind} = '' or l.kind = ${kind})
       and (${match} = '' or l.match_status = ${match})
       and (${status} = '' or (${status} = '기타' and (l.status is null or not (l.status = any(${STD_STATUS})))) or l.status = ${status})
-      and (not ${review} or l.records >= 6 or l.status is null or not (l.status = any(${STD_STATUS})))`,
+      and (not ${review} or l.records >= 6 or l.status is null or not (l.status = any(${STD_STATUS})))
+      and (${src} = '' or (${src} = 'legacy_joined' and l.src_no not like '신워프%' and l.matched_user is not null and l.matched_by like '이메일%') or (${src} = 'new_warp' and l.src_no like '신워프%'))`,
     ]);
     const st = stats[0];
     return json({
