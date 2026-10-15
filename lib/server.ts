@@ -365,6 +365,15 @@ export function ensureSchema(): Promise<void> {
         expires_at timestamptz not null,
         used boolean not null default false)`;
       await sql`create index if not exists legacy_claims_user_idx on legacy_claims (user_id)`;
+      // 탈퇴: 탈퇴한 시각만 남긴다(메일 주소는 계정·워프 행에 그대로 둔다). 탈퇴 확인 메일 링크 저장소.
+      await sql`alter table users add column if not exists withdrawn_at timestamptz`;
+      await sql`alter table legacy_members add column if not exists withdrawn_at timestamptz`;
+      await sql`create table if not exists withdraw_claims (
+        token_hash text primary key,
+        email_norm text not null,
+        created_at timestamptz not null default now(),
+        expires_at timestamptz not null,
+        used boolean not null default false)`;
       // 마지막 접속 시각(관리자 회원 목록용). 요청 때마다 쓰지 않도록 5분에 한 번만 기록한다.
       await sql`alter table users add column if not exists last_seen timestamptz`;
       // 회원이 앱을 열 때 기록하는 현재 위치(CALL 대상 찾기용). 30분이 지나면 쓰지 않는다. 화면에는 보이지 않는다.
@@ -431,8 +440,8 @@ export async function currentUserId(): Promise<string | null> {
   if (!id) return null;
   try {
     await ensureSchema();
-    const rows = await db()`select blocked, extract(epoch from pw_at)::bigint as pw_at from users where id = ${id}`;
-    if (!rows.length || rows[0].blocked) return null;
+    const rows = await db()`select blocked, withdrawn_at, extract(epoch from pw_at)::bigint as pw_at from users where id = ${id}`;
+    if (!rows.length || rows[0].blocked || rows[0].withdrawn_at) return null;
     // 비밀번호를 바꾼 뒤에는 그 전에 만들어진 로그인(다른 기기 포함)을 모두 끊는다.
     if (rows[0].pw_at != null && typeof p?.iat === "number" && p.iat < Number(rows[0].pw_at)) return null;
     await db()`update users set last_seen = now() where id = ${id} and (last_seen is null or last_seen < now() - interval '5 minutes')`;

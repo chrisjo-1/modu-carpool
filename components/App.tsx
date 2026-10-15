@@ -8,6 +8,7 @@ import Home, { PostDetail, RoleSwitch } from "./Home";
 import Me from "./Me";
 import { MemberSheet, ReasonSheet } from "./Member";
 import ResetSheet from "./Reset";
+import Withdraw from "./Withdraw";
 import Gate from "./Gate";
 import { NoticePopup } from "./Notices";
 import { ConsentSheet, VerifyBanner } from "./Account";
@@ -93,6 +94,7 @@ export default function App() {
   const [splashTimedOut, setSplashTimedOut] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [resetToken, setResetToken] = useState("");
+  const [withdrawToken, setWithdrawToken] = useState("");
   const [wantRoom, setWantRoom] = useState("");
   // 로그인 확인이 끝났는지, 로그인 없이 둘러보는 중인지(이 탭에서만 기억)
   const [checked, setChecked] = useState(false);
@@ -161,6 +163,12 @@ export default function App() {
       const q = new URLSearchParams(location.search);
       const reset = q.get("reset");
       if (reset) setResetToken(reset);
+      // 탈퇴 확인 링크: 메일의 링크로 들어오면 탈퇴를 완료한다.
+      const withdraw = q.get("withdraw");
+      if (withdraw) {
+        history.replaceState(null, "", location.pathname);
+        setWithdrawToken(withdraw);
+      }
       // 워프 이메일 확인 링크: 누른 회원에게 연결하고 이전 축하 크레딧을 한 번 준다.
       const legacyToken = q.get("legacy");
       if (legacyToken) {
@@ -412,7 +420,7 @@ export default function App() {
         {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); setJoinFlow(false); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
-        {enabled && checked && !user && !preview && !resetToken && (
+        {enabled && checked && !user && !preview && !resetToken && !withdrawToken && (
           <Gate
             setUser={(u) => {
               setUser(u);
@@ -429,6 +437,7 @@ export default function App() {
         {!booted && !splashTimedOut && !splashGone && <Splash />}
         <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
+        {withdrawToken && <Withdraw token={withdrawToken} onClose={() => setWithdrawToken("")} />}
         {resetToken && (
           <ResetSheet
             token={resetToken}

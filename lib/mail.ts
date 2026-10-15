@@ -179,3 +179,35 @@ ${quote ? `<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border
     console.error("[mail]", e);
   }
 }
+
+/** 탈퇴 확인 링크. 탈퇴 여부 확인 창에서 탈퇴를 신청했을 때 그 메일 주소로 보낸다. */
+export async function sendWithdrawConfirmMail(to: string, link: string) {
+  if (!mailEnabled()) return false;
+  const subject = "[모두의카풀] 탈퇴 신청 확인";
+  const lead = "모두의카풀 탈퇴를 신청하셨어요. 본인이 맞다면 아래 버튼을 눌러 탈퇴를 완료해 주세요.";
+  const note = "본인이 요청하지 않았다면 이 메일을 무시해 주세요. 링크는 72시간 동안 쓸 수 있어요.";
+  if (process.env.MAIL_DRYRUN === "1") {
+    console.log(`[mail] to=${to} | ${subject} | ${link}`);
+    return true;
+  }
+  const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6">${lead}</p>
+<a href="${esc(link)}" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">탈퇴 확인하기</a>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${note}</p>
+</div></div>`;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: process.env.MAIL_FROM, to: [to], subject, html, text: `${lead}\n\n${link}\n\n${note}` }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) console.error("[mail]", res.status, (await res.text()).slice(0, 200));
+    return res.ok;
+  } catch (e) {
+    console.error("[mail]", e);
+    return false;
+  }
+}

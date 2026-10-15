@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import type { Lang } from "@/lib/i18n";
 import { LANGS } from "@/lib/i18n";
 import type { User } from "@/lib/types";
@@ -6,6 +7,7 @@ import AuthForm from "./AuthForm";
 import { DocLinks } from "./Account";
 import type { usePush } from "./Push";
 import { Card, Icon, useLang, useT } from "./ui";
+import Withdraw from "./Withdraw";
 
 /** 로그인하지 않은 방문자의 첫 화면: 로그인·회원가입, 또는 미리 둘러보기 */
 export default function Gate({
@@ -27,6 +29,7 @@ export default function Gate({
 }) {
   const t = useT();
   const lang = useLang();
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   return (
     <div data-block-id="S005" data-block-name="첫 화면" className="fixed inset-0 z-[55] overflow-y-auto bg-bg">
       <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-10 pt-6">
@@ -51,6 +54,10 @@ export default function Gate({
           {t("로그인 없이 미리 둘러보기")}
         </button>
         <p className="mt-2 text-center text-[13px] text-sub">{t("둘러보다가 신청하거나 글을 쓸 때 로그인하면 돼요.")}</p>
+        <button type="button" data-block-id="B065" data-block-name="탈퇴 여부 확인 열기" className="mt-3 py-2 text-center text-[14px] font-medium text-sub underline underline-offset-4" onClick={() => setWithdrawOpen(true)}>
+          탈퇴 여부 확인
+        </button>
+        {withdrawOpen && <Withdraw onClose={() => setWithdrawOpen(false)} />}
         <DocLinks />
       </div>
     </div>
