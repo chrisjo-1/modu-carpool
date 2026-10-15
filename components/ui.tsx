@@ -160,7 +160,7 @@ export function Tag({ children, tone = "plain" }: { children: ReactNode; tone?: 
 /** 운전자(파란색)·탑승자(초록색) 표시. 프로필 사진 자리에 쓴다. */
 export function RoleTag({ role }: { role?: string }) {
   const t = useT();
-  return <Tag tone={role === "driver" ? "accent" : "mint"}>{t(role === "driver" ? "운전자" : "탑승자")}</Tag>;
+  return <Tag tone={role === "driver" ? "accent" : "mint"}>{t(role === "driver" ? "운전자입니다" : "탑승자입니다")}</Tag>;
 }
 
 /** 여러 선택지 중 하나를 고르는 버튼 줄 */

@@ -35,7 +35,7 @@ function PostTags({ post }: { post: Post }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {post.regular && <Tag>{t("정기카풀")}</Tag>}
-      <Tag tone={post.role === "driver" ? "accent" : "mint"}>{post.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
+      <Tag tone={post.role === "driver" ? "accent" : "mint"}>{post.role === "driver" ? t("운전자입니다") : t("탑승자입니다")}</Tag>
       {!post.regular && <Tag>{post.kind === "commute" ? t("출퇴근") : t("나들이·관광")}</Tag>}
       {post.taxiShare && <Tag tone="accent">{t("택시 동승 찾는 중")}</Tag>}
       <Tag tone={post.cost === "free" || (post.cost === "meter" && !SHOW_METER) ? "plain" : "warn"}>{post.cost === "fixed" ? `${t("희망")} ${money(post.price ?? 0, lang)}` : post.cost === "meter" && SHOW_METER ? t("비용 나눔") : t("무료")}</Tag>
@@ -201,7 +201,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
           </div>
           {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 글의 출발지 위치를 볼 수 있어요.")}</Bubble></div>}
         </div>
-        <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자 글")], ["rider", t("탑승자 글")]]} />
+        <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자입니다")], ["rider", t("탑승자입니다")]]} />
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
         <div className={`flex flex-wrap items-center gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
           <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex flex-wrap gap-1.5">
@@ -337,7 +337,7 @@ export function PostDetail({
           {post.regular && <div className="flex justify-between"><dt className="text-sub">{t("일정")}</dt><dd className="num font-semibold">{scheduleText(post, lang)}</dd></div>}
           <div className="flex justify-between"><dt className="text-sub">{t("출발")}</dt><dd className="num font-semibold">{when(post.departAt, lang)}</dd></div>
           {post.cost === "fixed" && <div className="flex justify-between"><dt className="text-sub">{t("희망금액(1회)")}</dt><dd className="num font-semibold text-warn">{money(post.price ?? 0, lang)}</dd></div>}
-          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자") : t("탑승자")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}</button> : <span className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}</span>}</dd></div>
+          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자입니다") : t("탑승자입니다")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}</button> : <span className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}</span>}</dd></div>
         </dl>
         {post.originLat != null && post.originLng != null && (
           <a data-block-id="B014" data-block-name="출발 위치 지도" href={`https://map.kakao.com/link/map/${encodeURIComponent(post.origin)},${post.originLat},${post.originLng}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl bg-bg px-4 text-[15px] font-semibold text-ink">
@@ -463,14 +463,14 @@ export function PostDetail({
               data-block-id="B012"
               data-block-name="카풀 신청"
               disabled={busy}
-              className={btnPrimary}
+              className={post.role === "driver" ? btnPrimary : btnPrimary.replace("bg-accent", "bg-mint")}
               onClick={() => {
                 if (sample) return toast(t("예시 글에는 신청할 수 없어요."));
                 if (!user) return goLogin();
                 run("/api/requests", "POST", { postId: post.id, message }, "신청했어요. 수락되면 대화할 수 있습니다.");
               }}
             >
-              {user || sample ? t("카풀 신청하기") : t("로그인하고 신청하기")}
+              {user || sample ? t(post.role === "driver" ? "운전자에게 신청하기" : "탑승자에게 신청하기") : t("로그인하고 신청하기")}
             </button>
             <p className="text-center text-[13px] text-sub">{t("연락처는 상대가 수락한 뒤에만 서로 공개됩니다.")}</p>
           </div>

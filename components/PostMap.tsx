@@ -87,8 +87,8 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
         <div ref={box} className="h-[420px] w-full bg-bg" role="application" aria-label={t("카풀 지도")} />
       </div>
       <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[13px] text-sub">
-        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full bg-accent" />{t("운전자 글")}</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full border-2 border-accent bg-white" />{t("탑승자 글")}</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full bg-accent" />{t("운전자입니다")}</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full border-2 border-accent bg-white" />{t("탑승자입니다")}</span>
         <span>{t("핀은 출발지예요.")}</span>
         {missing > 0 && <span>{t("위치 정보가 없는 글")} {missing}{t("개는 목록에서 볼 수 있어요.")}</span>}
       </p>

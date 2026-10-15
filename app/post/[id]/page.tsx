@@ -32,7 +32,7 @@ function when(r: Row) {
   return `${new Date(r.depart_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false })} 출발`;
 }
 const costText = (r: Row) => (r.cost === "fixed" && r.price ? `실비 분담 ${Number(r.price).toLocaleString("ko-KR")}원` : "무료 운행");
-const roleText = (r: Row) => (r.role === "driver" ? "운전자 글" : "탑승자 글");
+const roleText = (r: Row) => (r.role === "driver" ? "운전자입니다" : "탑승자입니다");
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
