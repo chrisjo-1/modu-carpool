@@ -263,7 +263,7 @@ const D: Record<string, [string, string, string]> = {
   "사진을 불러오지 못했어요.": ["Couldn't load the photo.", "写真を読み込めませんでした。", "无法读取照片。"],
   "사진이 너무 크거나 형식이 맞지 않습니다.": ["The photo is too large or not supported.", "写真が大きすぎるか形式が対応していません。", "照片过大或格式不支持。"],
   "사진 형식이 맞지 않습니다.": ["Unsupported photo format.", "写真の形式が対応していません。", "照片格式不支持。"],
-  "비밀번호를 잊으셨나요?": ["Forgot your password?", "パスワードをお忘れですか？", "忘记密码？"],
+
   "비밀번호 찾기": ["Reset password", "パスワード再設定", "找回密码"],
   "가입한 이메일을 입력하면 비밀번호를 다시 정할 수 있는 링크를 보내 드려요. 링크는 30분 동안 쓸 수 있어요.": ["Enter your sign-up email and we'll send a link to set a new password. The link works for 30 minutes.", "登録したメールアドレスを入力すると、パスワード再設定リンクをお送りします。リンクの有効期限は30分です。", "输入注册邮箱，我们会发送重设密码的链接，链接30分钟内有效。"],
   "재설정 메일 보내기": ["Send reset email", "再設定メールを送る", "发送重设邮件"],
