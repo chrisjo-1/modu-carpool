@@ -153,8 +153,35 @@ export default function App() {
     if (r.ok) setThreads(r.data.threads);
   }, []);
 
+  // 새로고침해도 보던 화면을 유지한다: 탭과 열어 둔 글을 이 창의 sessionStorage에 저장한다.
+  const screenReady = useRef(false);
+  useEffect(() => {
+    if (!screenReady.current) return;
+    try {
+      sessionStorage.setItem("modu.tab", tab);
+    } catch {
+      /* 무시 */
+    }
+  }, [tab]);
+  useEffect(() => {
+    if (!screenReady.current) return;
+    try {
+      if (open) sessionStorage.setItem("modu.open", open.id);
+      else sessionStorage.removeItem("modu.open");
+    } catch {
+      /* 무시 */
+    }
+  }, [open]);
+
   // 첫 진입: 언어 복원, 글 목록, 로그인 상태, 공유 링크(?p=)
   useEffect(() => {
+    try {
+      const savedTab = sessionStorage.getItem("modu.tab") as Tab | null;
+      if (savedTab === "chat" || savedTab === "me") setTab(savedTab);
+    } catch {
+      /* 무시 */
+    }
+    screenReady.current = true;
     try {
       const saved = localStorage.getItem(LANG_KEY) as Lang | null;
       const guess = (navigator.language || "ko").slice(0, 2) as Lang;
@@ -211,6 +238,16 @@ export default function App() {
       const id = new URLSearchParams(location.search).get("p");
       const hit = id && list.find((p) => p.id === id);
       if (hit) setOpen(hit);
+      else if (!id) {
+        let savedOpen: string | null = null;
+        try {
+          savedOpen = sessionStorage.getItem("modu.open");
+        } catch {
+          /* 무시 */
+        }
+        const restored = savedOpen && !q.get("tab") && !q.get("room") && !q.get("feedback") ? list.find((p) => p.id === savedOpen) : null;
+        if (restored) setOpen(restored);
+      }
     });
     try {
       if (sessionStorage.getItem("modu.preview") === "1") setPreviewState(true);
