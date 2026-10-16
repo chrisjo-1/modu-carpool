@@ -77,3 +77,10 @@ export function renderHtml(text: string): string {
 ${paras}
 </div></div>`;
 }
+
+const SEG = new Set<string>(SEGMENTS.map((s) => s[0]));
+export function parseAudience(b: Record<string, unknown>): Audience | null {
+  const seg = typeof b.segment === "string" && SEG.has(b.segment) ? (b.segment as Segment) : null;
+  if (!seg) return null;
+  return { segment: seg, onlyConsent: b.onlyConsent === true, onlyDriver: b.onlyDriver === true };
+}
