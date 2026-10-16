@@ -40,48 +40,67 @@ const kstHour = () => Number(new Intl.DateTimeFormat("en-US", { hour: "numeric",
 export const inQuietHours = (p: MailPolicy, h = kstHour()) =>
   p.quietOn && (p.quietFrom > p.quietTo ? h >= p.quietFrom || h < p.quietTo : h >= p.quietFrom && h < p.quietTo);
 
-type Mail = { kind: string; category: MailCategory; to: string; userId?: string | null; subject: string; html: string; text: string };
+export type Mail = {
+  kind: string;
+  category: MailCategory;
+  to: string;
+  userId?: string | null;
+  subject: string;
+  html: string;
+  text: string;
+  /** 캠페인 발송이면 캠페인 id (이력과 진행률 집계에 쓴다) */
+  campaignId?: string | null;
+  /** 관리자 테스트 발송: 정책·수신 확인을 건너뛰고 광고성 머리말·수신거부 문구만 붙인다 */
+  testOnly?: boolean;
+};
+
+/** 발송 결과. halt 계열(off·quiet·cap)은 보류라서 이력에 남기지 않고, 다음 발송 때 다시 대상이 된다. */
+export type Status = "sent" | "failed" | "blocked" | "dryrun" | "disabled" | "off" | "quiet" | "cap";
 
 async function record(m: Mail, status: string, error = "", providerId = "") {
   try {
-    await db()`insert into mail_log (kind, category, to_email, user_id, subject, status, error, provider_id)
-      values (${m.kind}, ${m.category}, ${m.to}, ${m.userId ?? null}, ${m.subject.slice(0, 200)}, ${status}, ${error.slice(0, 300)}, ${providerId.slice(0, 100)})`;
+    await db()`insert into mail_log (kind, category, to_email, user_id, subject, status, error, provider_id, campaign_id)
+      values (${m.kind}, ${m.category}, ${m.to}, ${m.userId ?? null}, ${m.subject.slice(0, 200)}, ${status}, ${error.slice(0, 300)}, ${providerId.slice(0, 100)}, ${m.campaignId ?? null})`;
   } catch (e) {
     console.error("[mail-log]", e);
   }
 }
 
-/** 광고성 메일을 정책으로 막을 수 있으면 사유를 돌려준다. 막지 않으면 빈 문자열. */
-async function blockReason(m: Mail): Promise<string> {
+/** 광고성 메일을 막을 이유. log: 이력에 '차단'으로 남김, 나머지는 보류(이력 없음). */
+async function blockCheck(m: Mail): Promise<{ code: "log" | "off" | "quiet" | "cap"; reason: string } | null> {
   const p = await getPolicy();
-  if (!p.marketingOn) return "광고성 메일 발송이 꺼져 있음";
-  if (!process.env.SESSION_SECRET) return "수신거부 링크를 만들 수 없음(SESSION_SECRET 없음)";
-  const why = await suppressedNow(m.to);
-  if (why) return why;
-  if (inQuietHours(p)) return `야간 발송 제한 시간(${p.quietFrom}시~${p.quietTo}시)`;
+  if (!p.marketingOn) return { code: "off", reason: "광고성 메일 발송이 꺼져 있음" };
+  if (inQuietHours(p)) return { code: "quiet", reason: `야간 발송 제한 시간(${p.quietFrom}시~${p.quietTo}시)` };
+  if (!process.env.SESSION_SECRET) return { code: "log", reason: "수신거부 링크를 만들 수 없음(SESSION_SECRET 없음)" };
+  const sup = await suppressedNow(m.to);
+  if (sup) return { code: "log", reason: sup };
   if (p.requireConsent) {
-    if (!m.userId) return "수신 동의 확인 불가(가입 회원이 아님)";
+    if (!m.userId) return { code: "log", reason: "수신 동의 확인 불가(가입 회원이 아님)" };
     const u = await db()`select marketing from users where id = ${m.userId}`;
-    if (u[0]?.marketing !== true) return "광고성 메일 수신 동의 없음";
+    if (u[0]?.marketing !== true) return { code: "log", reason: "광고성 메일 수신 동의 없음" };
   }
   const n = await db()`select count(*)::int as n from mail_log
     where category = 'marketing' and status = 'sent' and created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
-  if ((n[0].n as number) >= p.dailyCap) return `하루 발송 한도(${p.dailyCap}통) 초과`;
-  return "";
+  if ((n[0].n as number) >= p.dailyCap) return { code: "cap", reason: `하루 발송 한도(${p.dailyCap}통) 초과` };
+  return null;
 }
 
-/** 메일을 보내고 이력을 남긴다. 성공하면 true. */
-export async function deliver(m: Mail): Promise<boolean> {
+/** 메일을 보내고 결과를 돌려준다. 이력은 보류가 아닌 경우에만 남긴다. */
+export async function deliverWithStatus(m: Mail): Promise<Status> {
   try {
-    if (m.category === "marketing") {
-      const why = await blockReason(m);
-      if (why) {
-        console.log(`[mail] blocked ${m.kind} to=${m.to}: ${why}`);
-        await record(m, "blocked", why);
-        return false;
+    if (m.category === "marketing" && !m.testOnly) {
+      const b = await blockCheck(m);
+      if (b) {
+        if (b.code === "log") {
+          console.log(`[mail] blocked ${m.kind} to=${m.to}: ${b.reason}`);
+          await record(m, "blocked", b.reason);
+          return "blocked";
+        }
+        console.log(`[mail] held ${m.kind} (${b.code}): ${b.reason}`);
+        return b.code;
       }
     }
-    // 광고성 메일에는 수신거부 링크와 원클릭 수신거부 헤더를 붙인다.
+    // 광고성 메일에는 수신거부 링크와 원클릭 수신거부 헤더를 붙인다(테스트 발송도 같은 모양으로 보인다).
     const url = m.category === "marketing" ? unsubUrl(m.to) : "";
     const html = m.category === "marketing"
       ? `${m.html}<div style="max-width:480px;margin:0 auto;padding:12px 4px;font-size:12px;line-height:1.6;color:#8B95A1;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">광고성 메일을 원하지 않으시면 <a href="${url}" style="color:#8B95A1">수신거부</a>를 눌러 주세요.</div>`
@@ -89,12 +108,12 @@ export async function deliver(m: Mail): Promise<boolean> {
     const text = m.category === "marketing" ? `${m.text}\n\n수신거부: ${url}` : m.text;
     if (process.env.MAIL_DRYRUN === "1") {
       console.log(`[mail] to=${m.to} | ${m.subject}`);
-      await record(m, "dryrun");
-      return true;
+      await record(m, "dryrun", m.testOnly ? "테스트 발송" : "");
+      return "dryrun";
     }
     if (!mailEnabled()) {
       await record(m, "disabled", "RESEND_API_KEY 또는 MAIL_FROM 없음");
-      return false;
+      return "disabled";
     }
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -110,15 +129,21 @@ export async function deliver(m: Mail): Promise<boolean> {
       const err = `${res.status} ${j.message ?? ""}`.trim();
       console.error("[mail]", err);
       await record(m, "failed", err);
-      return false;
+      return "failed";
     }
     await record(m, "sent", "", String(j.id ?? ""));
-    return true;
+    return "sent";
   } catch (e) {
     console.error("[mail]", e);
     await record(m, "failed", String(e));
-    return false;
+    return "failed";
   }
+}
+
+/** 기존 호출부용: 보냈거나(테스트 포함) 보류·차단이 아니면 true */
+export async function deliver(m: Mail): Promise<boolean> {
+  const s = await deliverWithStatus(m);
+  return s === "sent" || s === "dryrun";
 }
 
 export const siteUrl = () => SITE;

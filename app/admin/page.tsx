@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import ReportChat from "@/components/admin/ReportChat";
 import AdminMail from "@/components/admin/Mail";
+import AdminSend from "@/components/admin/Send";
 import { JOIN_SOURCES } from "@/lib/types";
 
 /** 마지막 접속을 '방금·n분 전·n시간 전'으로 */
@@ -43,7 +44,7 @@ type Flag = { id: string; reason: string; detail: string; status?: string; creat
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
-type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail";
+type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈" };
 
@@ -207,6 +208,7 @@ export default function Admin() {
         {tabBtn("demo", "임시글")}
         {tabBtn("help", "도움말")}
         {tabBtn("mail", "메일")}
+        {tabBtn("send", "발송")}
         {tabBtn("legacy", "구 워프 회원 이전")}
         {msg && <p role="status" className="ml-2 text-sm text-sub">{msg}</p>}
       </div>
@@ -352,6 +354,7 @@ export default function Admin() {
       {tab === "legacy" && <Legacy />}
       {tab === "credits" && <Credits />}
       {tab === "mail" && <AdminMail />}
+      {tab === "send" && <AdminSend />}
       {tab === "notices" && <AdminNotices />}
       {tab === "keywords" && <AdminKeywords />}
       {tab === "feedback" && <AdminFeedback />}

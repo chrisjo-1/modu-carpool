@@ -289,6 +289,21 @@ export function ensureSchema(): Promise<void> {
         error text not null default '',
         provider_id text not null default '')`;
       await sql`create index if not exists mail_log_created_idx on mail_log (created_at)`;
+      await sql`alter table mail_log add column if not exists campaign_id uuid`;
+      await sql`create index if not exists mail_log_campaign_idx on mail_log (campaign_id, to_email)`;
+      await sql`create table if not exists mail_campaigns (
+        id uuid primary key default gen_random_uuid(),
+        created_at timestamptz not null default now(),
+        title text not null,
+        category text not null,
+        segment text not null,
+        only_consent boolean not null default false,
+        only_driver boolean not null default false,
+        subject text not null,
+        body text not null,
+        status text not null default 'draft',
+        started_at timestamptz,
+        finished_at timestamptz)`;
       await sql`create table if not exists mail_policy (
         id int primary key,
         daily_cap int not null default 100,
