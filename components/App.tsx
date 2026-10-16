@@ -303,15 +303,20 @@ export default function App() {
     return () => clearTimeout(id);
   }, [toastMsg]);
 
-  // 로딩 화면이 8초 넘게 남아 있으면 그냥 넘어간다.
+  // 로딩 화면은 짧게 보인다: 최소 0.8초, 준비가 늦어도 최대 3초 뒤에는 넘어간다.
+  const [splashMinDone, setSplashMinDone] = useState(false);
   useEffect(() => {
-    const id = setTimeout(() => setSplashTimedOut(true), 8000);
+    const id = setTimeout(() => setSplashMinDone(true), 800);
+    return () => clearTimeout(id);
+  }, []);
+  useEffect(() => {
+    const id = setTimeout(() => setSplashTimedOut(true), 3000);
     return () => clearTimeout(id);
   }, []);
   const booted = checked && loaded;
   useEffect(() => {
-    if (booted) setSplashGone(true);
-  }, [booted]);
+    if (booted && splashMinDone) setSplashGone(true);
+  }, [booted, splashMinDone]);
 
   // 희망 선택을 아직 하지 않은 회원(가입 직후 포함)에게 한 번 묻는다.
   useEffect(() => {
@@ -477,7 +482,7 @@ export default function App() {
             sharedPost={sharedPost}
           />
         )}
-        {!booted && !splashTimedOut && !splashGone && <Splash />}
+        {!splashTimedOut && !splashGone && <Splash />}
         <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {withdrawToken && <Withdraw token={withdrawToken} onClose={() => setWithdrawToken("")} />}
