@@ -1,0 +1,177 @@
+import { neon } from "@neondatabase/serverless";
+import type { SubwayPlan } from "./subway";
+import { rankCandidates, type Candidate, type SeatPlanRow } from "./seatMatch";
+
+/**
+ * 앉아가기 전용 저장소(modu-seat). 모카 본 DB(DATABASE_URL)와 분리해 SEAT_DATABASE_URL로 접속한다.
+ * 회원 정보(로그인·모드)는 모카 본 DB를 그대로 쓰고, 여기에는 user_id만 둔다.
+ */
+export const seatDbReady = () => !!process.env.SEAT_DATABASE_URL;
+
+function seatSql() {
+  return neon(process.env.SEAT_DATABASE_URL as string);
+}
+
+let ready: Promise<void> | null = null;
+/** 테이블과 인덱스를 만든다(인스턴스당 1회). */
+export function ensureSeatSchema(): Promise<void> {
+  if (!ready) {
+    ready = (async () => {
+      const sql = seatSql();
+      await sql`create table if not exists seat_plans (
+        id bigserial primary key,
+        user_id text not null,
+        days text not null default '12345',
+        board_line text not null,
+        board_station text not null,
+        time_go text not null,
+        board_car text not null,
+        board_gate text not null default '',
+        alight_line text not null,
+        alight_station text not null,
+        back boolean not null default true,
+        time_back text not null default '',
+        back_car text not null default '',
+        back_gate text not null default '',
+        status text not null default 'active',
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now())`;
+      // 한 회원은 활성 등록을 하나만 가진다.
+      await sql`create unique index if not exists seat_plans_active_uniq on seat_plans (user_id) where status = 'active'`;
+      await sql`create index if not exists seat_plans_match_idx on seat_plans (board_line, alight_line) where status = 'active'`;
+      await sql`create table if not exists seat_requests (
+        id uuid primary key default gen_random_uuid(),
+        from_user text not null,
+        to_user text not null,
+        from_plan bigint not null references seat_plans(id) on delete cascade,
+        to_plan bigint not null references seat_plans(id) on delete cascade,
+        status text not null default 'pending',
+        created_at timestamptz not null default now(),
+        responded_at timestamptz,
+        unique (from_plan, to_plan))`;
+      await sql`create index if not exists seat_requests_to_idx on seat_requests (to_user, status)`;
+    })().catch((e) => {
+      ready = null;
+      throw e;
+    });
+  }
+  return ready;
+}
+
+type Raw = Record<string, unknown>;
+
+export function toRow(r: Raw): SeatPlanRow {
+  return {
+    id: Number(r.id),
+    userId: String(r.user_id),
+    days: String(r.days),
+    boardLine: String(r.board_line),
+    boardStation: String(r.board_station),
+    alightLine: String(r.alight_line),
+    alightStation: String(r.alight_station),
+    timeGo: String(r.time_go),
+    boardCar: String(r.board_car),
+    boardGate: String(r.board_gate),
+    back: Boolean(r.back),
+    timeBack: String(r.time_back),
+    backCar: String(r.back_car),
+    backGate: String(r.back_gate),
+  };
+}
+
+/** 등록 행을 화면의 입력 값(SubwayPlan)으로 바꾼다. */
+export function toSubwayPlan(p: SeatPlanRow): SubwayPlan {
+  return {
+    boardLine: p.boardLine,
+    board: p.boardStation,
+    alightLine: p.alightLine,
+    alight: p.alightStation,
+    timeGo: p.timeGo,
+    car: p.boardCar,
+    gate: p.boardGate,
+    back: p.back,
+    timeBack: p.timeBack,
+    carBack: p.backCar,
+    gateBack: p.backGate,
+  };
+}
+
+export async function getMyPlan(userId: string): Promise<SeatPlanRow | null> {
+  await ensureSeatSchema();
+  const rows = await seatSql()`select * from seat_plans where user_id = ${userId} and status = 'active' limit 1`;
+  return rows.length ? toRow(rows[0] as Raw) : null;
+}
+
+/** 등록을 저장한다. 이미 있으면 그 내용을 고친다. */
+export async function upsertPlan(userId: string, days: string, p: SubwayPlan): Promise<SeatPlanRow> {
+  await ensureSeatSchema();
+  const back = p.back;
+  const rows = await seatSql()`insert into seat_plans
+      (user_id, days, board_line, board_station, time_go, board_car, board_gate,
+       alight_line, alight_station, back, time_back, back_car, back_gate, status, updated_at)
+    values (${userId}, ${days}, ${p.boardLine}, ${p.board}, ${p.timeGo}, ${p.car}, ${p.gate},
+       ${p.alightLine}, ${p.alight}, ${back}, ${back ? p.timeBack : ""}, ${back ? p.carBack : ""}, ${back ? p.gateBack : ""}, 'active', now())
+    on conflict (user_id) where status = 'active' do update set
+      days = excluded.days, board_line = excluded.board_line, board_station = excluded.board_station,
+      time_go = excluded.time_go, board_car = excluded.board_car, board_gate = excluded.board_gate,
+      alight_line = excluded.alight_line, alight_station = excluded.alight_station,
+      back = excluded.back, time_back = excluded.time_back, back_car = excluded.back_car,
+      back_gate = excluded.back_gate, updated_at = now()
+    returning *`;
+  return toRow(rows[0] as Raw);
+}
+
+/** 등록을 해제한다(기록은 남기고 상태만 닫는다). */
+export async function closePlan(userId: string): Promise<void> {
+  await ensureSeatSchema();
+  await seatSql()`update seat_plans set status = 'closed', updated_at = now() where user_id = ${userId} and status = 'active'`;
+}
+
+/** 같은 노선 조합의 활성 등록 중 내 것이 아닌 것들을 가져온다. 역·시각 판정은 rankCandidates가 한다. */
+export async function listCandidates(me: SeatPlanRow): Promise<Candidate[]> {
+  await ensureSeatSchema();
+  const rows = await seatSql()`select * from seat_plans
+    where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.alightLine} and user_id <> ${me.userId}`;
+  return rankCandidates(me, rows.map((r) => toRow(r as Raw)));
+}
+
+/** 후보에게 앉아가기 요청을 보낸다. 규칙에 맞는 후보에게만 보낼 수 있다. */
+export async function createRequest(fromUser: string, toPlanId: number): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  await ensureSeatSchema();
+  const sql = seatSql();
+  const mine = await getMyPlan(fromUser);
+  if (!mine) return { ok: false, error: "먼저 앉아가기 등록을 저장해 주세요." };
+  const target = await sql`select * from seat_plans where id = ${toPlanId} and status = 'active' limit 1`;
+  if (!target.length) return { ok: false, error: "이미 해제된 등록이에요." };
+  const t = toRow(target[0] as Raw);
+  if (t.userId === fromUser) return { ok: false, error: "내 등록에는 요청할 수 없어요." };
+  if (!rankCandidates(mine, [t]).length) return { ok: false, error: "시간이나 역이 맞지 않아 요청할 수 없어요." };
+  const rows = await sql`insert into seat_requests (from_user, to_user, from_plan, to_plan)
+    values (${fromUser}, ${t.userId}, ${mine.id}, ${t.id})
+    on conflict (from_plan, to_plan) do nothing returning id`;
+  if (!rows.length) return { ok: false, error: "이미 요청을 보냈어요." };
+  return { ok: true, id: String(rows[0].id) };
+}
+
+/** 받은 요청을 수락하거나 거절한다. 받은 사람만 처리할 수 있다. */
+export async function respondRequest(requestId: string, toUser: string, accept: boolean): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+  await ensureSeatSchema();
+  const status = accept ? "accepted" : "declined";
+  const rows = await seatSql()`update seat_requests set status = ${status}, responded_at = now()
+    where id = ${requestId} and to_user = ${toUser} and status = 'pending' returning status`;
+  if (!rows.length) return { ok: false, error: "처리할 요청이 없거나 이미 처리됐어요." };
+  return { ok: true, status: String(rows[0].status) };
+}
+
+/** 내가 받은 요청과 보낸 요청. 상대의 회원 번호는 주지 않고 시각·칸 정도만 보여 준다. */
+export async function listRequests(userId: string) {
+  await ensureSeatSchema();
+  const sql = seatSql();
+  const incoming = await sql`select r.id, r.status, r.created_at, p.time_go, p.board_car, p.board_gate
+    from seat_requests r join seat_plans p on p.id = r.from_plan
+    where r.to_user = ${userId} order by r.created_at desc limit 50`;
+  const outgoing = await sql`select r.id, r.status, r.created_at, p.time_go, p.board_car
+    from seat_requests r join seat_plans p on p.id = r.to_plan
+    where r.from_user = ${userId} order by r.created_at desc limit 50`;
+  return { incoming, outgoing };
+}

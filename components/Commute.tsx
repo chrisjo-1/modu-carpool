@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { dayName } from "@/lib/i18n";
 import { priceAllowedRegular } from "@/lib/time";
 import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
@@ -76,9 +76,34 @@ export default function CommuteSheet({
     setMode(m);
     if (m !== "subway") setRole(m);
   };
-  const saveSubway = () => {
-    // 저장소가 아직 연결되지 않았다. 연결되면 이 자리에서 저장한다.
-    toast(t("앉아가기 저장은 저장소 연결 후 열려요."));
+  // 앉아가기 열림 여부와 내 기존 등록은 지하철 모드를 처음 열 때 한 번만 불러온다.
+  const [seatOn, setSeatOn] = useState(false);
+  const [seatLoaded, setSeatLoaded] = useState(false);
+  useEffect(() => {
+    if (mode !== "subway" || seatLoaded) return;
+    setSeatLoaded(true);
+    fetch("/api/seat/config")
+      .then((r) => r.json())
+      .then((j) => setSeatOn(!!j.enabled))
+      .catch(() => {});
+    fetch("/api/seat/plan")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.plan) {
+          setPlan(j.plan);
+          if (j.days) setDays(j.days);
+        }
+      })
+      .catch(() => {});
+  }, [mode, seatLoaded]);
+
+  const saveSubway = async () => {
+    if (!seatOn) return;
+    setBusy(true);
+    const r = await api<{ plan: SubwayPlan; days: string }>("/api/seat/plan", "PUT", { ...plan, days });
+    setBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    toast(t("앉아가기 등록을 저장했어요."));
   };
   const [plan, setPlan] = useState<SubwayPlan>(EMPTY_PLAN);
   const [origin, setOrigin] = useState<Place>(prefill?.origin ?? { name: initial?.origin ?? "", lat: initial?.originLat ?? null, lng: initial?.originLng ?? null });
@@ -210,7 +235,9 @@ export default function CommuteSheet({
         <div className="space-y-2">
           {subwayOpen ? (
             <>
-              <button type="button" data-block-id="B061" data-block-name="앉아가기 저장" className={btnPrimary} disabled={!!planProblem(plan)} onClick={saveSubway}>{t("앉아가기 저장")}</button>
+              <button type="button" data-block-id="B061" data-block-name="앉아가기 저장" className={btnPrimary} disabled={busy || !seatOn || !!planProblem(plan)} onClick={saveSubway}>
+                {busy ? t("처리 중…") : seatOn ? t("앉아가기 저장") : t("준비 중")}
+              </button>
               {planProblem(plan) && <p className="text-center text-[13px] text-sub">{t(planProblem(plan) as string)}</p>}
             </>
           ) : (
