@@ -89,12 +89,12 @@ export function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | 
       type="button"
       data-block-id="B302"
       data-block-name="현재 역할 바꾸기"
-      aria-label={`${t("현재 역할")}: ${isDriver ? t("운전자") : t("탑승자")}`}
+      aria-label={`${t("현재 역할")}: ${isDriver ? t("운전자 모드") : t("탑승자 모드")}`}
       onClick={toggle}
       disabled={busy}
       className={`min-h-[44px] shrink-0 rounded-full px-4 py-2 text-[15px] motion-safe:transition-colors ${isDriver ? "bg-accent font-bold text-white" : "bg-mint font-bold text-white"}`}
     >
-      {isDriver ? t("운전자") : t("탑승자")}
+      {isDriver ? t("운전자 모드") : t("탑승자 모드")}
     </button>
   );
 }
