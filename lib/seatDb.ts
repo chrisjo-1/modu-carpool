@@ -8,7 +8,7 @@ import { rankCandidates, type Candidate, type SeatPlanRow } from "./seatMatch";
  */
 export const seatDbReady = () => !!process.env.SEAT_DATABASE_URL;
 
-function seatSql() {
+export function seatSql() {
   return neon(process.env.SEAT_DATABASE_URL as string);
 }
 
@@ -50,6 +50,19 @@ export function ensureSeatSchema(): Promise<void> {
         responded_at timestamptz,
         unique (from_plan, to_plan))`;
       await sql`create index if not exists seat_requests_to_idx on seat_requests (to_user, status)`;
+      // 입구 안내용 착석 기록. 회원 번호를 넣지 않는다(익명 집계).
+      await sql`create table if not exists seat_feedback (
+        id bigserial primary key,
+        line text not null,
+        station text not null,
+        dir text not null,
+        dow text not null,
+        slot text not null,
+        car text not null,
+        entrance text not null,
+        seated boolean not null,
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists seat_feedback_lookup on seat_feedback (line, station, dir, dow, slot)`;
     })().catch((e) => {
       ready = null;
       throw e;

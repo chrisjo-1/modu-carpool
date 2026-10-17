@@ -112,6 +112,9 @@ export const Icon = {
   car: (w = 1.5) => (
     <svg {...base} strokeWidth={w}><path d="M4 14l1.6-4.6A2 2 0 0 1 7.5 8h9a2 2 0 0 1 1.9 1.4L20 14v4H4v-4z" /><path d="M7.5 15.5h.01M16.5 15.5h.01" /></svg>
   ),
+  train: (w = 1.5) => (
+    <svg {...base} strokeWidth={w}><rect x="6" y="3.5" width="12" height="13" rx="3" /><path d="M6 11.5h12M9 20.5l-2 1.5M15 20.5l2 1.5M9.5 7h.01M14.5 7h.01" /></svg>
+  ),
   close: (w = 1.5) => (
     <svg {...base} strokeWidth={w}><path d="M6 6l12 12M18 6L6 18" /></svg>
   ),

@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ALL_LINES, CAR_NUMBERS, DEFAULT_PILOT_LINES, LINE_STATIONS, type LineId, type SubwayPlan } from "@/lib/subway";
-import { field, useT } from "./ui";
+import { ALL_LINES, carNumbersOf, DEFAULT_PILOT_LINES, LINE_STATIONS, type LineId, type SubwayPlan } from "@/lib/subway";
+import { field, useT } from "../ui";
+import SubwayCarGuide from "./SubwayCarGuide";
 
 /** 지하철 탭의 입력 화면. 탭을 열었을 때만 불러온다(동적 로드). 요일은 상위 시트의 값을 쓴다. */
-export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPlan; setPlan: (p: SubwayPlan) => void; onPilot?: (p: LineId[]) => void }) {
+export default function SubwayPanel({ plan, setPlan, onPilot, days = "" }: { plan: SubwayPlan; setPlan: (p: SubwayPlan) => void; onPilot?: (p: LineId[]) => void; days?: string }) {
   const t = useT();
   const [pilot, setPilot] = useState<LineId[]>(DEFAULT_PILOT_LINES);
   const set = (patch: Partial<SubwayPlan>) => setPlan({ ...plan, ...patch });
@@ -75,7 +76,7 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
             {t("탑승 칸")}
             <select className={`${field} mt-1`} value={plan.car} required onChange={(e) => set({ car: e.target.value })}>
               <option value="">{t("칸을 고르세요")}</option>
-              {CAR_NUMBERS.map((c) => (
+              {carNumbersOf(plan.boardLine).map((c) => (
                 <option key={c} value={c}>{c}{t("호차")}</option>
               ))}
             </select>
@@ -86,6 +87,8 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
           <input className={`${field} mt-1`} maxLength={8} placeholder={t("예: 3")} value={plan.gate} onChange={(e) => set({ gate: e.target.value.slice(0, 8) })} />
         </label>
       </div>
+
+      {plan.board && <SubwayCarGuide line={plan.boardLine} station={plan.board} timeGo={plan.timeGo} days={days} />}
 
       <label className="flex min-h-[44px] items-center gap-3 text-[15px]">
         <input type="checkbox" className="h-5 w-5 accent-[#7C3AED]" checked={plan.back} onChange={(e) => set({ back: e.target.checked })} />
@@ -107,7 +110,7 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
               {t("퇴근 탑승 칸 (선택)")}
               <select className={`${field} mt-1`} value={plan.carBack} onChange={(e) => set({ carBack: e.target.value })}>
                 <option value="">{t("고르지 않음")}</option>
-                {CAR_NUMBERS.map((c) => (
+                {carNumbersOf(plan.alightLine).map((c) => (
                   <option key={c} value={c}>{c}{t("호차")}</option>
                 ))}
               </select>

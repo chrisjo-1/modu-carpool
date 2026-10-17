@@ -5,3 +5,6 @@ next-env.d.ts
 .env*
 .vercel
 /.sim-build
+/.sim-build2
+/.sim-build3
+/.sim-build4

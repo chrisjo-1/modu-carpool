@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { translate, type Lang } from "@/lib/i18n";
 import type { Post, Thread, User } from "@/lib/types";
 import Chat, { ChatRoom } from "./Chat";
@@ -24,11 +25,19 @@ import PostForm from "./PostForm";
 import { Bubble, HintContext, Icon, LangContext, Sheet, api } from "./ui";
 import type { Place } from "@/lib/types";
 
-type Tab = "home" | "post" | "chat" | "me";
+type Tab = "home" | "post" | "subway" | "chat" | "me";
+
+// 지하철 탭은 탭을 열 때만 불러온다(첫 화면 부담 없음). 기능을 뺄 때 이 줄과 아래 탭 항목을 지운다.
+const SubwayTab = dynamic(() => import("./subway/SubwayTab"), { ssr: false, loading: () => <p className="px-1 pt-4 text-sm text-sub">…</p> });
 const LANG_KEY = "modu.lang";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("home");
+  // 지하철 탭을 보여 줄지(앉아가기 열림 또는 관리자). 첫 화면을 막지 않도록 뒤에서 불러온다.
+  const [seatVisible, setSeatVisible] = useState(false);
+  useEffect(() => {
+    fetch("/api/seat/config").then((r) => r.json()).then((j) => setSeatVisible(!!j.visible)).catch(() => {});
+  }, []);
   // 홈 상단 주제목(관리자 > 사이트에서 바꾼 문구). 못 받으면 기본 문구.
   const [slogan, setSlogan] = useState("같은 방향, 같이 가요");
   useEffect(() => {
@@ -402,9 +411,11 @@ export default function App() {
   const tabs: { id: Tab; label: string; icon: (w?: number) => React.ReactNode; block: string }[] = [
     { id: "home", label: t("찾기"), icon: Icon.home, block: "N001" },
     { id: "post", label: t("등록"), icon: Icon.plus, block: "N002" },
+    { id: "subway", label: t("지하철"), icon: Icon.train, block: "N005" },
     { id: "chat", label: t("채팅"), icon: Icon.chat, block: "N003" },
     { id: "me", label: t("내 정보"), icon: Icon.user, block: "N004" },
   ];
+  const navTabs = tabs.filter((x) => x.id !== "subway" || seatVisible);
 
   return (
     <LangContext.Provider value={lang}>
@@ -432,6 +443,7 @@ export default function App() {
           {tab === "home" &&
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
+          {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} onChanged={loadThreads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {
             // 받은 신청: 내 글 목록에서 찾아 글 상세(수락·거절 버튼)를 연다.
             const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
@@ -443,8 +455,8 @@ export default function App() {
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
-          <ul className="mx-auto grid max-w-md grid-cols-4">
-            {tabs.map((x) => {
+          <ul className={`mx-auto grid max-w-md ${navTabs.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
+            {navTabs.map((x) => {
               const on = tab === x.id;
               return (
                 <li key={x.id}>

@@ -6,13 +6,8 @@ import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import PlaceField from "./PlaceField";
 import { Segment, Sheet, api, btnGhost, btnPrimary, field, useLang, useT } from "./ui";
-import dynamic from "next/dynamic";
-import { EMPTY_PLAN, planProblem, type SubwayPlan } from "@/lib/subway";
 
 import { TagPicker } from "./Keywords";
-
-// 지하철 입력 화면은 해당 탭을 열 때만 불러온다(시트 여는 속도 유지).
-const SubwayPanel = dynamic(() => import("./SubwayPanel"), { ssr: false, loading: () => <p className="text-sm text-sub">…</p> });
 
 /**
  * 비용: 출발 시간으로 자동 설정한다. 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시)면 금액 입력(주황색),
@@ -67,45 +62,8 @@ export default function CommuteSheet({
 }) {
   const t = useT();
   const lang = useLang();
-  // 운전자·탑승자는 카풀 글의 입장이고, 지하철은 앉아가기 등록 화면이다.
-  // 지하철을 골라도 마지막으로 고른 운전자·탑승자 입장(role)은 그대로 둔다.
+  // 운전자·탑승자 입장(카풀 글). 지하철 앉아가기는 별도 '지하철' 탭에서 관리한다.
   const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
-  const [mode, setMode] = useState<"driver" | "rider" | "subway">(role);
-  const subwayOpen = mode === "subway";
-  const pickMode = (m: "driver" | "rider" | "subway") => {
-    setMode(m);
-    if (m !== "subway") setRole(m);
-  };
-  // 앉아가기 열림 여부와 내 기존 등록은 지하철 모드를 처음 열 때 한 번만 불러온다.
-  const [seatOn, setSeatOn] = useState(false);
-  const [seatLoaded, setSeatLoaded] = useState(false);
-  useEffect(() => {
-    if (mode !== "subway" || seatLoaded) return;
-    setSeatLoaded(true);
-    fetch("/api/seat/config")
-      .then((r) => r.json())
-      .then((j) => setSeatOn(!!j.enabled))
-      .catch(() => {});
-    fetch("/api/seat/plan")
-      .then((r) => r.json())
-      .then((j) => {
-        if (j.plan) {
-          setPlan(j.plan);
-          if (j.days) setDays(j.days);
-        }
-      })
-      .catch(() => {});
-  }, [mode, seatLoaded]);
-
-  const saveSubway = async () => {
-    if (!seatOn) return;
-    setBusy(true);
-    const r = await api<{ plan: SubwayPlan; days: string }>("/api/seat/plan", "PUT", { ...plan, days });
-    setBusy(false);
-    if (!r.ok) return toast(t(r.error));
-    toast(t("앉아가기 등록을 저장했어요."));
-  };
-  const [plan, setPlan] = useState<SubwayPlan>(EMPTY_PLAN);
   const [origin, setOrigin] = useState<Place>(prefill?.origin ?? { name: initial?.origin ?? "", lat: initial?.originLat ?? null, lng: initial?.originLng ?? null });
   const [dest, setDest] = useState<Place>(prefill?.dest ?? { name: initial?.dest ?? "", lat: initial?.destLat ?? null, lng: initial?.destLng ?? null });
   const [days, setDays] = useState(initial?.days || "12345");
@@ -127,8 +85,6 @@ export default function CommuteSheet({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // 지하철 탭 저장은 아직 열려 있지 않다.
-    if (subwayOpen) return;
     if (role === "driver" && !carOk) return setCarGate(true);
     setBusy(true);
     const r = await api<{ updated: boolean; credit?: number }>("/api/posts", "PUT", {
@@ -168,18 +124,17 @@ export default function CommuteSheet({
           <p className="text-sm text-sub">{t("나는")}</p>
           <Segment
             label={t("모드")}
-            value={mode}
-            onChange={pickMode}
-            options={[["driver", t("운전자")], ["rider", t("탑승자")], ["subway", t("지하철")]]}
-            accents={{ driver: "accent", rider: "mint", subway: "violet" }}
+            value={role}
+            onChange={setRole}
+            options={[["driver", t("운전자")], ["rider", t("탑승자")]]}
+            accents={{ driver: "accent", rider: "mint" }}
           />
           <p className="text-[13px] leading-relaxed text-sub">
-            {mode === "driver" && t("운전자 모드: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.")}
-            {mode === "rider" && t("탑승자 모드: 같이 탈 차를 찾는 글이에요.")}
-            {mode === "subway" && t("지하철: 지하철에서 앉아갈 자리를 나누는 등록이에요. 요일은 출퇴근 요일을 함께 씁니다.")}
+            {role === "driver" && t("운전자 모드: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.")}
+            {role === "rider" && t("탑승자 모드: 같이 탈 차를 찾는 글이에요.")}
           </p>
         </div>
-        {!subwayOpen && (
+        {(
           <>
             <PlaceField blockId="F060" label={t("집 (출발지)")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
             <PlaceField blockId="F061" label={t("회사 (도착지)")} placeholder={t("예: 강남역")} value={dest} onChange={setDest} toast={toast} />
@@ -200,9 +155,7 @@ export default function CommuteSheet({
           </div>
         </div>
 
-        {subwayOpen ? (
-          <SubwayPanel plan={plan} setPlan={setPlan} />
-        ) : (
+        {(
           <>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm text-sub">
@@ -233,14 +186,7 @@ export default function CommuteSheet({
         )}
 
         <div className="space-y-2">
-          {subwayOpen ? (
-            <>
-              <button type="button" data-block-id="B061" data-block-name="앉아가기 저장" className={btnPrimary} disabled={busy || !seatOn || !!planProblem(plan)} onClick={saveSubway}>
-                {busy ? t("처리 중…") : seatOn ? t("앉아가기 저장") : t("준비 중")}
-              </button>
-              {planProblem(plan) && <p className="text-center text-[13px] text-sub">{t(planProblem(plan) as string)}</p>}
-            </>
-          ) : (
+          {(
             <button data-block-id="B060" data-block-name="정기카풀 게시" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : initial ? t("저장") : t("정기카풀로 게시하기")}</button>
           )}
         </div>
