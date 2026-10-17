@@ -1,19 +1,39 @@
 "use client";
-import { CAR_NUMBERS, LINES, PILOT_LINES, type LineId, type SubwayPlan } from "@/lib/subway";
+import { useEffect, useState } from "react";
+import { ALL_LINES, CAR_NUMBERS, DEFAULT_PILOT_LINES, LINE_STATIONS, type LineId, type SubwayPlan } from "@/lib/subway";
 import { field, useT } from "./ui";
 
-/** 지하철 탭의 입력 화면. 탭을 눌렀을 때만 불러온다(동적 로드). 요일은 상위 시트의 값을 쓴다. */
-export default function SubwayPanel({ plan, setPlan }: { plan: SubwayPlan; setPlan: (p: SubwayPlan) => void }) {
+/** 지하철 탭의 입력 화면. 탭을 열었을 때만 불러온다(동적 로드). 요일은 상위 시트의 값을 쓴다. */
+export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPlan; setPlan: (p: SubwayPlan) => void; onPilot?: (p: LineId[]) => void }) {
   const t = useT();
+  const [pilot, setPilot] = useState<LineId[]>(DEFAULT_PILOT_LINES);
   const set = (patch: Partial<SubwayPlan>) => setPlan({ ...plan, ...patch });
+
+  // 시범 노선은 관리자 설정을 따른다. 불러오지 못하면 기본값을 쓴다.
+  useEffect(() => {
+    fetch("/api/seat/config")
+      .then((r) => r.json())
+      .then((j) => {
+        if (Array.isArray(j.pilot) && j.pilot.length) {
+          setPilot(j.pilot);
+          onPilot?.(j.pilot);
+        }
+      })
+      .catch(() => {});
+  }, [onPilot]);
 
   const lineSelect = (value: LineId, onLine: (l: LineId) => void, label: string) => (
     <label className="block text-sm text-sub">
       {label}
-      <select className={`${field} mt-1`} value={value} onChange={(e) => onLine(e.target.value as LineId)}>
-        {PILOT_LINES.map((l) => (
-          <option key={l} value={l}>{LINES[l].name}</option>
-        ))}
+      <select className={`${field} mt-1`} value={value} onChange={(e) => onLine(e.target.value)}>
+        {ALL_LINES.map((l) => {
+          const open = pilot.includes(l.id);
+          return (
+            <option key={l.id} value={l.id} disabled={!open}>
+              {open ? t(l.name) : `${t(l.name)} · ${t("준비 중")}`}
+            </option>
+          );
+        })}
       </select>
     </label>
   );
@@ -23,7 +43,7 @@ export default function SubwayPanel({ plan, setPlan }: { plan: SubwayPlan; setPl
       {label}
       <select className={`${field} mt-1`} value={value} required onChange={(e) => onStation(e.target.value)}>
         <option value="">{t("역을 고르세요")}</option>
-        {LINES[line].stations.map((s) => (
+        {(LINE_STATIONS[line] ?? []).map((s) => (
           <option key={s} value={s}>{s}</option>
         ))}
       </select>
@@ -33,7 +53,7 @@ export default function SubwayPanel({ plan, setPlan }: { plan: SubwayPlan; setPl
   return (
     <div className="space-y-4" data-block-id="S061" data-block-name="지하철 앉아가기 입력">
       <p className="rounded-2xl bg-violetSoft px-4 py-3 text-[14px] leading-relaxed text-violet">
-        {t("지하철 앉아가기는 준비 중이에요. 지금 입력한 내용은 아직 저장되지 않아요.")}
+        {t("현재 일부 노선만 테스트 준비 중입니다. 2호선·5호선부터 시작해요.")}
       </p>
 
       <div className="space-y-2">
