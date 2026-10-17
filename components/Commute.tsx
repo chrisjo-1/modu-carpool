@@ -67,9 +67,19 @@ export default function CommuteSheet({
 }) {
   const t = useT();
   const lang = useLang();
-  // 모드(운전자·탑승자)는 카풀 글의 입장이다. 지하철 등록은 모드와 별도로 켜고 끈다.
+  // 운전자·탑승자는 카풀 글의 입장이고, 지하철은 앉아가기 등록 화면이다.
+  // 지하철을 골라도 마지막으로 고른 운전자·탑승자 입장(role)은 그대로 둔다.
   const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
-  const [subwayOpen, setSubwayOpen] = useState(false);
+  const [mode, setMode] = useState<"driver" | "rider" | "subway">(role);
+  const subwayOpen = mode === "subway";
+  const pickMode = (m: "driver" | "rider" | "subway") => {
+    setMode(m);
+    if (m !== "subway") setRole(m);
+  };
+  const saveSubway = () => {
+    // 저장소가 아직 연결되지 않았다. 연결되면 이 자리에서 저장한다.
+    toast(t("앉아가기 저장은 저장소 연결 후 열려요."));
+  };
   const [plan, setPlan] = useState<SubwayPlan>(EMPTY_PLAN);
   const [origin, setOrigin] = useState<Place>(prefill?.origin ?? { name: initial?.origin ?? "", lat: initial?.originLat ?? null, lng: initial?.originLng ?? null });
   const [dest, setDest] = useState<Place>(prefill?.dest ?? { name: initial?.dest ?? "", lat: initial?.destLat ?? null, lng: initial?.destLng ?? null });
@@ -131,11 +141,18 @@ export default function CommuteSheet({
         )}
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("나는")}</p>
-          <Segment label={t("모드")} value={role} onChange={setRole} options={[["driver", t("운전자 모드")], ["rider", t("탑승자 모드")]]} accents={{ driver: "accent", rider: "mint" }} />
-          {!subwayOpen && <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자 모드: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : t("탑승자 모드: 같이 탈 차를 찾는 글이에요.")}</p>}
-          <button type="button" aria-pressed={subwayOpen} onClick={() => setSubwayOpen((v) => !v)} className={`w-full rounded-xl border px-4 py-3 text-[15px] font-semibold motion-safe:transition-colors ${subwayOpen ? "border-violet bg-violet text-white" : "border-violet bg-violetSoft text-violet"}`}>
-            {t("지하철 앉아가기 등록")} {subwayOpen ? "· " + t("닫기") : ""}
-          </button>
+          <Segment
+            label={t("모드")}
+            value={mode}
+            onChange={pickMode}
+            options={[["driver", t("운전자")], ["rider", t("탑승자")], ["subway", t("지하철")]]}
+            accents={{ driver: "accent", rider: "mint", subway: "violet" }}
+          />
+          <p className="text-[13px] leading-relaxed text-sub">
+            {mode === "driver" && t("운전자 모드: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.")}
+            {mode === "rider" && t("탑승자 모드: 같이 탈 차를 찾는 글이에요.")}
+            {mode === "subway" && t("지하철: 지하철에서 앉아갈 자리를 나누는 등록이에요. 요일은 출퇴근 요일을 함께 씁니다.")}
+          </p>
         </div>
         {!subwayOpen && (
           <>
@@ -193,7 +210,7 @@ export default function CommuteSheet({
         <div className="space-y-2">
           {subwayOpen ? (
             <>
-              <button data-block-id="B061" data-block-name="지하철 앉아가기 저장" className={btnPrimary} disabled>{t("준비 중")}</button>
+              <button type="button" data-block-id="B061" data-block-name="앉아가기 저장" className={btnPrimary} disabled={!!planProblem(plan)} onClick={saveSubway}>{t("앉아가기 저장")}</button>
               {planProblem(plan) && <p className="text-center text-[13px] text-sub">{t(planProblem(plan) as string)}</p>}
             </>
           ) : (
