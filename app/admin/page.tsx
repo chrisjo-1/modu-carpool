@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import ReportChat from "@/components/admin/ReportChat";
+import MemberCode from "@/components/admin/MemberCode";
 import AdminMail from "@/components/admin/Mail";
 import AdminSend from "@/components/admin/Send";
 import { JOIN_SOURCES } from "@/lib/types";
@@ -32,7 +33,7 @@ const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false 
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
-  id: string; email: string; name: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number; tier: string;
+  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number; tier: string;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
   commute_kind: string; commute_origin: string; commute_dest: string; commute_time: string; commute_price: number;
@@ -302,6 +303,15 @@ export default function Admin() {
                   <dt className="text-sub">관심사</dt><dd>{member.interests?.length ? member.interests.join(", ") : "미선택"}</dd>
                 </dl>
               </div>
+              <MemberCode
+                userId={member.id}
+                current={member.member_code}
+                onApplied={(code) => {
+                  setMember((m) => (m ? { ...m, member_code: code, name: m.name === m.member_code ? code : m.name } : m));
+                  setMsg("고유코드를 바꿨습니다.");
+                  refresh(q);
+                }}
+              />
             </div>
           )}
           <form onSubmit={makeTest} data-block-id="S097" data-block-name="테스트 회원 만들기" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-bg p-3">

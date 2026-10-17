@@ -14,3 +14,9 @@ export function makeMemberCode(): string {
 
 /** 고유코드 중복(23505)인지 확인해, 중복이면 다시 뽑게 한다. */
 export const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "23505";
+
+/** 관리자가 입력한 고유코드를 정리한다(공백 제거, 대문자). */
+export const normalizeMemberCode = (v: unknown): string => (typeof v === "string" ? v.replace(/\s+/g, "").toUpperCase() : "");
+
+/** 가입 때 만드는 것과 같은 형식인지: 숫자 7자리 + 허용된 영문 1자리(I·O 제외). */
+export const isValidMemberCode = (v: string): boolean => /^[0-9]{7}[ABCDEFGHJKLMNPQRSTUVWXYZ]$/.test(v);
