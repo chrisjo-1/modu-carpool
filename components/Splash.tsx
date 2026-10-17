@@ -39,7 +39,7 @@ export default function Splash() {
   );
   if (lang === "ko")
     return (
-      <div data-block-id="S300" data-block-name="첫 로딩 화면" className="fixed inset-0 z-[70] overflow-hidden bg-[#F3F8FF] text-[#15233D]" style={{ fontFamily: '"Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif' }}>
+      <div data-block-id="S300" data-block-name="첫 로딩 화면" className="splash-full fixed inset-0 z-[70] overflow-hidden bg-[#F3F8FF] text-[#15233D]" style={{ fontFamily: '"Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif' }}>
         <style>{css}</style>
         <div className="mx-auto flex h-full max-w-[1040px] flex-col justify-between gap-4 px-4 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-[calc(env(safe-area-inset-top)+16px)] md:grid md:grid-cols-2 md:items-center md:gap-x-16 md:py-10 md:[grid-template-rows:auto_1fr_auto]">
           <div className="sp-rise sp-d1 flex items-center gap-2.5 text-base font-black md:col-start-1 md:row-start-1">
@@ -108,7 +108,7 @@ export default function Splash() {
       </div>
     );
   return (
-    <div data-block-id="S300" data-block-name="첫 로딩 화면" className="fixed inset-0 z-[70] flex flex-col items-center justify-center gap-8 bg-[#EAF3FF] px-6">
+    <div data-block-id="S300" data-block-name="첫 로딩 화면" className="splash-full fixed inset-0 z-[70] flex flex-col items-center justify-center gap-8 bg-[#EAF3FF] px-6">
       <span className="grid h-20 w-20 place-items-center rounded-3xl bg-accent text-white">
         <svg width="44" height="44" viewBox="0 0 64 64" aria-hidden><path d="M14 38l4-11a5 5 0 0 1 4.7-3.3h18.6A5 5 0 0 1 46 27l4 11v8H14z" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinejoin="round" /><circle cx="23" cy="39" r="2.6" fill="#fff" /><circle cx="41" cy="39" r="2.6" fill="#fff" /></svg>
       </span>

@@ -13,6 +13,7 @@ import Gate from "./Gate";
 import { NoticePopup } from "./Notices";
 import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
+import TopLoading from "./TopLoading";
 import Interests from "./Interests";
 import CommuteStart from "./CommuteStart";
 import CommuteOnboard from "./CommuteOnboard";
@@ -317,6 +318,17 @@ export default function App() {
     return () => clearTimeout(id);
   }, []);
   const booted = checked && loaded && screenRestored;
+  // 본문을 보여도 되는 시점: 준비가 끝났거나 3초가 지났을 때. 같은 탭에서 처음 본 뒤에는 표시 기록을 남긴다.
+  useEffect(() => {
+    if (!(booted || splashTimedOut)) return;
+    document.documentElement.setAttribute("data-ready", "1");
+    if (!booted) return;
+    try {
+      sessionStorage.setItem("modu.seen", "1");
+    } catch {
+      /* 무시 */
+    }
+  }, [booted, splashTimedOut]);
   useEffect(() => {
     if (booted && splashMinDone) setSplashGone(true);
   }, [booted, splashMinDone]);
@@ -396,7 +408,7 @@ export default function App() {
   return (
     <LangContext.Provider value={lang}>
       <HintContext.Provider value={{ on: !!user, texts: bubbleTexts }}>
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+      <div id="app-shell" className="mx-auto flex min-h-dvh max-w-md flex-col">
         {user?.test && (
           <p data-block-id="C090" data-block-name="테스트 회원 안내" className="flex items-center justify-between gap-3 border-b border-line bg-accentSoft px-5 py-2 text-[13px] text-ink">
             <span>테스트 회원 <b>{user.name}</b> 화면으로 보는 중</span>
@@ -486,6 +498,7 @@ export default function App() {
           />
         )}
         {!splashTimedOut && !splashGone && <Splash />}
+        {!booted && !splashTimedOut && <TopLoading />}
         <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {withdrawToken && <Withdraw token={withdrawToken} onClose={() => setWithdrawToken("")} />}

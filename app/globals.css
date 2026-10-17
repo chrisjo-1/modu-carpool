@@ -22,3 +22,11 @@ button, a, [role="button"] { min-height: 44px; }
 @keyframes modu-bar { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
 .modu-bar { animation: modu-bar 1.3s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .modu-bar { animation-duration: 3s; } }
+
+/* 같은 탭에서 이미 열었던 화면을 새로고침한 경우: 전체 로딩 화면은 숨기고 위쪽 얇은 로딩바만 보인다. 복원이 끝나기 전에는 본문을 숨긴다. */
+html[data-seen="1"] .splash-full { display: none; }
+html:not([data-seen="1"]) .splash-slim { display: none; }
+html[data-seen="1"]:not([data-ready]) #app-shell { visibility: hidden; }
+@keyframes slim-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+.slim-bar-run { animation: slim-bar 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .slim-bar-run { animation: none; width: 100%; opacity: .6; } }
