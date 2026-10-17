@@ -3,7 +3,12 @@ import { useEffect, useState } from "react";
 import type { Post, User } from "@/lib/types";
 import { EMPTY_PLAN, planProblem, type SubwayPlan } from "@/lib/subway";
 import { api, btnGhost, btnPrimary, useT } from "../ui";
+import dynamic from "next/dynamic";
 import SubwayPanel from "./SubwayPanel";
+import SubwayMatches from "./SubwayMatches";
+
+// 안내 사진은 시트를 열 때만 불러온다.
+const LocationHelp = dynamic(() => import("./LocationHelp"), { ssr: false });
 
 /**
  * 하단 '지하철' 탭: 앉아가기 등록과 탑승 칸·입구 안내를 함께 관리한다.
@@ -17,6 +22,7 @@ export default function SubwayTab({ user, toast }: { user: User | null; toast: (
   const [hasPlan, setHasPlan] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [help, setHelp] = useState(false);
 
   // 요일은 출퇴근 정보의 요일을 그대로 쓴다. 없으면 등록 기록의 요일을 쓴다.
   useEffect(() => {
@@ -78,7 +84,10 @@ export default function SubwayTab({ user, toast }: { user: User | null; toast: (
       <div className="space-y-1">
         <h2 className="text-xl font-bold">{t("지하철")}</h2>
         <p className="text-[14px] leading-relaxed text-sub">{t("앉아가기 등록과 앉을 가능성이 높은 탑승 칸을 함께 볼 수 있어요.")}</p>
+        <button type="button" className="text-[13px] font-medium text-violet" onClick={() => setHelp(true)}>{t("위치 찾는 법 보기")}</button>
       </div>
+
+      {loaded && seatOn && <SubwayMatches onHelp={() => setHelp(true)} />}
 
       {loaded && !seatOn && (
         <p className="rounded-2xl bg-violetSoft px-4 py-3 text-[14px] leading-relaxed text-violet">{t("앉아가기 등록은 아직 준비 중이에요. 칸 안내는 먼저 볼 수 있어요.")}</p>
@@ -102,6 +111,7 @@ export default function SubwayTab({ user, toast }: { user: User | null; toast: (
           </button>
         )}
       </div>
+      {help && <LocationHelp onClose={() => setHelp(false)} />}
     </section>
   );
 }

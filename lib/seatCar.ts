@@ -123,7 +123,8 @@ export function parseFeedback(b: Record<string, unknown>): { ok: true; key: Guid
   const entrance = typeof b.entrance === "string" ? b.entrance.trim() : "";
   const maxCar = carCountOf(key.key.line);
   if (!/^\d{1,2}$/.test(car) || Number(car) < 1 || Number(car) > maxCar) return { ok: false, error: "칸 번호를 골라 주세요." };
-  if (!/^\d{1,2}$/.test(entrance)) return { ok: false, error: "입구 번호는 숫자로 적어 주세요." };
+  // 입구 = 승강장 바닥 표시의 문 번호(1~4). 칸과 합쳐 "칸-문"(예: 6-1)이 된다.
+  if (!/^[1-4]$/.test(entrance)) return { ok: false, error: "문 번호(1~4)를 골라 주세요." };
   if (typeof b.seated !== "boolean") return { ok: false, error: "앉았는지 골라 주세요." };
   return { ok: true, key: key.key, car, entrance, seated: b.seated };
 }

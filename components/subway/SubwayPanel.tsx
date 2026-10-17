@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ALL_LINES, carNumbersOf, DEFAULT_PILOT_LINES, LINE_STATIONS, type LineId, type SubwayPlan } from "@/lib/subway";
+import { DOOR_NUMBERS, positionLabel } from "@/lib/subwayPosition";
 import { field, useT } from "../ui";
 import SubwayCarGuide from "./SubwayCarGuide";
 
@@ -83,8 +84,19 @@ export default function SubwayPanel({ plan, setPlan, onPilot, days = "" }: { pla
           </label>
         </div>
         <label className="block text-sm text-sub">
-          {t("탑승 입구 번호 (선택)")}
-          <input className={`${field} mt-1`} maxLength={8} placeholder={t("예: 3")} value={plan.gate} onChange={(e) => set({ gate: e.target.value.slice(0, 8) })} />
+          {t("탑승 문 번호 (선택)")}
+          <select className={`${field} mt-1`} value={DOOR_NUMBERS.includes(plan.gate) ? plan.gate : ""} onChange={(e) => set({ gate: e.target.value })}>
+            <option value="">{t("고르지 않음")}</option>
+            {DOOR_NUMBERS.map((d) => (
+              <option key={d} value={d}>{d}{t("번 문")}</option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[12px] text-sub">
+            {t("승강장 바닥 삼각형 표시의 칸-문 번호예요.")}
+            {positionLabel(plan.car, DOOR_NUMBERS.includes(plan.gate) ? plan.gate : "") && (
+              <> {t("만날 위치")}: <span className="num font-semibold text-ink">{positionLabel(plan.car, plan.gate)}</span></>
+            )}
+          </span>
         </label>
       </div>
 
@@ -117,8 +129,13 @@ export default function SubwayPanel({ plan, setPlan, onPilot, days = "" }: { pla
             </label>
           </div>
           <label className="block text-sm text-sub">
-            {t("퇴근 입구 번호 (선택)")}
-            <input className={`${field} mt-1`} maxLength={8} value={plan.gateBack} onChange={(e) => set({ gateBack: e.target.value.slice(0, 8) })} />
+            {t("퇴근 문 번호 (선택)")}
+            <select className={`${field} mt-1`} value={DOOR_NUMBERS.includes(plan.gateBack) ? plan.gateBack : ""} onChange={(e) => set({ gateBack: e.target.value })}>
+              <option value="">{t("고르지 않음")}</option>
+              {DOOR_NUMBERS.map((d) => (
+                <option key={d} value={d}>{d}{t("번 문")}</option>
+              ))}
+            </select>
           </label>
         </div>
       )}

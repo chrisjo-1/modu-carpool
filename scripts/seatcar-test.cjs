@@ -49,6 +49,7 @@ check("시간대 07:15 거부", C.parseKey({ line: "2", station: "강남", dir: 
 const fb = C.parseFeedback({ line: "2", station: "강남", dir: "up", dow: "1", slot: "07:30", car: "4", entrance: "3", seated: true });
 check("정상 기록 통과", fb.ok === true);
 check("칸 11 거부", C.parseFeedback({ line: "2", station: "강남", dir: "up", dow: "1", slot: "07:30", car: "11", entrance: "3", seated: true }).ok === false);
+check("문 번호 5 거부", C.parseFeedback({ line: "2", station: "강남", dir: "up", dow: "1", slot: "07:30", car: "4", entrance: "5", seated: true }).ok === false);
 check("입구 문자 거부", C.parseFeedback({ line: "2", station: "강남", dir: "up", dow: "1", slot: "07:30", car: "4", entrance: "3a", seated: true }).ok === false);
 check("앉음 여부 누락 거부", C.parseFeedback({ line: "2", station: "강남", dir: "up", dow: "1", slot: "07:30", car: "4", entrance: "3" }).ok === false);
 

@@ -2,34 +2,43 @@
 import { useEffect, useMemo, useState } from "react";
 import { dayName } from "@/lib/i18n";
 import { MIN_SAMPLE, slotOf, LEVEL_LABEL, type CarRank, type GuideResult } from "@/lib/seatCar";
-import type { Congestion } from "@/lib/congestion";
+import type { Congestion, CongestionLevel } from "@/lib/congestion";
 import { carNumbersOf, type LineId } from "@/lib/subway";
+import { DOOR_NUMBERS, positionLabel } from "@/lib/subwayPosition";
 import { api, btnGhost, field, useLang, useT } from "../ui";
 
-type Dir = "" | "up" | "down";
+type Dir = "up" | "down";
 type Guide = GuideResult & { congestion: Congestion | null };
 
+/** 혼잡도 단계별 한 줄 설명. */
+const HINT: Record<CongestionLevel, string> = {
+  low: "비교적 여유 있어요",
+  mid: "보통 수준이에요",
+  high: "붐비는 편이에요",
+  over: "매우 붐벼요",
+};
+
 /**
- * 탑승 칸·입구 안내. 역과 시간을 고르면 불러온다(첫 화면에서는 요청하지 않는다).
- * 추천은 회원이 남긴 착석 기록으로 계산하며, 기록이 적으면 추천 대신 수집 상태를 보여 준다.
+ * 탑승 칸 안내. 역과 탑승 시각이 있으면 바로 혼잡도 답을 보여 주고,
+ * 칸 추천은 착석 기록이 쌓이면 이어서 보여 준다. 기록 남기기는 접힌 영역에 둔다.
  */
 export default function SubwayCarGuide({ line, station, timeGo, days }: { line: LineId; station: string; timeGo: string; days: string }) {
   const t = useT();
   const lang = useLang();
   const selectedDays = useMemo(() => [...days].filter((d) => /^[0-6]$/.test(d)).sort(), [days]);
-  const [dir, setDir] = useState<Dir>("");
+  const [dir, setDir] = useState<Dir>("up");
   const [dow, setDow] = useState<string>("");
   const [data, setData] = useState<Guide | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [car, setCar] = useState("");
-  const [entrance, setEntrance] = useState("");
+  const [door, setDoor] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   const day = dow && selectedDays.includes(dow) ? dow : selectedDays[0] ?? "";
   const slot = slotOf(timeGo);
-  const ready = !!station && !!dir && !!day && !!slot;
+  const ready = !!station && !!day && !!slot;
 
   // 역·방향·요일·시간대가 바뀔 때만 다시 불러온다. 이전 요청은 취소한다.
   useEffect(() => {
@@ -57,35 +66,54 @@ export default function SubwayCarGuide({ line, station, timeGo, days }: { line: 
   const top: CarRank | undefined = data?.status === "ready" ? data.ranked[0] : undefined;
 
   const send = async (seated: boolean) => {
-    if (!ready || !car || !/^\d{1,2}$/.test(entrance)) {
-      setNote(t("칸과 입구 번호를 먼저 골라 주세요."));
+    if (!ready || !car || !door) {
+      setNote(t("칸과 문 번호를 먼저 골라 주세요."));
       return;
     }
     setBusy(true);
     setNote("");
-    const r = await api("/api/seat/car/feedback", "POST", { line, station, dir, dow: day, slot, car, entrance, seated });
+    const r = await api("/api/seat/car/feedback", "POST", { line, station, dir, dow: day, slot, car, entrance: door, seated });
     setBusy(false);
     if (!r.ok) return setNote(t(r.error));
     setNote(t("알려 주셔서 고마워요. 다음 안내에 반영돼요."));
-    setEntrance("");
   };
+
+  if (!ready) {
+    return (
+      <section className="rounded-2xl border border-line bg-white p-4" data-block-id="S062" data-block-name="탑승 칸 안내">
+        <p className="text-sm font-semibold text-ink">{t("이 시간에 타면")}</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-sub">{t("탑승역과 탑승 시각을 넣으면 혼잡도와 칸 안내를 바로 보여 드려요.")}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-4 rounded-2xl border border-line bg-white p-4" data-block-id="S062" data-block-name="탑승 칸 안내">
       <div className="space-y-1">
-        <p className="text-sm font-semibold text-ink">{t("앉을 가능성이 높은 칸")}</p>
-        <p className="text-[13px] leading-relaxed text-sub">{t("지나간 착석 기록으로 계산한 참고 정보이며, 실제 좌석은 보장되지 않아요.")}</p>
+        <p className="text-sm font-semibold text-ink">{t("이 시간에 타면")}</p>
+        <p className="text-[13px] text-sub">
+          {station} · {slot} · {dayName(lang, Number(day))}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <label className="block text-sm text-sub">
-          {t("방향")}
-          <select className={`${field} mt-1`} value={dir} onChange={(e) => setDir(e.target.value as Dir)}>
-            <option value="">{t("고르세요")}</option>
-            <option value="up">{t("상행")}</option>
-            <option value="down">{t("하행")}</option>
-          </select>
-        </label>
+        <div>
+          <p className="text-sm text-sub">{t("방향")}</p>
+          <div role="radiogroup" aria-label={t("방향")} className="mt-1 grid grid-cols-2 gap-1 rounded-xl bg-bg p-1">
+            {(["up", "down"] as Dir[]).map((d) => (
+              <button
+                key={d}
+                type="button"
+                role="radio"
+                aria-checked={dir === d}
+                onClick={() => setDir(d)}
+                className={`min-h-[40px] rounded-lg text-[14px] font-medium ${dir === d ? "bg-white text-ink shadow-sm" : "text-sub"}`}
+              >
+                {d === "up" ? t("상행") : t("하행")}
+              </button>
+            ))}
+          </div>
+        </div>
         <label className="block text-sm text-sub">
           {t("요일")}
           <select className={`${field} mt-1`} value={day} onChange={(e) => setDow(e.target.value)} disabled={!selectedDays.length}>
@@ -96,35 +124,26 @@ export default function SubwayCarGuide({ line, station, timeGo, days }: { line: 
         </label>
       </div>
 
-      {!dir && <p className="text-[14px] text-sub">{t("방향을 고르면 칸과 입구를 안내해 드려요.")}</p>}
+      {/* 답 1: 혼잡도 */}
+      {loading && !data && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
+      {err && <p className="text-[14px] text-warn">{err}</p>}
+      {data && (data.congestion ? <CongestionAnswer c={data.congestion} /> : <p className="text-[13px] text-sub">{t("이 역·방향은 혼잡도 자료가 없어요.")}</p>)}
 
-      {ready && data?.congestion && <CongestionCard c={data.congestion} dayLabel={dayName(lang, Number(day))} slot={slot} dirLabel={dir === "up" ? t("상행") : t("하행")} />}
-      {ready && data && !data.congestion && <p className="text-[13px] text-sub">{t("이 역·방향의 혼잡도 자료가 아직 없어요.")}</p>}
-
-      {ready && loading && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
-      {ready && err && <p className="text-[14px] text-warn">{err}</p>}
-
-      {ready && data?.status === "collecting" && (
-        <div className="space-y-2 rounded-2xl bg-bg px-4 py-3">
-          <p className="text-[15px] font-semibold text-ink">{t("데이터 수집 중")}</p>
-          <p className="text-[13px] leading-relaxed text-sub">
-            {t("이 시간대 착석 기록")} {data.total}/{MIN_SAMPLE}{t("건")}. {t("기록이 쌓이면 칸을 추천해 드려요.")}
-          </p>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-line" aria-hidden>
-            <div className="h-full rounded-full bg-violet" style={{ width: `${Math.min(100, (data.total / MIN_SAMPLE) * 100)}%` }} />
-          </div>
-        </div>
-      )}
-
-      {ready && top && data && data.status === "ready" && (
+      {/* 답 2: 칸 */}
+      {data?.status === "collecting" && <CollectingBox total={data.total} />}
+      {data?.status === "ready" && top && (
         <div className="space-y-3">
+          <p className="text-sm font-semibold text-ink">{t("앉을 가능성이 높은 위치")}</p>
           <ul className="space-y-2">
             {data.ranked.map((r, i) => (
               <li key={`${r.car}-${r.entrance}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-[15px] font-semibold text-ink">
                     {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
-                    {r.car}{t("호차")} · {t("입구")} {r.entrance}{t("번")}
+                    <span className="num">{positionLabel(r.car, r.entrance)}</span>
+                    <span className="ml-1.5 text-[13px] font-normal text-sub">
+                      {r.car}{t("번째 칸")} {r.entrance}{t("번 문")}
+                    </span>
                   </p>
                   <p className="num text-[12px] text-sub">{t("착석 기록")} {r.seated}/{r.n}{t("건")}</p>
                 </div>
@@ -134,56 +153,82 @@ export default function SubwayCarGuide({ line, station, timeGo, days }: { line: 
               </li>
             ))}
           </ul>
+          <p className="text-[12px] leading-relaxed text-sub">{t("승강장 바닥의 삼각형 표시(칸-문)를 찾아 그 앞에서 기다리세요. 지나간 착석 기록으로 계산한 참고 정보예요.")}</p>
           <CarPlan car={top.car} />
         </div>
       )}
+      {data?.status === "ready" && !top && <p className="text-[14px] text-sub">{t("아직 뚜렷한 위치가 없어요. 기록이 더 쌓이면 보여 드릴게요.")}</p>}
 
-      {ready && data?.status === "ready" && !top && <p className="text-[14px] text-sub">{t("아직 뚜렷한 칸이 없어요. 기록이 더 쌓이면 보여 드릴게요.")}</p>}
-
-      {ready && (
-        <div className="space-y-3 border-t border-line pt-4">
-          <p className="text-sm font-semibold text-ink">{t("방금 탄 곳 알려 주기")}</p>
+      {/* 기록 남기기: 접힌 영역 */}
+      <details className="rounded-2xl border border-line px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold text-ink">{t("방금 탄 위치 알려 주기")}</summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-[13px] leading-relaxed text-sub">{t("탄 곳 바닥의 삼각형 표시 번호(예: 6-1)를 골라 주세요.")}</p>
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-sm text-sub">
               {t("칸")}
               <select className={`${field} mt-1`} value={car} onChange={(e) => setCar(e.target.value)}>
                 <option value="">{t("고르세요")}</option>
                 {carNumbersOf(line).map((c) => (
-                  <option key={c} value={c}>{c}{t("호차")}</option>
+                  <option key={c} value={c}>{c}</option>
                 ))}
               </select>
             </label>
             <label className="block text-sm text-sub">
-              {t("입구 번호")}
-              <input className={`${field} num mt-1`} inputMode="numeric" maxLength={2} placeholder={t("예: 3")} value={entrance} onChange={(e) => setEntrance(e.target.value.replace(/\D/g, "").slice(0, 2))} />
+              {t("문")}
+              <select className={`${field} mt-1`} value={door} onChange={(e) => setDoor(e.target.value)}>
+                <option value="">{t("고르세요")}</option>
+                {DOOR_NUMBERS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </label>
           </div>
+          {car && door && <p className="num text-center text-[15px] font-semibold text-ink">{positionLabel(car, door)}</p>}
           <div className="grid grid-cols-2 gap-3">
             <button type="button" className={btnGhost} disabled={busy} onClick={() => send(true)}>{t("앉았어요")}</button>
             <button type="button" className={btnGhost} disabled={busy} onClick={() => send(false)}>{t("못 앉았어요")}</button>
           </div>
           {note && <p className="text-[13px] text-sub">{note}</p>}
         </div>
-      )}
+      </details>
     </section>
   );
 }
 
-/** 같은 역·방향·요일·시간대의 혼잡도(서울교통공사 2026년 6월 자료). 칸 추천과 따로 보여 준다. */
-function CongestionCard({ c, dayLabel, slot, dirLabel }: { c: Congestion; dayLabel: string; slot: string; dirLabel: string }) {
+/** 이 역·방향·요일·시간대의 혼잡도 답. 자료 출처를 함께 적는다. */
+function CongestionAnswer({ c }: { c: Congestion }) {
   const t = useT();
   return (
-    <div className="space-y-2 rounded-2xl bg-bg px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[14px] text-sub">{t("혼잡도")} <span className="num text-[18px] font-semibold text-ink">{c.pct}%</span></p>
+    <div className="space-y-3 rounded-2xl bg-bg px-4 py-4">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[13px] text-sub">{t("혼잡도")}</p>
+          <p className="num text-[32px] font-semibold leading-none text-ink">{c.pct}%</p>
+        </div>
         <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold ${c.level === "low" ? "bg-white text-sub" : "bg-violetSoft text-violet"}`}>{t(c.label)}</span>
       </div>
+      <p className="text-[15px] text-ink">{t(HINT[c.level])}</p>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-line" aria-hidden>
         <div className="h-full rounded-full bg-violet" style={{ width: `${Math.min(100, c.pct)}%` }} />
       </div>
-      <p className="text-[12px] leading-relaxed text-sub">
-        {dayLabel} {slot}~ · {dirLabel} {t("기준")} · {t("서울교통공사 2026년 6월 자료")}
+      <p className="text-[12px] leading-relaxed text-sub">{t("서울교통공사 2026년 6월 자료 · 이 역·방향·시간대 기준")}</p>
+    </div>
+  );
+}
+
+/** 칸 추천을 아직 보여 줄 수 없을 때의 상태. */
+function CollectingBox({ total }: { total: number }) {
+  const t = useT();
+  return (
+    <div className="space-y-2 rounded-2xl border border-line px-4 py-3">
+      <p className="text-[15px] font-semibold text-ink">{t("칸 추천 준비 중")}</p>
+      <p className="text-[13px] leading-relaxed text-sub">
+        {t("이 시간대 착석 기록")} {total}/{MIN_SAMPLE}{t("건")}. {t("기록이 쌓이면 칸과 문 위치를 추천해 드려요.")}
       </p>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line" aria-hidden>
+        <div className="h-full rounded-full bg-violet" style={{ width: `${Math.min(100, (total / MIN_SAMPLE) * 100)}%` }} />
+      </div>
     </div>
   );
 }

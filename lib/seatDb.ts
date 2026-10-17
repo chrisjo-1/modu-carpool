@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import type { SubwayPlan } from "./subway";
 import { rankCandidates, type Candidate, type SeatPlanRow } from "./seatMatch";
+import { compareCarNo, type CarMatch } from "./subwayPosition";
 
 /**
  * 앉아가기 전용 저장소(modu-seat). 모카 본 DB(DATABASE_URL)와 분리해 SEAT_DATABASE_URL로 접속한다.
@@ -63,6 +64,13 @@ export function ensureSeatSchema(): Promise<void> {
         seated boolean not null,
         created_at timestamptz not null default now())`;
       await sql`create index if not exists seat_feedback_lookup on seat_feedback (line, station, dir, dow, slot)`;
+      // 매칭된 두 사람이 탑승 후 넣는 차량 번호. 같은 칸 확인에만 쓰고 하루 뒤 지운다.
+      await sql`create table if not exists seat_car_confirm (
+        request_id uuid not null references seat_requests(id) on delete cascade,
+        user_id text not null,
+        car_no text not null,
+        created_at timestamptz not null default now(),
+        primary key (request_id, user_id))`;
     })().catch((e) => {
       ready = null;
       throw e;
@@ -183,8 +191,46 @@ export async function listRequests(userId: string) {
   const incoming = await sql`select r.id, r.status, r.created_at, p.time_go, p.board_car, p.board_gate
     from seat_requests r join seat_plans p on p.id = r.from_plan
     where r.to_user = ${userId} order by r.created_at desc limit 50`;
-  const outgoing = await sql`select r.id, r.status, r.created_at, p.time_go, p.board_car
+  const outgoing = await sql`select r.id, r.status, r.created_at, p.time_go, p.board_car, p.board_gate
     from seat_requests r join seat_plans p on p.id = r.to_plan
     where r.from_user = ${userId} order by r.created_at desc limit 50`;
   return { incoming, outgoing };
+}
+
+/** 수락된 매칭의 당사자인지 확인하고 노선을 돌려준다. */
+async function acceptedMatch(requestId: string, userId: string): Promise<string | null> {
+  const rows = await seatSql()`select p.board_line from seat_requests r join seat_plans p on p.id = r.to_plan
+    where r.id = ${requestId} and r.status = 'accepted' and (r.from_user = ${userId} or r.to_user = ${userId}) limit 1`;
+  return rows.length ? String(rows[0].board_line) : null;
+}
+
+/** 두 사람의 차량 번호를 비교한다. 한쪽만 넣었으면 null(기다리는 중). 상대 번호는 돌려주지 않는다. */
+async function compareFor(requestId: string, userId: string, line: string): Promise<{ mine: string; result: CarMatch | null }> {
+  const rows = await seatSql()`select user_id, car_no from seat_car_confirm where request_id = ${requestId}`;
+  const mine = rows.find((r) => String(r.user_id) === userId);
+  const other = rows.find((r) => String(r.user_id) !== userId);
+  const myNo = mine ? String(mine.car_no) : "";
+  return { mine: myNo, result: myNo && other ? compareCarNo(line, myNo, String(other.car_no)) : null };
+}
+
+export type ConfirmResult = { ok: true; mine: string; result: CarMatch | null } | { ok: false; error: string };
+
+/** 탑승 후 차량 번호를 넣는다(선택 기능). 하루가 지난 기록은 먼저 지운다. */
+export async function submitCarNo(requestId: string, userId: string, carNo: string): Promise<ConfirmResult> {
+  await ensureSeatSchema();
+  const sql = seatSql();
+  await sql`delete from seat_car_confirm where created_at < now() - interval '1 day'`;
+  const line = await acceptedMatch(requestId, userId);
+  if (!line) return { ok: false, error: "확인할 매칭이 없어요." };
+  await sql`insert into seat_car_confirm (request_id, user_id, car_no) values (${requestId}, ${userId}, ${carNo})
+    on conflict (request_id, user_id) do update set car_no = excluded.car_no, created_at = now()`;
+  return { ok: true, ...(await compareFor(requestId, userId, line)) };
+}
+
+/** 지금까지 넣은 차량 번호 확인 상태. */
+export async function getCarConfirm(requestId: string, userId: string): Promise<ConfirmResult> {
+  await ensureSeatSchema();
+  const line = await acceptedMatch(requestId, userId);
+  if (!line) return { ok: false, error: "확인할 매칭이 없어요." };
+  return { ok: true, ...(await compareFor(requestId, userId, line)) };
 }
