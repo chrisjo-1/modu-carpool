@@ -165,11 +165,12 @@ export function RoleTag({ role }: { role?: string }) {
 
 /** 여러 선택지 중 하나를 고르는 버튼 줄 */
 /** accents: 고른 항목을 진하게 강조할 색. accent = 파랑, mint = 초록 (운전자·탑승자 구분용) */
-export function Segment<T extends string>({ value, options, onChange, label, compact, accents }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string; compact?: boolean; accents?: Partial<Record<T, "accent" | "mint">> }) {
+export function Segment<T extends string>({ value, options, onChange, label, compact, accents }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string; compact?: boolean; accents?: Partial<Record<T, "accent" | "mint" | "violet">> }) {
   const onStyle = (v: T) => {
     const a = accents?.[v];
     if (a === "accent") return "bg-accent font-bold text-white shadow-card";
     if (a === "mint") return "bg-mint font-bold text-white shadow-card";
+    if (a === "violet") return "bg-violet font-bold text-white shadow-card";
     return "bg-white font-semibold text-ink shadow-sm";
   };
   return (

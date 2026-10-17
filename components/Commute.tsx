@@ -6,8 +6,13 @@ import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import PlaceField from "./PlaceField";
 import { Segment, Sheet, api, btnGhost, btnPrimary, field, useLang, useT } from "./ui";
+import dynamic from "next/dynamic";
+import { EMPTY_PLAN, planProblem, type SubwayPlan } from "@/lib/subway";
 
 import { TagPicker } from "./Keywords";
+
+// 지하철 입력 화면은 해당 탭을 열 때만 불러온다(시트 여는 속도 유지).
+const SubwayPanel = dynamic(() => import("./SubwayPanel"), { ssr: false, loading: () => <p className="text-sm text-sub">…</p> });
 
 /**
  * 비용: 출발 시간으로 자동 설정한다. 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시)면 금액 입력(주황색),
@@ -62,7 +67,9 @@ export default function CommuteSheet({
 }) {
   const t = useT();
   const lang = useLang();
-  const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
+  // 지하철 탭은 카풀 글이 아니라 앉아가기 이용 등록이다(저장은 준비 중).
+  const [role, setRole] = useState<"driver" | "rider" | "subway">(initial?.role ?? defaultRoleFor(user));
+  const [plan, setPlan] = useState<SubwayPlan>(EMPTY_PLAN);
   const [origin, setOrigin] = useState<Place>(prefill?.origin ?? { name: initial?.origin ?? "", lat: initial?.originLat ?? null, lng: initial?.originLng ?? null });
   const [dest, setDest] = useState<Place>(prefill?.dest ?? { name: initial?.dest ?? "", lat: initial?.destLat ?? null, lng: initial?.destLng ?? null });
   const [days, setDays] = useState(initial?.days || "12345");
@@ -84,6 +91,8 @@ export default function CommuteSheet({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // 지하철 탭 저장은 아직 열려 있지 않다.
+    if (role === "subway") return;
     if (role === "driver" && !carOk) return setCarGate(true);
     setBusy(true);
     const r = await api<{ updated: boolean; credit?: number }>("/api/posts", "PUT", {
@@ -121,11 +130,15 @@ export default function CommuteSheet({
         )}
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("나는")}</p>
-          <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
-          <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : t("탑승자: 같이 탈 차를 찾는 글이에요.")}</p>
+          <Segment<"driver" | "rider" | "subway"> label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")], ["subway", t("지하철")]]} accents={{ driver: "accent", rider: "mint", subway: "violet" }} />
+          <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : role === "rider" ? t("탑승자: 같이 탈 차를 찾는 글이에요.") : t("지하철: 지하철에서 앉아갈 자리를 나누는 등록이에요. 요일은 출퇴근 요일을 함께 씁니다.")}</p>
         </div>
-        <PlaceField blockId="F060" label={t("집 (출발지)")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
-        <PlaceField blockId="F061" label={t("회사 (도착지)")} placeholder={t("예: 강남역")} value={dest} onChange={setDest} toast={toast} />
+        {role !== "subway" && (
+          <>
+            <PlaceField blockId="F060" label={t("집 (출발지)")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
+            <PlaceField blockId="F061" label={t("회사 (도착지)")} placeholder={t("예: 강남역")} value={dest} onChange={setDest} toast={toast} />
+          </>
+        )}
 
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("출퇴근 요일")}</p>
@@ -141,35 +154,47 @@ export default function CommuteSheet({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block text-sm text-sub">
-            {t("출근 출발 시각")}
-            <input data-block-id="F062" className={`${field} num mt-1`} type="time" required value={timeGo} onChange={(e) => setTimeGo(e.target.value)} />
-          </label>
-          <label className={`block text-sm text-sub ${back ? "" : "opacity-40"}`}>
-            {t("퇴근 출발 시각")}
-            <input data-block-id="F063" className={`${field} num mt-1`} type="time" required={back} disabled={!back} value={timeBack} onChange={(e) => setTimeBack(e.target.value)} />
-          </label>
-        </div>
-        <label className="flex min-h-[44px] items-center gap-3 text-[15px]">
-          <input data-block-id="F064" type="checkbox" className="h-5 w-5 accent-[#2F6BFF]" checked={back} onChange={(e) => setBack(e.target.checked)} />
-          {t("퇴근길도 함께")}
-        </label>
+        {role === "subway" ? (
+          <SubwayPanel plan={plan} setPlan={setPlan} />
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm text-sub">
+                {t("출근 출발 시각")}
+                <input data-block-id="F062" className={`${field} num mt-1`} type="time" required value={timeGo} onChange={(e) => setTimeGo(e.target.value)} />
+              </label>
+              <label className={`block text-sm text-sub ${back ? "" : "opacity-40"}`}>
+                {t("퇴근 출발 시각")}
+                <input data-block-id="F063" className={`${field} num mt-1`} type="time" required={back} disabled={!back} value={timeBack} onChange={(e) => setTimeBack(e.target.value)} />
+              </label>
+            </div>
+            <label className="flex min-h-[44px] items-center gap-3 text-[15px]">
+              <input data-block-id="F064" type="checkbox" className="h-5 w-5 accent-[#2F6BFF]" checked={back} onChange={(e) => setBack(e.target.checked)} />
+              {t("퇴근길도 함께")}
+            </label>
 
+            <div className="space-y-1.5">
+              <p className="text-sm text-sub">{t("비용")}</p>
+              <CostField cost={cost} price={price} setPrice={setPrice} allowed={allowed} />
+            </div>
+            <TagPicker role={role} cost={cost === "fixed" && !allowed ? "free" : cost} value={tags} onChange={setTags} />
 
-        <div className="space-y-1.5">
-          <p className="text-sm text-sub">{t("비용")}</p>
-          <CostField cost={cost} price={price} setPrice={setPrice} allowed={allowed} />
-        </div>
-        <TagPicker role={role} cost={cost === "fixed" && !allowed ? "free" : cost} value={tags} onChange={setTags} />
-
-        <label className="block text-sm text-sub">
-          {t("남길 말 (선택)")}
-          <textarea data-block-id="F065" className={`${field} mt-1`} rows={2} maxLength={300} placeholder={t("타는 곳, 짐, 분위기 등을 적어 주세요.")} value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
+            <label className="block text-sm text-sub">
+              {t("남길 말 (선택)")}
+              <textarea data-block-id="F065" className={`${field} mt-1`} rows={2} maxLength={300} placeholder={t("타는 곳, 짐, 분위기 등을 적어 주세요.")} value={note} onChange={(e) => setNote(e.target.value)} />
+            </label>
+          </>
+        )}
 
         <div className="space-y-2">
-          <button data-block-id="B060" data-block-name="정기카풀 게시" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : initial ? t("저장") : t("정기카풀로 게시하기")}</button>
+          {role === "subway" ? (
+            <>
+              <button data-block-id="B061" data-block-name="지하철 앉아가기 저장" className={btnPrimary} disabled>{t("준비 중")}</button>
+              {planProblem(plan) && <p className="text-center text-[13px] text-sub">{t(planProblem(plan) as string)}</p>}
+            </>
+          ) : (
+            <button data-block-id="B060" data-block-name="정기카풀 게시" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : initial ? t("저장") : t("정기카풀로 게시하기")}</button>
+          )}
         </div>
       </form>
     </Sheet>

@@ -155,6 +155,12 @@ function CallSheet({ onClose, toast, onGoProfile }: { onClose: () => void; toast
       {step === "choose" && (
         <div className="space-y-3">
           <button type="button" data-block-id="B218" data-block-name="택시동승 호출" className={btnGhost} onClick={taxi}>{t("택시동승 호출")}</button>
+          <div className="space-y-1.5">
+            <button type="button" data-block-id="B222" data-block-name="지하철 앉아가기 호출" className="w-full rounded-xl border border-violet bg-violetSoft px-4 py-3 text-[16px] font-semibold text-violet disabled:opacity-70" disabled>
+              {t("지하철 앉아가기")} · {t("준비 중")}
+            </button>
+            <p className="px-1 text-[13px] leading-relaxed text-sub">{t("지하철 앉아가기는 준비 중이에요. 오픈되면 이 자리에서 호출할 수 있어요.")}</p>
+          </div>
           {ready === false && <RegisterContact onGoProfile={onGoProfile} />}
           {band !== null && (
             <p data-block-id="C500" data-block-name="주변 운전자 수" className="rounded-2xl bg-bg px-4 py-3 text-[15px] font-semibold text-ink">
