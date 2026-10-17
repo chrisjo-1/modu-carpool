@@ -3,6 +3,8 @@ import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { HIDDEN_TEXT } from "./Me";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import CarInput from "./CarInput";
 import { METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
 import { Bubble, RoleTag, Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
@@ -64,19 +66,18 @@ export function Route({ origin, dest }: { origin: string; dest: string }) {
  * 차량이 없는 상태에서 운전자로 바꾸려 하면 내 정보(차량 등록)로 보낸다.
  * 바꾼 역할은 프로필 희망 역할로 저장되며, 카풀 등록의 기본 역할이 된다.
  */
-export function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | null; onUser?: (u: User) => void; toast: (m: string) => void; onGoProfile?: () => void }) {
+export function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?: (u: User) => void; toast: (m: string) => void; onGoProfile?: () => void }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
+  const [carOpen, setCarOpen] = useState(false);
   if (!user) return null;
   const current = defaultRoleFor(user);
   const registered = !!(user.carNo && user.carPhoto);
   const toggle = async () => {
     if (busy) return;
+    // 탑승자 모드에서 차량이 없으면 내 차량 등록창을 띄운다. 저장하면 닫힌다.
+    if (current === "rider" && !registered) return setCarOpen(true);
     const next = current === "driver" ? "rider" : "driver";
-    if (next === "driver" && !registered) {
-      toast(t("운전자는 차량을 등록한 뒤 쓸 수 있어요."));
-      return onGoProfile?.();
-    }
     setBusy(true);
     const res = await api<{ user: User }>("/api/auth", "PATCH", { rolePref: next });
     setBusy(false);
@@ -85,6 +86,7 @@ export function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | 
   };
   const isDriver = current === "driver";
   return (
+    <>
     <button
       type="button"
       data-block-id="B302"
@@ -96,6 +98,22 @@ export function RoleSwitch({ user, onUser, toast, onGoProfile }: { user: User | 
     >
       {isDriver ? t("운전자 모드") : t("탑승자 모드")}
     </button>
+    {carOpen &&
+      createPortal(
+        <Sheet title={t("내 차량 등록")} blockId="S331" onClose={() => setCarOpen(false)}>
+          <CarInput
+            user={user}
+            toast={toast}
+            onSaved={(u) => {
+              onUser?.(u);
+              window.dispatchEvent(new CustomEvent("moducarpool:user", { detail: u }));
+              setCarOpen(false);
+            }}
+          />
+        </Sheet>,
+        document.body,
+      )}
+    </>
   );
 }
 
