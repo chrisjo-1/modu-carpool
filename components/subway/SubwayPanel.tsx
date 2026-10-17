@@ -3,10 +3,9 @@ import { useEffect, useState } from "react";
 import { ALL_LINES, carNumbersOf, DEFAULT_PILOT_LINES, LINE_STATIONS, type LineId, type SubwayPlan } from "@/lib/subway";
 import { DOOR_NUMBERS, positionLabel } from "@/lib/subwayPosition";
 import { field, useT } from "../ui";
-import SubwayCarGuide from "./SubwayCarGuide";
 
 /** 지하철 탭의 입력 화면. 탭을 열었을 때만 불러온다(동적 로드). 요일은 상위 시트의 값을 쓴다. */
-export default function SubwayPanel({ plan, setPlan, onPilot, days = "" }: { plan: SubwayPlan; setPlan: (p: SubwayPlan) => void; onPilot?: (p: LineId[]) => void; days?: string }) {
+export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPlan; setPlan: (p: SubwayPlan) => void; onPilot?: (p: LineId[]) => void; days?: string }) {
   const t = useT();
   const [pilot, setPilot] = useState<LineId[]>(DEFAULT_PILOT_LINES);
   const set = (patch: Partial<SubwayPlan>) => setPlan({ ...plan, ...patch });
@@ -100,7 +99,6 @@ export default function SubwayPanel({ plan, setPlan, onPilot, days = "" }: { pla
         </label>
       </div>
 
-      {plan.board && <SubwayCarGuide line={plan.boardLine} station={plan.board} timeGo={plan.timeGo} days={days} />}
 
       <label className="flex min-h-[44px] items-center gap-3 text-[15px]">
         <input type="checkbox" className="h-5 w-5 accent-[#7C3AED]" checked={plan.back} onChange={(e) => set({ back: e.target.checked })} />

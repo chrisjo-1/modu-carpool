@@ -7,14 +7,16 @@ import { api, field, useT } from "../ui";
 type Req = { id: string; status: string; time_go: string; board_car: string; board_gate?: string };
 
 /** 수락된 앉아가기 매칭 목록. 각 매칭에서 만날 위치와 차량 번호 확인(선택)을 보여 준다. */
-export default function SubwayMatches({ onHelp }: { onHelp: () => void }) {
+export default function SubwayMatches() {
   const t = useT();
   const [list, setList] = useState<Req[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
     api<{ incoming: Req[]; outgoing: Req[] }>("/api/seat/request").then((r) => {
-      if (!alive || !r.ok) return;
+      if (!alive) return;
+      if (!r.ok) return setFailed(true);
       setList([...r.data.incoming, ...r.data.outgoing].filter((x) => x.status === "accepted"));
     });
     return () => {
@@ -22,13 +24,11 @@ export default function SubwayMatches({ onHelp }: { onHelp: () => void }) {
     };
   }, []);
 
-  if (!list || !list.length) return null;
+  if (failed) return <p className="text-[14px] text-sub">{t("매칭 정보를 불러오지 못했어요. 잠시 후 다시 열어 주세요.")}</p>;
+  if (!list) return <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>;
+  if (!list.length) return <p className="text-[14px] text-sub">{t("아직 수락된 매칭이 없어요. 매칭되면 만날 위치와 같은 칸 확인이 여기에 나와요.")}</p>;
   return (
     <section className="space-y-3" data-block-id="S072" data-block-name="내 매칭">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[16px] font-semibold text-ink">{t("내 매칭")}</h3>
-        <button type="button" className="text-[13px] font-medium text-violet" onClick={onHelp}>{t("위치 찾는 법")}</button>
-      </div>
       {list.map((m) => (
         <MatchCard key={m.id} m={m} />
       ))}
