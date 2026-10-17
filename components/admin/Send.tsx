@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type Segment = { key: string; label: string };
 type Template = { key: string; label: string; category: string; subject: string; body: string };
 type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number };
-type Data = { policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[] };
+type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
+type Saved = { id: string; name: string; category: string; subject: string; body: string };
+type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[] };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const btn = "rounded-lg border border-line bg-white px-3 py-2 text-[14px] font-semibold hover:bg-bg disabled:opacity-50";
@@ -34,6 +36,10 @@ export default function AdminSend() {
   const [running, setRunning] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const stopRef = useRef(false);
+  const [saved, setSaved] = useState<Saved[]>([]);
+  const [savedId, setSavedId] = useState("");
+  const [saveName, setSaveName] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/admin/campaigns");
@@ -104,6 +110,61 @@ export default function AdminSend() {
     load();
   };
 
+  const loadSaved = useCallback(async () => {
+    const r = await fetch("/api/admin/mail-templates");
+    if (r.ok) setSaved((await r.json()).templates ?? []);
+  }, []);
+  useEffect(() => { loadSaved(); }, [loadSaved]);
+
+  const applySaved = (id: string) => {
+    setSavedId(id);
+    const t = saved.find((x) => x.id === id);
+    if (!t) return;
+    setCategory(t.category as "transactional" | "marketing");
+    setTemplateKey("custom");
+    setSubject(t.subject);
+    setBodyText(t.body);
+    if (!title) setTitle(t.name);
+    setMsg(`"${t.name}" 작성본을 불러왔어요. 고쳐서 발송할 수 있어요.`);
+  };
+
+  const saveWork = async () => {
+    const name = saveName.trim() || title.trim();
+    if (!name) return setMsg("저장할 이름을 적어 주세요.");
+    setBusy(true);
+    const r = await fetch("/api/admin/mail-templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: savedId || undefined, name, category, subject, body: bodyText }) });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) return setMsg(j.error ?? "저장하지 못했습니다.");
+    setSavedId(j.id);
+    setSaveName("");
+    setMsg(`"${name}" 작성본으로 저장했어요.`);
+    loadSaved();
+  };
+
+  const deleteSaved = async () => {
+    const t = saved.find((x) => x.id === savedId);
+    if (!t || !window.confirm(`"${t.name}" 작성본을 삭제할까요? 이미 보낸 메일에는 영향이 없어요.`)) return;
+    await fetch(`/api/admin/mail-templates?id=${t.id}`, { method: "DELETE" });
+    setSavedId("");
+    setMsg("작성본을 삭제했어요.");
+    loadSaved();
+  };
+
+  const uploadImage = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    setMsg("");
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch("/api/admin/mail-images", { method: "POST", body: fd });
+    const j = await r.json().catch(() => ({}));
+    setUploading(false);
+    if (!r.ok) return setMsg(j.error ?? "이미지를 올리지 못했습니다.");
+    setBodyText((b) => (b ? `${b}\n\n${j.token}` : j.token));
+    setMsg("이미지를 본문 끝에 넣었어요. 위치는 {{img}} 줄을 옮겨서 바꿀 수 있어요.");
+  };
+
   const cancel = async (c: Campaign) => {
     if (!window.confirm(`"${c.title}" 캠페인을 취소할까요? 아직 나가지 않은 대상만 멈춥니다.`)) return;
     await fetch(`/api/admin/campaigns/${c.id}`, { method: "PATCH" });
@@ -127,6 +188,17 @@ export default function AdminSend() {
             {d?.templates.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </label>
+
+        <div className="grid gap-2 rounded-xl bg-bg p-4 text-[14px]">
+          <span className="font-semibold">저장한 작성본</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <select className={`${input} sm:max-w-xs`} value={savedId} onChange={(e) => applySaved(e.target.value)} aria-label="저장한 작성본 고르기">
+              <option value="">{saved.length ? "작성본을 골라 불러오기" : "저장한 작성본이 없어요"}</option>
+              {saved.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.category === "marketing" ? "광고성" : "안내"})</option>)}
+            </select>
+            <button type="button" className={btn} disabled={!savedId} onClick={deleteSaved}>삭제</button>
+          </div>
+        </div>
 
         <fieldset className="grid gap-1 text-[14px]">
           <span className="font-semibold">메일 종류</span>
@@ -161,6 +233,20 @@ export default function AdminSend() {
           <span className="font-semibold">본문 (빈 줄로 문단을 나눠요)</span>
           <textarea className={`${input} min-h-[220px]`} value={bodyText} onChange={(e) => setBodyText(e.target.value)} maxLength={5000} />
         </label>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="grid gap-1 text-[14px]">
+            <span className="font-semibold">이미지 넣기 (1MB 이하 png·jpg·gif·webp)</span>
+            <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" disabled={uploading} onChange={(e) => { uploadImage(e.target.files?.[0]); e.target.value = ""; }} className="text-[14px]" />
+          </label>
+          {uploading && <span className="text-[14px] text-sub">올리는 중…</span>}
+        </div>
+        <div className="flex flex-wrap items-end gap-2 rounded-xl bg-bg p-4">
+          <label className="grid flex-1 gap-1 text-[14px]">
+            <span className="font-semibold">작성본 이름 (다음에 불러올 때 쓰는 이름)</span>
+            <input className={input} value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder="비우면 캠페인 이름을 씁니다" maxLength={80} />
+          </label>
+          <button type="button" className={btn} disabled={busy || !subject || !bodyText} onClick={saveWork}>{savedId ? "불러온 작성본에 덮어쓰기" : "작성본으로 저장"}</button>
+        </div>
 
         <div className="grid gap-2 rounded-xl bg-bg p-4 text-[14px]">
           <span className="font-semibold">미리보기 (텍스트)</span>
@@ -214,6 +300,27 @@ export default function AdminSend() {
                       </div>
                     )}
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section className="grid gap-3">
+        <h2 className="text-[18px] font-bold">발송 기록 <span className="text-sm font-normal text-sub">최근 200건</span></h2>
+        <div className="overflow-x-auto rounded-2xl border border-line bg-white">
+          <table className="w-full text-left text-[14px]">
+            <thead className="bg-bg text-sub">
+              <tr><th className="p-3">보낸 때</th><th className="p-3">받는 사람</th><th className="p-3">제목</th><th className="p-3">결과</th></tr>
+            </thead>
+            <tbody>
+              {d?.history.length === 0 && <tr><td className="p-4 text-sub" colSpan={4}>아직 보낸 기록이 없습니다.</td></tr>}
+              {d?.history.map((h, i) => (
+                <tr key={`${h.created_at}-${i}`} className="border-t border-line">
+                  <td className="p-3 whitespace-nowrap">{when(h.created_at)}</td>
+                  <td className="p-3">{h.to_email}</td>
+                  <td className="p-3">{h.subject}</td>
+                  <td className="p-3">{h.status}</td>
                 </tr>
               ))}
             </tbody>

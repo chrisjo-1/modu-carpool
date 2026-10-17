@@ -10,7 +10,11 @@ export const SEGMENTS: [Segment, string][] = [
   ["legacy_unjoined", "구워프 미가입자 (이메일 있음)"],
 ];
 
-export type Audience = { segment: Segment; onlyConsent: boolean; onlyDriver: boolean };
+/** marketing: 광고성 메일이면 true. subject: 같은 제목을 이미 받은 주소는 뺀다. */
+export type Audience = { segment: Segment; onlyConsent: boolean; onlyDriver: boolean; marketing?: boolean; subject?: string };
+
+/** 광고성 메일은 같은 회원에게 이 기간(일) 안에 한 번만 보낸다 */
+export const MARKETING_GAP_DAYS = 7;
 
 /** 발송 종류 템플릿. 문구는 초안이므로 발송 전에 반드시 검토한다. */
 export const TEMPLATES: { key: string; label: string; category: MailCategory; subject: string; body: string }[] = [
@@ -44,6 +48,8 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
   const cid = opt.campaignId ?? null;
   const before = opt.before ?? null;
   const lim = Math.min(Math.max(opt.limit ?? 100000, 1), 100000);
+  const subj: string | null = (a.subject ?? "").trim() || null;
+  const mk = a.marketing === true;
   if (a.segment === "legacy_unjoined") {
     // 구워프 미가입자는 동의 정보가 없어 광고성 조건과 맞지 않는다(안내 메일 전용)
     if (a.onlyConsent || a.onlyDriver) return [];
@@ -52,6 +58,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         and (${before}::timestamptz is null or l.imported_at <= ${before}::timestamptz)
         and not exists (select 1 from users u where lower(u.email) = lower(l.email_norm))
         and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(l.email_norm)))
+        and (${subj}::text is null or not exists (select 1 from mail_log g3 where g3.to_email = lower(l.email_norm) and g3.subject = ${subj}::text and g3.status = 'sent'))
       order by email limit ${lim}`) as { user_id: string | null; email: string }[];
   }
   return (await sql`select u.id as user_id, lower(u.email) as email from users u
@@ -63,6 +70,8 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
       and (${a.onlyConsent} = false or u.marketing = true)
       and (${a.onlyDriver} = false or (u.car_no <> '' and u.car_v > 0))
       and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(u.email)))
+      and (${subj}::text is null or not exists (select 1 from mail_log g2 where g2.to_email = lower(u.email) and g2.subject = ${subj}::text and g2.status = 'sent'))
+      and (${mk} = false or not exists (select 1 from mail_log g4 where g4.to_email = lower(u.email) and g4.category = 'marketing' and g4.status = 'sent' and g4.created_at > now() - make_interval(days => ${MARKETING_GAP_DAYS}::int)))
     order by email limit ${lim}`) as { user_id: string | null; email: string }[];
 }
 
@@ -70,7 +79,8 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 
 /** 본문 텍스트를 메일 모양으로 바꾼다. 빈 줄은 문단, 줄바꿈은 줄바꿈으로 둔다. */
 export function renderHtml(text: string): string {
-  const paras = text.trim().split(/\n\s*\n/).map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.7">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+  const paras = text.trim().split(/\n\s*\n/).map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.7">${esc(p).replace(/\n/g, "<br>")}</p>`).join("")
+    .replace(/\{\{img:([0-9a-f-]{36})\}\}/g, (_m, id: string) => `<img src="${SITE}/api/mail/image/${id}" alt="" style="display:block;max-width:100%;height:auto;margin:0 0 16px;border-radius:12px" />`);
   return `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
 <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
@@ -82,5 +92,5 @@ const SEG = new Set<string>(SEGMENTS.map((s) => s[0]));
 export function parseAudience(b: Record<string, unknown>): Audience | null {
   const seg = typeof b.segment === "string" && SEG.has(b.segment) ? (b.segment as Segment) : null;
   if (!seg) return null;
-  return { segment: seg, onlyConsent: b.onlyConsent === true, onlyDriver: b.onlyDriver === true };
+  return { segment: seg, onlyConsent: b.onlyConsent === true, onlyDriver: b.onlyDriver === true, marketing: b.category === "marketing", subject: typeof b.subject === "string" ? b.subject.trim() : "" };
 }

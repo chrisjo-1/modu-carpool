@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (c.status === "done") return json({ ok: true, sent: 0, more: false, held: null, done: true });
     if (c.status === "draft") await sql`update mail_campaigns set status = 'sending', started_at = now() where id = ${id}`;
 
-    const a: Audience = { segment: c.segment as Segment, onlyConsent: !!c.only_consent, onlyDriver: !!c.only_driver };
+    const a: Audience = { segment: c.segment as Segment, onlyConsent: !!c.only_consent, onlyDriver: !!c.only_driver, marketing: c.category === "marketing", subject: String(c.subject ?? "") };
     const category = c.category as MailCategory;
     const before = new Date(c.created_at as string).toISOString();
     const rows = await audienceRows(a, { campaignId: id, before, limit });

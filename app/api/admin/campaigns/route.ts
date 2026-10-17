@@ -22,6 +22,7 @@ export async function GET() {
       policy,
       segments: SEGMENTS.map(([key, label]) => ({ key, label })),
       templates: TEMPLATES.map(({ key, label, category, subject, body }) => ({ key, label, category, subject, body })),
+      history: (await sql`select g.created_at, g.to_email, g.subject, g.status, g.kind, g.campaign_id from mail_log g order by g.created_at desc limit 200`).map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
       campaigns: rows.map((r) => ({
         ...r,
         created_at: new Date(r.created_at as string).getTime(),

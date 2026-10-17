@@ -289,6 +289,21 @@ export function ensureSchema(): Promise<void> {
         error text not null default '',
         provider_id text not null default '')`;
       await sql`create index if not exists mail_log_created_idx on mail_log (created_at)`;
+      // 발송 작성본(이름을 붙여 저장)과 메일에 넣을 이미지(작은 파일, base64)
+      await sql`create table if not exists mail_templates (
+        id uuid primary key default gen_random_uuid(),
+        created_at timestamptz not null default now(),
+        name text not null,
+        category text not null default 'transactional',
+        subject text not null default '',
+        body text not null default '')`;
+      await sql`create table if not exists mail_images (
+        id uuid primary key default gen_random_uuid(),
+        created_at timestamptz not null default now(),
+        content_type text not null,
+        data text not null)`;
+      // 중복 발송 확인(같은 제목·같은 주소·보낸 기록)을 빠르게 찾게 한다
+      await sql`create index if not exists mail_log_dedupe_idx on mail_log (to_email, subject, status)`;
       await sql`alter table mail_log add column if not exists campaign_id uuid`;
       await sql`create index if not exists mail_log_campaign_idx on mail_log (campaign_id, to_email)`;
       await sql`create table if not exists mail_campaigns (
