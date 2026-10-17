@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import type { SubwayPlan } from "./subway";
-import { rankCandidates, type Candidate, type SeatPlanRow } from "./seatMatch";
+import { rankCandidates, seatPair, type Candidate, type SeatPair, type SeatPlanRow } from "./seatMatch";
 import { compareCarNo, type CarMatch } from "./subwayPosition";
 
 /**
@@ -148,11 +148,11 @@ export async function closePlan(userId: string): Promise<void> {
   await seatSql()`update seat_plans set status = 'closed', updated_at = now() where user_id = ${userId} and status = 'active'`;
 }
 
-/** 같은 노선 조합의 활성 등록 중 내 것이 아닌 것들을 가져온다. 역·시각 판정은 rankCandidates가 한다. */
+/** 같은 노선의 활성 등록 중 내 것이 아닌 것들을 가져온다. 방향·정거장·시각 판정은 rankCandidates가 한다(출근만). */
 export async function listCandidates(me: SeatPlanRow): Promise<Candidate[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select * from seat_plans
-    where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.alightLine} and user_id <> ${me.userId}`;
+    where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.boardLine} and user_id <> ${me.userId}`;
   return rankCandidates(me, rows.map((r) => toRow(r as Raw)));
 }
 
@@ -184,17 +184,39 @@ export async function respondRequest(requestId: string, toUser: string, accept: 
   return { ok: true, status: String(rows[0].status) };
 }
 
-/** 내가 받은 요청과 보낸 요청. 상대의 회원 번호는 주지 않고 시각·칸 정도만 보여 준다. */
-export async function listRequests(userId: string) {
+export type RequestView = {
+  id: string;
+  status: string;
+  incoming: boolean;
+  otherPlanId: number;
+  /** 상대의 탑승 시각 */
+  otherTime: string;
+  /** 자리 나눔 정보(take = 내가 받음, give = 내 자리를 상대가 받음). 등록이 바뀌어 더 맞지 않으면 null */
+  pair: (SeatPair & { role: "take" | "give" }) | null;
+};
+
+/** 내가 받은 요청과 보낸 요청. 상대의 회원 번호는 주지 않고 역·시각·칸-문만 보여 준다. */
+export async function listRequests(userId: string): Promise<{ incoming: RequestView[]; outgoing: RequestView[] }> {
   await ensureSeatSchema();
   const sql = seatSql();
-  const incoming = await sql`select r.id, r.status, r.created_at, p.time_go, p.board_car, p.board_gate
-    from seat_requests r join seat_plans p on p.id = r.from_plan
-    where r.to_user = ${userId} order by r.created_at desc limit 50`;
-  const outgoing = await sql`select r.id, r.status, r.created_at, p.time_go, p.board_car, p.board_gate
-    from seat_requests r join seat_plans p on p.id = r.to_plan
-    where r.from_user = ${userId} order by r.created_at desc limit 50`;
-  return { incoming, outgoing };
+  const rows = await sql`select id, status, from_user, to_user, from_plan, to_plan from seat_requests
+    where from_user = ${userId} or to_user = ${userId} order by created_at desc limit 100`;
+  const ids = [...new Set(rows.flatMap((r) => [Number(r.from_plan), Number(r.to_plan)]))];
+  const plans = ids.length ? await sql`select * from seat_plans where id = any(${ids})` : [];
+  const byId = new Map(plans.map((p) => [Number(p.id), toRow(p as Raw)]));
+  const view: RequestView[] = rows.map((r) => {
+    const incoming = String(r.to_user) === userId;
+    const mine = byId.get(Number(incoming ? r.to_plan : r.from_plan));
+    const other = byId.get(Number(incoming ? r.from_plan : r.to_plan));
+    let pair: RequestView["pair"] = null;
+    if (mine && other) {
+      const take = seatPair(mine, other);
+      const give = take ? null : seatPair(other, mine);
+      pair = take ? { ...take, role: "take" } : give ? { ...give, role: "give" } : null;
+    }
+    return { id: String(r.id), status: String(r.status), incoming, otherPlanId: other?.id ?? 0, otherTime: other?.timeGo ?? "", pair };
+  });
+  return { incoming: view.filter((v) => v.incoming), outgoing: view.filter((v) => !v.incoming) };
 }
 
 /** 수락된 매칭의 당사자인지 확인하고 노선을 돌려준다. */

@@ -75,7 +75,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
           )}
         </div>
         {!loaded && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
-        {loaded && plan && plan.board && <SubwayCarGuide line={plan.boardLine} station={plan.board} timeGo={plan.timeGo} days={days} />}
+        {loaded && plan && plan.board && <SubwayCarGuide line={plan.boardLine} station={plan.board} alight={plan.boardLine === plan.alightLine ? plan.alight : ""} timeGo={plan.timeGo} days={days} />}
         {loaded && !plan && <EmptyPlan />}
       </div>
 

@@ -1,5 +1,5 @@
 import { db } from "./server";
-import type { MailCategory } from "./mail";
+import { siteLinkBlock, type MailCategory } from "./mail";
 import { SITE_URL as SITE } from "./site";
 
 export type Segment = "members" | "new_warp" | "legacy_joined" | "legacy_unjoined";
@@ -85,6 +85,7 @@ export function renderHtml(text: string): string {
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
 <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
 ${paras}
+<div style="border-top:1px solid #E5E8EB;margin-top:8px;padding-top:16px">${siteLinkBlock()}</div>
 </div></div>`;
 }
 

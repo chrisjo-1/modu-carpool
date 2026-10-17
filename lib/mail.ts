@@ -86,6 +86,34 @@ async function blockCheck(m: Mail): Promise<{ code: "log" | "off" | "quiet" | "c
 }
 
 /** 메일을 보내고 결과를 돌려준다. 이력은 보류가 아닌 경우에만 남긴다. */
+/** 메일 안에 서비스 주소·바로가기 버튼이 이미 있다는 표시. 없으면 발송할 때 자동으로 붙인다. */
+export const SITE_MARK = "<!--site-link-->";
+const SITE_HOST = SITE.replace(/^https?:\/\//, "");
+const FONT = "-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif";
+
+/**
+ * 서비스 주소와 "모두의카풀 바로가기" 버튼. 모든 메일에 반드시 들어간다.
+ * outline: 이미 파란 행동 버튼(인증하기 등)이 있는 메일에서는 테두리 버튼으로 겹쳐 보이지 않게 한다.
+ */
+export function siteLinkBlock(outline = false): string {
+  const btn = outline
+    ? "background:#ffffff;color:#2F6BFF;border:1px solid #2F6BFF"
+    : "background:#2F6BFF;color:#ffffff;border:1px solid #2F6BFF";
+  return `${SITE_MARK}<div style="text-align:center;padding:8px 0 0">
+<a href="${SITE}" style="display:inline-block;${btn};text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px;font-family:${FONT}">모두의카풀 바로가기</a>
+<p style="margin:10px 0 0;font-size:13px;line-height:1.6;color:#4E5968;font-family:${FONT}">서비스 주소: <a href="${SITE}" style="color:#2F6BFF;text-decoration:underline">${SITE_HOST}</a></p>
+</div>`;
+}
+
+/** 주소·바로가기가 빠진 메일에 붙인다(빠뜨리지 않도록 발송 한 곳에서 처리). */
+export function ensureSiteLink(html: string, text: string): { html: string; text: string } {
+  const outHtml = html.includes(SITE_MARK)
+    ? html
+    : `${html}<div style="max-width:480px;margin:0 auto;padding:16px 4px 4px">${siteLinkBlock(html.includes("background:#2F6BFF"))}</div>`;
+  const outText = text.includes(SITE) ? text : `${text}\n\n모두의카풀 바로가기: ${SITE}`;
+  return { html: outHtml, text: outText };
+}
+
 export async function deliverWithStatus(m: Mail): Promise<Status> {
   try {
     if (m.category === "marketing" && !m.testOnly) {
@@ -102,10 +130,12 @@ export async function deliverWithStatus(m: Mail): Promise<Status> {
     }
     // 광고성 메일에는 수신거부 링크와 원클릭 수신거부 헤더를 붙인다(테스트 발송도 같은 모양으로 보인다).
     const url = m.category === "marketing" ? unsubUrl(m.to) : "";
+    // 모든 메일에 서비스 주소와 바로가기 버튼을 넣는다.
+    const linked = ensureSiteLink(m.html, m.text);
     const html = m.category === "marketing"
-      ? `${m.html}<div style="max-width:480px;margin:0 auto;padding:12px 4px;font-size:12px;line-height:1.6;color:#8B95A1;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">광고성 메일을 원하지 않으시면 <a href="${url}" style="color:#8B95A1">수신거부</a>를 눌러 주세요.</div>`
-      : m.html;
-    const text = m.category === "marketing" ? `${m.text}\n\n수신거부: ${url}` : m.text;
+      ? `${linked.html}<div style="max-width:480px;margin:0 auto;padding:12px 4px;font-size:12px;line-height:1.6;color:#8B95A1;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">광고성 메일을 원하지 않으시면 <a href="${url}" style="color:#8B95A1">수신거부</a>를 눌러 주세요.</div>`
+      : linked.html;
+    const text = m.category === "marketing" ? `${linked.text}\n\n수신거부: ${url}` : linked.text;
     if (process.env.MAIL_DRYRUN === "1") {
       console.log(`[mail] to=${m.to} | ${m.subject}`);
       await record(m, "dryrun", m.testOnly ? "테스트 발송" : "");

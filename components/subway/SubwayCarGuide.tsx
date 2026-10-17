@@ -5,6 +5,7 @@ import { MIN_SAMPLE, slotOf, LEVEL_LABEL, type CarRank, type GuideResult } from 
 import type { Congestion, CongestionLevel } from "@/lib/congestion";
 import { carNumbersOf, type LineId } from "@/lib/subway";
 import { DOOR_NUMBERS, positionLabel } from "@/lib/subwayPosition";
+import { headingFor, headingsAt } from "@/lib/subwayRoute";
 import { api, btnGhost, field, useLang, useT } from "../ui";
 
 type Dir = "up" | "down";
@@ -22,11 +23,17 @@ const HINT: Record<CongestionLevel, string> = {
  * 탑승 칸 안내. 역과 탑승 시각이 있으면 바로 혼잡도 답을 보여 주고,
  * 칸 추천은 착석 기록이 쌓이면 이어서 보여 준다. 기록 남기기는 접힌 영역에 둔다.
  */
-export default function SubwayCarGuide({ line, station, timeGo, days }: { line: LineId; station: string; timeGo: string; days: string }) {
+export default function SubwayCarGuide({ line, station, alight = "", timeGo, days }: { line: LineId; station: string; alight?: string; timeGo: string; days: string }) {
   const t = useT();
   const lang = useLang();
   const selectedDays = useMemo(() => [...days].filter((d) => /^[0-6]$/.test(d)).sort(), [days]);
-  const [dir, setDir] = useState<Dir>("up");
+  // 방향은 상행/하행 대신 다음역(종착역) 이름으로 고른다. 하차역이 있으면 그 방향을 먼저 고른다.
+  const headings = useMemo(() => headingsAt(line, station), [line, station]);
+  const preferred = useMemo(() => (alight ? headingFor(line, station, alight)?.next ?? "" : ""), [line, station, alight]);
+  const [pick, setPick] = useState("");
+  const [fallbackDir, setFallbackDir] = useState<Dir>("up"); // 역 순서가 없는 노선용
+  const heading = headings.find((h) => h.next === pick) ?? headings.find((h) => h.next === preferred) ?? headings[0];
+  const dir: Dir = heading ? heading.dir : fallbackDir;
   const [dow, setDow] = useState<string>("");
   const [data, setData] = useState<Guide | null>(null);
   const [loading, setLoading] = useState(false);
@@ -96,33 +103,54 @@ export default function SubwayCarGuide({ line, station, timeGo, days }: { line: 
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-sm text-sub">{t("방향")}</p>
-          <div role="radiogroup" aria-label={t("방향")} className="mt-1 grid grid-cols-2 gap-1 rounded-xl bg-bg p-1">
+      <div className="space-y-1.5">
+        <p className="text-sm text-sub">{t("방향")}</p>
+        {headings.length > 0 ? (
+          <div role="radiogroup" aria-label={t("방향")} className="flex flex-wrap gap-2">
+            {headings.map((h) => {
+              const on = heading?.next === h.next;
+              return (
+                <button
+                  key={h.next}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setPick(h.next)}
+                  className={`min-h-[44px] rounded-xl border px-3 py-1.5 text-left ${on ? "border-violet bg-violetSoft" : "border-line bg-white"}`}
+                >
+                  <span className={`block text-[14px] font-semibold ${on ? "text-violet" : "text-ink"}`}>{h.terminal ?? h.next} {t("방면")}</span>
+                  <span className="block text-[12px] text-sub">{t("다음역")} {h.next}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div role="radiogroup" aria-label={t("방향")} className="grid grid-cols-2 gap-1 rounded-xl bg-bg p-1">
             {(["up", "down"] as Dir[]).map((d) => (
               <button
                 key={d}
                 type="button"
                 role="radio"
-                aria-checked={dir === d}
-                onClick={() => setDir(d)}
-                className={`min-h-[40px] rounded-lg text-[14px] font-medium ${dir === d ? "bg-white text-ink shadow-sm" : "text-sub"}`}
+                aria-checked={fallbackDir === d}
+                onClick={() => setFallbackDir(d)}
+                className={`min-h-[40px] rounded-lg text-[14px] font-medium ${fallbackDir === d ? "bg-white text-ink shadow-sm" : "text-sub"}`}
               >
                 {d === "up" ? t("상행") : t("하행")}
               </button>
             ))}
           </div>
-        </div>
-        <label className="block text-sm text-sub">
+        )}
+      </div>
+      {selectedDays.length > 1 && (
+        <label className="block w-1/2 text-sm text-sub">
           {t("요일")}
-          <select className={`${field} mt-1`} value={day} onChange={(e) => setDow(e.target.value)} disabled={!selectedDays.length}>
+          <select className={`${field} mt-1`} value={day} onChange={(e) => setDow(e.target.value)}>
             {selectedDays.map((d) => (
               <option key={d} value={d}>{dayName(lang, Number(d))}</option>
             ))}
           </select>
         </label>
-      </div>
+      )}
 
       {/* 답 1: 혼잡도 */}
       {loading && !data && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
