@@ -71,6 +71,26 @@ export function ensureSeatSchema(): Promise<void> {
         car_no text not null,
         created_at timestamptz not null default now(),
         primary key (request_id, user_id))`;
+      // 요청 종류: manual(직접 요청), call(CALL로 보낸 요청)
+      await sql`alter table seat_requests add column if not exists kind text not null default 'manual'`;
+      // 오늘 앉은 자리 위치(칸-문·왼쪽/오른쪽·메모). 수락된 상대에게만 보인다. 날짜가 바뀌면 다시 입력한다.
+      await sql`create table if not exists seat_spots (
+        user_id text not null,
+        day text not null,
+        car text not null,
+        door text not null,
+        side text not null default '',
+        memo text not null default '',
+        updated_at timestamptz not null default now(),
+        primary key (user_id, day))`;
+      // 수락된 매칭끼리의 대화(카풀 채팅과 별도 저장소).
+      await sql`create table if not exists seat_messages (
+        id bigserial primary key,
+        request_id uuid not null references seat_requests(id) on delete cascade,
+        user_id text not null,
+        body text not null,
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists seat_messages_req on seat_messages (request_id, id)`;
     })().catch((e) => {
       ready = null;
       throw e;
@@ -157,7 +177,7 @@ export async function listCandidates(me: SeatPlanRow): Promise<Candidate[]> {
 }
 
 /** 후보에게 앉아가기 요청을 보낸다. 규칙에 맞는 후보에게만 보낼 수 있다. */
-export async function createRequest(fromUser: string, toPlanId: number): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+export async function createRequest(fromUser: string, toPlanId: number, kind: "manual" | "call" = "manual"): Promise<{ ok: true; id: string; toUser: string } | { ok: false; error: string }> {
   await ensureSeatSchema();
   const sql = seatSql();
   const mine = await getMyPlan(fromUser);
@@ -167,21 +187,21 @@ export async function createRequest(fromUser: string, toPlanId: number): Promise
   const t = toRow(target[0] as Raw);
   if (t.userId === fromUser) return { ok: false, error: "내 등록에는 요청할 수 없어요." };
   if (!rankCandidates(mine, [t]).length) return { ok: false, error: "시간이나 역이 맞지 않아 요청할 수 없어요." };
-  const rows = await sql`insert into seat_requests (from_user, to_user, from_plan, to_plan)
-    values (${fromUser}, ${t.userId}, ${mine.id}, ${t.id})
+  const rows = await sql`insert into seat_requests (from_user, to_user, from_plan, to_plan, kind)
+    values (${fromUser}, ${t.userId}, ${mine.id}, ${t.id}, ${kind})
     on conflict (from_plan, to_plan) do nothing returning id`;
   if (!rows.length) return { ok: false, error: "이미 요청을 보냈어요." };
-  return { ok: true, id: String(rows[0].id) };
+  return { ok: true, id: String(rows[0].id), toUser: t.userId };
 }
 
 /** 받은 요청을 수락하거나 거절한다. 받은 사람만 처리할 수 있다. */
-export async function respondRequest(requestId: string, toUser: string, accept: boolean): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+export async function respondRequest(requestId: string, toUser: string, accept: boolean): Promise<{ ok: true; status: string; fromUser: string } | { ok: false; error: string }> {
   await ensureSeatSchema();
   const status = accept ? "accepted" : "declined";
   const rows = await seatSql()`update seat_requests set status = ${status}, responded_at = now()
-    where id = ${requestId} and to_user = ${toUser} and status = 'pending' returning status`;
+    where id = ${requestId} and to_user = ${toUser} and status = 'pending' returning status, from_user`;
   if (!rows.length) return { ok: false, error: "처리할 요청이 없거나 이미 처리됐어요." };
-  return { ok: true, status: String(rows[0].status) };
+  return { ok: true, status: String(rows[0].status), fromUser: String(rows[0].from_user) };
 }
 
 export type RequestView = {
@@ -191,6 +211,8 @@ export type RequestView = {
   otherPlanId: number;
   /** 상대의 탑승 시각 */
   otherTime: string;
+  /** 상대 회원 번호(서버 안에서만 쓴다. 화면으로 보내지 않는다) */
+  otherUser: string;
   /** 자리 나눔 정보(take = 내가 받음, give = 내 자리를 상대가 받음). 등록이 바뀌어 더 맞지 않으면 null */
   pair: (SeatPair & { role: "take" | "give" }) | null;
 };
@@ -214,7 +236,7 @@ export async function listRequests(userId: string): Promise<{ incoming: RequestV
       const give = take ? null : seatPair(other, mine);
       pair = take ? { ...take, role: "take" } : give ? { ...give, role: "give" } : null;
     }
-    return { id: String(r.id), status: String(r.status), incoming, otherPlanId: other?.id ?? 0, otherTime: other?.timeGo ?? "", pair };
+    return { id: String(r.id), status: String(r.status), incoming, otherPlanId: other?.id ?? 0, otherTime: other?.timeGo ?? "", otherUser: String(incoming ? r.from_user : r.to_user), pair };
   });
   return { incoming: view.filter((v) => v.incoming), outgoing: view.filter((v) => !v.incoming) };
 }
@@ -255,4 +277,85 @@ export async function getCarConfirm(requestId: string, userId: string): Promise<
   const line = await acceptedMatch(requestId, userId);
   if (!line) return { ok: false, error: "확인할 매칭이 없어요." };
   return { ok: true, ...(await compareFor(requestId, userId, line)) };
+}
+
+/** 한국 날짜(YYYY-MM-DD). 자리 위치는 하루만 쓴다. */
+export const seatDay = (t = Date.now()) => new Date(t + 9 * 3600_000).toISOString().slice(0, 10);
+
+/** 활성 등록 전체(매일 아침 자동 알림용). */
+export async function activePlans(): Promise<SeatPlanRow[]> {
+  await ensureSeatSchema();
+  const rows = await seatSql()`select * from seat_plans where status = 'active'`;
+  return rows.map((r) => toRow(r as Raw));
+}
+
+/** CALL: 맞는 상대 모두에게 요청을 보낸다(희망·양보는 자동 판단). 이미 주고받은 상대는 건너뛴다. */
+export async function callAll(userId: string): Promise<{ ok: true; sent: { toUser: string; role: "take" | "give"; stops: number }[] } | { ok: false; error: string }> {
+  const mine = await getMyPlan(userId);
+  if (!mine) return { ok: false, error: "먼저 지하철 출퇴근 정보를 등록해 주세요." };
+  const cands = await listCandidates(mine);
+  const sql = seatSql();
+  const done = await sql`select from_plan, to_plan from seat_requests where from_plan = ${mine.id} or to_plan = ${mine.id}`;
+  const touched = new Set(done.flatMap((r) => [Number(r.from_plan), Number(r.to_plan)]));
+  const sent: { toUser: string; role: "take" | "give"; stops: number }[] = [];
+  const seen = new Set<number>();
+  for (const c of cands) {
+    if (touched.has(c.id) || seen.has(c.id)) continue;
+    seen.add(c.id);
+    const r = await createRequest(userId, c.id, "call");
+    if (r.ok) sent.push({ toUser: r.toUser, role: c.role, stops: c.stops });
+  }
+  return { ok: true, sent };
+}
+
+/** 수락된 매칭의 상대 회원 번호들(자리 위치를 알려 줄 대상). */
+export async function acceptedPartners(userId: string): Promise<string[]> {
+  await ensureSeatSchema();
+  const rows = await seatSql()`select case when from_user = ${userId} then to_user else from_user end as other
+    from seat_requests where status = 'accepted' and (from_user = ${userId} or to_user = ${userId})`;
+  return [...new Set(rows.map((r) => String(r.other)))];
+}
+
+export type Spot = { car: string; door: string; side: "left" | "right" | ""; memo: string };
+
+/** 오늘 내 자리 위치. */
+export async function getSpot(userId: string, day = seatDay()): Promise<Spot | null> {
+  await ensureSeatSchema();
+  const rows = await seatSql()`select car, door, side, memo from seat_spots where user_id = ${userId} and day = ${day}`;
+  if (!rows.length) return null;
+  const r = rows[0];
+  return { car: String(r.car), door: String(r.door), side: (String(r.side) as Spot["side"]) || "", memo: String(r.memo) };
+}
+
+export async function setSpot(userId: string, s: Spot, day = seatDay()): Promise<void> {
+  await ensureSeatSchema();
+  const sql = seatSql();
+  await sql`delete from seat_spots where day < ${seatDay(Date.now() - 2 * 86400_000)}`;
+  await sql`insert into seat_spots (user_id, day, car, door, side, memo) values (${userId}, ${day}, ${s.car}, ${s.door}, ${s.side}, ${s.memo})
+    on conflict (user_id, day) do update set car = excluded.car, door = excluded.door, side = excluded.side, memo = excluded.memo, updated_at = now()`;
+}
+
+export async function clearSpot(userId: string, day = seatDay()): Promise<void> {
+  await ensureSeatSchema();
+  await seatSql()`delete from seat_spots where user_id = ${userId} and day = ${day}`;
+}
+
+/** 수락된 매칭의 상대 회원 번호. 당사자가 아니면 null. */
+export async function matchPartner(requestId: string, userId: string): Promise<string | null> {
+  await ensureSeatSchema();
+  const rows = await seatSql()`select from_user, to_user from seat_requests
+    where id = ${requestId} and status = 'accepted' and (from_user = ${userId} or to_user = ${userId}) limit 1`;
+  if (!rows.length) return null;
+  return String(rows[0].from_user) === userId ? String(rows[0].to_user) : String(rows[0].from_user);
+}
+
+export type ChatMsg = { id: number; mine: boolean; body: string; at: number };
+
+export async function listSeatMessages(requestId: string, userId: string): Promise<ChatMsg[]> {
+  const rows = await seatSql()`select id, user_id, body, created_at from seat_messages where request_id = ${requestId} order by id desc limit 100`;
+  return rows.reverse().map((m) => ({ id: Number(m.id), mine: String(m.user_id) === userId, body: String(m.body), at: new Date(m.created_at as string).getTime() }));
+}
+
+export async function addSeatMessage(requestId: string, userId: string, body: string): Promise<void> {
+  await seatSql()`insert into seat_messages (request_id, user_id, body) values (${requestId}, ${userId}, ${body})`;
 }

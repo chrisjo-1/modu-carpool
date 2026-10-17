@@ -1,6 +1,8 @@
-import { currentUserId, body, fail, json, needLogin, text } from "@/lib/server";
+import { currentUserId, body, ensureSchema, fail, json, needLogin, text } from "@/lib/server";
 import { readSeatConfig } from "@/lib/seatConfig";
-import { closePlan, getMyPlan, seatDbReady, toSubwayPlan, upsertPlan } from "@/lib/seatDb";
+import { closePlan, getMyPlan, listCandidates, seatDbReady, toSubwayPlan, upsertPlan } from "@/lib/seatDb";
+import { grant } from "@/lib/credits";
+import { seatPush } from "@/lib/seatNotify";
 import { planProblem, type SubwayPlan } from "@/lib/subway";
 import { toMinutes } from "@/lib/seatMatch";
 
@@ -52,8 +54,20 @@ export async function PUT(req: Request) {
   if (p.back && toMinutes(p.timeBack) === null) return json({ error: "퇴근 출발 시각을 확인해 주세요." }, 400);
 
   try {
+    const before = await getMyPlan(uid);
     const saved = await upsertPlan(uid, days, p);
-    return json({ plan: toSubwayPlan(saved), days });
+    // 처음 등록하면 크레딧을 한 번 지급한다(이미 받았으면 0).
+    const credit = await ensureSchema().then(() => grant(uid, "subway")).catch(() => 0);
+    // 새로 등록했거나 경로·시각·요일이 바뀌었으면, 자리를 나눌 수 있는 상대에게 자동으로 알린다.
+    const changed = !before || before.boardStation !== saved.boardStation || before.alightStation !== saved.alightStation || before.timeGo !== saved.timeGo || before.days !== saved.days;
+    let matches = 0;
+    if (changed) {
+      const cands = await listCandidates(saved);
+      const users = [...new Set(cands.map((c) => c.userId))];
+      matches = users.length;
+      await Promise.all(users.map((u) => seatPush(u, "자리를 나눌 수 있는 분이 등록했어요", "1~3정거장 안에서 자리를 나눌 수 있어요. 지하철 메뉴에서 확인해 주세요.", "seat-new")));
+    }
+    return json({ plan: toSubwayPlan(saved), days, credit, matches });
   } catch (e) {
     return fail(e);
   }

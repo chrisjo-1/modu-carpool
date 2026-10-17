@@ -241,6 +241,7 @@ export default function App() {
       // 푸시·메일 알림에서 들어온 경우: ?tab=chat 이면 채팅 탭, ?room=신청ID 면 그 대화방
       if (q.get("tab") === "chat" || q.get("room")) setTab("chat");
       if (q.get("tab") === "me") setTab("me");
+      if (q.get("tab") === "subway") setTab("subway");
       if (q.get("room")) setWantRoom(q.get("room") as string);
       if (q.get("notice")) setNoticeFocus(Number(q.get("notice")) || 0);
       if (q.get("feedback")) {

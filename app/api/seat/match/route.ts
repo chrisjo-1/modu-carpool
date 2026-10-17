@@ -14,16 +14,17 @@ export async function GET() {
     const list = await listCandidates(me);
     return json({
       needPlan: false,
-      // 상대 회원 번호는 주지 않고, 자리 나눔에 필요한 역(자리 나는 역·타는 역)·시각·칸-문만 준다.
+      // 상대 회원 번호는 주지 않는다. 수락 전이라 정거장 수·타는 역·시각만 준다.
       candidates: list.map((c) => ({
         planId: c.id,
         role: c.role,
         stops: c.stops,
-        seatStation: c.seatStation,
+        // 하차역·자리 위치는 수락 뒤에만 보여 준다.
+        seatStation: "",
         meetStation: c.meetStation,
         timeGo: c.timeGo,
-        car: c.car,
-        gate: c.gate,
+        car: "",
+        gate: "",
         gapMin: c.gapMin,
       })),
     });

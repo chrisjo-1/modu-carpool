@@ -102,11 +102,13 @@ export default function CommuteSheet({
   const saveSubway = async () => {
     if (!seatOn) return;
     setBusy(true);
-    const r = await api<{ plan: SubwayPlan; days: string }>("/api/seat/plan", "PUT", { ...plan, days });
+    const r = await api<{ plan: SubwayPlan; days: string; credit?: number }>("/api/seat/plan", "PUT", { ...plan, days });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setHasPlan(true);
-    toast(t("지하철 출퇴근 정보를 저장했어요. 지하철 메뉴에서 앉아갈 정보와 매칭을 볼 수 있어요."));
+    toast(r.data.credit
+      ? `${t("지하철 출퇴근 정보를 저장했어요.")} ${r.data.credit.toLocaleString("ko-KR")}${t("크레딧을 드렸어요.")}`
+      : t("지하철 출퇴근 정보를 저장했어요. 지하철 메뉴에서 앉아갈 정보와 매칭을 볼 수 있어요."));
   };
 
   const cancelSubway = async () => {
