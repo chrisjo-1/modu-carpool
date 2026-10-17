@@ -14,6 +14,7 @@ import { NoticePopup } from "./Notices";
 import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
 import TopLoading from "./TopLoading";
+import Banners from "./Banners";
 import Interests from "./Interests";
 import CommuteStart from "./CommuteStart";
 import CommuteOnboard from "./CommuteOnboard";
@@ -424,6 +425,7 @@ export default function App() {
           </div>
           {tab === "home" && <RoleSwitch user={user ?? null} onUser={setUser} toast={setToastMsg} onGoProfile={() => { setOpen(null); setTab("me"); }} />}
         </header>
+        {tab === "home" && <div className="px-4"><Banners /></div>}
         {tab === "home" && <div className="flex justify-end px-5 pb-1"><Bubble blockId="C930" align="right">{t("지금 내 기본 역할이에요. 누르면 운전자와 탑승자가 바뀌고, 카풀을 올릴 때 기본값이 돼요.")}</Bubble></div>}
 
         <main className="flex-1 px-4 pb-28 pt-3">

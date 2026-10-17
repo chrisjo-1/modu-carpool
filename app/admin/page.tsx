@@ -27,6 +27,7 @@ const AdminStats = dynamic(() => import("@/components/admin/Stats"), { ssr: fals
 const AdminDocs = dynamic(() => import("@/components/admin/Docs"), { ssr: false });
 const AdminRadius = dynamic(() => import("@/components/admin/Radius"), { ssr: false });
 const AdminSite = dynamic(() => import("@/components/admin/Site"), { ssr: false });
+const AdminBanners = dynamic(() => import("@/components/admin/Banners"), { ssr: false });
 const AdminBubbles = dynamic(() => import("@/components/admin/Bubbles"), { ssr: false });
 const AdminCallHistory = dynamic(() => import("@/components/admin/CallHistory"), { ssr: false });
 const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false });
@@ -371,7 +372,7 @@ export default function Admin() {
       {tab === "help" && <AdminHelp />}
       {tab === "stats" && <AdminStats />}
       {tab === "calls" && <AdminCallHistory />}
-      {tab === "site" && <><AdminSite /><AdminBubbles /></>}
+      {tab === "site" && <><AdminSite /><AdminBanners /><AdminBubbles /></>}
       {tab === "docs" && <AdminDocs />}
       {tab === "radius" && <AdminRadius />}
       {tab === "demo" && <AdminDemo />}
