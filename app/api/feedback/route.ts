@@ -1,4 +1,5 @@
-import { FEEDBACK_CATS } from "@/lib/feedback";
+import { FEEDBACK_CATS, catLabel } from "@/lib/feedback";
+import { alertAdmin } from "@/lib/adminAlert";
 import { body, clientIp, currentUserId, db, ensureSchema, fail, json, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,13 @@ export async function POST(req: Request) {
     const n = await sql`select count(*)::int as n from feedback where (ip = ${ip} or (${me}::uuid is not null and user_id = ${me}::uuid)) and created_at > now() - interval '1 hour'`;
     if ((n[0].n as number) >= 5) return json({ error: "잠시 후 다시 보내 주세요. (1시간에 5건까지)" }, 429);
     const mine = me ? await sql`select email from users where id = ${me}` : [];
-    await sql`insert into feedback (user_id, email, category, body, ip) values (${me}, ${email || String(mine[0]?.email ?? "")}, ${category}, ${msg}, ${ip})`;
+    const replyTo = email || String(mine[0]?.email ?? "");
+    await sql`insert into feedback (user_id, email, category, body, ip) values (${me}, ${replyTo}, ${category}, ${msg}, ${ip})`;
+    await alertAdmin(`[모두의카풀 관리] 의견 접수: ${catLabel(category)}`, [
+      ["분류", catLabel(category)],
+      ["내용", msg],
+      ["회신 이메일", replyTo || "없음"],
+    ]);
     return json({ ok: true });
   } catch (e) {
     return fail(e);
