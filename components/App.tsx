@@ -39,6 +39,8 @@ export default function App() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [sample, setSample] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // 새로고침 때 열어 둔 글을 복원했는지: 복원이 끝나기 전에는 로딩 화면을 내리지 않는다.
+  const [screenRestored, setScreenRestored] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -248,6 +250,7 @@ export default function App() {
         const restored = savedOpen && !q.get("tab") && !q.get("room") && !q.get("feedback") ? list.find((p) => p.id === savedOpen) : null;
         if (restored) setOpen(restored);
       }
+      setScreenRestored(true);
     });
     try {
       if (sessionStorage.getItem("modu.preview") === "1") setPreviewState(true);
@@ -313,7 +316,7 @@ export default function App() {
     const id = setTimeout(() => setSplashTimedOut(true), 3000);
     return () => clearTimeout(id);
   }, []);
-  const booted = checked && loaded;
+  const booted = checked && loaded && screenRestored;
   useEffect(() => {
     if (booted && splashMinDone) setSplashGone(true);
   }, [booted, splashMinDone]);
