@@ -212,7 +212,7 @@ function MemberKarrot({ userId, me }: { userId: string; me: boolean }) {
             >
               {it.photos[0] ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={it.photos[0]} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+                <img src={it.photos[0].startsWith("data:") ? it.photos[0] : `data:image/jpeg;base64,${it.photos[0]}`} alt="" loading="lazy" className="aspect-square w-full object-cover" />
               ) : (
                 <span className="grid aspect-square w-full place-items-center bg-bg text-xs text-sub">{t("사진 없음")}</span>
               )}
