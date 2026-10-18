@@ -206,9 +206,6 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
-      <FloatingCall toast={toast} onGoProfile={onGoProfile} />
-      {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
-      {incomingTaxiId && <IncomingTaxiCall callId={incomingTaxiId} toast={toast} onClose={() => { setIncomingTaxiId(null); window.history.replaceState(null, "", "/"); }} />}
 
       <div className="space-y-2">
         {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼). 키워드 필터는 검색창 박스 안에 둔다 */}
@@ -282,6 +279,10 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         )}
         </>
       )}
+      {/* 떠 있는 CALL 버튼·받은 호출 창은 맨 뒤에 둔다(space-y 여백이 첫 칸 위에 생기지 않게) */}
+      <FloatingCall toast={toast} onGoProfile={onGoProfile} />
+      {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
+      {incomingTaxiId && <IncomingTaxiCall callId={incomingTaxiId} toast={toast} onClose={() => { setIncomingTaxiId(null); window.history.replaceState(null, "", "/"); }} />}
     </section>
   );
 }
