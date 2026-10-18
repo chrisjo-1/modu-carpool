@@ -77,7 +77,7 @@ export type Thread = {
   unread?: number;
 };
 
-export type User = { id: string; email: string; memberCode?: string; name: string; bio: string; contact: string; contactType: string; photo: string; test?: boolean; notify?: boolean; carNo?: string; carPhoto?: string; gender?: string; rolePref?: string; tier?: DriverTier | ""; verified?: boolean; consented?: boolean; marketing?: boolean; interests?: string[] | null };
+export type User = { id: string; email: string; memberCode?: string; name: string; bio: string; contact: string; contactType: string; photo: string; test?: boolean; notify?: boolean; carNo?: string; carPhoto?: string; gender?: string; rolePref?: string; tier?: DriverTier | ""; verified?: boolean; consented?: boolean; marketing?: boolean; interests?: string[] | null; photoZoom?: boolean };
 
 /** 연락 방법 종류. 값은 DB에 저장되는 키, 표시는 번역해서 보여준다. */
 export const CONTACT_TYPES: [string, string][] = [

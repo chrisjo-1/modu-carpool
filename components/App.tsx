@@ -22,7 +22,7 @@ import CommuteOnboard from "./CommuteOnboard";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import PostForm from "./PostForm";
-import { Bubble, HintContext, Icon, LangContext, Sheet, api } from "./ui";
+import { Bubble, HintContext, Icon, LangContext, PhotoZoomLayer, Sheet, api, setPhotoZoom } from "./ui";
 import type { Place } from "@/lib/types";
 
 type Tab = "home" | "post" | "subway" | "chat" | "me";
@@ -282,6 +282,11 @@ export default function App() {
     document.documentElement.lang = lang;
   }, [lang]);
 
+  // 관리자 메일 회원은 모든 화면의 프로필 사진을 전체화면으로 볼 수 있다.
+  useEffect(() => {
+    setPhotoZoom(!!user?.photoZoom);
+  }, [user]);
+
   // 로그인 중에는 신청 상태를 주기적으로 새로 받는다.
   useEffect(() => {
     if (!user) return setThreads([]);
@@ -535,6 +540,7 @@ export default function App() {
           />
         )}
         {why && <ReasonSheet mode={why.mode} name={why.name} onClose={() => setWhy(null)} onSubmit={submitWhy} />}
+        <PhotoZoomLayer />
         {toastMsg && (
           <div role="status" aria-live="polite" data-block-id="C099" data-block-name="알림 문구" className="fixed inset-x-4 bottom-24 z-[60] mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-line border-l-[6px] border-l-accent bg-white px-5 py-4 text-left text-[16px] font-semibold leading-snug text-ink shadow-[0_14px_40px_rgba(21,35,61,0.28)]">
             {/* 파란 버튼 위에 떠도 잘 보이도록 흰 바탕 + 진한 글자 + 진한 그림자 */}

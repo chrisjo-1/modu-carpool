@@ -19,6 +19,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **관리자 출퇴근 지도**(관리자 탭 '출퇴근 지도', `components/admin/FlowMap.tsx` 동적 import, `/api/admin/flows`): 진행 중 정기 글 + 정기 글 없는 회원의 가입 출퇴근 정보를 출발→도착 곡선으로 겹쳐 그림(운전자 파랑·탑승자 초록·가입 정보 보라), 역할·시간대 필터, 출발·도착 구·구간 Top 5. 이름·이메일은 보내지 않음. 차단·탈퇴·테스트 제외. 지하철은 좌표가 없어 개수만.
 - **말풍선 안내**(`Bubble`, `useHintTap` in `components/ui.tsx`): 관련 버튼을 처음 누를 때 한 번만 설명을 보여 주고(그 누름은 실행하지 않음), 다음부터 바로 실행. 본 기록은 localStorage `hint:블록ID`.
 - **푸시 알림**(`components/Push.tsx`, `/api/push`, `lib/push.ts`): 기본 켜짐(권한을 이미 허용한 기기는 로그인 시 자동 등록). 끄기는 구독 삭제가 아니라 `push_subs.paused_at` 멈춤. 보낼 때 회원이 10일 넘게 미접속(users.last_seen)이고 멈춘 지 10일이 지났으면 멈춤을 풀고 보낸다.
+- **관리자 메일 회원 사진 크게 보기**: Vercel 환경변수 `ADMIN_EMAILS`(쉼표 구분)에 든 이메일로 로그인하면 `/api/auth` 응답 `user.photoZoom`이 참 → 모든 화면의 `Avatar`를 누르면 `PhotoZoomLayer`(App에 하나, 흰 바탕 전체화면)가 열린다. 감싼 버튼은 실행하지 않는다.
 - `lib/i18n.ts`: 한국어 키 사전. **번역 문구는 지금 넣지 않는다.** 국내 유저가 우선이라 서비스가 완성된 뒤 한꺼번에 추가한다. 화면 문구는 `t("한국어")`로만 감싸 둔다.
 
 ## 메일

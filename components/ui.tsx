@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { dayLabel, translate, type Lang } from "@/lib/i18n";
 
 export const LangContext = createContext<Lang>("ko");
@@ -47,9 +47,87 @@ function placeholderSrc(name: string) {
 export function Avatar({ src, name, size = 40, role }: { src?: string; name: string; size?: number; role?: string }) {
   const style = { width: size, height: size };
   const shape = role === "driver" ? "rounded-2xl" : "rounded-full";
+  const zoom = usePhotoZoom() && !!src;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src || placeholderSrc(name)} alt="" loading="lazy" style={style} className={`shrink-0 border border-line object-cover ${shape}`} />
+    <img
+      src={src || placeholderSrc(name)}
+      alt=""
+      loading="lazy"
+      style={style}
+      className={`shrink-0 border border-line object-cover ${shape} ${zoom ? "cursor-zoom-in" : ""}`}
+      onClick={
+        zoom
+          ? (e) => {
+              // 관리자 메일 회원만: 감싼 버튼(프로필 열기 등)은 실행하지 않고 사진만 크게 연다.
+              e.preventDefault();
+              e.stopPropagation();
+              window.dispatchEvent(new CustomEvent("modu:photo-zoom", { detail: { src, name } }));
+            }
+          : undefined
+      }
+    />
+  );
+}
+
+/* 관리자 메일 회원(서버가 user.photoZoom으로 알려 줌)은 모든 화면의 프로필 사진을 눌러 전체화면으로 본다. */
+let photoZoomAllowed = false;
+const photoZoomSubs = new Set<() => void>();
+export function setPhotoZoom(v: boolean) {
+  if (photoZoomAllowed === v) return;
+  photoZoomAllowed = v;
+  photoZoomSubs.forEach((f) => f());
+}
+function usePhotoZoom() {
+  return useSyncExternalStore(
+    (f) => {
+      photoZoomSubs.add(f);
+      return () => photoZoomSubs.delete(f);
+    },
+    () => photoZoomAllowed,
+    () => false,
+  );
+}
+
+/** 프로필 사진 전체화면 보기. App에 한 번만 둔다. 밝은 바탕, 아무 곳이나 누르면 닫힌다. */
+export function PhotoZoomLayer() {
+  const [shot, setShot] = useState<{ src: string; name: string } | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => setShot((e as CustomEvent<{ src: string; name: string }>).detail);
+    window.addEventListener("modu:photo-zoom", on);
+    return () => window.removeEventListener("modu:photo-zoom", on);
+  }, []);
+  useEffect(() => {
+    if (!shot) return;
+    lockBody();
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setShot(null);
+    window.addEventListener("keydown", key);
+    return () => {
+      unlockBody();
+      window.removeEventListener("keydown", key);
+    };
+  }, [shot]);
+  if (!shot) return null;
+  return (
+    <div
+      data-block-id="C130"
+      data-block-name="프로필 사진 전체화면"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${shot.name} 프로필 사진`}
+      className="fade-in fixed inset-0 z-[70] flex flex-col bg-white"
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      onClick={() => setShot(null)}
+    >
+      <div className="flex items-center justify-between px-4 py-3">
+        <span className="min-w-0 truncate text-[15px] font-semibold text-ink">{shot.name}</span>
+        <button aria-label="닫기" className="grid h-10 w-10 place-items-center rounded-full border border-line bg-white text-ink" onClick={() => setShot(null)}>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={shot.src} alt="" className="min-h-0 w-full flex-1 object-contain" />
+    </div>
   );
 }
 
