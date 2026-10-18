@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { REASONS, type Member } from "@/lib/types";
-import { Avatar, Sheet, Tag, api, btnGhost, btnPrimary, field, useLang, useT, when } from "./ui";
+import { Avatar, TierBadge, Sheet, Tag, api, btnGhost, btnPrimary, field, useLang, useT, when } from "./ui";
 
 /** 별 다섯 개. onChange 가 있으면 눌러서 고를 수 있다. */
 export function Stars({ value, onChange, size = 22 }: { value: number; onChange?: (n: number) => void; size?: number }) {
@@ -128,7 +128,7 @@ export function MemberSheet({
           <div className="flex items-center gap-4">
             <Avatar src={m.photo} name={m.name} size={72} />
             <div className="min-w-0">
-              <h2 className="truncate text-2xl font-bold">{m.name}</h2>
+              <h2 className="flex min-w-0 items-center gap-2 text-2xl font-bold"><span className="truncate">{m.name}</span><TierBadge tier={m.tier} size="md" /></h2>
               <p data-block-id="C080" data-block-name="별점" className="mt-1 flex items-center gap-2 text-[15px]">
                 <Stars value={m.rating.avg} size={18} />
                 {m.rating.count > 0 ? (

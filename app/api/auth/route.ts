@@ -14,8 +14,8 @@ import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, cur
 export const dynamic = "force-dynamic";
 
 async function profile(id: string) {
-  const rows = await db()`select email, member_code, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, gender, role_pref, email_verified, terms_at, marketing, interests from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, memberCode: rows[0].member_code ?? "", name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), tier: driverTier({ carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), photo: photoUrl(id, rows[0].photo_v) }), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true, interests: rows[0].interests ?? null } : null;
+  const rows = await db()`select email, member_code, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, tier_set, gender, role_pref, email_verified, terms_at, marketing, interests from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, memberCode: rows[0].member_code ?? "", name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), tier: driverTier({ carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), photo: photoUrl(id, rows[0].photo_v), tierSet: rows[0].tier_set }), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true, interests: rows[0].interests ?? null } : null;
 }
 
 export async function GET() {

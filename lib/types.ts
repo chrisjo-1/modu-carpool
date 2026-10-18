@@ -17,6 +17,8 @@ export type Post = {
   timeGo?: string;
   timeBack?: string;
   ownerPhoto?: string;
+  /** 운전자 글일 때 작성자의 운전자 등급 */
+  ownerTier?: DriverTier | "";
   /** 키워드: 표시용 이름과 묶음(gift·driver·rider), 수정용 id */
   tags?: { label: string; group: string }[];
   tagIds?: string[];
@@ -53,6 +55,8 @@ export type Thread = {
   timeBack?: string;
   otherId?: string;
   otherPhoto?: string;
+  /** 상대가 운전자일 때 상대의 운전자 등급 */
+  otherTier?: DriverTier | "";
   status: "pending" | "accepted" | "declined";
   message: string;
   iAmOwner: boolean;
@@ -102,6 +106,8 @@ export type Member = {
   name: string;
   bio: string;
   photo: string;
+  /** 운전자 등급(차량 등록 또는 관리자 지정) */
+  tier?: DriverTier | "";
   carPhoto: string;
   me: boolean;
   blockedByMe: boolean;
@@ -121,18 +127,18 @@ export const SHOW_METER = false;
 /** 가입하게 된 경로(가입 때 한 번 고른다). 값은 저장용 코드, 뒤는 화면 문구. */
 export const JOIN_SOURCES: [string, string][] = [["member", "기존 회원 소개"], ["warp", "워프(풀럭) 기존 회원"], ["search", "검색"], ["friend", "지인 추천"], ["other", "기타"]];
 
-/** 운전자 등급. 지금은 브론즈만 자동 부여하며, 실버 이상의 기준은 추후 정한다. */
-export type DriverTier = "bronze";
+/** 운전자 등급. 브론즈는 자동 부여, 실버·골드는 당분간 관리자가 지정한다(users.tier_set). */
+export type DriverTier = "bronze" | "silver" | "gold";
 
 /**
  * 운전자 등급을 계산한다(저장하지 않고 항상 현재 상태로 판정).
  * 브론즈 = 차량번호 + 차량 사진 + 프로필 사진. 프로필 사진이 본인 얼굴인지는 자동으로 알 수 없어서,
  * 타인 사진이 신고되면 이용이 정지될 수 있다고 안내한다.
  */
-export const driverTier = (u: { carNo?: string; carPhoto?: string; photo?: string } | null | undefined): DriverTier | "" =>
-  u?.carNo && u?.carPhoto && u?.photo ? "bronze" : "";
+export const driverTier = (u: { carNo?: string; carPhoto?: string; photo?: string; tierSet?: string | null } | null | undefined): DriverTier | "" =>
+  u?.tierSet === "silver" || u?.tierSet === "gold" ? u.tierSet : u?.carNo && u?.carPhoto && u?.photo ? "bronze" : "";
 
-export const TIER_LABEL: Record<DriverTier, string> = { bronze: "브론즈" };
+export const TIER_LABEL: Record<DriverTier, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
 /**
  * 기본 역할: 프로필의 희망 역할을 먼저 따른다(탑승자면 탑승자, 운전자면 차량 등록이 있을 때만 운전자).

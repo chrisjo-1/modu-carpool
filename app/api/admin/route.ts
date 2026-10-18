@@ -27,7 +27,7 @@ export async function GET(req: Request) {
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
     const users = await sql`
       select u.id, u.email, u.name, u.member_code, u.blocked, u.test, u.credits, u.created_at, u.last_seen, u.bio, u.contact, u.contact_type,
-             u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.interests,
+             u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.tier_set, u.interests,
              u.commute_kind, u.commute_origin, u.commute_dest, u.commute_time, u.commute_price,
              (select count(*)::int from posts where user_id = u.id) as posts,
              (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
         lastSeen: u.last_seen ? new Date(u.last_seen as string).getTime() : null,
         photo: photoUrl(u.id, u.photo_v),
         carPhoto: carPhotoUrl(u.id, u.car_v),
-        tier: driverTier({ carNo: u.car_no, carPhoto: carPhotoUrl(u.id, u.car_v), photo: photoUrl(u.id, u.photo_v) }),
+        tier: driverTier({ carNo: u.car_no, carPhoto: carPhotoUrl(u.id, u.car_v), photo: photoUrl(u.id, u.photo_v), tierSet: u.tier_set }),
       })),
     });
   } catch (e) {
@@ -135,6 +135,13 @@ export async function PATCH(req: Request) {
       // 프로필 사진만 삭제(신고된 타인 사진 처리)
       if (b.removePhoto === true) {
         await sql`update users set photo = '', photo_v = 0 where id = ${b.userId}`;
+        return json({ ok: true });
+      }
+      // 운전자 등급 지정('' = 자동 판정, silver, gold)
+      if (typeof b.tierSet === "string") {
+        const t = b.tierSet === "silver" || b.tierSet === "gold" ? b.tierSet : "";
+        const r = await sql`update users set tier_set = ${t} where id = ${b.userId} returning id`;
+        if (!r.length) return json({ error: "회원을 찾을 수 없습니다." }, 404);
         return json({ ok: true });
       }
       const before = await sql`select email, name, blocked from users where id = ${b.userId}`;

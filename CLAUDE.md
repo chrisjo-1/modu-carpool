@@ -15,6 +15,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - `lib/server.ts`: `json`, `body`, `fail`, `currentUserId`, `needLogin`, `isAdmin`, `overLimit`, `recordAttempt`, `ensureSchema`(본 DB).
 - `components/ui.tsx`: `Sheet`, `Segment`, `api(url, method, data)` → `{ok, data, error}`, `btnPrimary`/`btnGhost`/`field`, `Icon`.
   `useT()`는 렌더마다 새 함수를 돌려주므로 effect 의존성에 넣지 않는다.
+- **운전자 등급 배지**(`TierBadge` in `components/ui.tsx`, `lib/types.ts` `driverTier`): 브론즈는 자동(차량번호·차량 사진·프로필 사진), 실버·골드는 당분간 관리자 지정(`users.tier_set`, 관리자 회원 목록의 선택칸 → PATCH `/api/admin` `{userId, tierSet}`). 운전자에게만 붙여 상대가 본다: 홈 글 카드·글 상세(운전자 글), 회원 프로필, 채팅 목록·대화방(상대가 운전자일 때), 내 정보.
 - `lib/i18n.ts`: 한국어 키 사전. **번역 문구는 지금 넣지 않는다.** 국내 유저가 우선이라 서비스가 완성된 뒤 한꺼번에 추가한다. 화면 문구는 `t("한국어")`로만 감싸 둔다.
 
 ## 메일

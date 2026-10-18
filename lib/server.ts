@@ -225,6 +225,8 @@ export function ensureSchema(): Promise<void> {
       await sql`create index if not exists push_subs_user_idx on push_subs (user_id)`;
       await sql`alter table users add column if not exists car_photo text not null default ''`;
       await sql`alter table users add column if not exists car_v integer not null default 0`;
+      // 관리자가 지정한 운전자 등급('' = 자동, silver, gold)
+      await sql`alter table users add column if not exists tier_set text not null default ''`;
       // 구 워프(이전 서비스) 회원. 탈퇴 회원은 개인정보 없이 대조용 해시만 둔다.
       await sql`create table if not exists legacy_members (
         warp_id text primary key,

@@ -1,3 +1,4 @@
+import { driverTier } from "@/lib/types";
 import { notify } from "@/lib/mail";
 import { pushText, sendPush } from "@/lib/push";
 import { PHOTO_REQUIRED, hasPhoto, isVerified } from "@/lib/verify";
@@ -15,7 +16,7 @@ export async function GET() {
     const rows = await db()`
       select r.id, r.status, r.message, r.created_at, r.user_id as req_id,
              p.id as post_id, p.role as post_role, p.origin, p.dest, p.depart_at, p.cost, p.price, p.regular, p.days, p.time_go, p.time_back, p.user_id as owner_id,
-             ou.photo_v as owner_pv, ru.photo_v as req_pv, ou.car_no as owner_car, ou.car_v as owner_cv, ru.car_no as req_car, ru.car_v as req_cv,
+             ou.photo_v as owner_pv, ru.photo_v as req_pv, ou.car_no as owner_car, ou.car_v as owner_cv, ru.car_no as req_car, ru.car_v as req_cv, ou.tier_set as owner_ts, ru.tier_set as req_ts,
              ou.name as owner_name, ou.contact as owner_contact, ou.contact_type as owner_ctype,
              ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio,
              coalesce(rv.stars, 0) as my_stars, (p.regular or p.depart_at < now()) as passed,
@@ -49,6 +50,12 @@ export async function GET() {
           timeBack: r.time_back,
           otherId: iAmOwner ? r.req_id : r.owner_id,
           otherPhoto: iAmOwner ? photoUrl(r.req_id, r.req_pv) : photoUrl(r.owner_id, r.owner_pv),
+          // 상대가 운전자일 때만 등급 배지를 보여 준다
+          otherTier: (iAmOwner ? (r.post_role === "driver" ? "rider" : "driver") : r.post_role) === "driver"
+            ? iAmOwner
+              ? driverTier({ carNo: r.req_car, carPhoto: carPhotoUrl(r.req_id, r.req_cv), photo: photoUrl(r.req_id, r.req_pv), tierSet: r.req_ts })
+              : driverTier({ carNo: r.owner_car, carPhoto: carPhotoUrl(r.owner_id, r.owner_cv), photo: photoUrl(r.owner_id, r.owner_pv), tierSet: r.owner_ts })
+            : "",
           status: r.status,
           message: r.message,
           iAmOwner,

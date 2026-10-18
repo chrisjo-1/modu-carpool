@@ -1,3 +1,4 @@
+import { driverTier } from "@/lib/types";
 import { notifyRouteAlerts } from "@/lib/alerts";
 import { notifyDrivers } from "@/lib/drivers";
 import { CAR_REQUIRED, carReady } from "@/lib/car";
@@ -40,12 +41,12 @@ export async function GET(req: Request) {
     if (mine && !me) return needLogin();
     const sql = db();
     const rows = mine
-      ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, u.blocked as owner_blocked,
+      ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, u.blocked as owner_blocked,
                          (not p.regular and p.depart_at <= now() - interval '7 days') as expired,
                          (not p.regular and p.depart_at <= now()) as ended
                   from posts p join users u on u.id = p.user_id
                   where p.user_id = ${me} order by p.regular desc, p.depart_at desc limit 100`
-      : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.test as owner_test, false as owner_blocked, false as expired,
+      : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, false as owner_blocked, false as expired,
                          (not p.regular and p.depart_at <= now()) as ended
                   from posts p join users u on u.id = p.user_id
                   where p.status in ('open', 'progress') and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown) and (p.regular or p.depart_at > now() - interval '7 days')
@@ -63,6 +64,7 @@ export async function GET(req: Request) {
       ownerBio: r.owner_bio,
       ownerPhoto: photoUrl(r.user_id, r.photo_v),
       carPhoto: r.role === "driver" ? carPhotoUrl(r.user_id, r.car_v) : "",
+      ownerTier: r.role === "driver" ? driverTier({ carNo: r.owner_car_no, carPhoto: carPhotoUrl(r.user_id, r.car_v), photo: photoUrl(r.user_id, r.photo_v), tierSet: r.owner_tier_set }) : "",
       role: r.role,
       kind: r.kind,
       cost: r.cost,

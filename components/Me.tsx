@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
-import { CONTACT_TYPES, METER_URL, SHOW_METER, TIER_LABEL, defaultRoleFor, type Post, type User } from "@/lib/types";
+import { CONTACT_TYPES, METER_URL, SHOW_METER, defaultRoleFor, type Post, type User } from "@/lib/types";
 import AuthForm from "./AuthForm";
 import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
@@ -13,7 +13,7 @@ import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
 import ChangePassword from "./ChangePassword";
-import { Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
+import { Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 import { shrinkCar } from "./CarInput";
 
 /** 고른 사진을 가운데 정사각형으로 잘라 240px JPEG로 줄인다. */
@@ -222,10 +222,11 @@ export default function Me({
                 </div>
               </div>
               <div data-block-id="C057" data-block-name="운전자 등급" className="space-y-2 rounded-xl bg-bg px-4 py-3 text-[14px] leading-relaxed text-sub">
-                <p className="font-semibold text-ink">
-                  {t("운전자 등급")}: {user.tier ? t(TIER_LABEL[user.tier]) : t("미부여")}
+                <p className="flex items-center gap-2 font-semibold text-ink">
+                  {t("운전자 등급")}: {user.tier ? <TierBadge tier={user.tier} size="md" /> : t("미부여")}
                 </p>
                 {!user.tier && <p>{t("차량 번호와 차량 사진, 프로필 사진을 모두 등록하면 브론즈 등급이 자동으로 부여돼요.")}</p>}
+                {user.tier && <p>{t("운전자로 글을 올리거나 신청하면 상대방에게 등급 배지가 보여요. 실버·골드는 운영팀이 지정해요.")}</p>}
                 <p>{t("타인의 사진으로 신고되면 확인 후 이용이 정지될 수 있어요.")}</p>
               </div>
               <div data-block-id="C055" data-block-name="내 고유코드" className="space-y-1 text-sm text-sub">

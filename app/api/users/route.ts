@@ -1,3 +1,4 @@
+import { driverTier } from "@/lib/types";
 import { currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, carPhotoUrl, photoUrl } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export async function GET(req: Request) {
   try {
     await ensureSchema();
     const sql = db();
-    const u = await sql`select name, bio, photo_v, car_v, blocked from users where id = ${id}`;
+    const u = await sql`select name, bio, photo_v, car_v, car_no, tier_set, blocked from users where id = ${id}`;
     if (!u.length || u[0].blocked) return json({ error: "회원을 찾을 수 없습니다." }, 404);
     const rating = await sql`select coalesce(avg(stars), 0)::float as avg, count(*)::int as n from reviews where ratee = ${id}`;
     // 수락까지 된 카풀 가운데 출발 시각이 지난 것(정기카풀은 수락된 것)
@@ -28,6 +29,7 @@ export async function GET(req: Request) {
         bio: u[0].bio,
         photo: photoUrl(id, u[0].photo_v),
         carPhoto: carPhotoUrl(id, u[0].car_v),
+        tier: driverTier({ carNo: u[0].car_no, carPhoto: carPhotoUrl(id, u[0].car_v), photo: photoUrl(id, u[0].photo_v), tierSet: u[0].tier_set }),
         me: id === me,
         blockedByMe: mine.length > 0,
         rating: { avg: Math.round(Number(rating[0].avg) * 10) / 10, count: rating[0].n },

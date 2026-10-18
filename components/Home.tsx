@@ -7,7 +7,7 @@ import { createPortal } from "react-dom";
 import CarInput from "./CarInput";
 import { METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
-import { Bubble, RoleTag, Avatar, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
+import { Bubble, RoleTag, Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
@@ -265,7 +265,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
                   <KeywordChips post={p} max={2} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
                     <span className="num">{scheduleText(p, lang)}{far(p) != null && <b className="ml-1.5 font-semibold text-accent">· {kmText(far(p) as number)}</b>}</span>
-                    <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} role={p.role} size={28} />{p.owner}</span>
+                    <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} role={p.role} size={28} />{p.owner}<TierBadge tier={p.ownerTier} /></span>
                   </div>
                 </Card>
               </button>
@@ -355,7 +355,7 @@ export function PostDetail({
           {post.regular && <div className="flex justify-between"><dt className="text-sub">{t("일정")}</dt><dd className="num font-semibold">{scheduleText(post, lang)}</dd></div>}
           <div className="flex justify-between"><dt className="text-sub">{t("출발")}</dt><dd className="num font-semibold">{when(post.departAt, lang)}</dd></div>
           {post.cost === "fixed" && <div className="flex justify-between"><dt className="text-sub">{t("희망금액(1회)")}</dt><dd className="num font-semibold text-warn">{money(post.price ?? 0, lang)}</dd></div>}
-          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자입니다") : t("탑승자입니다")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}</button> : <span className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}</span>}</dd></div>
+          <div className="flex justify-between"><dt className="text-sub">{post.role === "driver" ? t("운전자입니다") : t("탑승자입니다")}</dt><dd>{user && !sample && post.ownerId ? <button data-block-id="B017" data-block-name="작성자 프로필" className="flex min-h-0 items-center gap-2 font-semibold underline decoration-line underline-offset-4" onClick={() => onProfile(post.ownerId as string)}><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}<TierBadge tier={post.ownerTier} /></button> : <span className="flex items-center gap-2 font-semibold"><Avatar src={post.ownerPhoto} name={post.owner} role={post.role} size={32} />{post.owner}<TierBadge tier={post.ownerTier} /></span>}</dd></div>
         </dl>
         {post.originLat != null && post.originLng != null && (
           <a data-block-id="B014" data-block-name="출발 위치 지도" href={`https://map.kakao.com/link/map/${encodeURIComponent(post.origin)},${post.originLat},${post.originLng}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl bg-bg px-4 text-[15px] font-semibold text-ink">

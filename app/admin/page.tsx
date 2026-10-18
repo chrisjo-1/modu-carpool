@@ -35,7 +35,7 @@ const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false 
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
-  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number; tier: string;
+  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number; tier: string; tier_set: string;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
   commute_kind: string; commute_origin: string; commute_dest: string; commute_time: string; commute_price: number;
@@ -49,7 +49,7 @@ type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
 type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
-const TIER_NAME: Record<string, string> = { bronze: "브론즈" };
+const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const day = (ms: number) => new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -341,7 +341,24 @@ export default function Admin() {
                     <td className="px-2 py-2">{GENDER_LABEL[u.gender] ?? "미입력"}</td>
                     <td className="px-2 py-2">{u.car_no ? <span className="text-accent">{u.car_no}</span> : <span className="text-sub">미등록</span>}</td>
                     <td className="px-2 py-2">{u.carPhoto ? <img src={u.carPhoto} alt="" loading="lazy" onClick={() => setZoom({ src: u.carPhoto, alt: `${u.name} 차량` })} className="h-9 w-12 cursor-zoom-in rounded-lg border border-line object-cover" /> : <span className="grid h-9 w-12 place-items-center rounded-lg bg-bg text-xs text-sub">없음</span>}</td>
-                    <td className="px-2 py-2">{u.tier ? <span className="font-semibold text-accent">{TIER_NAME[u.tier] ?? u.tier}</span> : <span className="text-sub">미부여</span>}</td>
+                    <td className="whitespace-nowrap px-2 py-2">
+                      <span className="block">{u.tier ? <span className="font-semibold text-accent">{TIER_NAME[u.tier] ?? u.tier}</span> : <span className="text-sub">미부여</span>}</span>
+                      <select
+                        data-block-id="F150"
+                        aria-label={`${u.name || u.email} 운전자 등급 지정`}
+                        className="mt-1 rounded-lg border border-line bg-white px-1.5 py-1 text-xs"
+                        value={u.tier_set || ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const label = v ? TIER_NAME[v] : "자동(브론즈 조건)";
+                          if (window.confirm(`${u.name || u.email} 회원의 운전자 등급을 '${label}'(으)로 바꿀까요?`)) act(call("PATCH", "/api/admin", { userId: u.id, tierSet: v }), "운전자 등급을 바꿨습니다.");
+                        }}
+                      >
+                        <option value="">자동</option>
+                        <option value="silver">실버 지정</option>
+                        <option value="gold">골드 지정</option>
+                      </select>
+                    </td>
                     <td className="num px-2 py-2">{new Date(u.created_at).toLocaleDateString("ko-KR")}</td>
                     <td className="num whitespace-nowrap px-2 py-2">{u.lastSeen ? lastSeenText(u.lastSeen) : <span className="text-sub">없음</span>}</td>
                     <td className="num px-2 py-2">{u.posts}</td>

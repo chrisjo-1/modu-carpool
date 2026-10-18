@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { METER_URL, SHOW_METER, contactLabel, type Thread, type User } from "@/lib/types";
 import { Stars } from "./Member";
 import type { usePush } from "./Push";
-import { RoleTag, Avatar, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
+import { RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
 type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
 
@@ -89,7 +89,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, openPo
               <Avatar src={th.otherPhoto} name={th.other} role={th.otherRole} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-semibold">{th.other} <span className="font-normal text-sub">· {th.origin} → {th.dest}</span></span>
+                  <span className="truncate font-semibold">{th.other} <TierBadge tier={th.otherTier} /> <span className="font-normal text-sub">· {th.origin} → {th.dest}</span></span>
                   {th.last && <span className="num shrink-0 text-[12px] text-sub">{shortTime(th.last.at, lang)}</span>}
                 </p>
                 {th.last ? (
@@ -260,6 +260,7 @@ export function ChatRoom({
             <button data-block-id="B032" data-block-name="상대 프로필" className="flex min-h-0 min-w-0 items-center gap-2 font-semibold" onClick={() => onProfile(thread.otherId as string)}>
               <Avatar src={thread.otherPhoto} name={thread.other} role={thread.otherRole} size={32} />
               <span className="truncate underline decoration-line underline-offset-4">{thread.other}</span>
+              <TierBadge tier={thread.otherTier} />
             </button>
             <span className="flex shrink-0 gap-3 text-[14px]">
               <button data-block-id="B033" data-block-name="신고하기" className="min-h-0 py-2 text-warn underline" onClick={() => onReport(thread.otherId as string, thread.other, thread.id)}>{t("신고하기")}</button>

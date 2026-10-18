@@ -53,6 +53,35 @@ export function Avatar({ src, name, size = 40, role }: { src?: string; name: str
   );
 }
 
+/** 운전자 등급 배지(브론즈·실버·골드). 얇은 선 메달 아이콘 + 등급 이름. 등급이 없으면 아무것도 그리지 않는다. */
+const TIER_STYLE: Record<string, { name: string; fg: string; bg: string; line: string }> = {
+  bronze: { name: "브론즈", fg: "#9A5B32", bg: "#FBF1EA", line: "#E8C9B3" },
+  silver: { name: "실버", fg: "#5E6878", bg: "#F1F3F7", line: "#CDD3DD" },
+  gold: { name: "골드", fg: "#9A7200", bg: "#FFF6D6", line: "#EED78A" },
+};
+export function TierBadge({ tier, size = "sm" }: { tier?: string | null; size?: "sm" | "md" }) {
+  const t = useT();
+  const s = tier ? TIER_STYLE[tier] : undefined;
+  if (!s) return null;
+  const px = size === "md" ? 16 : 13;
+  return (
+    <span
+      data-block-id="C120"
+      data-block-name="운전자 등급 배지"
+      title={`${t("운전자 등급")}: ${t(s.name)}`}
+      className={`inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full border align-middle font-semibold leading-none ${size === "md" ? "px-2.5 py-1 text-[13px]" : "px-1.5 py-[3px] text-[11px]"}`}
+      style={{ color: s.fg, background: s.bg, borderColor: s.line }}
+    >
+      <svg width={px} height={px} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M8 3l2.5 6M16 3l-2.5 6" />
+        <circle cx="12" cy="15" r="6" />
+        <path d="M12 12.2l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2-1.45-1.4 2-.3z" />
+      </svg>
+      {t(s.name)}
+    </span>
+  );
+}
+
 export async function api<T = Record<string, unknown>>(url: string, method = "GET", data?: unknown): Promise<{ ok: boolean; data: T; error: string }> {
   try {
     const res = await fetch(url, {
