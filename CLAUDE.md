@@ -18,6 +18,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **운전자 등급 배지**(`TierBadge` in `components/ui.tsx`, `lib/types.ts` `driverTier`): 브론즈는 자동(차량번호·차량 사진·프로필 사진), 실버·골드는 당분간 관리자 지정(`users.tier_set`, 관리자 회원 목록의 선택칸 → PATCH `/api/admin` `{userId, tierSet}`). 운전자에게만 붙여 상대가 본다: 홈 글 카드·글 상세(운전자 글), 회원 프로필, 채팅 목록·대화방(상대가 운전자일 때), 내 정보.
 - **관리자 출퇴근 지도**(관리자 탭 '출퇴근 지도', `components/admin/FlowMap.tsx` 동적 import, `/api/admin/flows`): 진행 중 정기 글 + 정기 글 없는 회원의 가입 출퇴근 정보를 출발→도착 곡선으로 겹쳐 그림(운전자 파랑·탑승자 초록·가입 정보 보라), 역할·시간대 필터, 출발·도착 구·구간 Top 5. 이름·이메일은 보내지 않음. 차단·탈퇴·테스트 제외. 지하철은 좌표가 없어 개수만.
 - **말풍선 안내**(`Bubble`, `useHintTap` in `components/ui.tsx`): 관련 버튼을 처음 누를 때 한 번만 설명을 보여 주고(그 누름은 실행하지 않음), 다음부터 바로 실행. 본 기록은 localStorage `hint:블록ID`.
+- **푸시 알림**(`components/Push.tsx`, `/api/push`, `lib/push.ts`): 기본 켜짐(권한을 이미 허용한 기기는 로그인 시 자동 등록). 끄기는 구독 삭제가 아니라 `push_subs.paused_at` 멈춤. 보낼 때 회원이 10일 넘게 미접속(users.last_seen)이고 멈춘 지 10일이 지났으면 멈춤을 풀고 보낸다.
 - `lib/i18n.ts`: 한국어 키 사전. **번역 문구는 지금 넣지 않는다.** 국내 유저가 우선이라 서비스가 완성된 뒤 한꺼번에 추가한다. 화면 문구는 `t("한국어")`로만 감싸 둔다.
 
 ## 메일
@@ -58,6 +59,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **크레딧**: 지하철 출퇴근 정보 첫 저장 시 `subway` 2000 1회(`credit_subway_uniq`).
 
 ## 남은 일
+- 알림 소리 "모카!": 웹 푸시는 소리 지정 불가. ①앱을 열어 둔 상태에서만 재생(음성 mp3 필요) ②스토어 앱으로 감싸면 백그라운드도 가능 — 보류
 - 홈 전체/운전자/탑승자 필터 → 회원이 늘면 탑승자 모드·운전자 모드·전체 모드로 조정
 - 모카 미터기: 지금은 설정 맨 아래 작은 링크. 회원이 늘면 내 정보 화면으로 복구
 - 퇴근(반대 방향) 매칭

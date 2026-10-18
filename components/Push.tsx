@@ -24,14 +24,25 @@ export function usePush(loggedIn: boolean) {
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
-      const r = await api<{ enabled: boolean; key: string; subscribed: boolean }>(`/api/push${sub ? `?endpoint=${encodeURIComponent(sub.endpoint)}` : ""}`);
+      const r = await api<{ enabled: boolean; key: string; subscribed: boolean; paused?: boolean }>(`/api/push${sub ? `?endpoint=${encodeURIComponent(sub.endpoint)}` : ""}`);
       if (!r.ok || !r.data.enabled) return setState("disabled");
       setKey(r.data.key);
-      setState(sub && r.data.subscribed && Notification.permission === "granted" ? "on" : "off");
+      if (sub && r.data.subscribed) return setState(r.data.paused ? "off" : "on");
+      // 기본 켜짐: 알림 권한을 이미 허용한 기기는 로그인하면 조용히 등록한다(권한 창은 띄우지 않는다).
+      if (loggedIn && Notification.permission === "granted") {
+        try {
+          const s2 = sub ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(r.data.key) }));
+          const saved = await api("/api/push", "POST", { subscription: s2.toJSON() });
+          if (saved.ok) return setState("on");
+        } catch {
+          /* 등록 실패 시 꺼짐으로 둔다 */
+        }
+      }
+      setState("off");
     } catch {
       setState("unsupported");
     }
-  }, []);
+  }, [loggedIn]);
 
   // 로그인 전에도 지원 여부를 알아야 가입 화면에 '푸시 알림 받기'를 보여줄 수 있다.
   useEffect(() => {
@@ -48,6 +59,7 @@ export function usePush(loggedIn: boolean) {
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(key) }));
+      // 저장(또는 멈춤 해제)
       const r = await api("/api/push", "POST", { subscription: sub.toJSON() });
       if (!r.ok) return r.error;
       setState("on");
@@ -57,14 +69,12 @@ export function usePush(loggedIn: boolean) {
     }
   };
 
+  /** 끄기 = 잠시 멈춤. 기기 등록은 남겨 두어, 10일 넘게 접속하지 않으면 서버가 다시 켠다. */
   const turnOff = async () => {
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await api(`/api/push?endpoint=${encodeURIComponent(sub.endpoint)}`, "DELETE");
-        await sub.unsubscribe();
-      }
+      if (sub) await api(`/api/push?endpoint=${encodeURIComponent(sub.endpoint)}`, "PATCH", { paused: true });
     } catch {
       /* 무시 */
     }

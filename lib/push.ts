@@ -18,7 +18,11 @@ export async function sendPush(userId: string, payload: PushPayload) {
   try {
     setup();
     const sql = db();
-    const subs = await sql`select s.endpoint, s.p256dh, s.auth from push_subs s join users u on u.id = s.user_id where s.user_id = ${userId} and not u.blocked`;
+    // 멈춘 기기라도 회원이 10일 넘게 접속하지 않았으면 멈춤을 풀고 다시 보낸다.
+    await sql`update push_subs s set paused_at = null from users u
+              where s.user_id = ${userId} and u.id = s.user_id and s.paused_at is not null
+                and s.paused_at < now() - interval '10 days' and (u.last_seen is null or u.last_seen < now() - interval '10 days')`;
+    const subs = await sql`select s.endpoint, s.p256dh, s.auth from push_subs s join users u on u.id = s.user_id where s.user_id = ${userId} and not u.blocked and s.paused_at is null`;
     let sent = 0;
     await Promise.all(
       subs.map(async (s) => {

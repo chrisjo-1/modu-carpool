@@ -223,6 +223,8 @@ export function ensureSchema(): Promise<void> {
         auth text not null,
         created_at timestamptz not null default now())`;
       await sql`create index if not exists push_subs_user_idx on push_subs (user_id)`;
+      // 푸시 '끄기'는 구독을 지우지 않고 멈춤 표시만 한다. 10일 넘게 접속하지 않으면 보낼 때 다시 켠다.
+      await sql`alter table push_subs add column if not exists paused_at timestamptz`;
       await sql`alter table users add column if not exists car_photo text not null default ''`;
       await sql`alter table users add column if not exists car_v integer not null default 0`;
       // 관리자가 지정한 운전자 등급('' = 자동, silver, gold)

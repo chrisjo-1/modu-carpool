@@ -8,16 +8,19 @@ export async function GET(req: Request) {
   const enabled = pushEnabled();
   const endpoint = new URL(req.url).searchParams.get("endpoint");
   let subscribed = false;
+  let paused = false;
   const me = await currentUserId();
   if (enabled && me && endpoint) {
     try {
       await ensureSchema();
-      subscribed = (await db()`select 1 from push_subs where endpoint = ${endpoint} and user_id = ${me}`).length > 0;
+      const r = await db()`select paused_at from push_subs where endpoint = ${endpoint} and user_id = ${me}`;
+      subscribed = r.length > 0;
+      paused = subscribed && r[0].paused_at != null;
     } catch {
       /* 무시 */
     }
   }
-  return json({ enabled, key: enabled ? process.env.VAPID_PUBLIC_KEY : "", subscribed });
+  return json({ enabled, key: enabled ? process.env.VAPID_PUBLIC_KEY : "", subscribed, paused });
 }
 
 /** 이 기기 구독 저장 */
@@ -38,7 +41,7 @@ export async function POST(req: Request) {
     const n = await sql`select count(*)::int as n from push_subs where user_id = ${me}`;
     if ((n[0].n as number) >= 10) await sql`delete from push_subs where endpoint in (select endpoint from push_subs where user_id = ${me} order by created_at limit 1)`;
     await sql`insert into push_subs (endpoint, user_id, p256dh, auth) values (${endpoint}, ${me}, ${p256dh}, ${auth})
-              on conflict (endpoint) do update set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`;
+              on conflict (endpoint) do update set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth, paused_at = null`;
     return json({ ok: true });
   } catch (e) {
     return fail(e);
@@ -53,6 +56,24 @@ export async function DELETE(req: Request) {
   try {
     await ensureSchema();
     await db()`delete from push_subs where endpoint = ${endpoint} and user_id = ${me}`;
+    return json({ ok: true });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 이 기기 알림 멈춤/다시 켜기(?endpoint=, {paused}). 구독은 지우지 않는다. 10일 넘게 접속하지 않으면 보낼 때 다시 켜진다. */
+export async function PATCH(req: Request) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const endpoint = new URL(req.url).searchParams.get("endpoint") ?? "";
+  const b = await body(req);
+  try {
+    await ensureSchema();
+    const r = b.paused === true
+      ? await db()`update push_subs set paused_at = now() where endpoint = ${endpoint} and user_id = ${me} returning endpoint`
+      : await db()`update push_subs set paused_at = null where endpoint = ${endpoint} and user_id = ${me} returning endpoint`;
+    if (!r.length) return json({ error: "이 기기의 알림 등록을 찾지 못했어요." }, 404);
     return json({ ok: true });
   } catch (e) {
     return fail(e);
