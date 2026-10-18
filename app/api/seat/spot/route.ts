@@ -1,5 +1,6 @@
 import { body, currentUserId, fail, json, needLogin, text } from "@/lib/server";
 import { acceptedPartners, clearSpot, getMyPlan, getSpot, seatDbReady, setSpot, type Spot } from "@/lib/seatDb";
+import { parseKarrotPhoto } from "@/lib/karrot";
 import { seatPush } from "@/lib/seatNotify";
 import { carCountOf } from "@/lib/subway";
 import { doorOfSeat, parseSeat, seatId, seatLabel } from "@/lib/subwayPosition";
@@ -34,15 +35,23 @@ export async function PUT(req: Request) {
     // 그림에서 좌석을 고르면 가장 가까운 문을 함께 정한다. 좌석 없이 문만 고를 수도 있다.
     const door = seatPos ? doorOfSeat(seatPos) : text(b.door, 1);
     const side = b.side === "left" || b.side === "right" ? b.side : "";
-    const memo = text(b.memo, 40);
+    const memo = text(b.memo, 80);
+    // 힌트 사진(선택): 없으면 그대로 두고, ""면 지우고, JPEG data URL이면 바꾼다.
+    let photo: string | undefined;
+    if (b.photo === "") photo = "";
+    else if (typeof b.photo === "string") {
+      const p = parseKarrotPhoto(b.photo);
+      if (!p) return json({ error: "사진 파일을 확인해 주세요." }, 400);
+      photo = p;
+    }
     if (!/^\d{1,2}$/.test(car) || Number(car) < 1 || Number(car) > max) return json({ error: "칸 번호를 골라 주세요." }, 400);
     if (!/^[1-4]$/.test(door)) return json({ error: "앉은 좌석을 그림에서 골라 주세요." }, 400);
     const spot: Spot = { car, door, side, seat: seatPos ? seatId(seatPos) : "", memo };
-    await setSpot(uid, spot);
+    await setSpot(uid, spot, undefined, photo);
     const partners = await acceptedPartners(uid);
     const where = seatPos ? `${car}번째 칸 · ${seatLabel(seatPos)}` : `${car}-${door}`;
     await Promise.all(partners.map((p) => seatPush(p, "상대가 자리 위치를 알려 줬어요", `${where}${memo ? ` · 힌트: ${memo}` : ""}`, "seat-spot")));
-    return json({ spot });
+    return json({ spot: await getSpot(uid) });
   } catch (e) {
     return fail(e);
   }

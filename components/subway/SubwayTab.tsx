@@ -3,14 +3,13 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Post, User } from "@/lib/types";
 import type { SubwayPlan } from "@/lib/subway";
-import { ALL_LINES } from "@/lib/subway";
-import { Segment, api, useT } from "../ui";
-import { headingFor } from "@/lib/subwayRoute";
+import { ALL_LINES, LINE_STATIONS } from "@/lib/subway";
+import { Segment, api, field, useT } from "../ui";
+import { headingFor, headingsAt } from "@/lib/subwayRoute";
 import SubwayCarGuide from "./SubwayCarGuide";
 import SubwayMatches from "./SubwayMatches";
 import SeatSpotCard from "./SeatSpotCard";
 import SubwayCall from "./SubwayCall";
-import NearStation from "./NearStation";
 
 // 안내 사진은 시트를 열 때만 불러온다.
 const LocationHelp = dynamic(() => import("./LocationHelp"), { ssr: false });
@@ -21,6 +20,10 @@ const LocationHelp = dynamic(() => import("./LocationHelp"), { ssr: false });
  * 이 폴더와 App.tsx의 탭 연결 한 곳을 지우면 기능 전체를 뺄 수 있다.
  */
 type View = "seat" | "match" | "car";
+/** 오늘만 바꾼 탑승 정보(이 기기, 날짜가 바뀌면 무시). 매칭용 출퇴근 등록은 바꾸지 않는다. */
+type Today = { date: string; board: string; next: string; time: string };
+const TODAY_KEY = "modu.subwayToday";
+const kstDate = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
 export default function SubwayTab({ user }: { user: User | null; toast: (m: string) => void }) {
   const t = useT();
@@ -31,6 +34,25 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
   const [help, setHelp] = useState(false);
   const [planDays, setPlanDays] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [today, setTodayState] = useState<Today | null>(null);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(TODAY_KEY) ?? "null") as Today | null;
+      if (v && v.date === kstDate()) setTodayState(v);
+    } catch {
+      /* 무시 */
+    }
+  }, []);
+  const setToday = (v: Today | null) => {
+    setTodayState(v);
+    try {
+      if (v) localStorage.setItem(TODAY_KEY, JSON.stringify(v));
+      else localStorage.removeItem(TODAY_KEY);
+    } catch {
+      /* 무시 */
+    }
+  };
   // 위쪽 탭: 내 자리 / 매칭 / 앉을 칸. 마지막으로 본 탭을 이 기기에 기억한다.
   const [view, setView] = useState<View>(() => {
     try {
@@ -83,7 +105,11 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
   }
 
   const lineName = plan ? ALL_LINES.find((l) => l.id === plan.boardLine)?.name ?? "" : "";
-  const heading = plan && plan.boardLine === plan.alightLine ? headingFor(plan.boardLine, plan.board, plan.alight) : null;
+  const planHeading = plan && plan.boardLine === plan.alightLine ? headingFor(plan.boardLine, plan.board, plan.alight) : null;
+  // 오늘만 바꾼 탑승역·방향·시간(이 기기). 없으면 등록한 출퇴근 정보를 쓴다.
+  const board = today?.board || plan?.board || "";
+  const timeNow = today?.time || plan?.timeGo || "";
+  const heading = plan ? (today?.next ? headingsAt(plan.boardLine, board).find((h) => h.next === today.next) ?? null : board === plan.board ? planHeading : null) : null;
 
   return (
     <section className="space-y-4 pb-24 pt-2" data-block-id="S070" data-block-name="지하철 탭">
@@ -94,16 +120,20 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
 
       {!loaded && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
       {loaded && !plan && <EmptyPlan />}
-      {loaded && !plan && <NearStation />}
 
       {loaded && plan && (
         <>
           {/* 오늘 출근 요약 */}
           <div data-block-id="C130" data-block-name="오늘 출근" className="rounded-2xl border border-violet/25 bg-violetSoft/60 px-4 py-3">
-            <p className="text-[12px] font-semibold text-violet">{t("오늘 출근")}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[12px] font-semibold text-violet">{t("오늘 출근")}{today && <span className="ml-1.5 rounded-full bg-white px-1.5 py-0.5 text-[11px]">{t("오늘만 변경")}</span>}</p>
+              <button type="button" data-block-id="B262" data-block-name="오늘 탑승 정보 변경" className="min-h-0 py-1 text-[13px] font-semibold text-violet underline-offset-4 hover:underline" onClick={() => setEditing((v) => !v)}>
+                {editing ? t("닫기") : t("변경")}
+              </button>
+            </div>
             <p className="mt-0.5 text-[16px] font-bold text-ink">
               <span className="mr-1.5 rounded-md bg-violet px-1.5 py-0.5 text-[12px] font-bold text-white">{t(lineName)}</span>
-              {plan.board} → {plan.alight} <span className="num font-semibold text-violet">{plan.timeGo}</span>
+              {board}{board === plan.board ? ` → ${plan.alight}` : ` ${t("탑승")}`} <span className="num font-semibold text-violet">{timeNow}</span>
             </p>
             {heading && (
               <p className="mt-0.5 text-[13px] text-sub">
@@ -111,9 +141,22 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
                 {t("다음역")} {heading.next}
               </p>
             )}
+            {editing && (
+              <TodayEditor
+                line={plan.boardLine}
+                init={{ board, next: heading?.next ?? "", time: timeNow }}
+                onSave={(v) => {
+                  setToday({ date: kstDate(), ...v });
+                  setEditing(false);
+                }}
+                onReset={() => {
+                  setToday(null);
+                  setEditing(false);
+                }}
+                changed={!!today}
+              />
+            )}
           </div>
-
-          <NearStation board={plan.board} />
 
           <Segment
             label={t("지하철 메뉴")}
@@ -123,7 +166,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
             options={[
               ["seat", t("내 자리 알리기")],
               ["match", t("매칭")],
-              ["car", t("앉을 칸")],
+              ["car", t("앉을 칸 찾기")],
             ]}
           />
 
@@ -139,7 +182,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
 
           {view === "match" && (seatOn ? <SubwayMatches myTime={plan.timeGo} myDays={planDays} reloadKey={reloadKey} /> : <NotOpen />)}
 
-          {view === "car" && <SubwayCarGuide line={plan.boardLine} station={plan.board} alight={plan.boardLine === plan.alightLine ? plan.alight : ""} timeGo={plan.timeGo} days={days} />}
+          {view === "car" && <SubwayCarGuide key={`${board}|${heading?.next ?? ""}|${timeNow}`} line={plan.boardLine} station={board} alight={!today && plan.boardLine === plan.alightLine ? plan.alight : ""} prefer={heading?.next ?? ""} timeGo={timeNow} days={days} />}
         </>
       )}
 
@@ -162,6 +205,63 @@ function EmptyPlan() {
     <div className="space-y-1 rounded-2xl border border-line bg-white px-4 py-4">
       <p className="text-[15px] font-semibold text-ink">{t("지하철 출퇴근 정보를 먼저 등록해 주세요")}</p>
       <p className="text-[13px] leading-relaxed text-sub">{t("내 출퇴근 정보 → 지하철에서 노선·역·탑승 시각을 저장하면, 여기서 혼잡도와 앉을 가능성이 높은 칸을 바로 보여 드려요.")}</p>
+    </div>
+  );
+}
+
+/** '오늘 출근' 카드 안에서 오늘의 탑승역·방향·시간을 고친다(이 기기, 오늘 하루). */
+function TodayEditor({ line, init, onSave, onReset, changed }: { line: string; init: { board: string; next: string; time: string }; onSave: (v: { board: string; next: string; time: string }) => void; onReset: () => void; changed: boolean }) {
+  const t = useT();
+  const [board, setBoard] = useState(init.board);
+  const [next, setNext] = useState(init.next);
+  const [time, setTime] = useState(init.time);
+  const stations = [...new Set(LINE_STATIONS[line] ?? [])];
+  const headings = headingsAt(line, board);
+  const nextOk = headings.some((h) => h.next === next) ? next : headings[0]?.next ?? "";
+  return (
+    <div data-block-id="S075" data-block-name="오늘 탑승 정보 변경" className="mt-3 space-y-3 border-t border-violet/20 pt-3">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block text-[13px] text-sub">
+          {t("탑승역")}
+          <select className={`${field} mt-1 py-2`} value={board} onChange={(e) => setBoard(e.target.value)}>
+            {!stations.includes(board) && board && <option value={board}>{board}</option>}
+            {stations.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-[13px] text-sub">
+          {t("탑승 시간")}
+          <input className={`${field} mt-1 py-2`} type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        </label>
+      </div>
+      {headings.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[13px] text-sub">{t("방향")}</p>
+          <div role="radiogroup" aria-label={t("방향")} className="flex flex-wrap gap-1.5">
+            {headings.map((h) => {
+              const on = nextOk === h.next;
+              return (
+                <button key={h.next} type="button" role="radio" aria-checked={on} onClick={() => setNext(h.next)} className={`min-h-[40px] rounded-xl border px-3 py-1 text-left text-[13px] ${on ? "border-violet bg-white font-semibold text-violet" : "border-line bg-white text-sub"}`}>
+                  {h.terminal ? `${h.terminal} ${t("방면")}` : `${h.next} ${t("방향")}`}
+                  <span className="block text-[11px] font-normal text-sub">{t("다음역")} {h.next}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button type="button" className="flex-1 rounded-xl bg-violet py-2.5 text-[14px] font-semibold text-white disabled:opacity-40" disabled={!board || !/^\d{1,2}:\d{2}$/.test(time)} onClick={() => onSave({ board, next: nextOk, time })}>
+          {t("오늘만 이렇게 보기")}
+        </button>
+        {changed && (
+          <button type="button" className="rounded-xl bg-white px-3 py-2.5 text-[14px] text-sub" onClick={onReset}>
+            {t("등록 정보로")}
+          </button>
+        )}
+      </div>
+      <p className="text-[12px] leading-relaxed text-sub">{t("오늘 하루 이 기기에서만 바뀌어요. 매칭에 쓰는 출퇴근 정보는 내 출퇴근 정보에서 고쳐 주세요.")}</p>
     </div>
   );
 }

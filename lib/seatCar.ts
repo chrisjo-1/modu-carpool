@@ -128,3 +128,46 @@ export function parseFeedback(b: Record<string, unknown>): { ok: true; key: Guid
   if (typeof b.seated !== "boolean") return { ok: false, error: "앉았는지 골라 주세요." };
   return { ok: true, key: key.key, car, entrance, seated: b.seated };
 }
+
+/**
+ * 기록이 모자라도 바로 보여 주는 "현재 기준 추정".
+ * - 바탕: 혼잡도(%)로 탑승 직후 앉을 확률. 좌석이 다 차는 수준(약 34~38%)을 반으로 보는 로지스틱 곡선.
+ *   혼잡도 자료가 없으면 0.4.
+ * - 칸 위치: 맨 앞·맨 뒤 칸 1.2배, 그 옆 칸 1.08배, 나머지 0.95배(끝 칸이 덜 붐비는 경향).
+ * - 기록: 칸마다 (착석 + W×추정) / (기록 + W), W = 8. 기록이 쌓일수록 기록 비중이 커진다.
+ */
+export type CarEstimate = { car: string; prob: number; n: number };
+export type Estimate = { overall: number; cars: CarEstimate[]; records: number; basis: "congestion" | "default" };
+
+const EST_WEIGHT = 8;
+
+export function seatChance(pct: number | null): number {
+  if (pct == null || !Number.isFinite(pct)) return 0.4;
+  const p = 1 / (1 + Math.exp((pct - 38) / 10));
+  return Math.min(0.9, Math.max(0.05, p));
+}
+
+export function carFactor(car: number, count: number): number {
+  const d = Math.min(car - 1, count - car);
+  return d === 0 ? 1.2 : d === 1 ? 1.08 : 0.95;
+}
+
+export function estimateCars(carCount: number, pct: number | null, rows: FeedbackRow[], top = 3): Estimate {
+  const base = seatChance(pct);
+  const byCar = new Map<string, { n: number; s: number }>();
+  for (const r of rows) {
+    const g = byCar.get(r.car) ?? { n: 0, s: 0 };
+    g.n += 1;
+    if (r.seated) g.s += 1;
+    byCar.set(r.car, g);
+  }
+  const cars: CarEstimate[] = [];
+  for (let i = 1; i <= carCount; i++) {
+    const prior = Math.min(0.95, Math.max(0.03, base * carFactor(i, carCount)));
+    const g = byCar.get(String(i)) ?? { n: 0, s: 0 };
+    const prob = (g.s + EST_WEIGHT * prior) / (g.n + EST_WEIGHT);
+    cars.push({ car: String(i), prob: Math.round(prob * 100) / 100, n: g.n });
+  }
+  cars.sort((a, b) => b.prob - a.prob || b.n - a.n || Number(a.car) - Number(b.car));
+  return { overall: Math.round(base * 100) / 100, cars: cars.slice(0, top), records: rows.length, basis: pct == null ? "default" : "congestion" };
+}

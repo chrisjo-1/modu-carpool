@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { dayName } from "@/lib/i18n";
-import { MIN_SAMPLE, slotOf, LEVEL_LABEL, type CarRank, type GuideResult } from "@/lib/seatCar";
+import { MIN_SAMPLE, slotOf, type CarRank, type Estimate, type GuideResult } from "@/lib/seatCar";
 import type { Congestion, CongestionLevel } from "@/lib/congestion";
 import { carNumbersOf, type LineId } from "@/lib/subway";
 import { DOOR_NUMBERS, positionLabel } from "@/lib/subwayPosition";
@@ -9,7 +9,7 @@ import { headingFor, headingsAt } from "@/lib/subwayRoute";
 import { api, btnGhost, field, useLang, useT } from "../ui";
 
 type Dir = "up" | "down";
-type Guide = GuideResult & { congestion: Congestion | null };
+type Guide = GuideResult & { congestion: Congestion | null; estimate?: Estimate };
 
 /** 혼잡도 단계별 한 줄 설명. */
 const HINT: Record<CongestionLevel, string> = {
@@ -23,13 +23,13 @@ const HINT: Record<CongestionLevel, string> = {
  * 탑승 칸 안내. 역과 탑승 시각이 있으면 바로 혼잡도 답을 보여 주고,
  * 칸 추천은 착석 기록이 쌓이면 이어서 보여 준다. 기록 남기기는 접힌 영역에 둔다.
  */
-export default function SubwayCarGuide({ line, station, alight = "", timeGo, days }: { line: LineId; station: string; alight?: string; timeGo: string; days: string }) {
+export default function SubwayCarGuide({ line, station, alight = "", timeGo, days, prefer = "" }: { line: LineId; station: string; alight?: string; timeGo: string; days: string; prefer?: string }) {
   const t = useT();
   const lang = useLang();
   const selectedDays = useMemo(() => [...days].filter((d) => /^[0-6]$/.test(d)).sort(), [days]);
   // 방향은 상행/하행 대신 다음역(종착역) 이름으로 고른다. 하차역이 있으면 그 방향을 먼저 고른다.
   const headings = useMemo(() => headingsAt(line, station), [line, station]);
-  const preferred = useMemo(() => (alight ? headingFor(line, station, alight)?.next ?? "" : ""), [line, station, alight]);
+  const preferred = useMemo(() => prefer || (alight ? headingFor(line, station, alight)?.next ?? "" : ""), [line, station, alight, prefer]);
   const [pick, setPick] = useState("");
   const [fallbackDir, setFallbackDir] = useState<Dir>("up"); // 역 순서가 없는 노선용
   const heading = headings.find((h) => h.next === pick) ?? headings.find((h) => h.next === preferred) ?? headings[0];
@@ -157,9 +157,8 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, day
       {err && <p className="text-[14px] text-warn">{err}</p>}
       {data && (data.congestion ? <CongestionAnswer c={data.congestion} /> : <p className="text-[13px] text-sub">{t("이 역·방향은 혼잡도 자료가 없어요.")}</p>)}
 
-      {/* 답 2: 칸 */}
-      {data?.status === "collecting" && <CollectingBox total={data.total} />}
-      {data?.status === "ready" && top && (
+      {/* 답 2: 칸 — 기록이 30건 이상이면 기록 순위, 아니면 현재 기준 추정. 둘 다 적중확률(%)로 보여 준다. */}
+      {data?.status === "ready" && top ? (
         <div className="space-y-3">
           <p className="text-sm font-semibold text-ink">{t("앉을 가능성이 높은 위치")}</p>
           <ul className="space-y-2">
@@ -175,17 +174,16 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, day
                   </p>
                   <p className="num text-[12px] text-sub">{t("착석 기록")} {r.seated}/{r.n}{t("건")}</p>
                 </div>
-                <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold ${r.level === "high" ? "bg-violetSoft text-violet" : "bg-bg text-sub"}`}>
-                  {t(LEVEL_LABEL[r.level])}
-                </span>
+                <Chance p={r.rate} />
               </li>
             ))}
           </ul>
-          <p className="text-[12px] leading-relaxed text-sub">{t("승강장 바닥의 삼각형 표시(칸-문)를 찾아 그 앞에서 기다리세요. 지나간 착석 기록으로 계산한 참고 정보예요.")}</p>
+          <p className="text-[12px] leading-relaxed text-sub">{t("승강장 바닥의 삼각형 표시(칸-문)를 찾아 그 앞에서 기다리세요. 이 시간대 착석 기록으로 계산한 적중확률이에요.")}</p>
           <CarPlan car={top.car} />
         </div>
-      )}
-      {data?.status === "ready" && !top && <p className="text-[14px] text-sub">{t("아직 뚜렷한 위치가 없어요. 기록이 더 쌓이면 보여 드릴게요.")}</p>}
+      ) : data?.estimate ? (
+        <EstimateAnswer e={data.estimate} carCount={carNumbersOf(line).length} />
+      ) : null}
 
       {/* 기록 남기기: 접힌 영역 */}
       <details className="rounded-2xl border border-line px-4 py-3">
@@ -245,18 +243,47 @@ function CongestionAnswer({ c }: { c: Congestion }) {
   );
 }
 
-/** 칸 추천을 아직 보여 줄 수 없을 때의 상태. */
-function CollectingBox({ total }: { total: number }) {
+/** 적중확률 표시(%) */
+function Chance({ p }: { p: number }) {
   const t = useT();
+  const pct = Math.round(p * 100);
   return (
-    <div className="space-y-2 rounded-2xl border border-line px-4 py-3">
-      <p className="text-[15px] font-semibold text-ink">{t("칸 추천 준비 중")}</p>
-      <p className="text-[13px] leading-relaxed text-sub">
-        {t("이 시간대 착석 기록")} {total}/{MIN_SAMPLE}{t("건")}. {t("기록이 쌓이면 칸과 문 위치를 추천해 드려요.")}
-      </p>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line" aria-hidden>
-        <div className="h-full rounded-full bg-violet" style={{ width: `${Math.min(100, (total / MIN_SAMPLE) * 100)}%` }} />
+    <span className={`num shrink-0 rounded-full px-3 py-1 text-right text-[13px] font-semibold ${pct >= 60 ? "bg-violetSoft text-violet" : pct >= 35 ? "bg-bg text-ink" : "bg-bg text-sub"}`}>
+      <span className="block text-[10px] font-normal text-sub">{t("적중확률")}</span>
+      {pct}%
+    </span>
+  );
+}
+
+/** 기록이 모자랄 때도 바로 보여 주는 현재 기준 추정(혼잡도 + 칸 위치 + 쌓인 기록). */
+function EstimateAnswer({ e, carCount }: { e: Estimate; carCount: number }) {
+  const t = useT();
+  const best = e.cars[0];
+  return (
+    <div className="space-y-3" data-block-id="C133" data-block-name="앉을 칸 추정">
+      <div className="flex items-end justify-between gap-3">
+        <p className="text-sm font-semibold text-ink">{t("지금 기준 추천 칸")}</p>
+        <p className="num text-[12px] text-sub">{t("이 시간 평균 적중확률")} <b className="text-ink">{Math.round(e.overall * 100)}%</b></p>
       </div>
+      <ul className="space-y-2">
+        {e.cars.map((c, i) => (
+          <li key={c.car} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[15px] font-semibold text-ink">
+                {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
+                <span className="num">{c.car}</span>{t("번째 칸")}
+                <span className="ml-1.5 text-[13px] font-normal text-sub">/ {carCount}{t("칸")}</span>
+              </p>
+              <p className="num text-[12px] text-sub">{c.n > 0 ? `${t("착석 기록")} ${c.n}${t("건 반영")}` : Number(c.car) === 1 || Number(c.car) === carCount ? t("맨 끝 칸 · 덜 붐비는 편") : t("칸 위치 기준")}</p>
+            </div>
+            <Chance p={c.prob} />
+          </li>
+        ))}
+      </ul>
+      <p className="text-[12px] leading-relaxed text-sub">
+        {e.basis === "congestion" ? t("서울교통공사 혼잡도와 칸 위치로 계산한 현재 기준 추정이에요.") : t("이 역은 혼잡도 자료가 없어 칸 위치로만 추정했어요.")} {t("착석 기록")} {e.records}{t("건 반영")} · {t("기록이 쌓일수록 정확해져요")}({MIN_SAMPLE}{t("건부터 기록 순위로 바뀌어요")}).
+      </p>
+      {best && <CarPlan car={best.car} />}
     </div>
   );
 }

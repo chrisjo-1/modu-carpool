@@ -6,7 +6,7 @@ import SeatMap from "./SeatMap";
 import { api, field, useT } from "../ui";
 
 type Pair = { role: "take" | "give"; stops: number; seatStation: string; meetStation: string; gapMin: number; car: string; gate: string };
-type Spot = { car: string; door: string; side: "left" | "right" | ""; seat?: string; memo: string };
+type Spot = { car: string; door: string; side: "left" | "right" | ""; seat?: string; memo: string; photo?: boolean };
 type Contact = { type: string; id: string };
 type Cand = Pair & { planId: number; timeGo: string };
 type Req = { id: string; status: string; incoming: boolean; otherPlanId: number; otherTime: string; pair: Pair | null; spot: Spot | null; contact: Contact | null };
@@ -194,6 +194,7 @@ function MatchedCard({ r, chatOpen, onToggleChat }: { r: Req; chatOpen: boolean;
             )}
           </p>
           {r.spot?.seat && <SeatMap value={r.spot.seat} car={r.spot.car} readOnly />}
+          {r.spot?.photo && <HintPhoto reqId={r.id} />}
           {!r.spot && (p.car || p.gate) && (
             <p className="text-sub">
               {t("등록한 탑승 위치")} <span className="num text-ink">{positionLabel(p.car, p.gate) || p.car}</span>
@@ -393,4 +394,17 @@ function ResultLine({ result }: { result: CarMatch | null }) {
     return <p className="text-[14px] text-ink">{t("같은 열차예요. 상대는")} {result.gap}{t("칸 떨어진 곳에 있어요.")}</p>;
   }
   return <p className="text-[14px] text-ink">{t("다른 칸이에요. 바닥 표시 번호를 다시 확인해 주세요.")}</p>;
+}
+
+/** 수락된 상대의 오늘의 힌트 사진. 누르면 크게 본다. */
+function HintPhoto({ reqId }: { reqId: string }) {
+  const t = useT();
+  const [big, setBig] = useState(false);
+  return (
+    <button type="button" data-block-id="C134" data-block-name="상대 힌트 사진" onClick={() => setBig((v) => !v)} className="block min-h-0 text-left">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`/api/seat/spot/photo?req=${encodeURIComponent(reqId)}`} alt={t("상대의 오늘의 힌트 사진")} loading="lazy" className={`rounded-xl border border-line object-cover ${big ? "w-full" : "h-24 w-24"}`} />
+      <span className="mt-1 block text-[12px] text-sub">{big ? t("눌러서 작게") : t("힌트 사진 · 눌러서 크게")}</span>
+    </button>
+  );
 }

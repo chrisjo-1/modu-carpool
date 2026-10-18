@@ -28,13 +28,13 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 
 ## 지하철 앉아가기 (하단 '지하철' 메뉴)
 - **등록**: `components/Commute.tsx`(내 출퇴근 정보)의 운전자 / 탑승자 / **지하철** 세 칸 중 지하철. 입력 화면은 `components/subway/SubwayPanel.tsx`(동적 import).
-- **지하철 메뉴**: `components/subway/SubwayTab.tsx` — 오늘 출근 요약 카드 + 위쪽 탭 [내 자리 알리기(`SeatSpotCard`, 좌석 미선택이면 그림을 바로 펼침) | 매칭(`SubwayMatches`) | 앉을 칸(`SubwayCarGuide`)], 마지막 탭은 sessionStorage `modu.subwayView`. 오른쪽 위 "위치 찾는 법"(`LocationHelp`, 사진은 열 때만 로드). CALL을 보내면 매칭 탭으로 이동.
-  가까운 역: `NearStation`(버튼을 누를 때만 위치 권한) → `/api/seat/near`(카카오 SW8 분류 → 실패·0건이면 오픈스트리트맵 Overpass, 반경 2km, 3곳, 실패 원인 reason, 위치 저장 안 함).
+- **지하철 메뉴**: `components/subway/SubwayTab.tsx` — 오늘 출근 요약 카드 + 위쪽 탭 [내 자리 알리기(`SeatSpotCard`, 좌석 미선택이면 그림을 바로 펼침) | 매칭(`SubwayMatches`) | 앉을 칸 찾기(`SubwayCarGuide`)], 마지막 탭은 sessionStorage `modu.subwayView`. 오른쪽 위 "위치 찾는 법"(`LocationHelp`, 사진은 열 때만 로드). CALL을 보내면 매칭 탭으로 이동.
   탭 노출은 `/api/seat/config`의 `visible`(기능 켜짐 또는 관리자). 폴더와 `components/App.tsx`의 탭 연결을 지우면 기능 전체가 빠진다.
 - **저장소**: 별도 Neon DB(modu-seat), `SEAT_DATABASE_URL`. `lib/seatDb.ts`의 `ensureSeatSchema()`가 `seat_plans`, `seat_requests`, `seat_feedback`, `seat_car_confirm`을 만든다.
 - **혼잡도**: 서울교통공사 시간대별 혼잡도(2026년 6월, 평일·토·일, 역·방향·30분). `scripts/build-congestion.py`로 엑셀을 `lib/data/congestion-2026-06.json`으로 변환, `lib/congestion.ts`가 서버에서만 조회(`/api/seat/car` 응답의 `congestion`).
   2호선 내선=상행, 외선=하행. 자료 별칭: 신촌=신촌(지하), 강동=강동(마천)/(하남검단산). 공공 API 연동은 서비스명 확인 전까지 보류.
-- **칸 추천**: `lib/seatCar.ts`(착석 기록 30건 이상일 때만 추천, 평활 처리). 기록에는 회원 번호를 넣지 않는다.
+- **칸 추천**: `lib/seatCar.ts`. 기록 30건 이상이면 기록 순위(평활), 그 전에는 `estimateCars` 현재 기준 추정(혼잡도 로지스틱 + 끝 칸 가산 + 칸별 기록 가중 W=8)을 적중확률(%)로 보여 준다. 기록에는 회원 번호를 넣지 않는다.
+- **오늘 탑승 정보 변경**: 지하철 메뉴 '오늘 출근' 카드 [변경] → 탑승역·방향·시간을 오늘 하루 이 기기(localStorage `modu.subwayToday`)에서만 바꿔 내 자리 알리기·앉을 칸 찾기에 적용. 매칭용 등록은 그대로.
 - **칸 수**: `lib/subway.ts` `carCountOf` — 1~4호선 10칸, 5~7호선 8칸, 8호선 6칸, 그 밖은 일단 10칸.
 - **탑승 위치**: 승강장 바닥 삼각형 표시 "칸-문"(예: 6-1 = 6번째 칸 1번 문). 문 번호는 1~4.
 - **같은 칸 확인(선택)**: 열차 안 문 위 4자리 차량번호. 같으면 같은 칸, 2호선에서 편성(첫 자리+끝 두 자리)만 같으면 같은 열차. `lib/subwayPosition.ts`, `/api/seat/confirm`. 상대 번호는 돌려주지 않고 하루 뒤 지운다.
@@ -53,7 +53,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **지하철 CALL**(`components/subway/SubwayCall.tsx`, `/api/seat/call`): 지하철 메뉴의 보라색 떠 있는 버튼. 1~3정거장 안 상대 모두에게 요청+푸시, 희망(받는 분)·양보(주시는 분) 자동 판단. 횟수 제한·크레딧 차감 없음. 일반 요청도 제한 없음.
 - **자동 알림**: 등록하거나 경로·시각·요일이 바뀌면 맞는 상대에게 푸시. 매일 06:30(KST) `/api/cron/seat-daily`(vercel.json 예약, 환경변수 `CRON_SECRET` 필요)가 "오늘 자리 나눌 분 n명"을 알린다.
 - **공개 범위**: 수락 전에는 정거장 수·타는 역·시각만. 수락 후 하차역(자리 나는 역)·양보하는 분의 오늘 자리 위치·등록한 연락처(SNS)·대화.
-- **내 자리 위치**(`SeatSpotCard`, `SeatMap`, `/api/seat/spot`, `seat_spots.seat`): 칸을 고르고 차량 그림(문 4개, 문 사이 7석, 양 끝 노약자석 3석)에서 좌석을 누른다. 누르면 그 구간이 큰 버튼으로 펼쳐진다. 좌석 형식 `A2-4`(`lib/subwayPosition.ts` parseSeat·seatLabel·doorOfSeat). "오늘의 힌트"(옷 색깔·소지품 칩 + 메모 40자). 오늘 하루만, 저장하면 수락된 상대에게 푸시, 상대 카드에도 같은 그림으로 보인다.
+- **내 자리 위치**(`SeatSpotCard`, `SeatMap`, `/api/seat/spot`, `seat_spots.seat`): 칸을 고르고 차량 그림(문 4개, 문 사이 7석, 양 끝 노약자석 3석)에서 좌석을 누른다. 누르면 그 구간이 큰 버튼으로 펼쳐진다. 좌석 형식 `A2-4`(`lib/subwayPosition.ts` parseSeat·seatLabel·doorOfSeat). "오늘의 힌트"(직접 쓰기 80자 + 사진 1장 선택, `seat_spots.photo`, 수락된 상대만 `/api/seat/spot/photo?req=` 로 봄). 오늘 하루만, 저장하면 수락된 상대에게 푸시, 상대 카드에도 같은 그림으로 보인다.
 - **대화**(`/api/seat/chat`, `seat_messages`): 매칭됨 카드 안. 열어 둔 동안 5초마다 새로고침, 새 메시지는 푸시. 차단한 사이는 불가.
 - **정거장 안내**: 하차 2정거장 전부터(받는 분 탑승 시각 + 역 사이 2분 추정) 화면 위에 계속 안내. 정해진 시각에 저절로 가는 푸시는 1분 단위 예약 장치가 없어 아직 없음.
 - **크레딧**: 지하철 출퇴근 정보 첫 저장 시 `subway` 2000 1회(`credit_subway_uniq`).

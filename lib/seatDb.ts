@@ -85,6 +85,8 @@ export function ensureSeatSchema(): Promise<void> {
         primary key (user_id, day))`;
       // 그림에서 고른 좌석(예: A2-4). lib/subwayPosition.ts parseSeat 형식.
       await sql`alter table seat_spots add column if not exists seat text not null default ''`;
+      // 오늘의 힌트 사진(선택, JPEG base64). 오늘 하루치만 두고 이틀 지난 자리 정보와 함께 지운다.
+      await sql`alter table seat_spots add column if not exists photo text not null default ''`;
       // 수락된 매칭끼리의 대화(카풀 채팅과 별도 저장소).
       await sql`create table if not exists seat_messages (
         id bigserial primary key,
@@ -319,23 +321,32 @@ export async function acceptedPartners(userId: string): Promise<string[]> {
 }
 
 /** seat: 그림에서 고른 좌석(A2-4 형식, 없으면 ""), memo: 오늘의 힌트(옷 색깔·소지품 등) */
-export type Spot = { car: string; door: string; side: "left" | "right" | ""; seat: string; memo: string };
+export type Spot = { car: string; door: string; side: "left" | "right" | ""; seat: string; memo: string; photo?: boolean };
 
 /** 오늘 내 자리 위치. */
 export async function getSpot(userId: string, day = seatDay()): Promise<Spot | null> {
   await ensureSeatSchema();
-  const rows = await seatSql()`select car, door, side, seat, memo from seat_spots where user_id = ${userId} and day = ${day}`;
+  const rows = await seatSql()`select car, door, side, seat, memo, (photo <> '') as has_photo from seat_spots where user_id = ${userId} and day = ${day}`;
   if (!rows.length) return null;
   const r = rows[0];
-  return { car: String(r.car), door: String(r.door), side: (String(r.side) as Spot["side"]) || "", seat: String(r.seat ?? ""), memo: String(r.memo) };
+  return { car: String(r.car), door: String(r.door), side: (String(r.side) as Spot["side"]) || "", seat: String(r.seat ?? ""), memo: String(r.memo), photo: r.has_photo === true };
 }
 
-export async function setSpot(userId: string, s: Spot, day = seatDay()): Promise<void> {
+/** 오늘의 힌트 사진(base64). 없으면 "". */
+export async function getSpotPhoto(userId: string, day = seatDay()): Promise<string> {
+  await ensureSeatSchema();
+  const rows = await seatSql()`select photo from seat_spots where user_id = ${userId} and day = ${day}`;
+  return rows.length ? String(rows[0].photo ?? "") : "";
+}
+
+/** photo: undefined = 기존 사진 유지, "" = 지우기, base64 = 바꾸기 */
+export async function setSpot(userId: string, s: Spot, day = seatDay(), photo?: string): Promise<void> {
   await ensureSeatSchema();
   const sql = seatSql();
   await sql`delete from seat_spots where day < ${seatDay(Date.now() - 2 * 86400_000)}`;
-  await sql`insert into seat_spots (user_id, day, car, door, side, seat, memo) values (${userId}, ${day}, ${s.car}, ${s.door}, ${s.side}, ${s.seat}, ${s.memo})
-    on conflict (user_id, day) do update set car = excluded.car, door = excluded.door, side = excluded.side, seat = excluded.seat, memo = excluded.memo, updated_at = now()`;
+  await sql`insert into seat_spots (user_id, day, car, door, side, seat, memo, photo) values (${userId}, ${day}, ${s.car}, ${s.door}, ${s.side}, ${s.seat}, ${s.memo}, ${photo ?? ""})
+    on conflict (user_id, day) do update set car = excluded.car, door = excluded.door, side = excluded.side, seat = excluded.seat, memo = excluded.memo,
+      photo = case when ${photo === undefined} then seat_spots.photo else excluded.photo end, updated_at = now()`;
 }
 
 export async function clearSpot(userId: string, day = seatDay()): Promise<void> {
