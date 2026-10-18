@@ -473,6 +473,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     sort integer not null default 0,
     active boolean not null default true,
     created_at timestamptz not null default now())`;
+  // 자주 묻는 질문 소분류(app 앱 사용 / law 카풀 규제)
+  await sql`alter table help_items add column if not exists topic text not null default 'app'`;
   // 글 출발·도착 지역 이름("서울 마포구 공덕동"). area_key 는 계산에 쓴 좌표(좌표가 바뀌면 다시 계산)
   await sql`alter table posts add column if not exists origin_area text`;
   await sql`alter table posts add column if not exists dest_area text`;

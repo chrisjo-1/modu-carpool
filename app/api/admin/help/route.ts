@@ -12,14 +12,14 @@ export async function GET() {
   try {
     await ensureSchema();
     await seedHelp();
-    const rows = await db()`select id, section, title, body, image, sort, active from help_items order by array_position(${[...HELP_SECTIONS]}::text[], section), sort, id`;
+    const rows = await db()`select id, section, topic, title, body, image, sort, active from help_items order by array_position(${[...HELP_SECTIONS]}::text[], section), sort, id`;
     return json({ items: rows.map((r) => toHelpItem(r)) });
   } catch (e) {
     return fail(e);
   }
 }
 
-/** {action:"save", id?, section, title, body, image, sort, active} 또는 {action:"delete", id} */
+/** {action:"save", id?, section, topic?, title, body, image, sort, active} 또는 {action:"delete", id} */
 export async function POST(req: Request) {
   if (!(await isAdmin())) return denied();
   if (!hasDb()) return json({ error: "DB가 연결되지 않았습니다." }, 503);
@@ -39,15 +39,16 @@ export async function POST(req: Request) {
     const image = typeof b.image === "string" ? b.image : "";
     const sort = Math.max(0, Math.min(999, Math.round(Number(b.sort)) || 0));
     const active = b.active !== false;
+    const topic = b.topic === "law" ? "law" : "app";
     if (!section) return json({ error: "잘못된 항목입니다." }, 400);
     if (title.length < 1) return json({ error: "제목을 입력해 주세요." }, 400);
     if (image && !/^\/(help|subway)\/[\w-]+\.(svg|webp|png|jpg)$/.test(image) && (!image.startsWith("data:image/jpeg;base64,") || image.length > IMAGE_MAX)) return json({ error: "사진은 JPEG 300KB 이하만 넣을 수 있어요." }, 400);
     const id = b.id == null || b.id === "" ? null : String(b.id);
     if (id && !/^\d{1,18}$/.test(id)) return json({ error: "잘못된 요청입니다." }, 400);
     if (id) {
-      await sql`update help_items set section = ${section}, title = ${title}, body = ${content}, image = ${image}, sort = ${sort}, active = ${active} where id = ${id}`;
+      await sql`update help_items set section = ${section}, topic = ${topic}, title = ${title}, body = ${content}, image = ${image}, sort = ${sort}, active = ${active} where id = ${id}`;
     } else {
-      await sql`insert into help_items (section, title, body, image, sort, active) values (${section}, ${title}, ${content}, ${image}, ${sort}, ${active})`;
+      await sql`insert into help_items (section, topic, title, body, image, sort, active) values (${section}, ${topic}, ${title}, ${content}, ${image}, ${sort}, ${active})`;
     }
     return json({ ok: true });
   } catch (e) {

@@ -1,7 +1,7 @@
 import { db } from "./server";
-import { HELP_SECTIONS, type HelpItem, type HelpSection } from "./helpTypes";
+import { HELP_SECTIONS, type HelpItem, type HelpSection, type HelpTopic } from "./helpTypes";
 
-export { HELP_SECTIONS, HELP_SECTION_LABEL, type HelpItem, type HelpSection } from "./helpTypes";
+export { HELP_SECTIONS, HELP_SECTION_LABEL, HELP_TOPICS, type HelpItem, type HelpSection, type HelpTopic } from "./helpTypes";
 
 /** 처음 한 번만 DB에 채우는 기본 내용. 이후에는 관리자 화면에서 고친다. */
 const DEFAULTS: Record<HelpSection, { title: string; body: string }[]> = {
@@ -40,7 +40,7 @@ const DEFAULTS: Record<HelpSection, { title: string; body: string }[]> = {
  * 나중에 더한 기본 내용. 묶음 키(key)마다 한 번만 넣는다(help_seed_log에 기록).
  * 같은 제목이 이미 있으면 넣지 않고, 관리자가 고치거나 지운 항목은 다시 건드리지 않는다.
  */
-const ADDITIONS: { key: string; items: { section: HelpSection; title: string; body: string; image?: string }[] }[] = [
+const ADDITIONS: { key: string; items: { section: HelpSection; title: string; body: string; image?: string; topic?: HelpTopic; active?: boolean }[] }[] = [
   {
     key: "2026-10-subway-karrot",
     items: [
@@ -61,6 +61,18 @@ const ADDITIONS: { key: string; items: { section: HelpSection; title: string; bo
       { section: "faq", title: "버튼을 눌렀는데 설명 말풍선만 떠요.", body: "새 기능의 버튼은 처음 누를 때 한 번만 설명이 떠요. 그때는 실행되지 않으니 한 번 더 눌러 주세요. 다음부터는 바로 실행돼요." },
     ],
   },
+  {
+    // 카풀 규제 기본 질문. 법 관련 문구라 숨김으로 넣고, 관리자가 검토한 뒤 '회원에게 보이기'를 켠다.
+    key: "2026-10-faq-law",
+    items: [
+      { section: "faq", topic: "law", active: false, title: "카풀은 합법인가요?", body: "자가용으로 돈을 받고 사람을 태우는 것은 여객자동차 운수사업법 제81조에 따라 원칙적으로 금지돼요. 다만 같은 조항의 예외로 '출퇴근 때 승용차를 함께 타는 경우'는 허용돼요. 돈을 주고받지 않는 카풀은 제한이 없어요." },
+      { section: "faq", topic: "law", active: false, title: "비용을 나눠도 되는 시간이 정해져 있나요?", body: "네. 비용을 받고 함께 타는 카풀은 평일 오전 7시~9시, 오후 6시~8시에만 허용돼요. 토·일요일과 공휴일은 제외돼요. 이 시간 밖에서는 비용을 주고받지 말아 주세요." },
+      { section: "faq", topic: "law", active: false, title: "출퇴근 시간이 아니면 카풀하면 안 되나요?", body: "돈을 주고받지 않는다면 시간과 관계없이 함께 탈 수 있어요. 시간 밖에서 돈을 받고 태우면 불법 유상운송으로 단속될 수 있어요." },
+      { section: "faq", topic: "law", active: false, title: "비용은 얼마까지 받을 수 있나요?", body: "법에 정해진 금액은 없어요. 영업처럼 보이지 않도록 기름값·통행료를 나누는 정도로 정해 주세요. 여러 사람을 반복해서 태우며 수익을 내는 운행은 불법 영업으로 볼 수 있어요." },
+      { section: "faq", topic: "law", active: false, title: "사고가 나면 보험은 어떻게 되나요?", body: "자가용 보험은 돈을 받고 태우던 중의 사고를 보상하지 않는 경우가 있어요(유상운송 면책). 가입한 보험의 약관과 '유상운송 위험담보 특약' 가입 여부를 보험사에 꼭 확인해 주세요." },
+      { section: "faq", topic: "law", active: false, title: "모두의카풀이 운행에 책임을 지나요?", body: "모두의카풀은 같은 방향 회원을 연결해 주는 곳이에요. 운행 시간·비용·약속은 당사자끼리 정하고, 위 법 기준을 지켜 주세요. 이 안내는 이해를 돕기 위한 것으로 법률 자문이 아니에요." },
+    ],
+  },
 ];
 
 let additionsDone = false;
@@ -68,6 +80,13 @@ async function applyAdditions() {
   if (additionsDone) return;
   const sql = db();
   await sql`create table if not exists help_seed_log (key text primary key, at timestamptz not null default now())`;
+  // 처음 한 번: 이미 있는 자주 묻는 질문 중 규제·법 이야기를 '카풀 규제'로 나눈다. 이후 관리자가 바꾼 분류는 건드리지 않는다.
+  const classified = await sql`select 1 from help_seed_log where key = 'faq-topic-classify'`;
+  if (!classified.length) {
+    await sql`update help_items set topic = 'law' where section = 'faq'
+      and (title || ' ' || body) ~ '(법률|위법|불법|합법|규제|유상|여객|운수|81조|보험|면책|단속)'`;
+    await sql`insert into help_seed_log (key) values ('faq-topic-classify') on conflict do nothing`;
+  }
   for (const pack of ADDITIONS) {
     const done = await sql`select 1 from help_seed_log where key = ${pack.key}`;
     if (done.length) continue; // 이미 넣은 묶음
@@ -75,7 +94,7 @@ async function applyAdditions() {
       const exists = await sql`select 1 from help_items where section = ${it.section} and title = ${it.title} limit 1`;
       if (exists.length) continue;
       const m = await sql`select coalesce(max(sort), 0)::int as m from help_items where section = ${it.section}`;
-      await sql`insert into help_items (section, title, body, image, sort) values (${it.section}, ${it.title}, ${it.body}, ${it.image ?? ""}, ${Number(m[0].m) + 1})`;
+      await sql`insert into help_items (section, topic, title, body, image, sort, active) values (${it.section}, ${it.topic ?? "app"}, ${it.title}, ${it.body}, ${it.image ?? ""}, ${Number(m[0].m) + 1}, ${it.active !== false})`;
     }
     // 다 넣은 뒤에 기록한다(중간에 실패하면 다음 요청에서 빠진 것만 다시 넣는다).
     await sql`insert into help_seed_log (key) values (${pack.key}) on conflict do nothing`;
@@ -100,6 +119,7 @@ export async function seedHelp() {
 export const toHelpItem = (r: Record<string, unknown>): HelpItem => ({
   id: Number(r.id),
   section: String(r.section) as HelpSection,
+  topic: (r.topic === "law" ? "law" : "app") as HelpTopic,
   title: String(r.title),
   body: String(r.body),
   image: String(r.image ?? ""),

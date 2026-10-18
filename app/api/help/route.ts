@@ -9,7 +9,7 @@ export async function GET() {
   try {
     await ensureSchema();
     await seedHelp();
-    const rows = await db()`select id, section, title, body, image, sort, active from help_items where active order by sort, id`;
+    const rows = await db()`select id, section, topic, title, body, image, sort, active from help_items where active order by sort, id`;
     return json({ sections: HELP_SECTIONS, items: rows.map((r) => toHelpItem(r)) });
   } catch (e) {
     return fail(e);
