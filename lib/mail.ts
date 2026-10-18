@@ -55,7 +55,7 @@ export type Mail = {
 };
 
 /** 발송 결과. halt 계열(off·quiet·cap)은 보류라서 이력에 남기지 않고, 다음 발송 때 다시 대상이 된다. */
-export type Status = "sent" | "failed" | "blocked" | "dryrun" | "disabled" | "off" | "quiet" | "cap";
+export type Status = "sent" | "failed" | "blocked" | "dryrun" | "disabled" | "off" | "quiet" | "cap" | "quota";
 
 async function record(m: Mail, status: string, error = "", providerId = "") {
   try {
@@ -158,6 +158,8 @@ export async function deliverWithStatus(m: Mail): Promise<Status> {
     if (!res.ok) {
       const err = `${res.status} ${j.message ?? ""}`.trim();
       console.error("[mail]", err);
+      // 캠페인 발송 중 Resend 한도(429)에 걸리면 이력을 남기지 않고 멈춘다 → 다음 발송 때 다시 대상이 된다
+      if (res.status === 429 && m.campaignId) return "quota";
       await record(m, "failed", err);
       return "failed";
     }

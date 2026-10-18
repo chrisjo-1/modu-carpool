@@ -42,7 +42,8 @@ export const TEMPLATES: { key: string; label: string; category: MailCategory; su
   { key: "custom", label: "직접 작성", category: "transactional", subject: "", body: "" },
 ];
 
-/** 대상자 목록. 캠페인 생성 시각 이전에 가입한 회원만 포함하고, 이미 이 캠페인으로 처리한 주소는 뺀다. */
+/** 대상자 목록. 캠페인 생성 시각 이전에 가입한 회원만 포함하고, 이미 이 캠페인으로 처리한 주소는 뺀다.
+ * 단, 발송 한도(429)로 실패한 주소는 다시 대상이 된다(실패분 재발송). */
 export async function audienceRows(a: Audience, opt: { campaignId?: string | null; before?: string | null; limit?: number } = {}): Promise<{ user_id: string | null; email: string }[]> {
   const sql = db();
   const cid = opt.campaignId ?? null;
@@ -57,7 +58,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
       where l.matched_user is null and not l.withdrawn and coalesce(l.email_norm, '') <> ''
         and (${before}::timestamptz is null or l.imported_at <= ${before}::timestamptz)
         and not exists (select 1 from users u where lower(u.email) = lower(l.email_norm))
-        and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(l.email_norm)))
+        and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(l.email_norm) and not (g.status = 'failed' and g.error like '429%')))
         and (${subj}::text is null or not exists (select 1 from mail_log g3 where g3.to_email = lower(l.email_norm) and g3.subject = ${subj}::text and g3.status = 'sent'))
       order by email limit ${lim}`) as { user_id: string | null; email: string }[];
   }
@@ -69,7 +70,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         or (${a.segment} = 'legacy_joined' and exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no not like '신워프%')))
       and (${a.onlyConsent} = false or u.marketing = true)
       and (${a.onlyDriver} = false or (u.car_no <> '' and u.car_v > 0))
-      and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(u.email)))
+      and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(u.email) and not (g.status = 'failed' and g.error like '429%')))
       and (${subj}::text is null or not exists (select 1 from mail_log g2 where g2.to_email = lower(u.email) and g2.subject = ${subj}::text and g2.status = 'sent'))
       and (${mk} = false or not exists (select 1 from mail_log g4 where g4.to_email = lower(u.email) and g4.category = 'marketing' and g4.status = 'sent' and g4.created_at > now() - make_interval(days => ${MARKETING_GAP_DAYS}::int)))
     order by email limit ${lim}`) as { user_id: string | null; email: string }[];

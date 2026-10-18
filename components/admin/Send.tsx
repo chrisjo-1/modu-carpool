@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Segment = { key: string; label: string };
 type Template = { key: string; label: string; category: string; subject: string; body: string };
-type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number };
+type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
 type Saved = { id: string; name: string; category: string; subject: string; body: string };
 type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[] };
@@ -16,6 +16,7 @@ const HELD: Record<string, string> = {
   off: "광고성 메일이 정책에서 꺼져 있어 멈췄습니다. 메일 탭에서 허용하세요.",
   quiet: "야간 발송 제한 시간(21시~8시)이라 멈췄습니다. 낮에 이어서 시작할 수 있어요.",
   cap: "오늘 광고성 발송 한도에 도달해 멈췄습니다. 내일 이어서 시작할 수 있어요.",
+  quota: "메일 발송 서비스(Resend)의 하루 한도에 걸려 멈췄습니다. 한도가 풀린 뒤(매일 오전 9시) 또는 요금제를 올린 뒤 다시 누르면 남은 분에게 이어서 보내요.",
 };
 const when = (t: number | null) => (t ? new Date(t).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
 
@@ -119,7 +120,8 @@ export default function AdminSend() {
   };
 
   const start = async (c: Campaign) => {
-    if (!window.confirm(`"${c.title}" 캠페인을 발송할까요?\n\n대상: ${c.segment}${c.only_consent ? " · 동의 회원만" : ""}${c.only_driver ? " · 운전자만" : ""}\n제목: ${c.subject}\n\n한 번 시작하면 대상자 전체에게 나갑니다. 테스트 발송으로 먼저 확인하셨나요?`)) return;
+    const retry = c.status === "done";
+    if (retry ? !window.confirm(`"${c.title}" 캠페인에서 발송 한도로 실패한 ${c.retry}명에게 다시 보낼까요?\n이미 받은 분에게는 다시 가지 않아요.`) : !window.confirm(`"${c.title}" 캠페인을 발송할까요?\n\n대상: ${c.segment}${c.only_consent ? " · 동의 회원만" : ""}${c.only_driver ? " · 운전자만" : ""}\n제목: ${c.subject}\n\n한 번 시작하면 대상자 전체에게 나갑니다. 테스트 발송으로 먼저 확인하셨나요?`)) return;
     stopRef.current = false;
     setRunning(c.id); setProgress(0); setMsg("");
     let total = 0;
@@ -354,8 +356,11 @@ export default function AdminSend() {
                   <td className="p-3">{c.category === "marketing" ? "광고성" : "안내"}</td>
                   <td className="p-3">{d.segments.find((s) => s.key === c.segment)?.label ?? c.segment}{c.only_consent ? " · 동의" : ""}{c.only_driver ? " · 운전자" : ""}</td>
                   <td className="p-3">{STATUS[c.status] ?? c.status}{c.finished_at ? <span className="block text-xs text-sub">{when(c.finished_at)}</span> : null}</td>
-                  <td className="p-3">{c.sent} / {c.failed}</td>
+                  <td className="p-3">{c.sent} / {c.failed}{c.retry > 0 ? <span className="block text-xs text-sub">한도 초과 {c.retry}명 · 다시 보낼 수 있음</span> : null}</td>
                   <td className="p-3 whitespace-nowrap">
+                    {c.status === "done" && c.retry > 0 && (
+                      <button className={btnPrimary} disabled={!!running} onClick={() => start(c)}>실패분 다시 보내기 ({c.retry}명)</button>
+                    )}
                     {(c.status === "draft" || c.status === "sending") && (
                       <div className="flex gap-2">
                         <button className={btnPrimary} disabled={!!running} onClick={() => start(c)}>{c.status === "draft" ? "발송 시작" : "이어서 발송"}</button>

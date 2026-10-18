@@ -39,6 +39,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **모든 메일에 서비스 주소와 "모두의카풀 바로가기" 버튼이 반드시 들어간다.** `lib/mail.ts`의 `deliverWithStatus`가 발송 직전에 `ensureSiteLink`로 빠진 메일에 붙인다.
   공지 메일(`lib/campaign.ts` `renderHtml`)은 카드 안 맨 아래에 넣고(`siteLinkBlock`, 표시 `<!--site-link-->`), 이미 파란 행동 버튼이 있는 메일은 테두리 버튼으로 붙인다. 텍스트 버전에도 주소를 넣는다.
 - **테스트 발송**(관리자 메일 보내기, `/api/admin/campaigns/test`): 받는 주소 5개까지 `settings.mail_test_recipients`에 저장(GET/PUT), 체크한 주소로 한 번에 발송(POST `to: string[]`). **메일 이미지**는 관리자 화면에서 올리기 전에 가로 1200px JPEG(1MB 이하)로 줄인다(휴대폰 사진·HEIC 거절 방지, GIF는 그대로). 본문 `{{img:uuid}}` → `/api/mail/image/uuid`, 텍스트 버전은 "[이미지]".
+- **발송 한도 실패분 재발송**: 캠페인 중 Resend가 429(하루 한도)를 돌려주면 이력을 남기지 않고 멈춘다(held `quota`). 예전에 `failed`·`429…`로 기록된 주소는 `audienceRows`에서 다시 대상이 된다. 완료된 캠페인에 남아 있으면 관리자 목록에 [실패분 다시 보내기 (n명)](`retry` 수) → run이 상태를 sending으로 되돌려 이어서 보낸다. 무료 플랜은 하루 100통(매일 09:00 KST 초기화).
 - 테스트: `npx tsc lib/mail.ts lib/campaign.ts --outDir .sim-build6 --module commonjs --target es2019 --moduleResolution node --esModuleInterop --skipLibCheck --resolveJsonModule` 후 `node scripts/mail-link-test.cjs <출력 폴더>`.
 
 ## 지하철 앉아가기 (하단 '지하철' 메뉴)

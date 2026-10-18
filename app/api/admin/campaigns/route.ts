@@ -15,7 +15,10 @@ export async function GET() {
     const rows = await sql`
       select c.id, c.created_at, c.title, c.category, c.segment, c.only_consent, c.only_driver, c.subject, c.status, c.started_at, c.finished_at,
         (select count(*)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent') as sent,
-        (select count(*)::int from mail_log g where g.campaign_id = c.id and g.status in ('failed','blocked')) as failed
+        (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status in ('failed','blocked')
+          and not exists (select 1 from mail_log s where s.campaign_id = c.id and s.to_email = g.to_email and s.status = 'sent')) as failed,
+        (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'failed' and g.error like '429%'
+          and not exists (select 1 from mail_log s where s.campaign_id = c.id and s.to_email = g.to_email and s.status = 'sent')) as retry
       from mail_campaigns c order by c.created_at desc limit 100`;
     const policy = await getPolicy();
     return json({
