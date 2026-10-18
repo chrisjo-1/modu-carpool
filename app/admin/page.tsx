@@ -341,21 +341,23 @@ export default function Admin() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="text-sub">
-                <tr>{["프로필 사진", "닉네임", "이메일", "역할", "성별", "차량", "차량 사진", "운전자 등급", "가입일", "최근 접속", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                <tr>{["가입일", "프로필 사진", "최근 접속", "고유코드", "차량", "차량 사진", "이메일", "역할", "성별", "운전자 등급", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {rows.map((u) => (
                   <tr key={u.id}>
+                    <td className="num px-2 py-2">{new Date(u.created_at).toLocaleDateString("ko-KR")}</td>
                     <td className="px-2 py-2">{u.photo ? <img src={u.photo} alt="" loading="lazy" onClick={() => setZoom({ src: u.photo, alt: u.name })} className="h-9 w-9 cursor-zoom-in rounded-full border border-line object-cover" /> : <span className="grid h-9 w-9 place-items-center rounded-full bg-bg text-xs text-sub">없음</span>}</td>
+                    <td className="num whitespace-nowrap px-2 py-2">{u.lastSeen ? lastSeenText(u.lastSeen) : <span className="text-sub">없음</span>}</td>
                     <td className="px-2 py-2 font-medium">{u.name || "—"}{u.test && <span className="ml-2 rounded-full bg-accentSoft px-2 py-0.5 text-xs font-semibold text-accent">테스트</span>}</td>
+                    <td className="px-2 py-2">{u.car_no ? <span className="text-accent">{u.car_no}</span> : <span className="text-sub">미등록</span>}</td>
+                    <td className="px-2 py-2">{u.carPhoto ? <img src={u.carPhoto} alt="" loading="lazy" onClick={() => setZoom({ src: u.carPhoto, alt: `${u.name} 차량` })} className="h-9 w-12 cursor-zoom-in rounded-lg border border-line object-cover" /> : <span className="grid h-9 w-12 place-items-center rounded-lg bg-bg text-xs text-sub">없음</span>}</td>
                     <td className="px-2 py-2">{u.email}</td>
                     <td className="px-2 py-2">
                       <span className="block">희망 {ROLE_LABEL[u.role_pref] ?? "미입력"}</span>
                       <span className="block text-xs text-sub">운전자 {u.driver_posts} · 탑승자 {u.rider_posts}</span>
                     </td>
                     <td className="px-2 py-2">{GENDER_LABEL[u.gender] ?? "미입력"}</td>
-                    <td className="px-2 py-2">{u.car_no ? <span className="text-accent">{u.car_no}</span> : <span className="text-sub">미등록</span>}</td>
-                    <td className="px-2 py-2">{u.carPhoto ? <img src={u.carPhoto} alt="" loading="lazy" onClick={() => setZoom({ src: u.carPhoto, alt: `${u.name} 차량` })} className="h-9 w-12 cursor-zoom-in rounded-lg border border-line object-cover" /> : <span className="grid h-9 w-12 place-items-center rounded-lg bg-bg text-xs text-sub">없음</span>}</td>
                     <td className="whitespace-nowrap px-2 py-2">
                       <span className="block">{u.tier ? <span className="font-semibold text-accent">{TIER_NAME[u.tier] ?? u.tier}</span> : <span className="text-sub">미부여</span>}</span>
                       <select
@@ -374,8 +376,6 @@ export default function Admin() {
                         <option value="gold">골드 지정</option>
                       </select>
                     </td>
-                    <td className="num px-2 py-2">{new Date(u.created_at).toLocaleDateString("ko-KR")}</td>
-                    <td className="num whitespace-nowrap px-2 py-2">{u.lastSeen ? lastSeenText(u.lastSeen) : <span className="text-sub">없음</span>}</td>
                     <td className="num px-2 py-2">{u.posts}</td>
                     <td className="num px-2 py-2">{(u.credits ?? 0).toLocaleString("ko-KR")}</td>
                     <td className="px-2 py-2">{u.blocked ? <span className="font-semibold text-warn">차단됨</span> : "정상"}</td>
