@@ -112,6 +112,10 @@ export type Member = {
   me: boolean;
   blockedByMe: boolean;
   rating: { avg: number; count: number };
+  /** 이용 횟수(워프 이전 기록 포함) */
+  rides?: { total: number; legacy: number };
+  /** 워프 이전 기록이 합쳐져 있는지 */
+  legacy?: boolean;
   history: { origin: string; dest: string; at: number; regular: boolean; role: "driver" | "rider" }[];
 };
 

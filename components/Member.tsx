@@ -137,6 +137,12 @@ export function MemberSheet({
                   <span className="text-sub">{t("아직 받은 별점이 없어요.")}</span>
                 )}
               </p>
+              {m.rides && m.rides.total > 0 && (
+                <p data-block-id="C083" data-block-name="이용 횟수" className="num mt-0.5 text-[13px] text-sub">
+                  {t("이용")} <b className="text-ink">{m.rides.total.toLocaleString("ko-KR")}</b>{t("회")}
+                  {m.legacy && <span className="ml-1.5 rounded-full bg-bg px-1.5 py-0.5 text-[11px]">{t("워프 기록 포함")}</span>}
+                </p>
+              )}
             </div>
           </div>
           {m.bio && <p className="whitespace-pre-wrap rounded-2xl bg-bg px-4 py-3 text-[15px]">{m.bio}</p>}

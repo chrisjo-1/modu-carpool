@@ -37,7 +37,7 @@ const AdminFlowMap = dynamic(() => import("@/components/admin/FlowMap"), { ssr: 
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
-  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number; tier: string; tier_set: string;
+  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number; tier: string; tier_set: string; legacy_stars: number; legacy_reviews: number; legacy_rides: number; is_warp: boolean;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
   commute_kind: string; commute_origin: string; commute_dest: string; commute_time: string; commute_price: number;
@@ -309,6 +309,18 @@ export default function Admin() {
                   <dt className="text-sub">관심사</dt><dd>{member.interests?.length ? member.interests.join(", ") : "미선택"}</dd>
                 </dl>
               </div>
+              {member.is_warp && (
+                <LegacyStats
+                  key={member.id}
+                  member={member}
+                  onSaved={(v) => {
+                    setMember((m) => (m ? { ...m, legacy_stars: v.stars, legacy_reviews: v.reviews, legacy_rides: v.rides } : m));
+                    setMsg("워프 이전 기록을 저장했습니다.");
+                    refresh(q);
+                  }}
+                />
+              )}
+              {!member.is_warp && <p className="mt-3 text-xs text-sub">워프 이전 기록(별점·이용 횟수)은 구 워프 회원과 대조된 회원만 넣을 수 있어요.</p>}
               <MemberCode
                 userId={member.id}
                 current={member.member_code}
@@ -474,5 +486,67 @@ export default function Admin() {
         </div>
       )}
     </main>
+  );
+}
+
+/** 회원 상세: 워프(구 서비스) 이전 기록 수정. 별점(평균)·횟수(n회)와 근거 메모를 넣고, 고친 내역을 보여 준다. */
+function LegacyStats({ member, onSaved }: { member: { id: string; legacy_stars: number; legacy_reviews: number; legacy_rides: number }; onSaved: (v: { stars: number; reviews: number; rides: number }) => void }) {
+  const [stars, setStars] = useState(member.legacy_stars ? String(member.legacy_stars) : "");
+  const [count, setCount] = useState(member.legacy_reviews ? String(member.legacy_reviews) : "");
+  const [memo, setMemo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [log, setLog] = useState<{ stars: number; count: number; memo: string; at: number }[]>([]);
+  const loadLog = useCallback(async () => {
+    const r = await fetch(`/api/admin?legacyLog=${member.id}`);
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) setLog(j.log ?? []);
+  }, [member.id]);
+  useEffect(() => {
+    loadLog();
+  }, [loadLog]);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const v = { stars: Number(stars) || 0, count: Math.floor(Number(count) || 0), memo: memo.trim() };
+    if (v.stars < 0 || v.stars > 5) return setErr("별점은 0~5 사이로 넣어 주세요.");
+    if (v.memo.length < 5) return setErr("근거 메모를 5자 이상 적어 주세요.");
+    setBusy(true);
+    setErr("");
+    const r = await fetch("/api/admin", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: member.id, legacyStats: v }) });
+    setBusy(false);
+    if (!r.ok) return setErr((await r.json().catch(() => ({}))).error ?? "저장하지 못했습니다.");
+    setMemo("");
+    loadLog();
+    const st = Math.round(v.stars * 10) / 10;
+    onSaved({ stars: st, reviews: v.count, rides: v.count });
+  };
+  const box = "rounded-lg border border-line bg-white px-2 py-1.5 text-sm";
+  return (
+    <form onSubmit={save} data-block-id="S098" data-block-name="워프 이전 기록" className="mt-4 space-y-2 rounded-xl border border-line bg-white p-3">
+      <p className="text-sm font-semibold">
+        워프 이전 기록 <span className="font-normal text-sub">— 지금 {member.legacy_reviews ? `${member.legacy_stars.toFixed(1)}점 · ${member.legacy_reviews}회` : "없음"} · 프로필 별점·이용 횟수에 합쳐 보여요</span>
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs text-sub">별점(평균 0~5)<input className={`${box} mt-1 block w-24`} type="number" inputMode="decimal" step="0.1" min="0" max="5" value={stars} onChange={(e) => setStars(e.target.value)} placeholder="5.0" /></label>
+        <label className="text-xs text-sub">횟수(n회)<input className={`${box} mt-1 block w-24`} type="number" inputMode="numeric" min="0" value={count} onChange={(e) => setCount(e.target.value)} placeholder="13" /></label>
+        <label className="min-w-[220px] flex-1 text-xs text-sub">근거 메모(필수)<input className={`${box} mt-1 block w-full`} maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="예: 워프 앱 프로필 캡처 확인 10/18" required /></label>
+        <button data-block-id="B242" disabled={busy || memo.trim().length < 5} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "저장 중…" : "저장"}</button>
+      </div>
+      {err && <p role="alert" className="text-xs text-warn">{err}</p>}
+      {log.length > 0 && (
+        <div className="space-y-1 border-t border-line pt-2">
+          <p className="text-xs font-semibold text-sub">수정 기록</p>
+          <ul className="space-y-0.5 text-xs">
+            {log.map((l, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="num shrink-0 text-sub">{new Date(l.at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}</span>
+                <span className="num shrink-0 font-semibold">{l.stars.toFixed(1)}점 · {l.count}회</span>
+                <span className="min-w-0 break-words text-sub">{l.memo}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </form>
   );
 }

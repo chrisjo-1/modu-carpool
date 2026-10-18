@@ -227,6 +227,17 @@ export function ensureSchema(): Promise<void> {
       await sql`alter table users add column if not exists car_v integer not null default 0`;
       // 관리자가 지정한 운전자 등급('' = 자동, silver, gold)
       await sql`alter table users add column if not exists tier_set text not null default ''`;
+      // 워프(구 서비스)에서 넘어온 회원의 이전 기록. 관리자가 넣는다. 프로필 별점·이용 횟수에 합쳐 보여 준다.
+      await sql`alter table users add column if not exists legacy_stars real not null default 0`;
+      await sql`alter table users add column if not exists legacy_reviews integer not null default 0`;
+      await sql`alter table users add column if not exists legacy_rides integer not null default 0`;
+      // 워프 이전 기록을 관리자가 고친 내역(근거 메모 필수)
+      await sql`create table if not exists legacy_stats_log (
+        id bigserial primary key,
+        user_id uuid not null references users(id) on delete cascade,
+        stars real not null, count integer not null, memo text not null,
+        created_at timestamptz not null default now())`;
+      await sql`create index if not exists legacy_stats_log_user_idx on legacy_stats_log (user_id, created_at desc)`;
       // 구 워프(이전 서비스) 회원. 탈퇴 회원은 개인정보 없이 대조용 해시만 둔다.
       await sql`create table if not exists legacy_members (
         warp_id text primary key,

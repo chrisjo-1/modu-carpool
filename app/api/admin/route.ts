@@ -10,6 +10,18 @@ const denied = () => json({ error: "관리자 로그인이 필요합니다." }, 
 export async function GET(req: Request) {
   if (!(await isAdmin())) return json({ admin: false });
   if (!hasDb()) return json({ admin: true, db: false, stats: null, posts: [], users: [], reports: [], blocks: [] });
+  // 워프 이전 기록 수정 내역(?legacyLog=회원ID)
+  const logFor = new URL(req.url).searchParams.get("legacyLog");
+  if (logFor) {
+    if (!isUuid(logFor)) return json({ error: "잘못된 요청입니다." }, 400);
+    try {
+      await ensureSchema();
+      const rows = await db()`select stars, count, memo, created_at from legacy_stats_log where user_id = ${logFor} order by created_at desc limit 10`;
+      return json({ log: rows.map((r) => ({ stars: Number(r.stars), count: Number(r.count), memo: String(r.memo), at: new Date(r.created_at as string).getTime() })) });
+    } catch (e) {
+      return fail(e);
+    }
+  }
   const q = text(new URL(req.url).searchParams.get("q"), 60);
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   try {
@@ -27,7 +39,8 @@ export async function GET(req: Request) {
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
     const users = await sql`
       select u.id, u.email, u.name, u.member_code, u.blocked, u.test, u.credits, u.created_at, u.last_seen, u.bio, u.contact, u.contact_type,
-             u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.tier_set, u.interests,
+             u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.tier_set, u.interests, u.legacy_stars, u.legacy_reviews, u.legacy_rides,
+             exists (select 1 from legacy_members l where l.matched_user = u.id) as is_warp,
              u.commute_kind, u.commute_origin, u.commute_dest, u.commute_time, u.commute_price,
              (select count(*)::int from posts where user_id = u.id) as posts,
              (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
@@ -135,6 +148,20 @@ export async function PATCH(req: Request) {
       // 프로필 사진만 삭제(신고된 타인 사진 처리)
       if (b.removePhoto === true) {
         await sql`update users set photo = '', photo_v = 0 where id = ${b.userId}`;
+        return json({ ok: true });
+      }
+      // 워프 이전 기록: 별점(평균)과 횟수(n회). 근거 메모가 있어야 저장하고, 고친 내역을 남긴다.
+      if (b.legacyStats && typeof b.legacyStats === "object") {
+        const ls = b.legacyStats as Record<string, unknown>;
+        const stars = Math.round(Math.min(5, Math.max(0, Number(ls.stars) || 0)) * 10) / 10;
+        const count = Math.min(100000, Math.max(0, Math.floor(Number(ls.count) || 0)));
+        const memo = text(ls.memo, 200);
+        if (memo.length < 5) return json({ error: "근거 메모를 5자 이상 적어 주세요. 예: 워프 앱 프로필 캡처 확인" }, 400);
+        const warp = await sql`select 1 from legacy_members where matched_user = ${b.userId} limit 1`;
+        if (!warp.length) return json({ error: "워프에서 넘어온 회원만 이전 기록을 넣을 수 있어요." }, 400);
+        if (count > 0 && stars === 0) return json({ error: "횟수가 있으면 별점(평균)을 함께 넣어 주세요." }, 400);
+        await sql`update users set legacy_stars = ${stars}, legacy_reviews = ${count}, legacy_rides = ${count} where id = ${b.userId}`;
+        await sql`insert into legacy_stats_log (user_id, stars, count, memo) values (${b.userId}, ${stars}, ${count}, ${memo})`;
         return json({ ok: true });
       }
       // 운전자 등급 지정('' = 자동 판정, silver, gold)
