@@ -473,6 +473,12 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     sort integer not null default 0,
     active boolean not null default true,
     created_at timestamptz not null default now())`;
+  // 공지 대상 계산: 회원마다 구 워프 회원을 찾는 데 쓰는 색인(없으면 회원 수 × 전체 검색이 돼 매우 느리다)
+  await sql`create index if not exists legacy_matched_user_idx on legacy_members (matched_user)`;
+  await sql`create index if not exists posts_user_role_idx on posts (user_id, role)`;
+  // 공지 유형: notice(공지만: 팝업·띠) · push(푸시 알림만) · both(둘 다)
+  await sql`alter table notices add column if not exists kind text not null default 'notice'`;
+  await sql`update notices set kind = 'both' where kind = 'notice' and push_sent > 0`;
   // 채팅 목록(/api/requests)에서 "내가 보낸 신청 + 내 글에 들어온 신청"을 빨리 찾기 위한 색인
   await sql`create index if not exists requests_user_idx on requests (user_id)`;
   await sql`create index if not exists posts_user_idx on posts (user_id)`;

@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
-type Row = { id: number; title: string; body: string; label: string; active: boolean; targets: number; pushSent: number; reads: number; at: number };
+type Kind = "notice" | "push" | "both";
+type Row = { id: number; kind?: Kind; kindLabel?: string; title: string; body: string; label: string; active: boolean; targets: number; pushSent: number; reads: number; at: number };
 type Preview = { members: number; pushMembers: number; devices: number; label: string; push: boolean };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -13,7 +14,7 @@ const CHIPS: [string, string, "roles" | "genders"][] = [["driver", "운전자", 
 
 export default function Notices() {
   const [rows, setRows] = useState<Row[]>([]);
-  const [f, setF] = useState({ title: "", body: "", roles: [] as string[], genders: [] as string[], push: true });
+  const [f, setF] = useState({ title: "", body: "", roles: [] as string[], genders: [] as string[], kind: "both" as Kind });
   const [pv, setPv] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -33,12 +34,13 @@ export default function Notices() {
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!window.confirm(`${pv?.label ?? "대상"} ${n(pv?.members ?? 0)}명에게 공지를 올릴까요?${f.push ? ` 푸시 알림도 보냅니다(${n(pv?.pushMembers ?? 0)}명).` : ""}`)) return;
+    const what = f.kind === "notice" ? "공지를 올릴까요?(팝업·홈 공지 띠)" : f.kind === "push" ? `푸시 알림만 보낼까요?(푸시 받는 ${n(pv?.pushMembers ?? 0)}명)` : `공지를 올리고 푸시 알림도 보낼까요?(푸시 ${n(pv?.pushMembers ?? 0)}명)`;
+    if (!window.confirm(`${pv?.label ?? "대상"} ${n(pv?.members ?? 0)}명에게 ${what}`)) return;
     setBusy(true);
     const r = await call("POST", "/api/admin/notices", f);
     setBusy(false);
-    setMsg(r.ok ? `공지를 올렸습니다. 대상 ${n(r.j.targets)}명${f.push ? ` · 푸시 ${n(r.j.pushSent)}명에게 보냄` : ""}` : r.j.error);
-    if (r.ok) setF({ title: "", body: "", roles: [], genders: [], push: true });
+    setMsg(r.ok ? `${f.kind === "push" ? "푸시 알림을 보내기 시작했습니다" : "공지를 올렸습니다"}. 대상 ${n(r.j.targets)}명${r.j.pushQueued ? ` · 푸시 ${n(r.j.pushQueued)}명에게 보내는 중(목록의 '푸시' 칸에서 보낸 수 확인)` : ""}` : r.j.error ?? "보내지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    if (r.ok) setF({ title: "", body: "", roles: [], genders: [], kind: "both" });
     load();
   };
 
@@ -59,14 +61,24 @@ export default function Notices() {
             ))}
           </div>
         </div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={f.push} onChange={(e) => setF({ ...f, push: e.target.checked })} />푸시 알림으로도 알리기</label>
+        <div>
+          <p className="text-sm text-sub">공지 유형</p>
+          <div data-block-id="A120" role="radiogroup" aria-label="공지 유형" className="mt-2 grid grid-cols-3 gap-2">
+            {([["notice", "공지만", "앱 팝업·홈 공지 띠"], ["push", "푸시만", "휴대폰 알림만"], ["both", "공지+푸시", "둘 다"]] as [Kind, string, string][]).map(([k, label, sub]) => (
+              <button key={k} type="button" role="radio" aria-checked={f.kind === k} data-block-id={`B122-${k}`} onClick={() => setF({ ...f, kind: k })} className={`rounded-xl border px-2 py-2 text-center ${f.kind === k ? "border-accent bg-accentSoft text-accent" : "border-line bg-white text-sub"}`}>
+                <span className="block text-sm font-semibold">{label}</span>
+                <span className="block text-[11px]">{sub}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         {pv && (
           <p data-block-id="C120" className="rounded-xl bg-bg px-4 py-3 text-sm">
             <b>{pv.label}</b> · 대상 <b className="num">{n(pv.members)}</b>명
-            {f.push && <> · 푸시 받는 회원 <b className="num">{n(pv.pushMembers)}</b>명 (기기 {n(pv.devices)}대){!pv.push && <span className="text-warn"> · 푸시 설정 전</span>}</>}
+            {f.kind !== "notice" && <> · 푸시 받는 회원 <b className="num">{n(pv.pushMembers)}</b>명 (기기 {n(pv.devices)}대){!pv.push && <span className="text-warn"> · 푸시 설정 전</span>}</>}
           </p>
         )}
-        <p className="text-xs text-sub">대상 회원이 앱을 열면 팝업으로 보이고, 확인하면 다시 뜨지 않습니다. 성별·역할을 고르지 않은 회원은 올린 글·등록한 차량·구 워프 회원 정보로 판단합니다.</p>
+        <p className="text-xs text-sub">받는 사람은 비밀번호 설정을 마친 회원만이에요(구 워프에서 옮겨 와 아직 비밀번호를 정하지 않은 회원·탈퇴 회원 제외). 공지만·공지+푸시: 대상 회원이 앱을 열면 팝업으로 보이고(확인하면 다시 뜨지 않음), 30일 동안 홈 위 공지 띠에 흐릅니다. 푸시만: 휴대폰 알림만 가고, 알림을 누르면 내용이 열립니다. 성별·역할을 고르지 않은 회원은 올린 글·등록한 차량·구 워프 회원 정보로 판단합니다.</p>
         {msg && <p role="status" className="rounded-xl bg-accentSoft px-4 py-2.5 text-sm text-accent">{msg}</p>}
         <button data-block-id="B121" data-block-name="공지 보내기" disabled={busy} className="w-full rounded-xl bg-accent py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "보내는 중…" : "공지 보내기"}</button>
       </form>
@@ -75,11 +87,12 @@ export default function Notices() {
         <h2 className="text-lg font-semibold">보낸 공지</h2>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="text-sub"><tr>{["보낸 날", "제목", "대상", "확인", "푸시", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr></thead>
+            <thead className="text-sub"><tr>{["보낸 날", "유형", "제목", "대상", "확인", "푸시", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-line">
               {rows.map((r) => (
                 <tr key={r.id} className={r.active ? "" : "text-sub"}>
                   <td className="num whitespace-nowrap px-2 py-2">{new Date(r.at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</td>
+                  <td className="whitespace-nowrap px-2 py-2">{r.kindLabel ?? "공지만"}</td>
                   <td className="px-2 py-2"><b>{r.title}</b><span className="block max-w-[280px] truncate text-xs text-sub">{r.body}</span></td>
                   <td className="whitespace-nowrap px-2 py-2">{r.label} <span className="num text-xs text-sub">{n(r.targets)}명</span></td>
                   <td className="num px-2 py-2">{n(r.reads)}</td>

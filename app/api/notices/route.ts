@@ -15,14 +15,14 @@ export async function GET(req: Request) {
     const sql = db();
     const rows = ticker
       ? await sql`select n.id, n.title, n.body, n.roles, n.genders, n.created_at, true as read
-                  from notices n where n.active and n.created_at > now() - interval '30 days'
+                  from notices n where n.active and n.kind <> 'push' and n.created_at > now() - interval '30 days'
                   order by n.id desc limit 5`
       : all
       ? await sql`select n.id, n.title, n.body, n.roles, n.genders, n.created_at, (r.user_id is not null) as read
                   from notices n left join notice_reads r on r.notice_id = n.id and r.user_id = ${me}
                   order by n.id desc limit 30`
       : await sql`select n.id, n.title, n.body, n.roles, n.genders, n.created_at, false as read
-                  from notices n where n.active and not exists (select 1 from notice_reads r where r.notice_id = n.id and r.user_id = ${me})
+                  from notices n where n.active and n.kind <> 'push' and not exists (select 1 from notice_reads r where r.notice_id = n.id and r.user_id = ${me})
                   order by n.id desc limit 10`;
     const mine = [];
     for (const n of rows) if ((await targetUsers(n.roles as string[], n.genders as string[], me)).length) mine.push(n);
