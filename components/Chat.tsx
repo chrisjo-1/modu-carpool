@@ -315,7 +315,7 @@ export function ChatRoom({
             <a href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-0 items-center gap-1 font-semibold text-accent">{t("모카 미터기로 비용 나누기")} {Icon.arrow()}</a>
           )}
         </div>
-        <div className="min-h-[30dvh] space-y-2" aria-live="polite">
+        <div className="min-h-[30vh] space-y-2 supports-[height:1dvh]:min-h-[30dvh]" aria-live="polite">
           {msgs.length === 0 && <p className="py-8 text-center text-[15px] text-sub">{t("첫 인사를 건네 보세요.")}</p>}
           {msgs.map((m, i) => {
             const prev = msgs[i - 1];

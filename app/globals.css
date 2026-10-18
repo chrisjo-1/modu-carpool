@@ -2,7 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
+:root { color-scheme: light; --vh100: 100vh; }
+/* 화면 높이: dvh를 아는 브라우저만 dvh로(주소창이 접히는 폰에서 정확). 모르면 위의 vh를 쓴다. */
+@supports (height: 1dvh) { :root { --vh100: 100dvh; } }
 html, body { background: #F5F7FA; color: #10141C; }
 body { font-family: "Pretendard Variable", "Pretendard", system-ui, sans-serif; font-size: 16px; line-height: 1.5; -webkit-tap-highlight-color: transparent; word-break: keep-all; }
 button, a, [role="button"] { min-height: 44px; }
@@ -33,3 +35,8 @@ html[data-seen="1"]:not([data-ready]) #app-shell { visibility: hidden; }
 @keyframes slim-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
 .slim-bar-run { animation: slim-bar 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .slim-bar-run { animation: none; width: 100%; opacity: .6; } }
+
+/* 아이폰·아이패드(사파리)는 16px보다 작은 입력칸을 누르면 화면을 확대한다. 입력칸 글자만 16px로 맞춘다. */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: 16px !important; }
+}

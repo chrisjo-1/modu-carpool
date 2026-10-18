@@ -302,7 +302,7 @@ export function Segment<T extends string>({ value, options, onChange, label, com
   return (
     <div role="radiogroup" aria-label={label} className={`flex gap-1 rounded-xl bg-bg ${compact ? "p-0.5" : "p-1"}`}>
       {options.map(([v, text]) => (
-        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`flex-1 rounded-lg px-2 motion-safe:transition-all motion-safe:duration-200 ${compact ? "min-h-[44px] py-2 text-[15px]" : "min-h-[44px] py-2 text-[15px]"} ${value === v ? onStyle(v) : "text-sub"}`}>
+        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)} className={`min-w-0 flex-1 whitespace-nowrap rounded-lg px-2 max-[380px]:px-1 max-[380px]:text-[14px] motion-safe:transition-all motion-safe:duration-200 ${compact ? "min-h-[44px] py-2 text-[15px]" : "min-h-[44px] py-2 text-[15px]"} ${value === v ? onStyle(v) : "text-sub"}`}>
           {text}
         </button>
       ))}

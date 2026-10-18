@@ -28,11 +28,11 @@ export default function Splash() {
           role="img"
           aria-label="모두의카풀 — 카풀부터 지하철 앉기까지, 출퇴근·나들이 모두 CALL 하세요"
           className="sp-fade absolute inset-0 bg-contain bg-bottom bg-no-repeat"
-          style={{ backgroundImage: "url(/splash-main.webp)", WebkitMaskImage: "linear-gradient(180deg, transparent 0, transparent calc(100% - min(100dvh, 177.9vw)), #000 calc(100% - min(100dvh, 177.9vw) * 0.94))", maskImage: "linear-gradient(180deg, transparent 0, transparent calc(100% - min(100dvh, 177.9vw)), #000 calc(100% - min(100dvh, 177.9vw) * 0.94))" }}
+          style={{ backgroundImage: "url(/splash-main.webp)", WebkitMaskImage: "linear-gradient(180deg, transparent 0, transparent calc(100% - min(var(--vh100), 177.9vw)), #000 calc(100% - min(var(--vh100), 177.9vw) * 0.94))", maskImage: "linear-gradient(180deg, transparent 0, transparent calc(100% - min(var(--vh100), 177.9vw)), #000 calc(100% - min(var(--vh100), 177.9vw) * 0.94))" }}
         />
         <style>{`.sp-fade{animation:sp-fade .5s ease-out both}@keyframes sp-fade{from{opacity:0}to{opacity:1}}@media (prefers-reduced-motion:reduce){.sp-fade{animation:none}}`}</style>
         {/* 그림 아래쪽 흰 물결 위에 로딩 막대를 얹는다(그림 높이 기준 약 11% 위). */}
-        <div className="absolute inset-x-0 flex flex-col items-center gap-2" style={{ bottom: "calc(min(100dvh, 177.9vw) * 0.115)" }}>
+        <div className="absolute inset-x-0 flex flex-col items-center gap-2" style={{ bottom: "calc(min(var(--vh100), 177.9vw) * 0.115)" }}>
           {bar}
           <p className="m-0 text-[13px] font-medium text-[#5B6B85]">{t("내 주변 카풀을 불러오는 중이에요")}</p>
         </div>

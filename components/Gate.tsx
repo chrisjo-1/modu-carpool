@@ -32,7 +32,7 @@ export default function Gate({
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   return (
     <div data-block-id="S005" data-block-name="첫 화면" className="fixed inset-0 z-[55] overflow-y-auto bg-bg">
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-10 pt-6">
+      <div className="mx-auto flex min-h-[var(--vh100)] max-w-md flex-col px-5 pb-10 pt-6">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-white">{Icon.car(1.8)}</span>

@@ -26,7 +26,7 @@ export default function SubwayCall({ hasPlan, onSent }: { hasPlan: boolean; onSe
 
   return (
     <>
-      <button type="button" data-block-id="B250" data-block-name="지하철 CALL" aria-label="CALL" className="fixed bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-violet px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => { setMsg(""); setOpen(true); }}>
+      <button type="button" data-block-id="B250" data-block-name="지하철 CALL" aria-label="CALL" className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-30 -translate-x-1/2 rounded-full bg-violet px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => { setMsg(""); setOpen(true); }}>
         CALL
       </button>
       {open && (

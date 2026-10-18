@@ -227,12 +227,12 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         <div className={`flex flex-wrap items-center gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
           <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex flex-wrap gap-1.5">
             {([["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")], ["soon", t("출발순")]] as const).map(([k, label]) => (
-              <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-[44px] rounded-full border px-3.5 py-2 text-[14px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+              <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-[44px] whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
                 {label}
               </button>
             ))}
           </div>
-          <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`ml-auto min-h-[44px] rounded-full border px-3.5 py-2 text-[14px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+          <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`ml-auto min-h-[44px] whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
             {t("정기카풀")}
           </button>
         </div>

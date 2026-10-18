@@ -55,7 +55,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   if (!r) notFound();
   const open = r.upcoming && r.status === "open";
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-5 pb-16 pt-10 text-ink">
+    <main className="mx-auto min-h-[var(--vh100)] max-w-md px-5 pb-16 pt-10 text-ink">
       <p className="text-[13px] text-sub"><Link href="/" className="underline">모두의카풀</Link> · 카풀 글</p>
       <h1 className="mt-3 text-[24px] font-bold leading-snug">{r.origin} → {r.dest}</h1>
       <ul className="mt-5 space-y-2 rounded-3xl border border-line bg-white p-5 text-[15px] shadow-card">

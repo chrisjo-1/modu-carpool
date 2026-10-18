@@ -499,7 +499,7 @@ export default function App() {
   return (
     <LangContext.Provider value={shownLang}>
       <HintContext.Provider value={{ on: !!user, texts: bubbleTexts }}>
-      <div id="app-shell" className="mx-auto flex min-h-dvh max-w-md flex-col">
+      <div id="app-shell" className="mx-auto flex min-h-[var(--vh100)] max-w-md flex-col">
         {user?.test && (
           <p data-block-id="C090" data-block-name="테스트 회원 안내" className="flex items-center justify-between gap-3 border-b border-line bg-accentSoft px-5 py-2 text-[13px] text-ink">
             <span>테스트 회원 <b>{user.name}</b> 화면으로 보는 중</span>
@@ -518,7 +518,7 @@ export default function App() {
         {tab === "home" && <div className="px-4"><Banners /></div>}
         {tab === "home" && <div className="flex justify-end px-5 pb-1"><Bubble blockId="C930" align="right">{t("지금 내 기본 역할이에요. 누르면 운전자와 탑승자가 바뀌고, 카풀을 올릴 때 기본값이 돼요.")}</Bubble></div>}
 
-        <main className="flex-1 px-4 pb-28 pt-3">
+        <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-3">
           {tab === "home" &&
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
@@ -615,7 +615,7 @@ export default function App() {
         {why && <ReasonSheet mode={why.mode} name={why.name} onClose={() => setWhy(null)} onSubmit={submitWhy} />}
         <PhotoZoomLayer />
         {toastMsg && (
-          <div role="status" aria-live="polite" data-block-id="C099" data-block-name="알림 문구" className="fixed inset-x-4 bottom-24 z-[60] mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-line border-l-[6px] border-l-accent bg-white px-5 py-4 text-left text-[16px] font-semibold leading-snug text-ink shadow-[0_14px_40px_rgba(21,35,61,0.28)]">
+          <div role="status" aria-live="polite" data-block-id="C099" data-block-name="알림 문구" className="fixed inset-x-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-line border-l-[6px] border-l-accent bg-white px-5 py-4 text-left text-[16px] font-semibold leading-snug text-ink shadow-[0_14px_40px_rgba(21,35,61,0.28)]">
             {/* 파란 버튼 위에 떠도 잘 보이도록 흰 바탕 + 진한 글자 + 진한 그림자 */}
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" fill="#EAF1FF" stroke="none" /><path d="M12 11v5.5" /><path d="M12 7.5h.01" /></svg>
             <span className="min-w-0 flex-1 break-keep">{toastMsg}</span>
