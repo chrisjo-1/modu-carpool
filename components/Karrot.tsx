@@ -32,7 +32,7 @@ async function compress(file: File): Promise<string> {
 
 const input = field;
 
-/** 내 정보: 나의 당근함(진열). 로그인 회원에게만 보인다. 거래는 당근마켓 링크로 이동해서 한다. */
+/** 내 정보: 나의 당근함. 내가 등록한 물건만 보인다(다른 회원 물건은 카풀 보상 고르기에서 검색). 거래는 당근마켓 링크로 이동해서 한다. */
 export function KarrotShowcase({ toast }: { toast: (m: string) => void }) {
   const t = useT();
   const [items, setItems] = useState<Item[] | null>(null);
@@ -40,7 +40,7 @@ export function KarrotShowcase({ toast }: { toast: (m: string) => void }) {
   const [manage, setManage] = useState(false);
 
   const load = async (keyword: string) => {
-    const r = await api<{ items: Item[] }>(`/api/karrot?q=${encodeURIComponent(keyword)}`);
+    const r = await api<{ items: Item[] }>(`/api/karrot?mine=1&q=${encodeURIComponent(keyword)}`);
     setItems(r.ok ? r.data.items : []);
     if (!r.ok) toast(t(r.error));
   };
@@ -57,19 +57,19 @@ export function KarrotShowcase({ toast }: { toast: (m: string) => void }) {
         <button type="button" data-block-id="B340" data-block-name="내 물품 관리" onClick={() => setManage(true)} className="min-h-0 text-[14px] font-semibold text-accent">{t("내 물품 관리")}</button>
       </div>
       <Card data-block-id="C110" data-block-name="나의 당근함" className="space-y-3 p-4">
-        <p className="text-[13px] text-sub">{t("카풀 보상으로 드릴 수 있는 물건이에요. 구매는 당근마켓에서 해요.")}</p>
+        <p className="text-[13px] text-sub">{t("내가 등록한 물건이에요. 카풀 보상으로 고를 수 있고, 구매는 당근마켓에서 해요.")}</p>
         <input data-block-id="F130" type="search" className={input} placeholder={t("키워드로 찾기 (예: 음료)")} aria-label={t("키워드로 찾기 (예: 음료)")} value={q} onChange={(e) => setQ(e.target.value)} />
         {items === null ? (
           <p className="text-[15px] text-sub">{t("불러오는 중…")}</p>
         ) : items.length === 0 ? (
-          <p className="text-[15px] text-sub">{q ? t("찾는 물건이 없어요.") : t("아직 등록된 물건이 없어요.")}</p>
+          <p className="text-[15px] text-sub">{q ? t("찾는 물건이 없어요.") : t("아직 등록한 물건이 없어요. '내 물품 관리'에서 등록해 보세요.")}</p>
         ) : (
           <ul className="divide-y divide-line">
             {items.map((it) => (
               <li key={it.id} className="flex gap-3 py-3">
                 {it.photos[0] && <img src={`data:image/jpeg;base64,${it.photos[0]}`} alt={it.title} className="h-16 w-16 shrink-0 rounded-xl object-cover" />}
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="truncate text-[15px] font-semibold">{it.title} {it.mine && <Tag tone="accent">{t("내 물건")}</Tag>}</p>
+                  <p className="truncate text-[15px] font-semibold">{it.title}</p>
                   {it.note && <p className="line-clamp-2 text-[13px] text-sub">{it.note}</p>}
                   <a data-block-id="B341" href={it.link} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1 text-[14px] font-semibold text-accent">
                     {t("당근마켓에서 보기")} <span aria-hidden>↗</span>
