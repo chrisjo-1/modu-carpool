@@ -126,13 +126,29 @@ export const Icon = {
   ),
 };
 
+/**
+ * 시트가 열려 있는 동안 본문 스크롤을 잠근다. 시트가 여러 개 겹쳐 열리고 닫히는 순서가 뒤바뀌어도
+ * (예: 메일 링크로 들어와 글 상세 위에 대화방이 열림) 잠금이 남지 않도록 열린 개수로 센다.
+ */
+let sheetLocks = 0;
+let bodyOverflowBefore = "";
+function lockBody() {
+  if (sheetLocks === 0) {
+    const cur = document.body.style.overflow;
+    bodyOverflowBefore = cur === "hidden" ? "" : cur;
+    document.body.style.overflow = "hidden";
+  }
+  sheetLocks += 1;
+}
+function unlockBody() {
+  sheetLocks = Math.max(0, sheetLocks - 1);
+  if (sheetLocks === 0) document.body.style.overflow = bodyOverflowBefore;
+}
+
 export function Sheet({ title, onClose, children, blockId, locked = false }: { title: string; onClose: () => void; children: ReactNode; blockId: string; locked?: boolean }) {
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    lockBody();
+    return unlockBody;
   }, []);
   return (
     <div className="fade-in fixed inset-0 z-50 flex items-end justify-center bg-ink/30" role="dialog" aria-modal="true" aria-label={title}>
