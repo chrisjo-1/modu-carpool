@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { CarMatch } from "@/lib/subwayPosition";
-import { positionLabel } from "@/lib/subwayPosition";
+import { parseSeat, positionLabel, seatLabel } from "@/lib/subwayPosition";
+import SeatMap from "./SeatMap";
 import { api, field, useT } from "../ui";
 
 type Pair = { role: "take" | "give"; stops: number; seatStation: string; meetStation: string; gapMin: number; car: string; gate: string };
-type Spot = { car: string; door: string; side: "left" | "right" | ""; memo: string };
+type Spot = { car: string; door: string; side: "left" | "right" | ""; seat?: string; memo: string };
 type Contact = { type: string; id: string };
 type Cand = Pair & { planId: number; timeGo: string };
 type Req = { id: string; status: string; incoming: boolean; otherPlanId: number; otherTime: string; pair: Pair | null; spot: Spot | null; contact: Contact | null };
@@ -18,10 +19,12 @@ const toMin = (hhmm: string) => {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
 
-/** 자리 위치를 한 줄로: "6-1 왼쪽 · 검은 모자" */
+/** 자리 위치를 한 줄로: "6번째 칸 · 2~3번 문 사이 4번째 좌석 · 힌트: 네이비 패딩" */
 export function spotText(s: Spot): string {
+  const p = s.seat ? parseSeat(s.seat) : null;
   const side = s.side === "left" ? " 왼쪽" : s.side === "right" ? " 오른쪽" : "";
-  return `${s.car}-${s.door}${side}${s.memo ? ` · ${s.memo}` : ""}`;
+  const where = p ? `${s.car}번째 칸 · ${seatLabel(p)}` : `${s.car}-${s.door}${side}`;
+  return `${where}${s.memo ? ` · 힌트: ${s.memo}` : ""}`;
 }
 
 /**
@@ -185,11 +188,12 @@ function MatchedCard({ r, chatOpen, onToggleChat }: { r: Req; chatOpen: boolean;
           <p className="text-sub">
             {p.role === "take" ? t("상대 자리") : t("내 자리")}{" "}
             {r.spot ? (
-              <span className="num font-semibold text-ink">{spotText(r.spot)}</span>
+              <span className="font-semibold text-ink">{spotText(r.spot)}</span>
             ) : (
               <span className="text-ink">{p.role === "take" ? t("아직 입력 전이에요") : t("위 '내 자리 위치'에 입력해 주세요")}</span>
             )}
           </p>
+          {r.spot?.seat && <SeatMap value={r.spot.seat} car={r.spot.car} readOnly />}
           {!r.spot && (p.car || p.gate) && (
             <p className="text-sub">
               {t("등록한 탑승 위치")} <span className="num text-ink">{positionLabel(p.car, p.gate) || p.car}</span>

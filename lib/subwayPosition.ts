@@ -43,3 +43,41 @@ export function carPositionFromNo(line: string, no: string): number {
   if (line !== "2" || !isCarNo(no)) return 0;
   return Number(no[1]) + 1;
 }
+
+/**
+ * 좌석 위치(차량 안 그림에서 고른 자리). 형식: "{벽}{구간}-{순번}"
+ * - 벽: A(그림 위쪽 벽) / B(그림 아래쪽 벽)
+ * - 구간: 0 = 1번 문 앞 끝(노약자석 3석), 1~3 = 문과 문 사이(7석), 4 = 4번 문 뒤 끝(노약자석 3석)
+ * - 순번: 구간 안에서 왼쪽부터 1, 2, …
+ */
+export const SEAT_BENCHES = [3, 7, 7, 7, 3];
+
+export type SeatPos = { wall: "A" | "B"; bench: number; index: number };
+
+export function parseSeat(v: string): SeatPos | null {
+  const m = /^([AB])([0-4])-([1-7])$/.exec(v);
+  if (!m) return null;
+  const bench = Number(m[2]);
+  const index = Number(m[3]);
+  if (index > SEAT_BENCHES[bench]) return null;
+  return { wall: m[1] as "A" | "B", bench, index };
+}
+
+export function seatId(p: SeatPos): string {
+  return `${p.wall}${p.bench}-${p.index}`;
+}
+
+/** 좌석에서 가장 가까운 문 번호(1~4). 바닥 표시 "칸-문"에 쓴다. */
+export function doorOfSeat(p: SeatPos): string {
+  if (p.bench === 0) return "1";
+  if (p.bench === 4) return "4";
+  // 문 b와 b+1 사이: 앞쪽 절반은 b번 문, 뒤쪽 절반은 b+1번 문
+  return String(p.index <= 4 ? p.bench : p.bench + 1);
+}
+
+/** "2~3번 문 사이 4번째 좌석" / "1번 문 앞 노약자석 2번째" */
+export function seatLabel(p: SeatPos): string {
+  if (p.bench === 0) return `1번 문 앞 노약자석 ${p.index}번째`;
+  if (p.bench === 4) return `4번 문 뒤 노약자석 ${p.index}번째`;
+  return `${p.bench}~${p.bench + 1}번 문 사이 ${p.index}번째 좌석`;
+}

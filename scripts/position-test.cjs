@@ -24,5 +24,15 @@ check("2590 → 6번째 칸", P.carPositionFromNo("2", "2590") === 6);
 check("2090 → 1번째 칸", P.carPositionFromNo("2", "2090") === 1);
 check("다른 노선은 0", P.carPositionFromNo("5", "5590") === 0);
 
+// 좌석 그림 위치
+const sp = P.parseSeat("A2-4");
+check("좌석 A2-4 읽기", sp && sp.wall === "A" && sp.bench === 2 && sp.index === 4);
+check("좌석 표기 되돌리기", sp && P.seatId(sp) === "A2-4");
+check("노약자석은 3석까지", P.parseSeat("B0-3") !== null && P.parseSeat("B0-4") === null);
+check("잘못된 좌석 거부", P.parseSeat("C1-1") === null && P.parseSeat("A5-1") === null);
+check("A2-4는 2~3번 문 사이, 가까운 문 2", sp && P.seatLabel(sp) === "2~3번 문 사이 4번째 좌석" && P.doorOfSeat(sp) === "2");
+check("A2-6은 가까운 문 3", P.doorOfSeat(P.parseSeat("A2-6")) === "3");
+check("끝 노약자석의 문", P.doorOfSeat(P.parseSeat("B4-1")) === "4" && P.doorOfSeat(P.parseSeat("B0-2")) === "1");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

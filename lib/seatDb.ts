@@ -83,6 +83,8 @@ export function ensureSeatSchema(): Promise<void> {
         memo text not null default '',
         updated_at timestamptz not null default now(),
         primary key (user_id, day))`;
+      // 그림에서 고른 좌석(예: A2-4). lib/subwayPosition.ts parseSeat 형식.
+      await sql`alter table seat_spots add column if not exists seat text not null default ''`;
       // 수락된 매칭끼리의 대화(카풀 채팅과 별도 저장소).
       await sql`create table if not exists seat_messages (
         id bigserial primary key,
@@ -316,23 +318,24 @@ export async function acceptedPartners(userId: string): Promise<string[]> {
   return [...new Set(rows.map((r) => String(r.other)))];
 }
 
-export type Spot = { car: string; door: string; side: "left" | "right" | ""; memo: string };
+/** seat: 그림에서 고른 좌석(A2-4 형식, 없으면 ""), memo: 오늘의 힌트(옷 색깔·소지품 등) */
+export type Spot = { car: string; door: string; side: "left" | "right" | ""; seat: string; memo: string };
 
 /** 오늘 내 자리 위치. */
 export async function getSpot(userId: string, day = seatDay()): Promise<Spot | null> {
   await ensureSeatSchema();
-  const rows = await seatSql()`select car, door, side, memo from seat_spots where user_id = ${userId} and day = ${day}`;
+  const rows = await seatSql()`select car, door, side, seat, memo from seat_spots where user_id = ${userId} and day = ${day}`;
   if (!rows.length) return null;
   const r = rows[0];
-  return { car: String(r.car), door: String(r.door), side: (String(r.side) as Spot["side"]) || "", memo: String(r.memo) };
+  return { car: String(r.car), door: String(r.door), side: (String(r.side) as Spot["side"]) || "", seat: String(r.seat ?? ""), memo: String(r.memo) };
 }
 
 export async function setSpot(userId: string, s: Spot, day = seatDay()): Promise<void> {
   await ensureSeatSchema();
   const sql = seatSql();
   await sql`delete from seat_spots where day < ${seatDay(Date.now() - 2 * 86400_000)}`;
-  await sql`insert into seat_spots (user_id, day, car, door, side, memo) values (${userId}, ${day}, ${s.car}, ${s.door}, ${s.side}, ${s.memo})
-    on conflict (user_id, day) do update set car = excluded.car, door = excluded.door, side = excluded.side, memo = excluded.memo, updated_at = now()`;
+  await sql`insert into seat_spots (user_id, day, car, door, side, seat, memo) values (${userId}, ${day}, ${s.car}, ${s.door}, ${s.side}, ${s.seat}, ${s.memo})
+    on conflict (user_id, day) do update set car = excluded.car, door = excluded.door, side = excluded.side, seat = excluded.seat, memo = excluded.memo, updated_at = now()`;
 }
 
 export async function clearSpot(userId: string, day = seatDay()): Promise<void> {

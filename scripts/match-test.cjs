@@ -25,7 +25,20 @@ const h4 = R.headingFor("2", "신도림", "까치산");
 check("2호선 신정지선: 다음역 도림천, 종착 까치산", h4 && h4.next === "도림천" && h4.terminal === "까치산", JSON.stringify(h4));
 const loopPath = R.routePath("2", "충정로", "을지로입구");
 check("2호선 순환: 충정로→시청→을지로입구", (loopPath || []).join(",") === "충정로,시청,을지로입구", JSON.stringify(loopPath));
-check("정의 없는 노선은 null", R.routePath("9", "a", "b") === null && R.headingsAt("9", "a").length === 0);
+check("정의 없는 노선(9호선)은 null", R.routePath("9", "a", "b") === null && R.headingsAt("9", "a").length === 0);
+
+// 1-2) 1·3·4·6·7·8호선(서울교통공사 구간)
+check("1호선 동대문→신설동 사이에 동묘앞", (R.routePath("1", "동대문", "신설동") || []).join(",") === "동대문,동묘앞,신설동");
+check("8호선 복정→산성 사이에 남위례", (R.routePath("8", "복정", "산성") || []).join(",") === "복정,남위례,산성");
+const h8 = R.headingFor("8", "잠실", "모란");
+check("8호선 잠실→모란: 모란 방면, 다음역 석촌", h8 && h8.next === "석촌" && h8.terminal === "모란", JSON.stringify(h8));
+const l3 = R.headingFor("3", "교대", "고속터미널");
+check("3호선 교대→고속터미널: 지축 방면", l3 && l3.terminal === "지축" && l3.dir === "up", JSON.stringify(l3));
+const h6 = R.headingFor("6", "새절", "신내");
+check("6호선 새절→신내: 신내 방면", h6 && h6.terminal === "신내" && h6.next === "증산", JSON.stringify(h6));
+check("6호선 응암에서는 세 방향(역촌·구산·새절)", R.headingsAt("6", "응암").length === 3, JSON.stringify(R.headingsAt("6", "응암")));
+check("7호선 장암→온수 경로 길이 42", (R.routePath("7", "장암", "온수") || []).length === 42);
+check("4호선 정의됨", R.hasRoute("4") && !R.hasRoute("9"));
 
 // 2) 자리 매칭
 const base = { days: "12345", back: false, timeBack: "", backCar: "", backGate: "", boardGate: "1" };
