@@ -22,6 +22,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **관리자 메일 회원 사진 크게 보기**: Vercel 환경변수 `ADMIN_EMAILS`(쉼표 구분)에 든 이메일로 로그인하면 `/api/auth` 응답 `user.photoZoom`이 참 → 모든 화면의 `Avatar`를 누르면 `PhotoZoomLayer`(App에 하나, 흰 바탕 전체화면)가 열린다. 감싼 버튼은 실행하지 않는다.
 - **회원 프로필의 당근함**(`MemberKarrot` in `components/Member.tsx`, GET `/api/karrot?user=회원ID`): 프로필을 열면 그 회원이 등록한 물건(최근 30개, 첫 사진만)을 2열로 보여 주고, 누르면 당근마켓 글로 이동. 물건이 없으면 숨김. 서로 차단한 사이는 빈 목록.
 - **관리자 회원 정렬**: 회원 목록 필터 줄 맨 앞 선택칸 → GET `/api/admin?sort=` joined(가입일, 기본)·seen(최근 접속)·post(최근 작성)·credits(크레딧 많은)·posts(글 많은). 서버에서 정렬 후 200명. 글 칸 아래에 최근 작성 시각. 성별·역할 필터도 서버(`&gender=`, `&role=`)에서 전체 회원 대상: 운전자 = role_pref driver·차량번호·운전자 글, 탑승자 = role_pref rider·탑승자 글, 미입력 = 셋 다 없음.
+- **도움말**(`lib/help.ts`, DB `help_items`, 관리자 화면에서 수정): 기본 내용은 비었을 때 한 번. 나중에 더하는 내용은 `ADDITIONS` 묶음(key)으로 넣고 `help_seed_log`에 기록 → 묶음마다 한 번, 같은 제목은 건너뜀(관리자가 고치거나 지운 것 보존). 안내 그림은 `public/help/*.svg`·`public/subway/*.webp` 경로를 image에 그대로 쓴다(관리자 저장도 허용).
 - `lib/i18n.ts`: 한국어 키 사전. **번역 문구는 지금 넣지 않는다.** 국내 유저가 우선이라 서비스가 완성된 뒤 한꺼번에 추가한다. 화면 문구는 `t("한국어")`로만 감싸 둔다.
 
 ## 메일

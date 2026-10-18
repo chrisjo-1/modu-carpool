@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 260" font-family="Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="640" height="260" fill="#F6F8FC"/>
+  <text x="24" y="36" font-size="20" font-weight="700" fill="#15233D">지하철 자리 매칭 — 1~3정거장 안에 내리는 분과 연결</text>
+  <line x1="60" y1="130" x2="580" y2="130" stroke="#8A5CF6" stroke-width="8" stroke-linecap="round"/>
+  <g fill="#FFFFFF" stroke="#8A5CF6" stroke-width="4">
+    <circle cx="80" cy="130" r="11"/><circle cx="210" cy="130" r="11"/><circle cx="340" cy="130" r="11"/><circle cx="470" cy="130" r="11"/><circle cx="570" cy="130" r="11"/>
+  </g>
+  <g font-size="13" fill="#5B6577" text-anchor="middle">
+    <text x="80" y="164">A역</text><text x="210" y="164">B역</text><text x="340" y="164">C역</text><text x="470" y="164">D역</text><text x="570" y="164">E역</text>
+  </g>
+  <rect x="40" y="62" width="200" height="34" rx="17" fill="#EFE8FF"/>
+  <text x="140" y="84" font-size="14" font-weight="700" fill="#6B3FD9" text-anchor="middle">양보하는 분 · A역 탑승</text>
+  <path d="M80 100 L80 116" stroke="#6B3FD9" stroke-width="2"/>
+  <rect x="160" y="190" width="220" height="34" rx="17" fill="#E8F0FF"/>
+  <text x="270" y="212" font-size="14" font-weight="700" fill="#2F6BFF" text-anchor="middle">받는 분 · B역 탑승 (더 멀리 감)</text>
+  <path d="M210 172 L210 188" stroke="#2F6BFF" stroke-width="2"/>
+  <rect x="290" y="62" width="230" height="34" rx="17" fill="#FFFFFF" stroke="#8A5CF6" stroke-width="2"/>
+  <text x="405" y="84" font-size="14" font-weight="700" fill="#6B3FD9" text-anchor="middle">C역 하차 → 자리가 나요</text>
+  <path d="M340 100 L340 116" stroke="#6B3FD9" stroke-width="2"/>
+  <text x="24" y="248" font-size="13" fill="#5B6577">같은 방향 · 예상 통과 시각 ±10분 · 요일이 겹치면 추천해요</text>
+</svg>

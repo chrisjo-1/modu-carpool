@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240" font-family="Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+  <rect width="640" height="240" fill="#F6F8FC"/>
+  <text x="24" y="36" font-size="20" font-weight="700" fill="#15233D">운전자 등급 배지</text>
+  <g>
+    <rect x="24" y="60" width="184" height="150" rx="18" fill="#FFFFFF" stroke="#E8C9B3" stroke-width="2"/>
+    <rect x="56" y="80" width="120" height="34" rx="17" fill="#FBF1EA" stroke="#E8C9B3"/>
+    <circle cx="78" cy="97" r="7" fill="none" stroke="#9A5B32" stroke-width="2"/>
+    <text x="126" y="103" font-size="15" font-weight="700" fill="#9A5B32" text-anchor="middle">브론즈</text>
+    <text x="116" y="146" font-size="13" fill="#5B6577" text-anchor="middle">차량번호 + 차량 사진</text>
+    <text x="116" y="168" font-size="13" fill="#5B6577" text-anchor="middle">+ 프로필 사진</text>
+    <text x="116" y="192" font-size="12" fill="#9A5B32" text-anchor="middle">자동으로 붙어요</text>
+  </g>
+  <g>
+    <rect x="228" y="60" width="184" height="150" rx="18" fill="#FFFFFF" stroke="#CDD3DD" stroke-width="2"/>
+    <rect x="260" y="80" width="120" height="34" rx="17" fill="#F1F3F7" stroke="#CDD3DD"/>
+    <circle cx="282" cy="97" r="7" fill="none" stroke="#5E6878" stroke-width="2"/>
+    <text x="330" y="103" font-size="15" font-weight="700" fill="#5E6878" text-anchor="middle">실버</text>
+    <text x="320" y="156" font-size="13" fill="#5B6577" text-anchor="middle">운영자가 확인 후</text>
+    <text x="320" y="178" font-size="13" fill="#5B6577" text-anchor="middle">지정해요</text>
+  </g>
+  <g>
+    <rect x="432" y="60" width="184" height="150" rx="18" fill="#FFFFFF" stroke="#EED78A" stroke-width="2"/>
+    <rect x="464" y="80" width="120" height="34" rx="17" fill="#FFF6D6" stroke="#EED78A"/>
+    <circle cx="486" cy="97" r="7" fill="none" stroke="#9A7200" stroke-width="2"/>
+    <text x="534" y="103" font-size="15" font-weight="700" fill="#9A7200" text-anchor="middle">골드</text>
+    <text x="524" y="156" font-size="13" fill="#5B6577" text-anchor="middle">운영자가 확인 후</text>
+    <text x="524" y="178" font-size="13" fill="#5B6577" text-anchor="middle">지정해요</text>
+  </g>
+</svg>

@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     const active = b.active !== false;
     if (!section) return json({ error: "잘못된 항목입니다." }, 400);
     if (title.length < 1) return json({ error: "제목을 입력해 주세요." }, 400);
-    if (image && (!image.startsWith("data:image/jpeg;base64,") || image.length > IMAGE_MAX)) return json({ error: "사진은 JPEG 300KB 이하만 넣을 수 있어요." }, 400);
+    if (image && !/^\/(help|subway)\/[\w-]+\.(svg|webp|png|jpg)$/.test(image) && (!image.startsWith("data:image/jpeg;base64,") || image.length > IMAGE_MAX)) return json({ error: "사진은 JPEG 300KB 이하만 넣을 수 있어요." }, 400);
     const id = b.id == null || b.id === "" ? null : String(b.id);
     if (id && !/^\d{1,18}$/.test(id)) return json({ error: "잘못된 요청입니다." }, 400);
     if (id) {
