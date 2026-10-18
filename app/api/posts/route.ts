@@ -7,6 +7,8 @@ import { PHOTO_REQUIRED, hasPhoto, isVerified } from "@/lib/verify";
 import { allowedTags, getKeywords, tagLabels } from "@/lib/keywords";
 import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { samplePosts } from "@/lib/sample";
+import { after } from "next/server";
+import { fillPostAreas } from "@/lib/area";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular, toMinutes, validDays } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +77,8 @@ export async function GET(req: Request) {
       timeBack: r.time_back,
       origin: r.origin,
       dest: r.dest,
+      originArea: r.origin_area ?? "",
+      destArea: r.dest_area ?? "",
       originLat: r.origin_lat,
       originLng: r.origin_lng,
       destLat: r.dest_lat,
@@ -92,6 +96,8 @@ export async function GET(req: Request) {
       hidden: me && r.user_id === me ? (r.owner_blocked ? "blocked" : r.owner_test ? "test" : r.status === "closed" ? "closed" : r.expired ? "expired" : "") : undefined,
     }));
     // 출발 임박순, 종료된 글은 맨 아래(최근에 끝난 순)
+    // 지역 이름이 빠진 글은 응답을 보낸 뒤에 조금씩 채운다(첫 화면을 막지 않음).
+    after(() => fillPostAreas().catch(() => {}));
     if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });
   } catch (e) {

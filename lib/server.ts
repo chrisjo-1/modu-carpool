@@ -473,6 +473,11 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     sort integer not null default 0,
     active boolean not null default true,
     created_at timestamptz not null default now())`;
+  // 글 출발·도착 지역 이름("서울 마포구 공덕동"). area_key 는 계산에 쓴 좌표(좌표가 바뀌면 다시 계산)
+  await sql`alter table posts add column if not exists origin_area text`;
+  await sql`alter table posts add column if not exists dest_area text`;
+  await sql`alter table posts add column if not exists origin_area_key text`;
+  await sql`alter table posts add column if not exists dest_area_key text`;
   // 공지 대상 계산: 회원마다 구 워프 회원을 찾는 데 쓰는 색인(없으면 회원 수 × 전체 검색이 돼 매우 느리다)
   await sql`create index if not exists legacy_matched_user_idx on legacy_members (matched_user)`;
   await sql`create index if not exists posts_user_role_idx on posts (user_id, role)`;

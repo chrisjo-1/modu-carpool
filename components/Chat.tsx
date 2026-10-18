@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { METER_URL, SHOW_METER, contactLabel, type Thread, type User } from "@/lib/types";
 import { Stars } from "./Member";
+import { Route } from "./Home";
 import type { usePush } from "./Push";
 import { RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
@@ -298,6 +299,9 @@ export function ChatRoom({
           </div>
         )}
         <div className="space-y-2 rounded-2xl bg-bg p-4 text-[14px]">
+          <div data-block-id="C037" data-block-name="대화 구간" className="[&_p]:text-[15px]">
+            <Route origin={thread.origin} dest={thread.dest} originArea={thread.originArea} destArea={thread.destArea} />
+          </div>
           {(thread.otherCarNo || thread.otherCarPhoto) && (
             <div data-block-id="C036" data-block-name="상대 차량" className="flex items-center gap-3">
               {thread.otherCarPhoto && (

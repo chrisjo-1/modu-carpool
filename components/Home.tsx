@@ -4,6 +4,7 @@ import FareCard from "./Fare";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import CarInput from "./CarInput";
+import { areaLabel } from "@/lib/areaLabel";
 import { HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
 import { Bubble, useHintTap, RoleTag, Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
@@ -44,18 +45,23 @@ function PostTags({ post }: { post: Post }) {
   );
 }
 
-export function Route({ origin, dest }: { origin: string; dest: string }) {
+export function Route({ origin, dest, originArea, destArea }: { origin: string; dest: string; originArea?: string; destArea?: string }) {
+  const oa = areaLabel(origin, originArea);
+  const da = areaLabel(dest, destArea);
+  // 점은 각 장소 이름 줄에 맞추고, 두 점 사이를 세로선으로 잇는다(지역 글씨가 붙어도 점이 이름 옆에 온다).
   return (
-    <div className="flex items-stretch gap-3">
-      <div className="flex flex-col items-center py-1.5" aria-hidden>
-        <span className="h-2.5 w-2.5 rounded-full border-2 border-accent" />
-        <span className="w-px flex-1 bg-line" />
-        <span className="h-2.5 w-2.5 rounded-full bg-accent" />
-      </div>
-      <div className="min-w-0 space-y-1.5 text-[17px] font-semibold leading-snug">
-        <p className="truncate">{origin}</p>
-        <p className="truncate">{dest}</p>
-      </div>
+    <div className="relative min-w-0 space-y-1.5 text-[17px] font-semibold leading-snug">
+      <p className="relative min-w-0 pl-[22px]">
+        <span aria-hidden className="absolute -bottom-[calc(0.375rem+0.45em)] left-[4.5px] top-[calc(0.45em+10px)] w-px bg-line" />
+        <span aria-hidden className="absolute left-0 top-[0.45em] h-2.5 w-2.5 rounded-full border-2 border-accent bg-white" />
+        <span className="block truncate">{origin}</span>
+        {oa && <span className="block truncate text-[12px] font-normal leading-tight text-sub">{oa}</span>}
+      </p>
+      <p className="relative min-w-0 pl-[22px]">
+        <span aria-hidden className="absolute left-0 top-[0.45em] h-2.5 w-2.5 rounded-full bg-accent" />
+        <span className="block truncate">{dest}</span>
+        {da && <span className="block truncate text-[12px] font-normal leading-tight text-sub">{da}</span>}
+      </p>
     </div>
   );
 }
@@ -261,7 +267,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
                     <PostTags post={p} />
                     <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
                   </div>
-                  <Route origin={p.origin} dest={p.dest} />
+                  <Route origin={p.origin} dest={p.dest} originArea={p.originArea} destArea={p.destArea} />
                   <KeywordChips post={p} max={2} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
                     <span className="num">{scheduleText(p, lang)}{far(p) != null && <b className="ml-1.5 font-semibold text-accent">· {kmText(far(p) as number)}</b>}</span>
@@ -353,7 +359,7 @@ export function PostDetail({
     <Sheet title={t("카풀 상세")} blockId="S010" onClose={onClose}>
       <div className="space-y-4">
         <PostTags post={post} />
-        <Route origin={post.origin} dest={post.dest} />
+        <Route origin={post.origin} dest={post.dest} originArea={post.originArea} destArea={post.destArea} />
         <KeywordChips post={post} />
         <dl className="space-y-2 text-[16px]">
           {post.regular && <div className="flex justify-between"><dt className="text-sub">{t("일정")}</dt><dd className="num font-semibold">{scheduleText(post, lang)}</dd></div>}

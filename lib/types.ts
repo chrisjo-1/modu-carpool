@@ -17,6 +17,9 @@ export type Post = {
   timeGo?: string;
   timeBack?: string;
   ownerPhoto?: string;
+  /** 출발·도착 지역 이름(시·구·동, 좌표로 계산) */
+  originArea?: string;
+  destArea?: string;
   /** 운전자 글일 때 작성자의 운전자 등급 */
   ownerTier?: DriverTier | "";
   /** 키워드: 표시용 이름과 묶음(gift·driver·rider), 수정용 id */
@@ -46,6 +49,8 @@ export type Thread = {
   postId: string;
   origin: string;
   dest: string;
+  originArea?: string;
+  destArea?: string;
   departAt: number;
   cost: "free" | "meter" | "fixed";
   price?: number;
