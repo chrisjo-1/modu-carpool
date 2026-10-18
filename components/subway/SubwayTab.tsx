@@ -10,6 +10,7 @@ import SubwayCarGuide from "./SubwayCarGuide";
 import SubwayMatches from "./SubwayMatches";
 import SeatSpotCard from "./SeatSpotCard";
 import SubwayCall from "./SubwayCall";
+import NearStation from "./NearStation";
 
 // 안내 사진은 시트를 열 때만 불러온다.
 const LocationHelp = dynamic(() => import("./LocationHelp"), { ssr: false });
@@ -93,6 +94,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
 
       {!loaded && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
       {loaded && !plan && <EmptyPlan />}
+      {loaded && !plan && <NearStation />}
 
       {loaded && plan && (
         <>
@@ -110,6 +112,8 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
               </p>
             )}
           </div>
+
+          <NearStation board={plan.board} />
 
           <Segment
             label={t("지하철 메뉴")}
