@@ -62,7 +62,7 @@ export function KarrotShowcase({ toast }: { toast: (m: string) => void }) {
         {items === null ? (
           <p className="text-[15px] text-sub">{t("불러오는 중…")}</p>
         ) : items.length === 0 ? (
-          <p className="text-[15px] text-sub">{q ? t("찾는 물건이 없어요.") : t("아직 등록한 물건이 없어요. '내 물품 관리'에서 등록해 보세요.")}</p>
+          q ? <p className="text-[15px] text-sub">{t("찾는 물건이 없어요.")}</p> : <KarrotSample onAdd={() => setManage(true)} />
         ) : (
           <ul className="divide-y divide-line">
             {items.map((it) => (
@@ -81,6 +81,46 @@ export function KarrotShowcase({ toast }: { toast: (m: string) => void }) {
         )}
       </Card>
       {manage && <ItemManager toast={toast} onClose={() => { setManage(false); load(q.trim()); }} />}
+    </div>
+  );
+}
+
+/** 텀블러 선 그림(예시 사진) */
+function SampleTumbler() {
+  return (
+    <svg viewBox="0 0 64 64" className="h-16 w-16 shrink-0 rounded-xl border border-line bg-[#FFF4EC]" aria-hidden>
+      <g fill="none" stroke="#E8762B" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="21" y="14" width="22" height="6" rx="2" />
+        <path d="M22 20l2.5 30a3 3 0 003 2.7h9a3 3 0 003-2.7L42 20" />
+        <path d="M23.5 30h17M25 40h14" />
+      </g>
+    </svg>
+  );
+}
+
+/** 등록한 물건이 없을 때 보여 주는 예시 1개와 등록 방법. DB에 저장하지 않는다. */
+function KarrotSample({ onAdd }: { onAdd: () => void }) {
+  const t = useT();
+  return (
+    <div data-block-id="C111" data-block-name="당근함 예시" className="space-y-3">
+      <div className="flex gap-3 rounded-2xl border border-dashed border-line bg-bg p-3">
+        <SampleTumbler />
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="flex items-center gap-1.5 truncate text-[15px] font-semibold">
+            <Tag tone="warn">{t("예시")}</Tag>
+            <span className="truncate">{t("스테인리스 텀블러 (새상품)")}</span>
+          </p>
+          <p className="line-clamp-2 text-[13px] text-sub">{t("선물 받고 쓰지 않은 473ml 텀블러예요. 카풀 감사 보상으로 드려요.")}</p>
+          <p className="truncate text-[13px] text-sub">https://www.daangn.com/kr/buy-sell/…</p>
+        </div>
+      </div>
+      <ol className="space-y-1 text-[13px] leading-relaxed text-sub">
+        <li>1. {t("사진 1~2장을 올려요. 물건이 잘 보이게 찍어 주세요.")}</li>
+        <li>2. {t("제목은 40자 이내로, 물건 이름과 상태를 적어요.")}</li>
+        <li>3. {t("설명은 300자 이내로, 용량·사용 여부 등을 적어요.")}</li>
+        <li>4. {t("당근마켓 앱에서 내 판매글 → 공유 → 링크 복사 후 붙여 넣어요.")}</li>
+      </ol>
+      <button type="button" data-block-id="B342" data-block-name="내 물건 등록하기" onClick={onAdd} className={btnPrimary}>{t("내 물건 등록하기")}</button>
     </div>
   );
 }
