@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { METER_URL, SHOW_METER, contactLabel, type Thread, type User } from "@/lib/types";
 import { Stars } from "./Member";
 import type { usePush } from "./Push";
@@ -197,6 +198,9 @@ export function ChatRoom({
     count.current = msgs.length;
   }, [msgs]);
 
+  // 별을 누르면 바로 저장하지 않고, 카풀을 마친 뒤 남겨 달라는 안내 창을 먼저 띄운다.
+  const [askStars, setAskStars] = useState(0);
+  const notYet = !thread.regular && thread.departAt > Date.now();
   const rate = async (n: number) => {
     const before = stars;
     setStars(n);
@@ -337,8 +341,28 @@ export function ChatRoom({
         {thread.canRate && (
           <div data-block-id="C031" data-block-name="별점 남기기" className="flex items-center justify-between rounded-2xl border border-line px-4 py-2">
             <span className="text-[14px] text-sub">{stars ? t("내가 남긴 별점") : t("카풀은 어땠나요? 별점을 남겨 주세요.")}</span>
-            <Stars value={stars} onChange={rate} size={24} />
+            <Stars value={stars} onChange={setAskStars} size={24} />
           </div>
+        )}
+        {askStars > 0 && createPortal(
+          <div data-block-id="C032" data-block-name="별점 확인" role="dialog" aria-modal="true" aria-label={t("별점 남기기")} className="fade-in fixed inset-0 z-[60] flex items-center justify-center bg-ink/30 px-6" onClick={() => setAskStars(0)}>
+            <div className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 text-center shadow-[0_14px_40px_rgba(21,35,61,0.28)]" onClick={(e) => e.stopPropagation()}>
+              <p className="text-[18px] font-bold">{t("카풀을 마친 뒤에 별점을 남겨 주세요")}</p>
+              <p className="text-[14px] leading-relaxed text-sub">
+                {notYet ? t("아직 출발 전이에요. 같이 다녀온 뒤에 남겨 주시면 다른 회원에게 더 정확한 정보가 돼요.") : t("별점은 상대 프로필에 쌓여 다른 회원이 참고해요. 카풀을 마쳤다면 남겨 주세요.")}
+              </p>
+              <div className="flex justify-center"><Stars value={askStars} onChange={setAskStars} size={30} /></div>
+              {notYet ? (
+                <button type="button" className={btnPrimary} onClick={() => setAskStars(0)}>{t("확인")}</button>
+              ) : (
+                <div className="flex gap-2">
+                  <button type="button" className="min-h-[48px] flex-1 rounded-2xl border border-line bg-white text-[15px] text-sub" onClick={() => setAskStars(0)}>{t("아직이에요")}</button>
+                  <button type="button" data-block-id="B037" data-block-name="별점 남기기 확인" className={`${btnPrimary} flex-1`} onClick={() => { const n = askStars; setAskStars(0); void rate(n); }}>{t("카풀 마쳤어요 · 남기기")}</button>
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
         )}
         <form onSubmit={send} className="sticky bottom-0 flex gap-2 bg-surface pt-2">
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => sendPhoto(e.target.files?.[0])} />
