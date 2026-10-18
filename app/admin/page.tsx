@@ -32,6 +32,8 @@ const AdminBanners = dynamic(() => import("@/components/admin/Banners"), { ssr: 
 const AdminBubbles = dynamic(() => import("@/components/admin/Bubbles"), { ssr: false });
 const AdminCallHistory = dynamic(() => import("@/components/admin/CallHistory"), { ssr: false });
 const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false });
+// 출퇴근 지도(leaflet)는 탭을 열 때만 불러온다.
+const AdminFlowMap = dynamic(() => import("@/components/admin/FlowMap"), { ssr: false });
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
@@ -47,7 +49,7 @@ type Flag = { id: string; reason: string; detail: string; status?: string; creat
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
-type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway";
+type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
@@ -213,6 +215,7 @@ export default function Admin() {
         {tabBtn("mail", "메일")}
         {tabBtn("send", "발송")}
         {tabBtn("subway", "지하철")}
+        {tabBtn("flows", "출퇴근 지도")}
         {tabBtn("legacy", "구 워프 회원 이전")}
         {msg && <p role="status" className="ml-2 text-sm text-sub">{msg}</p>}
       </div>
@@ -386,6 +389,7 @@ export default function Admin() {
       {tab === "mail" && <AdminMail />}
       {tab === "send" && <AdminSend />}
       {tab === "subway" && <AdminSubway />}
+      {tab === "flows" && <AdminFlowMap />}
       {tab === "notices" && <AdminNotices />}
       {tab === "keywords" && <AdminKeywords />}
       {tab === "feedback" && <AdminFeedback />}
