@@ -25,7 +25,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **도움말**(`lib/help.ts`, DB `help_items`, 관리자 화면에서 수정): 기본 내용은 비었을 때 한 번. 나중에 더하는 내용은 `ADDITIONS` 묶음(key)으로 넣고 `help_seed_log`에 기록 → 묶음마다 한 번, 같은 제목은 건너뜀(관리자가 고치거나 지운 것 보존). 안내 그림은 `public/help/*.svg`·`public/subway/*.webp` 경로를 image에 그대로 쓴다(관리자 저장도 허용).
 - **모드 알약**(`RoleSwitch` in `components/Home.tsx`, 헤더 오른쪽 위, 찾기·등록 탭): 운전자 모드 ↔ 탑승자 모드(users.role_pref). 등록 화면의 새 글 역할은 이 모드를 그대로 따른다(큰 역할 선택 칸 없음, 한 줄 안내만). 글 수정 때만 역할 선택 칸을 보여 준다.
 - **별점 확인 창**(`components/Chat.tsx` 대화방 `askStars`): 별을 눌러도 바로 저장하지 않고 "카풀을 마친 뒤에 별점을 남겨 주세요" 창 → [아직이에요] / [카풀 마쳤어요 · 남기기]. 1회 카풀이 출발 전이면 안내와 [확인]만.
-- **장소 지역 글씨**(`Route` in `components/Home.tsx`, `lib/areaLabel.ts`, `lib/area.ts`): 카드·글 상세·대화방에서 장소 이름 아래 작은 회색 "서울 마포구 공덕동"(시·구·동까지, 번지 없음). `posts.origin_area/dest_area`는 좌표로 카카오 coord2regioncode(법정동)에서 받고, `*_area_key`(계산한 좌표)가 지금 좌표와 다르면 다시 계산. GET `/api/posts` 응답 뒤 `after()`로 15개씩 채운다(첫 화면 막지 않음). 이름에 동 이름이 있으면 동은 빼고 보여 준다.
+- **장소 지역 글씨**(`Route` in `components/Home.tsx`, `lib/areaLabel.ts`, `lib/area.ts`): 카드·글 상세·대화방에서 장소 이름 아래 작은 회색 "서울 마포구 공덕동"(시·구·동까지, 번지 없음). `posts.origin_area/dest_area`는 좌표로 카카오 coord2regioncode(법정동)에서 받고(카카오가 401/403이면 OSM Nominatim으로 대신, 1초 1회·한 번에 4개), `*_area_key`(계산한 좌표)가 지금 좌표와 다르면 다시 계산. GET `/api/posts` 응답 뒤 `after()`로 15개씩 채운다(첫 화면 막지 않음). 이름에 동 이름이 있으면 동은 빼고 보여 준다.
 - **공지 유형**(관리자 '공지' 탭, `notices.kind`): notice(공지만: 팝업·공지 띠) · push(푸시만: 사용자 팝업·띠에서 제외, 알림을 누르면 `/?notice=id`로 열림) · both(둘 다). 대상 계산은 `lib/notices.ts` `targetSummary`(DB 안에서 인원·푸시 회원을 한 번에, id 목록을 주고받지 않음). 푸시는 `after()`로 응답 뒤에 50명씩 보내며 `push_sent`를 중간중간 갱신. 대상은 비밀번호 설정을 마친 회원만(`not pw_reset_required`, 탈퇴 제외). 색인 `legacy_matched_user_idx`(없으면 대상 계산이 회원 수 × 전체 검색이라 멈춤), `posts_user_role_idx`.
 - **공지 띠**(`components/NoticeTicker.tsx`, GET `/api/notices?ticker=1`): 로그인 회원의 찾기 화면 헤더 아래 한 줄. 켜진 최근 30일 공지(대상 역할·성별 맞는 것, 최대 5개) 제목이 오른쪽→왼쪽으로 흐른다(`.ticker-run`, 움직임 줄이기면 멈춤). 누르면 그 공지 팝업(App `noticeFocus`). 공지 없으면 숨김.
 - **기기 호환**: 화면 높이는 `var(--vh100)`(globals.css: 기본 100vh, dvh 지원 시 100dvh)·`min-h-[var(--vh100)]`로 쓴다(dvh 단독 금지). 하단 메뉴 위에 뜨는 버튼·알림은 `bottom-[calc(Nrem+env(safe-area-inset-bottom))]`로 아이폰 홈 바를 피한다. iOS는 입력칸 글자 16px 고정(확대 방지). 360px 폰에서 Segment·정렬 칩은 글자를 줄여 한 줄 유지.
@@ -73,6 +73,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **크레딧**: 지하철 출퇴근 정보 첫 저장 시 `subway` 2000 1회(`credit_subway_uniq`).
 
 ## 남은 일
+- 카카오맵 사용 설정(Kakao Developers → 내 애플리케이션 → 카카오맵 ON): 지금 KAKAO_REST_KEY가 403이라 장소 검색·지역 글씨 모두 OSM으로 대신 중. 켜면 코드 수정 없이 카카오로 돌아감 — 추후 반영
 - 커뮤니티(후기·자유·질문): 1안 추천 = 찾기 화면 위 [카풀 | 이야기] 전환, 글이 쌓이면 등록 칸을 떠 있는 + 버튼으로 바꾸고 하단 칸 확보. 카풀 종료 별점 때 "이야기에도 후기 올리기" 연결 — 사용자 결정 대기
 - 등급별 관리자(부관리자): 모두의카풀 회원 계정에 관리자 권한을 주는 방식으로 로그인. 등급·탭 권한 방식은 추후 지시. 각 `/api/admin/*`에서 서버 권한 확인 필요
 - 알림 소리 "모카!": 웹 푸시는 소리 지정 불가. ①앱을 열어 둔 상태에서만 재생(음성 mp3 필요) ②스토어 앱으로 감싸면 백그라운드도 가능 — 보류
