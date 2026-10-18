@@ -4,7 +4,7 @@
 
 :root { color-scheme: light; }
 html, body { background: #F5F7FA; color: #10141C; }
-body { font-family: "Pretendard", system-ui, sans-serif; font-size: 16px; line-height: 1.5; -webkit-tap-highlight-color: transparent; word-break: keep-all; }
+body { font-family: "Pretendard Variable", "Pretendard", system-ui, sans-serif; font-size: 16px; line-height: 1.5; -webkit-tap-highlight-color: transparent; word-break: keep-all; }
 button, a, [role="button"] { min-height: 44px; }
 .num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 :focus-visible { outline: 2px solid #2F6BFF; outline-offset: 2px; border-radius: 12px; }

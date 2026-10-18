@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { LANGS, type Lang } from "@/lib/i18n";
-import { CONTACT_TYPES, METER_URL, SHOW_METER, defaultRoleFor, type Post, type User } from "@/lib/types";
+import { CONTACT_TYPES, HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type User } from "@/lib/types";
 import AuthForm from "./AuthForm";
 import { NoticeList } from "./Notices";
 import FeedbackSheet from "./Feedback";
@@ -21,12 +21,6 @@ import { shrinkCar } from "./CarInput";
 
 
 /** 내 글이 다른 회원 목록에 보이지 않는 이유 */
-export const HIDDEN_TEXT: Record<string, string> = {
-  test: "테스트 회원으로 쓴 글이라 실제 회원에게는 보이지 않아요.",
-  closed: "마감한 글이라 다른 회원 목록에 보이지 않아요.",
-  expired: "종료된 지 7일이 지나 목록에서 내려갔어요.",
-  blocked: "이용이 정지된 계정이라 글이 보이지 않아요.",
-};
 
 async function shrink(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);

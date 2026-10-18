@@ -154,3 +154,11 @@ export const defaultRoleFor = (u: { carNo?: string; carPhoto?: string; rolePref?
   if (u?.rolePref === "driver" && registered) return "driver";
   return registered ? "driver" : "rider";
 };
+
+/** 글이 다른 회원 목록에 보이지 않는 이유 안내(홈 글 상세·내 정보 공용). */
+export const HIDDEN_TEXT: Record<string, string> = {
+  test: "테스트 회원으로 쓴 글이라 실제 회원에게는 보이지 않아요.",
+  closed: "마감한 글이라 다른 회원 목록에 보이지 않아요.",
+  expired: "종료된 지 7일이 지나 목록에서 내려갔어요.",
+  blocked: "이용이 정지된 계정이라 글이 보이지 않아요.",
+};

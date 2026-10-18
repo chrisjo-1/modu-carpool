@@ -24,7 +24,8 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **관리자 회원 정렬**: 회원 목록 필터 줄 맨 앞 선택칸 → GET `/api/admin?sort=` joined(가입일, 기본)·seen(최근 접속)·post(최근 작성)·credits(크레딧 많은)·posts(글 많은). 서버에서 정렬 후 200명. 글 칸 아래에 최근 작성 시각. 성별·역할 필터도 서버(`&gender=`, `&role=`)에서 전체 회원 대상: 운전자 = role_pref driver·차량번호·운전자 글, 탑승자 = role_pref rider·탑승자 글, 미입력 = 셋 다 없음.
 - **도움말**(`lib/help.ts`, DB `help_items`, 관리자 화면에서 수정): 기본 내용은 비었을 때 한 번. 나중에 더하는 내용은 `ADDITIONS` 묶음(key)으로 넣고 `help_seed_log`에 기록 → 묶음마다 한 번, 같은 제목은 건너뜀(관리자가 고치거나 지운 것 보존). 안내 그림은 `public/help/*.svg`·`public/subway/*.webp` 경로를 image에 그대로 쓴다(관리자 저장도 허용).
 - **모드 알약**(`RoleSwitch` in `components/Home.tsx`, 헤더 오른쪽 위, 찾기·등록 탭): 운전자 모드 ↔ 탑승자 모드(users.role_pref). 등록 화면의 새 글 역할은 이 모드를 그대로 따른다(큰 역할 선택 칸 없음, 한 줄 안내만). 글 수정 때만 역할 선택 칸을 보여 준다.
-- `lib/i18n.ts`: 한국어 키 사전. **번역 문구는 지금 넣지 않는다.** 국내 유저가 우선이라 서비스가 완성된 뒤 한꺼번에 추가한다. 화면 문구는 `t("한국어")`로만 감싸 둔다.
+- **첫 로딩**(홈 139KB, 2026-10-18 기준): 번역 사전은 `lib/i18nDict.ts`로 분리해 한국어가 아닐 때만 `loadDict()`로 불러온다(App의 `shownLang`). 찾기 외 탭·창(Chat·Me·PostForm·Commute·Member·Reset·Withdraw·Interests·CommuteStart·CommuteOnboard)은 `dynamic`으로 열 때 불러오고, 첫 화면 뒤 한가할 때 등록·채팅·내 정보를 미리 받는다. 마지막 카풀 목록은 localStorage `modu.posts`(하루)에 두고 앱을 열면 먼저 보여 준다. 글꼴은 Pretendard Variable dynamic-subset(필요한 글자 조각만). 첫 화면 컴포넌트에서 다른 탭 파일을 import하면 다시 무거워지니 공용 상수는 lib에 둔다.
+- `lib/i18n.ts`: 한국어 키 사전(번역 문구는 `lib/i18nDict.ts`). **번역 문구는 지금 넣지 않는다.** 국내 유저가 우선이라 서비스가 완성된 뒤 한꺼번에 추가한다. 화면 문구는 `t("한국어")`로만 감싸 둔다.
 
 ## 메일
 - **모든 메일에 서비스 주소와 "모두의카풀 바로가기" 버튼이 반드시 들어간다.** `lib/mail.ts`의 `deliverWithStatus`가 발송 직전에 `ensureSiteLink`로 빠진 메일에 붙인다.
@@ -75,6 +76,5 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - `scripts/seat-sim.cjs`(실제 DB 시뮬레이션)는 예전 매칭 규칙 기준이라 새 규칙에 맞게 고쳐야 한다
 - 서비스 완성 후 번역 일괄 추가(그때 첫 로딩이 늘지 않게 사전 분리 검토)
 - 역 목록: 1~8호선은 서울교통공사 구간만 있음(혼잡도 자료 역번호 순서). 코레일 등 다른 운영사 구간과 9호선·경의중앙·수인분당·신분당·공항철도 등은 다른 출처 필요. 9호선 등 칸 수 확인, 2호선 지선 칸 수
-- 홈 첫 로딩 208KB: 출퇴근 시트가 역 목록(lib/subway.ts)을 함께 불러온다. 지하철 칸을 누를 때만 불러오게 나누는 방안 검토
 - 실제 Neon에서 매칭·차량번호 확인 동작 검증, 휴대폰 화면 확인
 - 실시간 도착정보 API(열차번호)로 같은 열차 매칭 — 실시간 인증키 필요

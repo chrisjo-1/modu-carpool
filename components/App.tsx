@@ -1,27 +1,17 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { translate, type Lang } from "@/lib/i18n";
+import { loadDict, translate, type Lang } from "@/lib/i18n";
 import type { Post, Thread, User } from "@/lib/types";
-import Chat, { ChatRoom } from "./Chat";
-import CommuteSheet from "./Commute";
 import Home, { PostDetail, RoleSwitch } from "./Home";
-import Me from "./Me";
-import { MemberSheet, ReasonSheet } from "./Member";
-import ResetSheet from "./Reset";
-import Withdraw from "./Withdraw";
 import Gate from "./Gate";
 import { NoticePopup } from "./Notices";
 import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
 import TopLoading from "./TopLoading";
 import Banners from "./Banners";
-import Interests from "./Interests";
-import CommuteStart from "./CommuteStart";
-import CommuteOnboard from "./CommuteOnboard";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
-import PostForm from "./PostForm";
 import { Bubble, HintContext, Icon, LangContext, PhotoZoomLayer, Sheet, api, setPhotoZoom } from "./ui";
 import type { Place } from "@/lib/types";
 
@@ -29,7 +19,27 @@ type Tab = "home" | "post" | "subway" | "chat" | "me";
 
 // 지하철 탭은 탭을 열 때만 불러온다(첫 화면 부담 없음). 기능을 뺄 때 이 줄과 아래 탭 항목을 지운다.
 const SubwayTab = dynamic(() => import("./subway/SubwayTab"), { ssr: false, loading: () => <p className="px-1 pt-4 text-sm text-sub">…</p> });
+// 첫 화면(찾기)에 필요 없는 화면·창은 열 때 불러온다. 첫 화면이 뜬 뒤 쉬는 시간에 미리 받아 두어 눌렀을 때 바로 열린다.
+const tabBox = () => <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />;
+const loadChat = () => import("./Chat");
+const loadMe = () => import("./Me");
+const loadPostForm = () => import("./PostForm");
+const Chat = dynamic(loadChat, { ssr: false, loading: tabBox });
+const ChatRoom = dynamic(() => loadChat().then((m) => m.ChatRoom), { ssr: false });
+const Me = dynamic(loadMe, { ssr: false, loading: tabBox });
+const PostForm = dynamic(loadPostForm, { ssr: false, loading: tabBox });
+const CommuteSheet = dynamic(() => import("./Commute"), { ssr: false });
+const MemberSheet = dynamic(() => import("./Member").then((m) => m.MemberSheet), { ssr: false });
+const ReasonSheet = dynamic(() => import("./Member").then((m) => m.ReasonSheet), { ssr: false });
+const ResetSheet = dynamic(() => import("./Reset"), { ssr: false });
+const Withdraw = dynamic(() => import("./Withdraw"), { ssr: false });
+const Interests = dynamic(() => import("./Interests"), { ssr: false });
+const CommuteStart = dynamic(() => import("./CommuteStart"), { ssr: false });
+const CommuteOnboard = dynamic(() => import("./CommuteOnboard"), { ssr: false });
 const LANG_KEY = "modu.lang";
+// 마지막으로 받은 카풀 목록(하루 안 것만). 앱을 열면 먼저 보여 주고, 서버 목록이 오면 바꾼다.
+const POSTS_CACHE = "modu.posts";
+const POSTS_CACHE_MS = 24 * 60 * 60 * 1000;
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("home");
@@ -47,6 +57,8 @@ export default function App() {
       .catch(() => null);
   }, []);
   const [lang, setLangState] = useState<Lang>("ko");
+  // 화면에 실제로 쓰는 언어. 한국어가 아니면 번역 사전을 다 불러온 뒤에 바꾼다.
+  const [shownLang, setShownLang] = useState<Lang>("ko");
   const [posts, setPosts] = useState<Post[]>([]);
   const [sample, setSample] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -131,7 +143,7 @@ export default function App() {
   };
   const push = usePush(!!user);
   const [version, setVersion] = useState(0);
-  const t = (ko: string) => translate(lang, ko);
+  const t = (ko: string) => translate(shownLang, ko);
 
   const setLang = (l: Lang) => {
     setLangState(l);
@@ -156,6 +168,13 @@ export default function App() {
     if (r.ok) {
       setPosts(r.data.posts);
       setSample(!!r.data.sample);
+      // 다음에 열 때 바로 보여 줄 수 있게 마지막 목록을 이 기기에 저장한다(예시 글은 저장하지 않음).
+      try {
+        const raw = JSON.stringify({ at: Date.now(), posts: r.data.posts });
+        if (!r.data.sample && raw.length < 400_000) localStorage.setItem(POSTS_CACHE, raw);
+      } catch {
+        /* 저장 공간이 없거나 막혀 있으면 넘어간다 */
+      }
     }
     setLoaded(true);
     return r.ok ? r.data.posts : [];
@@ -269,6 +288,15 @@ export default function App() {
     } catch {
       /* 무시 */
     }
+    try {
+      const c = JSON.parse(localStorage.getItem(POSTS_CACHE) || "null") as { at: number; posts: Post[] } | null;
+      if (c && Array.isArray(c.posts) && Date.now() - c.at < POSTS_CACHE_MS) {
+        setPosts((cur) => (cur.length ? cur : c.posts));
+        setLoaded(true);
+      }
+    } catch {
+      /* 무시 */
+    }
     setSharedPost(new URLSearchParams(location.search).get("p") ?? "");
     api<{ enabled: boolean; user: User | null }>("/api/auth").then((r) => {
       setEnabled(!!r.data.enabled);
@@ -280,7 +308,28 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.lang = lang;
+    if (lang === "ko") return setShownLang("ko");
+    let alive = true;
+    loadDict().then(() => alive && setShownLang(lang));
+    return () => {
+      alive = false;
+    };
   }, [lang]);
+
+  // 첫 화면이 뜬 뒤 브라우저가 한가할 때 자주 여는 탭을 미리 받아 둔다(첫 화면은 막지 않음).
+  useEffect(() => {
+    const go = () => {
+      void loadPostForm();
+      void loadChat();
+      void loadMe();
+    };
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(go, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(go, 2500);
+    return () => clearTimeout(id);
+  }, []);
 
   // 관리자 메일 회원은 모든 화면의 프로필 사진을 전체화면으로 볼 수 있다.
   useEffect(() => {
@@ -424,7 +473,7 @@ export default function App() {
   const navTabs = tabs.filter((x) => x.id !== "subway" || seatVisible);
 
   return (
-    <LangContext.Provider value={lang}>
+    <LangContext.Provider value={shownLang}>
       <HintContext.Provider value={{ on: !!user, texts: bubbleTexts }}>
       <div id="app-shell" className="mx-auto flex min-h-dvh max-w-md flex-col">
         {user?.test && (
