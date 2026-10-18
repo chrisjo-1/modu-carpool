@@ -22,6 +22,10 @@ button, a, [role="button"] { min-height: 44px; }
 /* 시트 뒤 배경이 서서히 나타난다 */
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .fade-in { animation: fade-in .2s ease-out; }
+/* 공지 띠: 오른쪽 끝에서 들어와 왼쪽으로 끝까지 지나간다 */
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+.ticker-run { padding-left: 100%; animation: ticker linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ticker-run { padding-left: 0; animation: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; } }
 @media (prefers-reduced-motion: reduce) { .fade-in { animation: none; } }
 /* 첫 로딩 바: 왼쪽에서 오른쪽으로 계속 지나간다 */
 @keyframes modu-bar { from { transform: translateX(-100%); } to { transform: translateX(260%); } }

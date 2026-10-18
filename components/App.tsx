@@ -10,6 +10,7 @@ import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
 import TopLoading from "./TopLoading";
 import Banners from "./Banners";
+import NoticeTicker from "./NoticeTicker";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import { Bubble, HintContext, Icon, LangContext, PhotoZoomLayer, Sheet, api, setPhotoZoom } from "./ui";
@@ -515,6 +516,18 @@ export default function App() {
           </div>
           {(tab === "home" || tab === "post") && <RoleSwitch user={user ?? null} onUser={setUser} toast={setToastMsg} onGoProfile={() => { setOpen(null); setTab("me"); }} />}
         </header>
+        {tab === "home" && !!user && (
+          <div className="px-4 pb-1">
+            <NoticeTicker
+              enabled={!!user}
+              onOpen={(id) => {
+                // 같은 공지를 다시 눌러도 열리도록 한 번 비웠다가 넣는다.
+                setNoticeFocus(0);
+                setTimeout(() => setNoticeFocus(id), 0);
+              }}
+            />
+          </div>
+        )}
         {tab === "home" && <div className="px-4"><Banners /></div>}
         {tab === "home" && <div className="flex justify-end px-5 pb-1"><Bubble blockId="C930" align="right">{t("지금 내 기본 역할이에요. 누르면 운전자와 탑승자가 바뀌고, 카풀을 올릴 때 기본값이 돼요.")}</Bubble></div>}
 

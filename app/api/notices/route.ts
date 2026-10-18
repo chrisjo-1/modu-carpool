@@ -8,10 +8,16 @@ export async function GET(req: Request) {
   const me = await currentUserId();
   if (!me) return json({ notices: [] });
   const all = new URL(req.url).searchParams.get("all") === "1";
+  // ticker=1: 홈 위 한 줄 띠용. 켜진 공지 중 최근 것(읽음 여부와 상관없이)
+  const ticker = new URL(req.url).searchParams.get("ticker") === "1";
   try {
     await ensureSchema();
     const sql = db();
-    const rows = all
+    const rows = ticker
+      ? await sql`select n.id, n.title, n.body, n.roles, n.genders, n.created_at, true as read
+                  from notices n where n.active and n.created_at > now() - interval '30 days'
+                  order by n.id desc limit 5`
+      : all
       ? await sql`select n.id, n.title, n.body, n.roles, n.genders, n.created_at, (r.user_id is not null) as read
                   from notices n left join notice_reads r on r.notice_id = n.id and r.user_id = ${me}
                   order by n.id desc limit 30`
