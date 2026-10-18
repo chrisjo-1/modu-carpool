@@ -47,7 +47,9 @@ export default function PostForm({
 }) {
   const t = useT();
   const empty: Place = { name: "", lat: null, lng: null };
-  const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
+  // 새 글의 역할은 오른쪽 위 모드 알약(희망 역할)을 그대로 따른다. 이미 올린 글을 고칠 때만 여기서 고른다.
+  const [roleEdit, setRoleEdit] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
+  const role: "driver" | "rider" = initial ? roleEdit : defaultRoleFor(user);
   const [kind, setKind] = useState<"commute" | "trip">(initial?.kind ?? "commute");
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [origin, setOrigin] = useState<Place>(initial ? { name: initial.origin, lat: initial.originLat ?? null, lng: initial.originLng ?? null } : empty);
@@ -108,12 +110,18 @@ export default function PostForm({
     <form onSubmit={submit} className="space-y-4">
       {carGate && <CarGateSheet onClose={() => setCarGate(false)} user={user} toast={toast} />}
       <Card className="space-y-4 p-5">
-        <div className="space-y-1.5">
-          <p className="text-sm text-sub">{t("나는")}</p>
-          <Segment label={t("역할")} value={role} onChange={setRole} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
-          <p className="text-[13px] leading-relaxed text-sub">{role === "driver" ? t("운전자: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.") : t("탑승자: 같이 탈 차를 찾는 글이에요.")}</p>
-          {role === "driver" && <p className="text-[13px] leading-relaxed text-sub">{t("운전자는 위치 권한을 허용해야 주변 CALL 알림을 받을 수 있어요.")}</p>}
-        </div>
+        {initial ? (
+          <div className="space-y-1.5">
+            <p className="text-sm text-sub">{t("나는")}</p>
+            <Segment label={t("역할")} value={roleEdit} onChange={setRoleEdit} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
+          </div>
+        ) : (
+          <p data-block-id="C023" data-block-name="등록 역할 안내" className="text-[13px] leading-relaxed text-sub">
+            <b className={role === "driver" ? "text-accent" : "text-mint"}>{role === "driver" ? t("운전자 모드") : t("탑승자 모드")}</b>
+            {role === "driver" ? t("로 올려요 · 태워 주는 글") : t("로 올려요 · 같이 탈 차를 찾는 글")}
+            <span className="block">{t("역할은 오른쪽 위 모드 버튼에서 바꿔요.")}</span>
+          </p>
+        )}
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("종류")}</p>
           {initial ? (

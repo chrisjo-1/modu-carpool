@@ -440,7 +440,7 @@ export default function App() {
             <p className="text-xl font-bold leading-tight">{t("모두의카풀")}</p>
             <p className="text-[13px] leading-tight text-sub">{t(slogan)}</p>
           </div>
-          {tab === "home" && <RoleSwitch user={user ?? null} onUser={setUser} toast={setToastMsg} onGoProfile={() => { setOpen(null); setTab("me"); }} />}
+          {(tab === "home" || tab === "post") && <RoleSwitch user={user ?? null} onUser={setUser} toast={setToastMsg} onGoProfile={() => { setOpen(null); setTab("me"); }} />}
         </header>
         {tab === "home" && <div className="px-4"><Banners /></div>}
         {tab === "home" && <div className="flex justify-end px-5 pb-1"><Bubble blockId="C930" align="right">{t("지금 내 기본 역할이에요. 누르면 운전자와 탑승자가 바뀌고, 카풀을 올릴 때 기본값이 돼요.")}</Bubble></div>}
