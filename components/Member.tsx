@@ -151,6 +151,8 @@ export function MemberSheet({
             <img data-block-id="C082" data-block-name="차량 사진" src={m.carPhoto} alt={t("차량 사진")} loading="lazy" className="max-h-52 w-full rounded-2xl border border-line object-cover" />
           )}
 
+          <MemberKarrot userId={m.id} me={!!m.me} />
+
           <div>
             <h3 className="mb-2 text-sm font-semibold text-sub">{t("지난 카풀")} {m.history.length}</h3>
             {m.history.length === 0 ? (
@@ -179,5 +181,49 @@ export function MemberSheet({
         </div>
       )}
     </Sheet>
+  );
+}
+
+type KarrotItem = { id: string; title: string; note: string; link: string; photos: string[] };
+
+/** 회원 프로필 안의 그 회원 당근함. 누르면 당근마켓 글로 이동한다. 물건이 없으면 아무것도 그리지 않는다. */
+function MemberKarrot({ userId, me }: { userId: string; me: boolean }) {
+  const t = useT();
+  const [items, setItems] = useState<KarrotItem[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api<{ items: KarrotItem[] }>(`/api/karrot?user=${userId}`).then((r) => alive && setItems(r.ok ? r.data.items : []));
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+  if (!items || items.length === 0) return null;
+  return (
+    <div data-block-id="C084" data-block-name="회원 당근함">
+      <h3 className="mb-2 text-sm font-semibold text-sub">{me ? t("나의 당근함") : t("당근함")} {items.length}</h3>
+      <ul className="grid grid-cols-2 gap-2">
+        {items.map((it) => (
+          <li key={it.id}>
+            <a
+              href={it.link}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="block overflow-hidden rounded-2xl border border-line bg-white active:bg-bg"
+            >
+              {it.photos[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={it.photos[0]} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+              ) : (
+                <span className="grid aspect-square w-full place-items-center bg-bg text-xs text-sub">{t("사진 없음")}</span>
+              )}
+              <span className="block px-3 pb-2.5 pt-2">
+                <span className="block truncate text-[14px] font-semibold">{it.title}</span>
+                <span className="mt-0.5 block text-[12px] font-semibold text-accent">{t("당근마켓에서 보기")} ↗</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

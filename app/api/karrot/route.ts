@@ -6,15 +6,26 @@ export const dynamic = "force-dynamic";
 type Item = { id: string; user_id: string; title: string; note: string; link: string; photos: string[]; created_at: string };
 const view = (r: Item, me: string) => ({ id: r.id, title: r.title, note: r.note, link: r.link, photos: r.photos, mine: r.user_id === me });
 
-/** 나의 당근함 목록(로그인 회원만). ?q= 키워드(제목·설명), ?mine=1 내 물품만 */
+/** 나의 당근함 목록(로그인 회원만). ?q= 키워드(제목·설명), ?mine=1 내 물품만, ?user=회원ID 그 회원의 물품 */
 export async function GET(req: Request) {
   const me = await currentUserId();
   if (!me) return needLogin();
   const sp = new URL(req.url).searchParams;
   const q = (sp.get("q") ?? "").trim().slice(0, 40);
   const mine = sp.get("mine") === "1";
+  const owner = sp.get("user");
   try {
     await ensureSchema();
+    // ?user=회원ID: 회원 프로필에서 보는 그 회원의 당근함(첫 사진만). 서로 차단한 사이는 보이지 않는다.
+    if (owner) {
+      if (!isUuid(owner)) return json({ items: [] });
+      const own = (await db()`
+        select k.id, k.user_id, k.title, k.note, k.link, k.photos[1:1] as photos, k.created_at from karrot_items k
+        where k.user_id = ${owner}
+          and not exists (select 1 from blocks b where (b.blocker = ${me} and b.blocked = ${owner}) or (b.blocker = ${owner} and b.blocked = ${me}))
+        order by k.created_at desc limit 30`) as Item[];
+      return json({ items: own.map((r) => view(r, me)) });
+    }
     const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
     const rows = (await db()`
       select id, user_id, title, note, link, photos, created_at from karrot_items
