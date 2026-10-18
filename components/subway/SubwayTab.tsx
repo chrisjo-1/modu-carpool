@@ -121,7 +121,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
             onChange={pickView}
             accents={{ seat: "violet", car: "violet", match: "violet" }}
             options={[
-              ["seat", t("내 자리")],
+              ["seat", t("내 자리 알리기")],
               ["match", t("매칭")],
               ["car", t("앉을 칸")],
             ]}
@@ -130,7 +130,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
           {view === "seat" &&
             (seatOn ? (
               <div className="space-y-2">
-                <p className="text-[13px] leading-relaxed text-sub">{t("열차에 앉으면 칸과 좌석을 그림에서 눌러 주세요. 매칭된 상대에게만 보여요.")}</p>
+                <p className="text-[13px] leading-relaxed text-sub">{t("자리를 양보할 분이 앉은 자리를 알려 주는 곳이에요. 칸과 좌석을 그림에서 눌러 주세요. 매칭된 상대에게만 보여요.")}</p>
                 <SeatSpotCard line={plan.boardLine} next={heading?.next} />
               </div>
             ) : (

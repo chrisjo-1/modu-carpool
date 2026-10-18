@@ -21,11 +21,11 @@ export default function NearStation({ board }: { board?: string }) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
-        const r = await api<{ items: Near[]; note?: string }>(`/api/seat/near?lat=${latitude.toFixed(5)}&lng=${longitude.toFixed(5)}`);
+        const r = await api<{ items: Near[]; note?: string; reason?: string }>(`/api/seat/near?lat=${latitude.toFixed(5)}&lng=${longitude.toFixed(5)}`);
         setBusy(false);
         if (!r.ok) return setMsg(t(r.error));
         setItems(r.data.items);
-        if (!r.data.items.length) setMsg(t(r.data.note || "1.5km 안에 지하철역이 없어요."));
+        if (!r.data.items.length) setMsg(`${t(r.data.note || "2km 안에 지하철역이 없어요.")}${r.data.reason ? ` (${r.data.reason})` : ""}`);
       },
       (e) => {
         setBusy(false);
