@@ -30,7 +30,10 @@ export default function AdminSend() {
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [count, setCount] = useState<number | null>(null);
-  const [testTo, setTestTo] = useState("");
+  // 테스트 받는 주소: 최대 5개 저장(관리자 공용), 체크한 주소로만 보낸다.
+  const [testList, setTestList] = useState<string[]>([]);
+  const [testPick, setTestPick] = useState<string[]>([]);
+  const [testNew, setTestNew] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
@@ -47,6 +50,29 @@ export default function AdminSend() {
     setD(await r.json());
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/admin/campaigns/test").then((r) => r.json()).then((j) => {
+      const list: string[] = Array.isArray(j.recipients) ? j.recipients : [];
+      setTestList(list);
+      setTestPick(list);
+    }).catch(() => {});
+  }, []);
+  const saveTestList = async (list: string[]) => {
+    const r = await fetch("/api/admin/campaigns/test", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipients: list }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setMsg(j.error ?? "주소를 저장하지 못했습니다.");
+    setTestList(j.recipients);
+    setTestPick((p) => p.filter((x) => j.recipients.includes(x)));
+  };
+  const addTest = async () => {
+    const v = testNew.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return setMsg("이메일 형식을 확인해 주세요.");
+    if (testList.includes(v)) return setMsg("이미 저장된 주소예요.");
+    if (testList.length >= 5) return setMsg("테스트 주소는 5개까지 저장할 수 있어요. 하나를 지운 뒤 추가해 주세요.");
+    await saveTestList([...testList, v]);
+    setTestPick((p) => [...p, v]);
+    setTestNew("");
+  };
 
   // 광고성 메일은 마케팅 동의 회원에게만 보낸다
   const isMarketing = category === "marketing";
@@ -75,10 +101,11 @@ export default function AdminSend() {
 
   const sendTest = async () => {
     setBusy(true); setMsg("");
-    const r = await fetch("/api/admin/campaigns/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: testTo, subject, body: bodyText, category }) });
+    const r = await fetch("/api/admin/campaigns/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: testPick, subject, body: bodyText, category }) });
     setBusy(false);
     const j = await r.json();
-    setMsg(!r.ok ? j.error ?? "테스트 발송에 실패했습니다." : j.ok ? `${testTo}으로 테스트 메일을 보냈습니다. 받은편지함을 확인해 주세요.` : `테스트 발송 결과: ${j.status}`);
+    const fails = ((j.results ?? []) as { to: string; status: string }[]).filter((x) => x.status !== "sent" && x.status !== "dryrun");
+    setMsg(!r.ok ? j.error ?? "테스트 발송에 실패했습니다." : `테스트 메일을 ${j.sent}곳에 보냈습니다. 받은편지함을 확인해 주세요.${fails.length ? ` (보내지 못함: ${fails.map((x) => `${x.to} ${x.status}`).join(", ")})` : ""}`);
   };
 
   const createDraft = async () => {
@@ -155,8 +182,18 @@ export default function AdminSend() {
     if (!file) return;
     setUploading(true);
     setMsg("");
+    // 휴대폰 사진은 대부분 1MB가 넘거나 HEIC라 거절되므로, 올리기 전에 가로 1200px JPEG로 줄인다(GIF는 움직임 유지를 위해 그대로).
+    let up: Blob = file;
+    if (file.type !== "image/gif") {
+      try {
+        up = await shrinkImage(file);
+      } catch {
+        setUploading(false);
+        return setMsg("이 사진을 읽지 못했어요. 다른 사진이나 png·jpg로 다시 시도해 주세요.");
+      }
+    }
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", up, file.type === "image/gif" ? file.name : "image.jpg");
     const r = await fetch("/api/admin/mail-images", { method: "POST", body: fd });
     const j = await r.json().catch(() => ({}));
     setUploading(false);
@@ -235,8 +272,8 @@ export default function AdminSend() {
         </label>
         <div className="flex flex-wrap items-end gap-2">
           <label className="grid gap-1 text-[14px]">
-            <span className="font-semibold">이미지 넣기 (1MB 이하 png·jpg·gif·webp)</span>
-            <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" disabled={uploading} onChange={(e) => { uploadImage(e.target.files?.[0]); e.target.value = ""; }} className="text-[14px]" />
+            <span className="font-semibold">이미지 넣기 (사진은 자동으로 줄여서 올려요)</span>
+            <input type="file" accept="image/*" disabled={uploading} onChange={(e) => { uploadImage(e.target.files?.[0]); e.target.value = ""; }} className="text-[14px]" />
           </label>
           {uploading && <span className="text-[14px] text-sub">올리는 중…</span>}
         </div>
@@ -250,7 +287,15 @@ export default function AdminSend() {
 
         <div className="grid gap-2 rounded-xl bg-bg p-4 text-[14px]">
           <span className="font-semibold">미리보기 (텍스트)</span>
-          <div className="whitespace-pre-wrap leading-relaxed">{bodyText || "본문을 입력하면 여기 보입니다."}</div>
+          <div className="whitespace-pre-wrap leading-relaxed">{bodyText ? bodyText.replace(/\{\{img:[0-9a-f-]{36}\}\}/g, "[이미지]") : "본문을 입력하면 여기 보입니다."}</div>
+          {[...bodyText.matchAll(/\{\{img:([0-9a-f-]{36})\}\}/g)].length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {[...bodyText.matchAll(/\{\{img:([0-9a-f-]{36})\}\}/g)].map((m, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={`/api/mail/image/${m[1]}`} alt={`넣은 이미지 ${i + 1}`} className="h-20 w-auto rounded-lg border border-line object-cover" />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -259,11 +304,29 @@ export default function AdminSend() {
         </div>
 
         <div className="flex flex-wrap items-end gap-2 border-t border-line pt-4">
-          <label className="grid flex-1 gap-1 text-[14px]">
-            <span className="font-semibold">테스트 받을 이메일</span>
-            <input className={input} type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="본인 주소 입력" />
-          </label>
-          <button className={btn} disabled={busy || !testTo || !subject || !bodyText} onClick={sendTest}>테스트 발송</button>
+          <div data-block-id="C140" className="grid w-full gap-2 text-[14px]">
+            <span className="font-semibold">테스트 받을 이메일 <span className="font-normal text-sub">(5개까지 저장 · 체크한 곳으로 보내요)</span></span>
+            {testList.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {testList.map((addr) => (
+                  <span key={addr} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 ${testPick.includes(addr) ? "border-accent bg-accentSoft text-accent" : "border-line bg-white text-sub"}`}>
+                    <label className="flex cursor-pointer items-center gap-1.5">
+                      <input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={testPick.includes(addr)} onChange={(e) => setTestPick((p) => (e.target.checked ? [...p, addr] : p.filter((x) => x !== addr)))} />
+                      {addr}
+                    </label>
+                    <button type="button" aria-label={`${addr} 지우기`} className="min-h-0 px-1 text-sub" onClick={() => { if (window.confirm(`${addr} 주소를 지울까요?`)) saveTestList(testList.filter((x) => x !== addr)); }}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {testList.length < 5 && (
+              <div className="flex gap-2">
+                <input className={`${input} flex-1`} type="email" value={testNew} onChange={(e) => setTestNew(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTest(); } }} placeholder="주소 추가 (예: me@example.com)" />
+                <button type="button" className={btn} disabled={!testNew.trim()} onClick={addTest}>추가</button>
+              </div>
+            )}
+          </div>
+          <button className={btn} disabled={busy || !testPick.length || !subject || !bodyText} onClick={sendTest}>테스트 발송{testPick.length ? ` (${testPick.length}곳)` : ""}</button>
           <button className={btnPrimary} disabled={busy || !title || !subject || !bodyText} onClick={createDraft}>초안 저장</button>
         </div>
         <p className="text-[13px] text-sub">초안은 바로 나가지 않습니다. 아래 목록에서 한 번 더 확인한 뒤 발송을 시작합니다.</p>
@@ -329,4 +392,37 @@ export default function AdminSend() {
       </section>
     </div>
   );
+}
+
+/** 사진을 가로 최대 1200px JPEG로 줄인다(1MB 넘으면 품질을 낮춰 다시). */
+async function shrinkImage(file: File): Promise<Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const el = new Image();
+      el.onload = () => res(el);
+      el.onerror = () => rej(new Error("decode"));
+      el.src = url;
+    });
+    let w = Math.min(1200, img.naturalWidth || 1200);
+    let q = 0.85;
+    for (let i = 0; i < 5; i++) {
+      const h = Math.round(((img.naturalHeight || w) * w) / (img.naturalWidth || w));
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      if (!ctx) throw new Error("canvas");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/jpeg", q));
+      if (blob && blob.size <= 950_000) return blob;
+      w = Math.round(w * 0.8);
+      q = Math.max(0.5, q - 0.1);
+    }
+    throw new Error("too large");
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }

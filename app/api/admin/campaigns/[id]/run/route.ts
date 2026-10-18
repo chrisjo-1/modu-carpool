@@ -45,7 +45,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         userId: r.user_id,
         subject: c.subject as string,
         html: renderHtml(c.body as string),
-        text: c.body as string,
+        text: String(c.body).replace(/\{\{img:[0-9a-f-]{36}\}\}/g, "[이미지]"),
         campaignId: id,
       });
       if (status === "sent") sent++;
