@@ -30,7 +30,11 @@ function layout(): Seg[] {
 }
 const SEGS = layout();
 
-export default function SeatMap({ value, onChange, readOnly = false, car }: { value: string; onChange?: (seat: string) => void; readOnly?: boolean; car?: string }) {
+/**
+ * 그림의 왼쪽(1번 문 쪽)이 열차 앞쪽이다. 진행 방향을 보고 서면 그림의 위쪽 줄이 오른쪽, 아래쪽 줄이 왼쪽이다.
+ * next: 다음역 이름(알면 화살표 옆에 함께 보여 준다).
+ */
+export default function SeatMap({ value, onChange, readOnly = false, car, next }: { value: string; onChange?: (seat: string) => void; readOnly?: boolean; car?: string; next?: string }) {
   const t = useT();
   const sel = parseSeat(value);
   // 휴대폰에서 좌석이 작아서, 그림을 누르면 그 구간을 아래에 크게 펼쳐 정확한 좌석을 고르게 한다.
@@ -42,6 +46,13 @@ export default function SeatMap({ value, onChange, readOnly = false, car }: { va
   };
   return (
     <figure className="space-y-2">
+      <div data-block-id="C131" data-block-name="진행 방향" className="flex items-center gap-1.5 text-[13px] font-semibold text-violet">
+        <svg width="28" height="12" viewBox="0 0 28 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M27 6H2M7 1L2 6l5 5" />
+        </svg>
+        <span>{t("진행 방향")}</span>
+        {next && <span className="font-normal text-sub">· {t("다음역")} {next}</span>}
+      </div>
       <svg viewBox="0 0 340 150" role={readOnly ? "img" : "group"} aria-label={t("차량 안 좌석 그림")} className="h-auto w-full select-none">
         {/* 차체 */}
         <rect x="2" y="12" width="336" height="126" rx="18" fill="#FFFFFF" stroke="#D9DEE8" strokeWidth="1.25" />
@@ -93,7 +104,7 @@ export default function SeatMap({ value, onChange, readOnly = false, car }: { va
       {!readOnly && focus && (
         <div className="space-y-1.5">
           <p className="text-[12px] text-sub">
-            {focus.wall === "A" ? t("위쪽 줄") : t("아래쪽 줄")} · {focus.bench === 0 ? t("1번 문 앞 노약자석") : focus.bench === 4 ? t("4번 문 뒤 노약자석") : `${focus.bench}~${focus.bench + 1}${t("번 문 사이")}`}
+            {focus.wall === "A" ? t("진행 방향 오른쪽 줄") : t("진행 방향 왼쪽 줄")} · {focus.bench === 0 ? t("1번 문 앞 노약자석") : focus.bench === 4 ? t("4번 문 뒤 노약자석") : `${focus.bench}~${focus.bench + 1}${t("번 문 사이")}`}
           </p>
           <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${SEAT_BENCHES[focus.bench]}, minmax(0, 1fr))` }}>
             {Array.from({ length: SEAT_BENCHES[focus.bench] }, (_, i) => {

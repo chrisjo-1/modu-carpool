@@ -127,7 +127,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
             (seatOn ? (
               <div className="space-y-2">
                 <p className="text-[13px] leading-relaxed text-sub">{t("열차에 앉으면 칸과 좌석을 그림에서 눌러 주세요. 매칭된 상대에게만 보여요.")}</p>
-                <SeatSpotCard line={plan.boardLine} />
+                <SeatSpotCard line={plan.boardLine} next={heading?.next} />
               </div>
             ) : (
               <NotOpen />
