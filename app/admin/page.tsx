@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReportChat from "@/components/admin/ReportChat";
 import MemberCode from "@/components/admin/MemberCode";
 import AdminMail from "@/components/admin/Mail";
@@ -37,7 +37,7 @@ const AdminFlowMap = dynamic(() => import("@/components/admin/FlowMap"), { ssr: 
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
-  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; posts: number; tier: string; tier_set: string; legacy_stars: number; legacy_reviews: number; legacy_rides: number; is_warp: boolean;
+  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; lastPost: number | null; posts: number; tier: string; tier_set: string; legacy_stars: number; legacy_reviews: number; legacy_rides: number; is_warp: boolean;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
   commute_kind: string; commute_origin: string; commute_dest: string; commute_time: string; commute_price: number;
@@ -72,9 +72,11 @@ export default function Admin() {
   const [testName, setTestName] = useState("");
   const [withTest, setWithTest] = useState(false);
   const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null);
+  const [sort, setSort] = useState("joined");
+  const sortRef = useRef("joined");
 
   const refresh = useCallback(async (query = "") => {
-    const a = await fetch(`/api/admin?q=${encodeURIComponent(query)}`).then((r) => r.json()).catch(() => ({ admin: false }));
+    const a = await fetch(`/api/admin?q=${encodeURIComponent(query)}&sort=${sortRef.current}`).then((r) => r.json()).catch(() => ({ admin: false }));
     if (!a.admin) return setState("gate");
     setInfo({ db: !!a.db, stats: a.stats ?? null, posts: a.posts ?? [], users: a.users ?? [], reports: a.reports ?? [], blocks: a.blocks ?? [] });
     setState("in");
@@ -262,6 +264,23 @@ export default function Admin() {
             </form>
           </div>
           <div data-block-id="A205" data-block-name="회원 필터" className="mt-3 flex flex-wrap gap-2 text-sm">
+            <select
+              data-block-id="F094"
+              aria-label="회원 정렬"
+              className={`${input} w-auto font-semibold`}
+              value={sort}
+              onChange={(e) => {
+                sortRef.current = e.target.value;
+                setSort(e.target.value);
+                refresh(q);
+              }}
+            >
+              <option value="joined">정렬: 가입일순</option>
+              <option value="seen">최근 접속순</option>
+              <option value="post">최근 작성순</option>
+              <option value="credits">크레딧 많은순</option>
+              <option value="posts">글 많은순</option>
+            </select>
             <select data-block-id="F092" aria-label="성별 필터" className={`${input} w-auto`} value={gen} onChange={(e) => setGen(e.target.value)}>
               <option value="">성별: 전체</option>
               <option value="female">여</option>
@@ -376,7 +395,7 @@ export default function Admin() {
                         <option value="gold">골드 지정</option>
                       </select>
                     </td>
-                    <td className="num px-2 py-2">{u.posts}</td>
+                    <td className="num whitespace-nowrap px-2 py-2">{u.posts}{u.lastPost && <span className="block text-xs text-sub">{lastSeenText(u.lastPost)}</span>}</td>
                     <td className="num px-2 py-2">{(u.credits ?? 0).toLocaleString("ko-KR")}</td>
                     <td className="px-2 py-2">{u.blocked ? <span className="font-semibold text-warn">차단됨</span> : "정상"}</td>
                     <td className="whitespace-nowrap px-2 py-2">

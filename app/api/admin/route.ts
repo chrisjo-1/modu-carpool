@@ -23,6 +23,9 @@ export async function GET(req: Request) {
     }
   }
   const q = text(new URL(req.url).searchParams.get("q"), 60);
+  // 회원 정렬: joined 가입일(기본) · seen 최근 접속 · post 최근 작성 · credits 크레딧 많은 · posts 글 많은
+  const sortIn = new URL(req.url).searchParams.get("sort") ?? "";
+  const sort = ["seen", "post", "credits", "posts"].includes(sortIn) ? sortIn : "joined";
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   try {
     await ensureSchema();
@@ -44,10 +47,18 @@ export async function GET(req: Request) {
              u.commute_kind, u.commute_origin, u.commute_dest, u.commute_time, u.commute_price,
              (select count(*)::int from posts where user_id = u.id) as posts,
              (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
-             (select count(*)::int from posts where user_id = u.id and role = 'rider') as rider_posts
+             (select count(*)::int from posts where user_id = u.id and role = 'rider') as rider_posts,
+             (select max(created_at) from posts where user_id = u.id) as last_post_at
       from users u
       where ${q} = '' or u.email ilike ${like} or u.name ilike ${like}
-      order by u.test desc, u.created_at desc limit 200`;
+      order by
+        (case when ${sort} = 'joined' then u.test end) desc nulls last,
+        (case when ${sort} = 'seen' then u.last_seen end) desc nulls last,
+        (case when ${sort} = 'post' then (select max(created_at) from posts where user_id = u.id) end) desc nulls last,
+        (case when ${sort} = 'credits' then u.credits end) desc nulls last,
+        (case when ${sort} = 'posts' then (select count(*) from posts where user_id = u.id) end) desc nulls last,
+        u.created_at desc
+      limit 200`;
     const reports = await sql`
       select r.id, r.reason, r.detail, r.status, r.created_at,
              a.name as reporter_name, a.email as reporter_email, b.id as target_id, b.name as target_name, b.email as target_email, b.blocked as target_blocked
@@ -70,6 +81,7 @@ export async function GET(req: Request) {
         ...u,
         created_at: new Date(u.created_at as string).getTime(),
         lastSeen: u.last_seen ? new Date(u.last_seen as string).getTime() : null,
+        lastPost: u.last_post_at ? new Date(u.last_post_at as string).getTime() : null,
         photo: photoUrl(u.id, u.photo_v),
         carPhoto: carPhotoUrl(u.id, u.car_v),
         tier: driverTier({ carNo: u.car_no, carPhoto: carPhotoUrl(u.id, u.car_v), photo: photoUrl(u.id, u.photo_v), tierSet: u.tier_set }),
