@@ -26,6 +26,11 @@ export async function GET(req: Request) {
   // 회원 정렬: joined 가입일(기본) · seen 최근 접속 · post 최근 작성 · credits 크레딧 많은 · posts 글 많은
   const sortIn = new URL(req.url).searchParams.get("sort") ?? "";
   const sort = ["seen", "post", "credits", "posts"].includes(sortIn) ? sortIn : "joined";
+  // 회원 필터(서버에서 전체 회원 대상으로 건다). 운전자 = 희망 역할 운전자·차량번호 등록·운전자 글, 탑승자 = 희망 역할 탑승자·탑승자 글
+  const roleIn = new URL(req.url).searchParams.get("role") ?? "";
+  const role = ["driver", "rider", "none"].includes(roleIn) ? roleIn : "";
+  const genIn = new URL(req.url).searchParams.get("gender") ?? "";
+  const gender = ["female", "male"].includes(genIn) ? genIn : "";
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   try {
     await ensureSchema();
@@ -50,7 +55,12 @@ export async function GET(req: Request) {
              (select count(*)::int from posts where user_id = u.id and role = 'rider') as rider_posts,
              (select max(created_at) from posts where user_id = u.id) as last_post_at
       from users u
-      where ${q} = '' or u.email ilike ${like} or u.name ilike ${like}
+      where (${q} = '' or u.email ilike ${like} or u.name ilike ${like})
+        and (${gender} = '' or u.gender = ${gender})
+        and (${role} = ''
+          or (${role} = 'driver' and (u.role_pref = 'driver' or coalesce(u.car_no, '') <> '' or exists (select 1 from posts where user_id = u.id and role = 'driver')))
+          or (${role} = 'rider' and (u.role_pref = 'rider' or exists (select 1 from posts where user_id = u.id and role = 'rider')))
+          or (${role} = 'none' and coalesce(u.role_pref, '') = '' and coalesce(u.car_no, '') = '' and not exists (select 1 from posts where user_id = u.id)))
       order by
         (case when ${sort} = 'joined' then u.test end) desc nulls last,
         (case when ${sort} = 'seen' then u.last_seen end) desc nulls last,

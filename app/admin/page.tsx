@@ -74,9 +74,10 @@ export default function Admin() {
   const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null);
   const [sort, setSort] = useState("joined");
   const sortRef = useRef("joined");
+  const filterRef = useRef({ gen: "", role: "" });
 
   const refresh = useCallback(async (query = "") => {
-    const a = await fetch(`/api/admin?q=${encodeURIComponent(query)}&sort=${sortRef.current}`).then((r) => r.json()).catch(() => ({ admin: false }));
+    const a = await fetch(`/api/admin?q=${encodeURIComponent(query)}&sort=${sortRef.current}&gender=${filterRef.current.gen}&role=${filterRef.current.role}`).then((r) => r.json()).catch(() => ({ admin: false }));
     if (!a.admin) return setState("gate");
     setInfo({ db: !!a.db, stats: a.stats ?? null, posts: a.posts ?? [], users: a.users ?? [], reports: a.reports ?? [], blocks: a.blocks ?? [] });
     setState("in");
@@ -252,7 +253,7 @@ export default function Admin() {
       )}
 
       {tab === "users" && (() => {
-        const rows = (info?.users ?? []).filter((u) => (withTest || !u.test) && (!gen || u.gender === gen) && (!roleF || (roleF === "none" ? u.role_pref === "" : u.role_pref === roleF)));
+        const rows = (info?.users ?? []).filter((u) => withTest || !u.test);
         return (
         <section data-block-id="S093" data-block-name="회원 관리" className="rounded-2xl border border-line bg-white p-5 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -281,18 +282,18 @@ export default function Admin() {
               <option value="credits">크레딧 많은순</option>
               <option value="posts">글 많은순</option>
             </select>
-            <select data-block-id="F092" aria-label="성별 필터" className={`${input} w-auto`} value={gen} onChange={(e) => setGen(e.target.value)}>
+            <select data-block-id="F092" aria-label="성별 필터" className={`${input} w-auto`} value={gen} onChange={(e) => { filterRef.current.gen = e.target.value; setGen(e.target.value); refresh(q); }}>
               <option value="">성별: 전체</option>
               <option value="female">여</option>
               <option value="male">남</option>
             </select>
-            <select data-block-id="F093" aria-label="역할 필터" className={`${input} w-auto`} value={roleF} onChange={(e) => setRoleF(e.target.value)}>
+            <select data-block-id="F093" aria-label="역할 필터" className={`${input} w-auto`} value={roleF} onChange={(e) => { filterRef.current.role = e.target.value; setRoleF(e.target.value); refresh(q); }}>
               <option value="">역할: 전체</option>
               <option value="driver">운전자</option>
               <option value="rider">탑승자</option>
               <option value="none">미입력</option>
             </select>
-            {(gen || roleF) && <button data-block-id="B099" className="rounded-lg bg-bg px-3 text-sub" onClick={() => { setGen(""); setRoleF(""); }}>필터 해제</button>}
+            {(gen || roleF) && <button data-block-id="B099" className="rounded-lg bg-bg px-3 text-sub" onClick={() => { filterRef.current = { gen: "", role: "" }; setGen(""); setRoleF(""); refresh(q); }}>필터 해제</button>}
           </div>
           {zoom && (
             <div role="dialog" aria-modal="true" aria-label="사진 크게 보기" className="fixed inset-0 z-50 grid place-items-center bg-ink/70 p-4" onClick={() => setZoom(null)}>
@@ -409,7 +410,7 @@ export default function Admin() {
               </tbody>
             </table>
             {rows.length === 0 && <p className="py-6 text-center text-sub">회원이 없습니다.</p>}
-            <p className="mt-3 text-xs text-sub">최근 가입 순으로 200명까지 보입니다. 성별·역할 필터는 불러온 회원 안에서 걸러집니다. 더 찾으려면 검색해 주세요.</p>
+            <p className="mt-3 text-xs text-sub">고른 정렬 순서로 200명까지 보입니다. 정렬·성별·역할 필터는 전체 회원에서 찾습니다. 운전자 = 희망 역할 운전자·차량번호 등록·운전자 글 작성, 탑승자 = 희망 역할 탑승자·탑승자 글 작성.</p>
           </div>
         </section>
         );
