@@ -40,6 +40,7 @@ const LANG_KEY = "modu.lang";
 // 마지막으로 받은 카풀 목록(하루 안 것만). 앱을 열면 먼저 보여 주고, 서버 목록이 오면 바꾼다.
 const POSTS_CACHE = "modu.posts";
 const POSTS_CACHE_MS = 24 * 60 * 60 * 1000;
+const THREADS_CACHE = "modu.threads";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("home");
@@ -182,7 +183,15 @@ export default function App() {
 
   const loadThreads = useCallback(async () => {
     const r = await api<{ threads: Thread[] }>("/api/requests");
-    if (r.ok) setThreads(r.data.threads);
+    if (r.ok) {
+      setThreads(r.data.threads);
+      // 채팅 목록을 이 창(sessionStorage)에 두었다가 새로고침 때 바로 보여 준다. 창을 닫으면 지워진다.
+      try {
+        sessionStorage.setItem(THREADS_CACHE, JSON.stringify(r.data.threads));
+      } catch {
+        /* 무시 */
+      }
+    }
   }, []);
 
   // 새로고침해도 보던 화면을 유지한다: 탭과 열어 둔 글을 이 창의 sessionStorage에 저장한다.
@@ -338,7 +347,22 @@ export default function App() {
 
   // 로그인 중에는 신청 상태를 주기적으로 새로 받는다.
   useEffect(() => {
-    if (!user) return setThreads([]);
+    if (!user) {
+      try {
+        sessionStorage.removeItem(THREADS_CACHE);
+        // 로그아웃하면 이 창에 남긴 대화 내용도 지운다.
+        for (const k of Object.keys(sessionStorage)) if (k.startsWith("modu.chat.")) sessionStorage.removeItem(k);
+      } catch {
+        /* 무시 */
+      }
+      return setThreads([]);
+    }
+    try {
+      const c = JSON.parse(sessionStorage.getItem(THREADS_CACHE) || "null") as Thread[] | null;
+      if (Array.isArray(c)) setThreads((cur) => (cur.length ? cur : c));
+    } catch {
+      /* 무시 */
+    }
     loadThreads();
     loadPosts();
     const id = setInterval(() => document.visibilityState === "visible" && loadThreads(), 30000);

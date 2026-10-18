@@ -140,7 +140,24 @@ export function ChatRoom({
 }) {
   const t = useT();
   const lang = useLang();
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  // 마지막으로 본 대화는 이 창(sessionStorage)에 두었다가 다시 열 때 바로 보여 준다. 창을 닫으면 지워진다.
+  const cacheKey = `modu.chat.${thread.id}`;
+  const [msgs, setMsgs] = useState<Msg[]>(() => {
+    try {
+      const c = JSON.parse(sessionStorage.getItem(cacheKey) || "null") as Msg[] | null;
+      return Array.isArray(c) ? c : [];
+    } catch {
+      return [];
+    }
+  });
+  const lastServerId = useRef(msgs.reduce((m, x) => Math.max(m, x.id), 0));
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify(msgs.filter((m) => !m.image?.startsWith("data:")).slice(-100)));
+    } catch {
+      /* 저장 공간이 없으면 넘어간다 */
+    }
+  }, [msgs, cacheKey]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [stars, setStars] = useState(thread.myStars ?? 0);
@@ -157,14 +174,21 @@ export function ChatRoom({
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let lastId = -1;
+    let first = true;
     const load = async () => {
-      const r = await api<{ messages: Msg[]; otherUnread: number; nudgedAt: number | null; nudgeCost: number }>(`/api/messages?request=${thread.id}`);
+      // 처음에는 전체(최근 200개), 그 뒤로는 마지막 번호 이후의 새 메시지만 받는다.
+      const after = first ? 0 : lastServerId.current;
+      const r = await api<{ messages: Msg[]; partial?: boolean; otherUnread: number; nudgedAt: number | null; nudgeCost: number }>(`/api/messages?request=${thread.id}${after ? `&after=${after}` : ""}`);
       if (alive && r.ok) {
-        const top = r.data.messages.at(-1)?.id ?? 0;
-        if (lastId !== -1 && top !== lastId) activeAt.current = Date.now();
-        lastId = top;
-        setMsgs(r.data.messages);
+        const got = r.data.messages;
+        if (!first && got.length) activeAt.current = Date.now();
+        first = false;
+        if (got.length) lastServerId.current = Math.max(lastServerId.current, ...got.map((m) => m.id));
+        if (r.data.partial) {
+          if (got.length) setMsgs((cur) => [...cur.filter((m) => !got.some((g) => g.id === m.id)), ...got].sort((a, b) => a.id - b.id).slice(-200));
+        } else {
+          setMsgs(got);
+        }
         setOtherUnread(r.data.otherUnread ?? 0);
         setNudgedAt(r.data.nudgedAt ?? null);
         setNudgeCost(r.data.nudgeCost ?? 0);
@@ -253,7 +277,8 @@ export function ChatRoom({
     if (!r.ok) return toast(t(r.error));
     setText("");
     activeAt.current = Date.now();
-    setMsgs((m) => [...m, { id: Date.now(), mine: true, body, at: Date.now() }]);
+    const sentId = (r.data as { id?: number }).id ?? Date.now();
+    setMsgs((m) => [...m, { id: sentId, mine: true, body, at: Date.now() }]);
   };
 
   return (

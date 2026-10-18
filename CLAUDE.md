@@ -26,6 +26,8 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **모드 알약**(`RoleSwitch` in `components/Home.tsx`, 헤더 오른쪽 위, 찾기·등록 탭): 운전자 모드 ↔ 탑승자 모드(users.role_pref). 등록 화면의 새 글 역할은 이 모드를 그대로 따른다(큰 역할 선택 칸 없음, 한 줄 안내만). 글 수정 때만 역할 선택 칸을 보여 준다.
 - **별점 확인 창**(`components/Chat.tsx` 대화방 `askStars`): 별을 눌러도 바로 저장하지 않고 "카풀을 마친 뒤에 별점을 남겨 주세요" 창 → [아직이에요] / [카풀 마쳤어요 · 남기기]. 1회 카풀이 출발 전이면 안내와 [확인]만.
 - **첫 로딩**(홈 139KB, 2026-10-18 기준): 번역 사전은 `lib/i18nDict.ts`로 분리해 한국어가 아닐 때만 `loadDict()`로 불러온다(App의 `shownLang`). 찾기 외 탭·창(Chat·Me·PostForm·Commute·Member·Reset·Withdraw·Interests·CommuteStart·CommuteOnboard)은 `dynamic`으로 열 때 불러오고, 첫 화면 뒤 한가할 때 등록·채팅·내 정보를 미리 받는다. 마지막 카풀 목록은 localStorage `modu.posts`(하루)에 두고 앱을 열면 먼저 보여 준다. 글꼴은 Pretendard Variable dynamic-subset(필요한 글자 조각만). 첫 화면 컴포넌트에서 다른 탭 파일을 import하면 다시 무거워지니 공용 상수는 lib에 둔다.
+- **스키마 준비**(`ensureSchema` in `lib/server.ts`, `ensureSeatSchema` in `lib/seatDb.ts`): DDL은 `buildSchema`/`buildSeatSchema` 안에만 둔다. 함수 내용의 해시를 `settings.schema_hash`(seat DB는 `seat_meta`)에 적어 두고 같으면 건너뛴다(예전엔 서버가 뜰 때마다 DDL 150여 개). 매번 할 자료 정리는 `maintainData`에. buildSchema 안에서는 바깥 함수·변수를 쓰지 않는다(해시가 빌드마다 흔들리지 않게).
+- **채팅 속도**: `/api/messages?after=마지막번호`로 새 메시지만 받는다(권한 확인·조회 동시, 새 메시지 있을 때만 읽음 기록). 대화 내용은 sessionStorage `modu.chat.<신청ID>`, 채팅 목록은 `modu.threads`에 두었다가 바로 보여 준다(로그아웃 시 지움). 색인 `requests_user_idx`, `posts_user_idx`, `chat_reads_req_idx`.
 - `lib/i18n.ts`: 한국어 키 사전(번역 문구는 `lib/i18nDict.ts`). **번역 문구는 지금 넣지 않는다.** 국내 유저가 우선이라 서비스가 완성된 뒤 한꺼번에 추가한다. 화면 문구는 `t("한국어")`로만 감싸 둔다.
 
 ## 메일

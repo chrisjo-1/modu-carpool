@@ -17,24 +17,35 @@ async function canChat(requestId: string, me: string) {
 export async function GET(req: Request) {
   const me = await currentUserId();
   if (!me) return needLogin();
-  const id = new URL(req.url).searchParams.get("request");
+  const sp = new URL(req.url).searchParams;
+  const id = sp.get("request");
+  // after=마지막으로 받은 메시지 번호: 그 뒤의 새 메시지만 보낸다(대화방을 열어 둔 동안 몇 초마다 묻는 요청을 가볍게).
+  const after = Math.max(0, Math.floor(Number(sp.get("after")) || 0));
   if (!isUuid(id)) return json({ error: "잘못된 요청입니다." }, 400);
   try {
     await ensureSchema();
-    if (!(await canChat(id, me))) return json({ error: "수락된 뒤에 대화할 수 있습니다." }, 403);
     const sql = db();
-    const rows = await sql`select id, user_id, body, (image <> '') as has_image, created_at from messages where request_id = ${id} order by id desc limit 200`;
-    // 대화를 열어 본 것으로 기록해 안 읽은 수를 0으로 만든다.
+    // 권한 확인과 조회를 동시에 보낸다(권한이 없으면 조회 결과는 버린다).
+    const [allowed, rows, st, rules] = await Promise.all([
+      canChat(id, me),
+      after
+        ? sql`select id, user_id, body, (image <> '') as has_image, created_at from messages where request_id = ${id} and id > ${after} order by id desc limit 200`
+        : sql`select id, user_id, body, (image <> '') as has_image, created_at from messages where request_id = ${id} order by id desc limit 200`,
+      // 상대가 아직 읽지 않은 내 메시지 수와 마지막 메일 알림 시각(메일로 알리기 버튼용)
+      sql`
+      select (select count(*)::int from messages m where m.request_id = ${id} and m.user_id = ${me}
+                and m.id > coalesce((select c.last_id from chat_reads c where c.request_id = ${id} and c.user_id <> ${me}), 0)) as other_unread,
+             (select max(at) from mail_nudges n where n.request_id = ${id} and n.sender = ${me}) as nudged_at`,
+      getRules(),
+    ]);
+    if (!allowed) return json({ error: "수락된 뒤에 대화할 수 있습니다." }, 403);
+    // 대화를 열어 본 것으로 기록해 안 읽은 수를 0으로 만든다(새 메시지가 있을 때만 쓴다).
     if (rows.length)
       await sql`insert into chat_reads (request_id, user_id, last_id, read_at) values (${id}, ${me}, ${rows[0].id}, now())
                 on conflict (request_id, user_id) do update set last_id = greatest(chat_reads.last_id, excluded.last_id), read_at = now()`;
-    // 상대가 아직 읽지 않은 내 메시지 수와 마지막 메일 알림 시각(메일로 알리기 버튼용)
-    const st = await sql`
-      select (select count(*)::int from messages m where m.request_id = ${id} and m.user_id = ${me}
-                and m.id > coalesce((select c.last_id from chat_reads c where c.request_id = ${id} and c.user_id <> ${me}), 0)) as other_unread,
-             (select max(at) from mail_nudges n where n.request_id = ${id} and n.sender = ${me}) as nudged_at`;
     return json({
-      nudgeCost: (await getRules()).nudge,
+      partial: after > 0,
+      nudgeCost: rules.nudge,
       otherUnread: st[0].other_unread,
       nudgedAt: st[0].nudged_at ? new Date(st[0].nudged_at as string).getTime() : null,
       messages: rows.reverse().map((m) => ({

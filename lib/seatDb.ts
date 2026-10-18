@@ -14,87 +14,110 @@ export function seatSql() {
 }
 
 let ready: Promise<void> | null = null;
-/** 테이블과 인덱스를 만든다(인스턴스당 1회). */
+
+/** 테이블과 인덱스 만들기. 내용이 바뀌면 배포 후 첫 요청에서 한 번만 다시 돈다. */
+async function buildSeatSchema(sql: ReturnType<typeof seatSql>) {
+  await sql`create table if not exists seat_plans (
+    id bigserial primary key,
+    user_id text not null,
+    days text not null default '12345',
+    board_line text not null,
+    board_station text not null,
+    time_go text not null,
+    board_car text not null,
+    board_gate text not null default '',
+    alight_line text not null,
+    alight_station text not null,
+    back boolean not null default true,
+    time_back text not null default '',
+    back_car text not null default '',
+    back_gate text not null default '',
+    status text not null default 'active',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now())`;
+  // 한 회원은 활성 등록을 하나만 가진다.
+  await sql`create unique index if not exists seat_plans_active_uniq on seat_plans (user_id) where status = 'active'`;
+  await sql`create index if not exists seat_plans_match_idx on seat_plans (board_line, alight_line) where status = 'active'`;
+  await sql`create table if not exists seat_requests (
+    id uuid primary key default gen_random_uuid(),
+    from_user text not null,
+    to_user text not null,
+    from_plan bigint not null references seat_plans(id) on delete cascade,
+    to_plan bigint not null references seat_plans(id) on delete cascade,
+    status text not null default 'pending',
+    created_at timestamptz not null default now(),
+    responded_at timestamptz,
+    unique (from_plan, to_plan))`;
+  await sql`create index if not exists seat_requests_to_idx on seat_requests (to_user, status)`;
+  // 입구 안내용 착석 기록. 회원 번호를 넣지 않는다(익명 집계).
+  await sql`create table if not exists seat_feedback (
+    id bigserial primary key,
+    line text not null,
+    station text not null,
+    dir text not null,
+    dow text not null,
+    slot text not null,
+    car text not null,
+    entrance text not null,
+    seated boolean not null,
+    created_at timestamptz not null default now())`;
+  await sql`create index if not exists seat_feedback_lookup on seat_feedback (line, station, dir, dow, slot)`;
+  // 매칭된 두 사람이 탑승 후 넣는 차량 번호. 같은 칸 확인에만 쓰고 하루 뒤 지운다.
+  await sql`create table if not exists seat_car_confirm (
+    request_id uuid not null references seat_requests(id) on delete cascade,
+    user_id text not null,
+    car_no text not null,
+    created_at timestamptz not null default now(),
+    primary key (request_id, user_id))`;
+  // 요청 종류: manual(직접 요청), call(CALL로 보낸 요청)
+  await sql`alter table seat_requests add column if not exists kind text not null default 'manual'`;
+  // 오늘 앉은 자리 위치(칸-문·왼쪽/오른쪽·메모). 수락된 상대에게만 보인다. 날짜가 바뀌면 다시 입력한다.
+  await sql`create table if not exists seat_spots (
+    user_id text not null,
+    day text not null,
+    car text not null,
+    door text not null,
+    side text not null default '',
+    memo text not null default '',
+    updated_at timestamptz not null default now(),
+    primary key (user_id, day))`;
+  // 그림에서 고른 좌석(예: A2-4). lib/subwayPosition.ts parseSeat 형식.
+  await sql`alter table seat_spots add column if not exists seat text not null default ''`;
+  // 오늘의 힌트 사진(선택, JPEG base64). 오늘 하루치만 두고 이틀 지난 자리 정보와 함께 지운다.
+  await sql`alter table seat_spots add column if not exists photo text not null default ''`;
+  // 수락된 매칭끼리의 대화(카풀 채팅과 별도 저장소).
+  await sql`create table if not exists seat_messages (
+    id bigserial primary key,
+    request_id uuid not null references seat_requests(id) on delete cascade,
+    user_id text not null,
+    body text not null,
+    created_at timestamptz not null default now())`;
+  await sql`create index if not exists seat_messages_req on seat_messages (request_id, id)`;
+}
+
+function textHash(s: string) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36) + s.length.toString(36);
+}
+
+/** 스키마 준비(인스턴스당 1회). seat_meta.schema_hash 가 지금 코드와 같으면 DDL을 건너뛴다(조회 1번). */
 export function ensureSeatSchema(): Promise<void> {
   if (!ready) {
     ready = (async () => {
       const sql = seatSql();
-      await sql`create table if not exists seat_plans (
-        id bigserial primary key,
-        user_id text not null,
-        days text not null default '12345',
-        board_line text not null,
-        board_station text not null,
-        time_go text not null,
-        board_car text not null,
-        board_gate text not null default '',
-        alight_line text not null,
-        alight_station text not null,
-        back boolean not null default true,
-        time_back text not null default '',
-        back_car text not null default '',
-        back_gate text not null default '',
-        status text not null default 'active',
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now())`;
-      // 한 회원은 활성 등록을 하나만 가진다.
-      await sql`create unique index if not exists seat_plans_active_uniq on seat_plans (user_id) where status = 'active'`;
-      await sql`create index if not exists seat_plans_match_idx on seat_plans (board_line, alight_line) where status = 'active'`;
-      await sql`create table if not exists seat_requests (
-        id uuid primary key default gen_random_uuid(),
-        from_user text not null,
-        to_user text not null,
-        from_plan bigint not null references seat_plans(id) on delete cascade,
-        to_plan bigint not null references seat_plans(id) on delete cascade,
-        status text not null default 'pending',
-        created_at timestamptz not null default now(),
-        responded_at timestamptz,
-        unique (from_plan, to_plan))`;
-      await sql`create index if not exists seat_requests_to_idx on seat_requests (to_user, status)`;
-      // 입구 안내용 착석 기록. 회원 번호를 넣지 않는다(익명 집계).
-      await sql`create table if not exists seat_feedback (
-        id bigserial primary key,
-        line text not null,
-        station text not null,
-        dir text not null,
-        dow text not null,
-        slot text not null,
-        car text not null,
-        entrance text not null,
-        seated boolean not null,
-        created_at timestamptz not null default now())`;
-      await sql`create index if not exists seat_feedback_lookup on seat_feedback (line, station, dir, dow, slot)`;
-      // 매칭된 두 사람이 탑승 후 넣는 차량 번호. 같은 칸 확인에만 쓰고 하루 뒤 지운다.
-      await sql`create table if not exists seat_car_confirm (
-        request_id uuid not null references seat_requests(id) on delete cascade,
-        user_id text not null,
-        car_no text not null,
-        created_at timestamptz not null default now(),
-        primary key (request_id, user_id))`;
-      // 요청 종류: manual(직접 요청), call(CALL로 보낸 요청)
-      await sql`alter table seat_requests add column if not exists kind text not null default 'manual'`;
-      // 오늘 앉은 자리 위치(칸-문·왼쪽/오른쪽·메모). 수락된 상대에게만 보인다. 날짜가 바뀌면 다시 입력한다.
-      await sql`create table if not exists seat_spots (
-        user_id text not null,
-        day text not null,
-        car text not null,
-        door text not null,
-        side text not null default '',
-        memo text not null default '',
-        updated_at timestamptz not null default now(),
-        primary key (user_id, day))`;
-      // 그림에서 고른 좌석(예: A2-4). lib/subwayPosition.ts parseSeat 형식.
-      await sql`alter table seat_spots add column if not exists seat text not null default ''`;
-      // 오늘의 힌트 사진(선택, JPEG base64). 오늘 하루치만 두고 이틀 지난 자리 정보와 함께 지운다.
-      await sql`alter table seat_spots add column if not exists photo text not null default ''`;
-      // 수락된 매칭끼리의 대화(카풀 채팅과 별도 저장소).
-      await sql`create table if not exists seat_messages (
-        id bigserial primary key,
-        request_id uuid not null references seat_requests(id) on delete cascade,
-        user_id text not null,
-        body text not null,
-        created_at timestamptz not null default now())`;
-      await sql`create index if not exists seat_messages_req on seat_messages (request_id, id)`;
+      const want = textHash(buildSeatSchema.toString());
+      let have = "";
+      try {
+        const r = await sql`select value from seat_meta where key = 'schema_hash'`;
+        have = r.length ? String(r[0].value) : "";
+      } catch {
+        /* 처음이라 seat_meta 표가 없다 */
+      }
+      if (have === want) return;
+      await buildSeatSchema(sql);
+      await sql`create table if not exists seat_meta (key text primary key, value text not null)`;
+      await sql`insert into seat_meta (key, value) values ('schema_hash', ${want}) on conflict (key) do update set value = excluded.value`;
     })().catch((e) => {
       ready = null;
       throw e;
