@@ -536,8 +536,9 @@ export default function App() {
         )}
         {why && <ReasonSheet mode={why.mode} name={why.name} onClose={() => setWhy(null)} onSubmit={submitWhy} />}
         {toastMsg && (
-          <div role="status" aria-live="polite" data-block-id="C099" data-block-name="알림 문구" className="fixed inset-x-4 bottom-24 z-[60] mx-auto flex max-w-sm items-center gap-3 rounded-2xl bg-accent px-5 py-4 text-left text-[16px] font-semibold leading-snug text-white shadow-[0_12px_32px_rgba(47,107,255,0.35)] ring-4 ring-accentSoft">
-            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.22)" stroke="none" /><path d="M12 11v5.5" /><path d="M12 7.5h.01" /></svg>
+          <div role="status" aria-live="polite" data-block-id="C099" data-block-name="알림 문구" className="fixed inset-x-4 bottom-24 z-[60] mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-line border-l-[6px] border-l-accent bg-white px-5 py-4 text-left text-[16px] font-semibold leading-snug text-ink shadow-[0_14px_40px_rgba(21,35,61,0.28)]">
+            {/* 파란 버튼 위에 떠도 잘 보이도록 흰 바탕 + 진한 글자 + 진한 그림자 */}
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-accent" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" fill="#EAF1FF" stroke="none" /><path d="M12 11v5.5" /><path d="M12 7.5h.01" /></svg>
             <span className="min-w-0 flex-1 break-keep">{toastMsg}</span>
           </div>
         )}

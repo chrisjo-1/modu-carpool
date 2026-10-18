@@ -28,8 +28,16 @@ export default function SeatSpotCard({ line }: { line: LineId }) {
 
   useEffect(() => {
     api<{ spot: Spot | null }>("/api/seat/spot").then((r) => {
+      const sp = r.ok ? r.data.spot : null;
+      setSpot(sp);
+      // 좌석을 아직 고르지 않았으면(처음이거나 칸만 저장된 경우) 바로 그림을 펼쳐 고르게 한다.
+      if (!sp || !sp.seat) {
+        setCar(sp?.car ?? "");
+        setSeat("");
+        setMemo(sp?.memo ?? "");
+        setEdit(true);
+      }
       setLoaded(true);
-      if (r.ok && r.data.spot) setSpot(r.data.spot);
     });
   }, []);
 
@@ -88,16 +96,10 @@ export default function SeatSpotCard({ line }: { line: LineId }) {
           </div>
         </div>
       )}
-      {!edit && !spot && (
-        <div className="space-y-2">
-          <p className="text-[14px] leading-relaxed text-sub">{t("자리에 앉았다면 그림에서 좌석을 눌러 알려 주세요. 매칭된 상대에게만 보여요.")}</p>
-          <button type="button" className="w-full rounded-xl bg-violet py-3 text-[15px] font-semibold text-white" onClick={startEdit}>{t("자리 위치 입력")}</button>
-        </div>
-      )}
       {edit && (
         <div className="space-y-4">
           <label className="block w-1/2 text-sm text-sub">
-            {t("칸")}
+            {t("① 탄 칸")}
             <select className={`${field} mt-1`} value={car} onChange={(e) => setCar(e.target.value)}>
               <option value="">{t("고르세요")}</option>
               {carNumbersOf(line).map((c) => (
@@ -105,9 +107,12 @@ export default function SeatSpotCard({ line }: { line: LineId }) {
               ))}
             </select>
           </label>
-          <SeatMap value={seat} onChange={setSeat} car={car} />
+          <div className="space-y-1.5">
+            <p className="text-sm text-sub">{t("② 그림에서 앉은 좌석 누르기")}</p>
+            <SeatMap value={seat} onChange={setSeat} car={car} />
+          </div>
           <div className="space-y-2">
-            <p className="text-sm text-sub">{t("오늘의 힌트 (선택)")}</p>
+            <p className="text-sm text-sub">{t("③ 오늘의 힌트 (선택)")}</p>
             <div className="flex flex-wrap gap-1.5">
               {COLORS.map((c) => (
                 <Chip key={c} on={memo.split(/\s+/).includes(c)} onClick={() => toggleWord(c)}>{c}</Chip>
@@ -123,7 +128,7 @@ export default function SeatSpotCard({ line }: { line: LineId }) {
           </div>
           <div className="flex gap-2">
             <button type="button" className="flex-1 rounded-xl bg-violet py-3 text-[15px] font-semibold text-white disabled:opacity-40" disabled={busy} onClick={save}>{t("저장")}</button>
-            <button type="button" className="rounded-xl bg-bg px-4 py-3 text-[15px] text-sub" onClick={() => setEdit(false)}>{t("취소")}</button>
+            {spot?.seat && <button type="button" className="rounded-xl bg-bg px-4 py-3 text-[15px] text-sub" onClick={() => setEdit(false)}>{t("취소")}</button>}
           </div>
         </div>
       )}

@@ -25,7 +25,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 
 ## 지하철 앉아가기 (하단 '지하철' 메뉴)
 - **등록**: `components/Commute.tsx`(내 출퇴근 정보)의 운전자 / 탑승자 / **지하철** 세 칸 중 지하철. 입력 화면은 `components/subway/SubwayPanel.tsx`(동적 import).
-- **지하철 메뉴**: `components/subway/SubwayTab.tsx` — ① 앉아갈 수 있는 정보(`SubwayCarGuide`) ② 매칭 정보(`SubwayMatches`), 오른쪽 위 "위치 찾는 법"(`LocationHelp`, 사진은 열 때만 로드).
+- **지하철 메뉴**: `components/subway/SubwayTab.tsx` — 오늘 출근 요약 카드 + 위쪽 탭 [내 자리(`SeatSpotCard`, 좌석 미선택이면 그림을 바로 펼침) | 매칭(`SubwayMatches`) | 앉을 칸(`SubwayCarGuide`)], 마지막 탭은 sessionStorage `modu.subwayView`. 오른쪽 위 "위치 찾는 법"(`LocationHelp`, 사진은 열 때만 로드). CALL을 보내면 매칭 탭으로 이동.
   탭 노출은 `/api/seat/config`의 `visible`(기능 켜짐 또는 관리자). 폴더와 `components/App.tsx`의 탭 연결을 지우면 기능 전체가 빠진다.
 - **저장소**: 별도 Neon DB(modu-seat), `SEAT_DATABASE_URL`. `lib/seatDb.ts`의 `ensureSeatSchema()`가 `seat_plans`, `seat_requests`, `seat_feedback`, `seat_car_confirm`을 만든다.
 - **혼잡도**: 서울교통공사 시간대별 혼잡도(2026년 6월, 평일·토·일, 역·방향·30분). `scripts/build-congestion.py`로 엑셀을 `lib/data/congestion-2026-06.json`으로 변환, `lib/congestion.ts`가 서버에서만 조회(`/api/seat/car` 응답의 `congestion`).
