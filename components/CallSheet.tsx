@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { type Place, type Post } from "@/lib/types";
 import PlaceField from "./PlaceField";
-import { Bubble, Card, Sheet, api, btnGhost, btnPrimary, currentHere, useLang, useT, when } from "./ui";
+import { Bubble, useHintTap, Card, Sheet, api, btnGhost, btnPrimary, currentHere, useLang, useT, when } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
 function toLocalInput(ms: number) {
@@ -30,12 +30,13 @@ function RegisterContact({ onGoProfile }: { onGoProfile?: () => void }) {
 export function FloatingCall({ toast, onGoProfile }: { toast: (m: string) => void; onGoProfile?: () => void }) {
   const [open, setOpen] = useState(false);
   const t = useT();
+  const hintTap = useHintTap();
   return (
     <>
       <div className="fixed bottom-36 left-1/2 z-30 w-max max-w-[260px] -translate-x-1/2">
         <Bubble blockId="C933" pointer="bottom" align="center">{t("주변 운전자에게 바로 호출을 보내요. 하루 횟수가 정해져 있어요.")}</Bubble>
       </div>
-      <button type="button" data-block-id="B217" data-block-name="CALL" aria-label="CALL" className="fixed bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-accent px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => setOpen(true)}>
+      <button type="button" data-block-id="B217" data-block-name="CALL" aria-label="CALL" className="fixed bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-accent px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => { if (hintTap("C933")) return; setOpen(true); }}>
         CALL
       </button>
       {open && <CallSheet onClose={() => setOpen(false)} toast={toast} onGoProfile={onGoProfile} />}

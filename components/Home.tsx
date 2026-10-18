@@ -7,7 +7,7 @@ import { createPortal } from "react-dom";
 import CarInput from "./CarInput";
 import { METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
-import { Bubble, RoleTag, Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
+import { Bubble, useHintTap, RoleTag, Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
@@ -70,11 +70,13 @@ export function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [carOpen, setCarOpen] = useState(false);
+  const hintTap = useHintTap();
   if (!user) return null;
   const current = defaultRoleFor(user);
   const registered = !!(user.carNo && user.carPhoto);
   const toggle = async () => {
     if (busy) return;
+    if (hintTap("C930")) return;
     // 탑승자 모드에서 차량이 없으면 내 차량 등록창을 띄운다. 저장하면 닫힌다.
     if (current === "rider" && !registered) return setCarOpen(true);
     const next = current === "driver" ? "rider" : "driver";
@@ -120,6 +122,7 @@ export function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?
 export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void }) {
   const t = useT();
   const lang = useLang();
+  const hintTap = useHintTap();
   const [role, setRole] = useState<Role>("all");
   // 키워드 필터: 고른 키워드 중 하나라도 붙은 글만 (여러 개 고르면 OR)
   const [q, setQ] = useState("");
@@ -145,6 +148,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   const [shown, setShown] = useState(PAGE);
 
   const pickSort = (s: "soon" | "new" | "near") => {
+    if (s === "near" && !here && hintTap("C932")) return;
     if (s !== "near") {
       setSort(s);
       return;
@@ -212,7 +216,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         <div data-block-id="C070" data-block-name="검색 박스" className="space-y-2 rounded-2xl border border-line bg-white p-2.5">
           <div className="flex items-center gap-2">
             <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("출발지, 도착지, 키워드(예: 음료) 등 검색")} aria-label={t("출발지, 도착지, 키워드(예: 음료) 등 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
-            <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => setView((v) => (v === "map" ? "list" : "map"))}
+            <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => { if (view === "list" && hintTap("C931")) return; setView((v) => (v === "map" ? "list" : "map")); }}
               className={`min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
               {view === "map" ? t("목록") : t("지도")}
             </button>
@@ -233,7 +237,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
             {t("정기카풀")}
           </button>
         </div>
-        {view === "list" && sort !== "near" && <Bubble blockId="C932" align="left">{t("가까운 순은 내 위치를 허용하면 쓸 수 있어요. 출발지가 가까운 글부터 보여요.")}</Bubble>}
+        {view === "list" && <Bubble blockId="C932" align="left">{t("가까운 순은 내 위치를 허용하면 쓸 수 있어요. 출발지가 가까운 글부터 보여요.")}</Bubble>}
         {sort === "near" && here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 순서입니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
       </div>
 

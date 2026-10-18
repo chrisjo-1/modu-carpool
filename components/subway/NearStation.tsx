@@ -36,19 +36,19 @@ export default function NearStation({ board }: { board?: string }) {
   };
 
   return (
-    <div data-block-id="C132" data-block-name="가까운 역" className="space-y-2">
+    <div data-block-id="C132" data-block-name="가까운 역" className="flex flex-col space-y-2">
       <button
         type="button"
         data-block-id="B261"
         disabled={busy}
         onClick={find}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet/40 bg-white py-3 text-[15px] font-semibold text-violet disabled:opacity-60"
+        className="ml-auto flex min-h-0 items-center gap-1 py-1 text-[13px] font-semibold text-violet disabled:opacity-60"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
           <circle cx="12" cy="9.5" r="2.5" />
         </svg>
-        {busy ? t("위치 확인 중…") : items ? t("다시 찾기") : t("현재 위치에서 가까운 역")}
+        {busy ? t("위치 확인 중…") : items ? t("다시 찾기") : t("현위치 가까운 역")}
       </button>
       {items && items.length > 0 && (
         <ul className="divide-y divide-line rounded-2xl border border-line bg-white">

@@ -240,39 +240,59 @@ export function Segment<T extends string>({ value, options, onChange, label, com
 export const HintContext = createContext<{ on: boolean; texts: Record<string, string> }>({ on: false, texts: {} });
 
 /**
- * 말풍선: 진한 회색 바탕에 흰 글자. 로그인한 회원에게만 보인다.
- * 관리자가 바꾼 한국어 문구가 있으면 한국어 화면에서 그 문구를 쓴다. 닫으면 이 기기에서 다시 안 보인다.
+ * 말풍선 안내: 해당 버튼을 처음 누를 때 한 번만 보여 준다(로그인한 회원만).
+ * 버튼에서 `if (hintTap("C930")) return;` 처럼 부르면, 처음 누를 때는 설명만 보여 주고 다음부터는 바로 실행된다.
+ * 본 적이 있는지는 이 기기의 localStorage(hint:블록ID)에 남긴다. 저장소를 못 쓰면 안내 없이 바로 실행한다.
  */
+const HINT_EVENT = "modu-hint";
+export function useHintTap() {
+  const hint = useContext(HintContext);
+  return (blockId: string): boolean => {
+    if (!hint.on) return false;
+    const key = `hint:${blockId}`;
+    try {
+      if (localStorage.getItem(key)) return false;
+      localStorage.setItem(key, "1");
+    } catch {
+      return false;
+    }
+    window.dispatchEvent(new CustomEvent(HINT_EVENT, { detail: blockId }));
+    return true;
+  };
+}
+
+/** 말풍선: 진한 회색 바탕에 흰 글자. useHintTap으로 불렸을 때만 잠깐(8초) 나타난다. 관리자가 바꾼 한국어 문구가 있으면 그 문구를 쓴다. */
 export function Bubble({ blockId, children, pointer = "top", align = "left" }: { blockId: string; children: ReactNode; pointer?: "top" | "bottom"; align?: "left" | "center" | "right" }) {
   const t = useT();
   const lang = useLang();
   const hint = useContext(HintContext);
-  const key = `hint:${blockId}`;
-  const [gone, setGone] = useState(false);
+  const [show, setShow] = useState(false);
   useEffect(() => {
-    try {
-      if (localStorage.getItem(key)) setGone(true);
-    } catch {
-      /* 저장소를 못 쓰면 매번 보여 준다 */
-    }
-  }, [key]);
-  if (!hint.on || gone) return null;
-  const close = () => {
-    setGone(true);
-    try {
-      localStorage.setItem(key, "1");
-    } catch {
-      /* 무시 */
-    }
-  };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const on = (e: Event) => {
+      if ((e as CustomEvent).detail !== blockId) return;
+      setShow(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setShow(false), 8000);
+    };
+    window.addEventListener(HINT_EVENT, on);
+    return () => {
+      window.removeEventListener(HINT_EVENT, on);
+      clearTimeout(timer);
+    };
+  }, [blockId]);
+  if (!hint.on || !show) return null;
   const arrowPos = align === "center" ? "left-1/2 -translate-x-1/2" : align === "right" ? "right-10" : "left-5";
   const arrowEdge = pointer === "top" ? "-top-1.5" : "-bottom-1.5";
   const text = lang === "ko" && hint.texts[blockId] ? hint.texts[blockId] : children;
   return (
-    <div role="note" data-block-id={blockId} className={`relative inline-flex max-w-full items-start gap-2 rounded-xl bg-[#374151] px-3.5 py-2.5 text-[14px] font-medium leading-snug text-white shadow-card ${pointer === "top" ? "mt-2" : "mb-2"}`}>
+    <div role="note" aria-live="polite" data-block-id={blockId} className={`fade-in relative inline-flex max-w-full items-start gap-2 rounded-xl bg-[#374151] px-3.5 py-2.5 text-[14px] font-medium leading-snug text-white shadow-card ${pointer === "top" ? "mt-2" : "mb-2"}`}>
       <span aria-hidden className={`absolute ${arrowEdge} ${arrowPos} h-3 w-3 rotate-45 bg-[#374151]`} />
-      <span className="min-w-0">{text}</span>
-      <button type="button" aria-label={t("닫기")} onClick={close} className="min-h-0 shrink-0 px-0.5 text-[15px] leading-none text-white/80">×</button>
+      <span className="min-w-0">
+        {text}
+        <span className="mt-1 block text-[12px] font-normal text-white/75">{t("한 번 더 누르면 실행돼요.")}</span>
+      </span>
+      <button type="button" aria-label={t("닫기")} onClick={() => setShow(false)} className="min-h-0 shrink-0 px-0.5 text-[15px] leading-none text-white/80">×</button>
     </div>
   );
 }

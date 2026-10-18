@@ -397,16 +397,6 @@ export default function Me({
           </Card>
         </div>
       )}
-      {SHOW_METER && (
-      <Card data-block-id="C041" data-block-name="모카 미터기" className="p-5">
-        <p className="text-sm font-medium text-accent">{t("모카 미터기")}</p>
-        <p className="mt-1 text-lg font-semibold">{t("출퇴근 카풀 비용, 미터기로 깔끔하게")}</p>
-        <p className="mt-1 text-[15px] text-sub">{t("GPS로 거리를 재고 택시 요율 기준 참고 금액을 인원수로 나눠 줍니다.")}</p>
-        <a data-block-id="B043" data-block-name="미터기 열기" href={METER_URL} target="_blank" rel="noopener noreferrer" className="mt-4 flex items-center justify-between rounded-2xl bg-accentSoft px-4 font-semibold text-accent">
-          {t("모카 미터기 열기")} {Icon.arrow()}
-        </a>
-      </Card>
-      )}
       {noticesOpen && <NoticeList onClose={() => setNoticesOpen(false)} />}
       {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} onClose={() => setFeedbackOpen(false)} />}
       {helpOpen && <HelpSheet onClose={() => setHelpOpen(false)} onOpenFeedback={() => { setHelpOpen(false); setFeedbackOpen(true); }} />}
@@ -480,6 +470,12 @@ export default function Me({
         <span className="text-sub">{Icon.arrow()}</span>
       </button>
             </div>
+            {/* 모카 미터기: 회원이 늘면 내 정보 화면으로 다시 꺼낸다. 지금은 설정 맨 아래 구석에 둔다. */}
+            {SHOW_METER && (
+              <a data-block-id="B043" data-block-name="미터기 열기" href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between px-1 text-[13px] text-sub underline-offset-4 hover:underline">
+                {t("모카 미터기 (카풀 비용 계산)")} <span aria-hidden>↗</span>
+              </a>
+            )}
             <div className="space-y-2">
       <a data-block-id="B048" data-block-name="관리자 페이지" href="/admin" className="flex items-center justify-between rounded-2xl border border-line bg-white px-5 text-[15px] text-sub">
         {t("관리자 페이지")} {Icon.arrow()}
