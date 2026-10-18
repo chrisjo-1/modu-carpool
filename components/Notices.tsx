@@ -45,7 +45,7 @@ export function NoticePopup({ userId, focus }: { userId: string | null; focus: n
           <h2 id="notice-title" className="mt-1 text-xl font-bold leading-snug">{n.title}</h2>
           <p className="num mt-1 text-[13px] text-sub">{day(n.at, lang)}</p>
         </div>
-        <p className="max-h-[50dvh] overflow-y-auto whitespace-pre-wrap break-words text-[15px] leading-relaxed">{n.body}</p>
+        <p className="max-h-[50vh] overflow-y-auto supports-[height:1dvh]:max-h-[50dvh] whitespace-pre-wrap break-words text-[15px] leading-relaxed">{n.body}</p>
         <button data-block-id="B084" data-block-name="공지 확인" className={btnPrimary} onClick={close}>{t("확인")}</button>
       </div>
     </div>

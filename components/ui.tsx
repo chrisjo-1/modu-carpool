@@ -259,12 +259,12 @@ export function Sheet({ title, onClose, children, blockId, locked = false }: { t
   }, []);
   return (
     <div className="fade-in fixed inset-0 z-50 flex items-end justify-center bg-ink/30" role="dialog" aria-modal="true" aria-label={title}>
-      <div data-block-id={blockId} data-block-name={title} className="sheet safe-b flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-[28px] bg-surface shadow-card">
+      <div data-block-id={blockId} data-block-name={title} className="sheet sheet-max safe-b flex w-full max-w-md flex-col rounded-t-[28px] bg-surface shadow-card">
         <div className="flex items-center justify-between px-6 pb-2 pt-4">
           <p className="text-sm font-medium text-sub">{title}</p>
           {!locked && <button onClick={onClose} aria-label="닫기" className="-mr-2 grid w-11 place-items-center text-sub">{Icon.close()}</button>}
         </div>
-        <div className="overflow-y-auto px-6 pb-6">{children}</div>
+        <div className="sheet-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6">{children}</div>
       </div>
     </div>
   );

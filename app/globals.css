@@ -11,6 +11,9 @@ button, a, [role="button"] { min-height: 44px; }
 .safe-b { padding-bottom: env(safe-area-inset-bottom); }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sheet { animation: rise .22s ease-out; }
+/* 창(시트) 높이: dvh를 모르는 예전 태블릿·브라우저는 vh로. 높이가 정해지지 않으면 내용이 화면 밖으로 넘쳐 스크롤이 안 된다. */
+.sheet-max { max-height: 92vh; max-height: 92dvh; }
+.sheet-scroll { -webkit-overflow-scrolling: touch; }
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 .live { animation: pulse-dot 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .sheet, .live { animation: none; } }
