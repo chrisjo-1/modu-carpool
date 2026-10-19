@@ -32,14 +32,34 @@ export async function GET(req: Request) {
   const genIn = new URL(req.url).searchParams.get("gender") ?? "";
   const gender = ["female", "male"].includes(genIn) ? genIn : "";
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
+  const sp = new URL(req.url).searchParams;
+  // 추가 필터: 상태 · 회원 구분 · 가입일 · 최근 접속 · 등록 정보 · 테스트 포함
+  const pick = (k: string, ok: string[]) => (ok.includes(sp.get(k) ?? "") ? (sp.get(k) as string) : "");
+  const status = pick("status", ["normal", "pwreset", "blocked", "withdrawn", "test"]);
+  const origin = pick("origin", ["new", "warp"]);
+  const seen = pick("seen", ["7", "30", "90", "old", "never"]);
+  const has = pick("has", ["photo", "car", "commute"]);
+  const ymd = (k: string) => (/^\d{4}-\d{2}-\d{2}$/.test(sp.get(k) ?? "") ? (sp.get(k) as string) : "");
+  const from = ymd("from");
+  const to = ymd("to");
+  const withTest = sp.get("withTest") === "1" || status === "test";
   try {
     await ensureSchema();
     const sql = db();
     const s = await sql`select
       (select count(*)::int from users) as users,
       (select count(*)::int from users where blocked) as blocked,
+      (select count(*)::int from users where not test and not blocked and withdrawn_at is null and not pw_reset_required) as users_normal,
+      (select count(*)::int from users where not test and not blocked and withdrawn_at is null and pw_reset_required) as users_pwreset,
+      (select count(*)::int from users where not test and withdrawn_at is not null) as users_withdrawn,
+      (select count(*)::int from users where test) as users_test,
       (select count(*)::int from posts) as posts,
+      (select count(*)::int from posts where status = 'open') as posts_open,
+      (select count(*)::int from posts where status = 'progress') as posts_progress,
+      (select count(*)::int from posts where status not in ('open', 'progress')) as posts_closed,
       (select count(*)::int from requests) as requests,
+      (select count(*)::int from requests where status = 'pending') as requests_pending,
+      (select count(*)::int from requests where status = 'declined') as requests_declined,
       (select count(*)::int from requests where status = 'accepted') as accepted,
       (select count(*)::int from reports where status = 'open') as reports`;
     const posts = await sql`
@@ -53,9 +73,31 @@ export async function GET(req: Request) {
              (select count(*)::int from posts where user_id = u.id) as posts,
              (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
              (select count(*)::int from posts where user_id = u.id and role = 'rider') as rider_posts,
-             (select max(created_at) from posts where user_id = u.id) as last_post_at
+             (select max(created_at) from posts where user_id = u.id) as last_post_at,
+             u.withdrawn_at is not null as withdrawn, u.pw_reset_required,
+             count(*) over () as total
       from users u
-      where (${q} = '' or u.email ilike ${like} or u.name ilike ${like})
+      where (${q} = '' or u.email ilike ${like} or u.name ilike ${like} or u.member_code ilike ${like} or coalesce(u.car_no, '') ilike ${like} or coalesce(u.contact, '') ilike ${like})
+        and (${withTest} or not u.test)
+        and (${status} = ''
+          or (${status} = 'normal' and not u.test and not u.blocked and u.withdrawn_at is null and not u.pw_reset_required)
+          or (${status} = 'pwreset' and not u.blocked and u.withdrawn_at is null and u.pw_reset_required)
+          or (${status} = 'blocked' and u.blocked)
+          or (${status} = 'withdrawn' and u.withdrawn_at is not null)
+          or (${status} = 'test' and u.test))
+        and (${origin} = ''
+          or (${origin} = 'warp' and exists (select 1 from legacy_members l where l.matched_user = u.id))
+          or (${origin} = 'new' and not exists (select 1 from legacy_members l where l.matched_user = u.id)))
+        and (${from} = '' or u.created_at >= (nullif(${from}, '')::date::timestamp at time zone 'Asia/Seoul'))
+        and (${to} = '' or u.created_at < ((nullif(${to}, '')::date + 1)::timestamp at time zone 'Asia/Seoul'))
+        and (${seen} = ''
+          or (${seen} in ('7', '30', '90') and u.last_seen >= now() - make_interval(days => (case when ${seen} in ('7', '30', '90') then ${seen} else '0' end)::int))
+          or (${seen} = 'old' and u.last_seen < now() - interval '90 days')
+          or (${seen} = 'never' and u.last_seen is null))
+        and (${has} = ''
+          or (${has} = 'photo' and coalesce(u.photo_v, 0) > 0)
+          or (${has} = 'car' and coalesce(u.car_no, '') <> '')
+          or (${has} = 'commute' and coalesce(u.commute_kind, '') <> ''))
         and (${gender} = '' or u.gender = ${gender})
         and (${role} = ''
           or (${role} = 'driver' and (u.role_pref = 'driver' or coalesce(u.car_no, '') <> '' or exists (select 1 from posts where user_id = u.id and role = 'driver')))
@@ -79,6 +121,7 @@ export async function GET(req: Request) {
              a.name as blocker_name, a.email as blocker_email, b.id as target_id, b.name as target_name, b.email as target_email, b.blocked as target_blocked
       from blocks k join users a on a.id = k.blocker join users b on b.id = k.blocked
       order by k.created_at desc limit 200`;
+    const userTotal = users.length ? Number(users[0].total) : 0;
     const ms = (rows: Record<string, unknown>[]) => rows.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() }));
     return json({
       admin: true,
@@ -86,6 +129,7 @@ export async function GET(req: Request) {
       reports: ms(reports),
       blocks: ms(blocks),
       stats: s[0],
+      userTotal,
       posts: posts.map((p) => ({ ...p, depart_at: new Date(p.depart_at as string).getTime() })),
       users: users.map((u) => ({
         ...u,

@@ -32,6 +32,7 @@ const AdminBanners = dynamic(() => import("@/components/admin/Banners"), { ssr: 
 const AdminBubbles = dynamic(() => import("@/components/admin/Bubbles"), { ssr: false });
 const AdminCallHistory = dynamic(() => import("@/components/admin/CallHistory"), { ssr: false });
 const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false });
+const AdminRequests = dynamic(() => import("@/components/admin/Requests"), { ssr: false });
 // 출퇴근 지도(leaflet)는 탭을 열 때만 불러온다.
 const AdminFlowMap = dynamic(() => import("@/components/admin/FlowMap"), { ssr: false });
 
@@ -40,6 +41,7 @@ type UserRow = {
   id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; lastPost: number | null; posts: number; tier: string; tier_set: string; legacy_stars: number; legacy_reviews: number; legacy_rides: number; is_warp: boolean;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
+  withdrawn: boolean; pw_reset_required: boolean;
   commute_kind: string; commute_origin: string; commute_dest: string; commute_time: string; commute_price: number;
 };
 const ROLE_LABEL: Record<string, string> = { driver: "운전자", rider: "탑승자", "": "미입력" };
@@ -48,11 +50,20 @@ const GENDER_LABEL: Record<string, string> = { female: "여", male: "남", "": "
 type Flag = { id: string; reason: string; detail: string; status?: string; created_at: number; target_id: string; target_name: string; target_email: string; target_blocked: boolean };
 type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
-type Info = { db: boolean; stats: { users: number; blocked: number; posts: number; requests: number; accepted: number; reports: number } | null; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
-type TabId = "stats" | "posts" | "users" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows";
+type Stats = {
+  users: number; blocked: number; users_normal: number; users_pwreset: number; users_withdrawn: number; users_test: number;
+  posts: number; posts_open: number; posts_progress: number; posts_closed: number;
+  requests: number; requests_pending: number; requests_declined: number; accepted: number; reports: number;
+};
+type Info = { db: boolean; stats: Stats | null; userTotal: number; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
+/** 회원 필터(모두 서버에서 전체 회원 대상) */
+type UserFilter = { gen: string; role: string; status: string; origin: string; from: string; to: string; seen: string; has: string; withTest: boolean };
+const NO_FILTER: UserFilter = { gen: "", role: "", status: "", origin: "", from: "", to: "", seen: "", has: "", withTest: false };
+type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
+const fieldBase = "rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const day = (ms: number) => new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 const call = (method: string, url: string, data?: unknown) =>
@@ -65,26 +76,34 @@ export default function Admin() {
   const [info, setInfo] = useState<Info | null>(null);
   const [tab, setTab] = useState<TabId>("posts");
   const [q, setQ] = useState("");
-  const [gen, setGen] = useState("");
-  const [roleF, setRoleF] = useState("");
+  const [uf, setUf] = useState<UserFilter>(NO_FILTER);
+  const [reqStatus, setReqStatus] = useState("");
   const [member, setMember] = useState<UserRow | null>(null);
   const [edit, setEdit] = useState<PostRow | null>(null);
   const [testName, setTestName] = useState("");
-  const [withTest, setWithTest] = useState(false);
   const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null);
   const [sort, setSort] = useState("joined");
   const sortRef = useRef("joined");
-  const filterRef = useRef({ gen: "", role: "" });
+  const filterRef = useRef<UserFilter>(NO_FILTER);
 
   const refresh = useCallback(async (query = "") => {
-    const a = await fetch(`/api/admin?q=${encodeURIComponent(query)}&sort=${sortRef.current}&gender=${filterRef.current.gen}&role=${filterRef.current.role}`).then((r) => r.json()).catch(() => ({ admin: false }));
+    const f = filterRef.current;
+    const qs = new URLSearchParams({ q: query, sort: sortRef.current, gender: f.gen, role: f.role, status: f.status, origin: f.origin, from: f.from, to: f.to, seen: f.seen, has: f.has, withTest: f.withTest ? "1" : "" });
+    const a = await fetch(`/api/admin?${qs}`).then((r) => r.json()).catch(() => ({ admin: false }));
     if (!a.admin) return setState("gate");
-    setInfo({ db: !!a.db, stats: a.stats ?? null, posts: a.posts ?? [], users: a.users ?? [], reports: a.reports ?? [], blocks: a.blocks ?? [] });
+    setInfo({ db: !!a.db, stats: a.stats ?? null, userTotal: Number(a.userTotal ?? 0), posts: a.posts ?? [], users: a.users ?? [], reports: a.reports ?? [], blocks: a.blocks ?? [] });
     setState("in");
   }, []);
   useEffect(() => {
     refresh();
   }, [refresh]);
+  /** 회원 필터를 바꾸고 다시 불러온다 */
+  const setFilter = (patch: Partial<UserFilter>, query = q) => {
+    const next = { ...filterRef.current, ...patch };
+    filterRef.current = next;
+    setUf(next);
+    refresh(query);
+  };
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,17 +204,18 @@ export default function Admin() {
       </div>
 
       <section data-block-id="S091" data-block-name="현황" className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {[
-          ["가입 회원", s ? `${s.users.toLocaleString()}명` : "—"],
-          ["차단 회원", s ? `${s.blocked.toLocaleString()}명` : "—"],
-          ["카풀 글", s ? `${s.posts.toLocaleString()}건` : "—"],
-          ["신청", s ? `${s.requests.toLocaleString()}건` : "—"],
-          ["수락된 매칭", s ? `${s.accepted.toLocaleString()}건` : "—"],
-        ].map(([k, v]) => (
-          <div key={k} className="rounded-2xl border border-line bg-white p-4 shadow-card">
-            <p className="text-sm text-sub">{k}</p>
+        {([
+          ["가입 회원", s ? `${s.users.toLocaleString()}명` : "—", s ? `정상 ${s.users_normal.toLocaleString()} · 비번 미설정 ${s.users_pwreset.toLocaleString()} · 차단 ${(s.users - s.users_normal - s.users_pwreset - s.users_withdrawn - s.users_test).toLocaleString()} · 탈퇴 ${s.users_withdrawn.toLocaleString()} · 테스트 ${s.users_test.toLocaleString()}` : "", () => { setQ(""); setTab("users"); setFilter({ ...NO_FILTER, withTest: true }, ""); }],
+          ["차단 회원", s ? `${s.blocked.toLocaleString()}명` : "—", "", () => { setQ(""); setTab("users"); setFilter({ ...NO_FILTER, status: "blocked", withTest: true }, ""); }],
+          ["카풀 글", s ? `${s.posts.toLocaleString()}건` : "—", s ? `모집 중 ${s.posts_open.toLocaleString()} · 진행 중 ${s.posts_progress.toLocaleString()} · 마감 ${s.posts_closed.toLocaleString()}` : "", () => { setTab("posts"); refresh(q); }],
+          ["신청", s ? `${s.requests.toLocaleString()}건` : "—", s ? `대기 ${s.requests_pending.toLocaleString()} · 수락 ${s.accepted.toLocaleString()} · 거절 ${s.requests_declined.toLocaleString()}` : "", () => { setReqStatus(""); setTab("requests"); }],
+          ["수락된 매칭", s ? `${s.accepted.toLocaleString()}건` : "—", "", () => { setReqStatus("accepted"); setTab("requests"); }],
+        ] as [string, string, string, () => void][]).map(([k, v, sub, go]) => (
+          <button key={k} type="button" data-block-id="B090" data-block-name={`현황 ${k}`} onClick={go} className="flex flex-col justify-start rounded-2xl border border-line bg-white p-4 text-left shadow-card transition hover:border-accent">
+            <p className="flex items-center justify-between text-sm text-sub">{k}<span aria-hidden className="text-xs text-accent">목록 →</span></p>
             <p className="num mt-1 text-xl font-bold">{v}</p>
-          </div>
+            {sub && <p className="num mt-1 text-xs leading-snug text-sub">{sub}</p>}
+          </button>
         ))}
       </section>
       {!info?.db && <p className="rounded-xl bg-warnSoft px-4 py-3 text-sm text-warn">DB가 아직 연결되지 않았습니다. 연결 전에는 현황과 관리 기능이 동작하지 않습니다.</p>}
@@ -204,6 +224,7 @@ export default function Admin() {
         {tabBtn("stats", "통계")}
         {tabBtn("posts", "카풀 글")}
         {tabBtn("users", "회원")}
+        {tabBtn("requests", "신청·매칭")}
         {tabBtn("flags", `신고·차단${s?.reports ? ` (${s.reports})` : ""}`)}
         {tabBtn("feedback", "의견")}
         {tabBtn("notices", "공지")}
@@ -253,22 +274,24 @@ export default function Admin() {
       )}
 
       {tab === "users" && (() => {
-        const rows = (info?.users ?? []).filter((u) => withTest || !u.test);
+        const rows = info?.users ?? [];
+        const total = info?.userTotal ?? 0;
+        const filtered = JSON.stringify(uf) !== JSON.stringify(NO_FILTER) || !!q;
         return (
         <section data-block-id="S093" data-block-name="회원 관리" className="rounded-2xl border border-line bg-white p-5 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">회원 <span className="text-sm font-normal text-sub">{rows.length}명 표시</span></h2>
+            <h2 className="text-lg font-semibold">회원 <span className="text-sm font-normal text-sub">조건에 맞는 회원 <b className="num text-ink">{total.toLocaleString()}명</b>{total > rows.length ? ` · ${rows.length}명 표시` : ""}</span></h2>
             <form onSubmit={(e) => { e.preventDefault(); refresh(q); }} className="flex gap-2">
-              <input data-block-id="F090" className={`${input} w-56`} type="search" placeholder="이메일·닉네임 검색" aria-label="회원 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input data-block-id="F090" className={`${input} w-72`} type="search" placeholder="이메일·닉네임·회원번호·차량번호·연락처" aria-label="회원 검색" value={q} onChange={(e) => setQ(e.target.value)} />
               <button className="rounded-lg bg-bg px-4 text-sm">검색</button>
-              <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-sub"><input type="checkbox" checked={withTest} onChange={(e) => setWithTest(e.target.checked)} />테스트 회원 포함</label>
+              <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-sub"><input type="checkbox" checked={uf.withTest} onChange={(e) => setFilter({ withTest: e.target.checked })} />테스트 회원 포함</label>
             </form>
           </div>
           <div data-block-id="A205" data-block-name="회원 필터" className="mt-3 flex flex-wrap gap-2 text-sm">
             <select
               data-block-id="F094"
               aria-label="회원 정렬"
-              className={`${input} w-auto font-semibold`}
+              className={`${fieldBase} font-semibold`}
               value={sort}
               onChange={(e) => {
                 sortRef.current = e.target.value;
@@ -282,18 +305,50 @@ export default function Admin() {
               <option value="credits">크레딧 많은순</option>
               <option value="posts">글 많은순</option>
             </select>
-            <select data-block-id="F092" aria-label="성별 필터" className={`${input} w-auto`} value={gen} onChange={(e) => { filterRef.current.gen = e.target.value; setGen(e.target.value); refresh(q); }}>
+            <select data-block-id="F092" aria-label="성별 필터" className={fieldBase} value={uf.gen} onChange={(e) => setFilter({ gen: e.target.value })}>
               <option value="">성별: 전체</option>
               <option value="female">여</option>
               <option value="male">남</option>
             </select>
-            <select data-block-id="F093" aria-label="역할 필터" className={`${input} w-auto`} value={roleF} onChange={(e) => { filterRef.current.role = e.target.value; setRoleF(e.target.value); refresh(q); }}>
+            <select data-block-id="F093" aria-label="역할 필터" className={fieldBase} value={uf.role} onChange={(e) => setFilter({ role: e.target.value })}>
               <option value="">역할: 전체</option>
               <option value="driver">운전자</option>
               <option value="rider">탑승자</option>
               <option value="none">미입력</option>
             </select>
-            {(gen || roleF) && <button data-block-id="B099" className="rounded-lg bg-bg px-3 text-sub" onClick={() => { filterRef.current = { gen: "", role: "" }; setGen(""); setRoleF(""); refresh(q); }}>필터 해제</button>}
+            <select data-block-id="F095" aria-label="상태 필터" className={fieldBase} value={uf.status} onChange={(e) => setFilter({ status: e.target.value })}>
+              <option value="">상태: 전체</option>
+              <option value="normal">정상</option>
+              <option value="pwreset">비번 미설정</option>
+              <option value="blocked">차단</option>
+              <option value="withdrawn">탈퇴</option>
+              <option value="test">테스트</option>
+            </select>
+            <select data-block-id="F096" aria-label="회원 구분 필터" className={fieldBase} value={uf.origin} onChange={(e) => setFilter({ origin: e.target.value })}>
+              <option value="">구분: 전체</option>
+              <option value="new">새로 가입</option>
+              <option value="warp">워프에서 이전</option>
+            </select>
+            <select data-block-id="F097" aria-label="최근 접속 필터" className={fieldBase} value={uf.seen} onChange={(e) => setFilter({ seen: e.target.value })}>
+              <option value="">최근 접속: 전체</option>
+              <option value="7">7일 이내</option>
+              <option value="30">30일 이내</option>
+              <option value="90">90일 이내</option>
+              <option value="old">90일 넘음</option>
+              <option value="never">접속 기록 없음</option>
+            </select>
+            <select data-block-id="F098" aria-label="등록 정보 필터" className={fieldBase} value={uf.has} onChange={(e) => setFilter({ has: e.target.value })}>
+              <option value="">등록 정보: 전체</option>
+              <option value="photo">프로필 사진 있음</option>
+              <option value="car">차량 등록</option>
+              <option value="commute">출퇴근 정보 있음</option>
+            </select>
+            <label className="flex items-center gap-1 whitespace-nowrap text-sub">가입일
+              <input data-block-id="F099" type="date" aria-label="가입일 시작" className={fieldBase} value={uf.from} max={uf.to || undefined} onChange={(e) => setFilter({ from: e.target.value })} />
+              ~
+              <input data-block-id="F100" type="date" aria-label="가입일 끝" className={fieldBase} value={uf.to} min={uf.from || undefined} onChange={(e) => setFilter({ to: e.target.value })} />
+            </label>
+            {filtered && <button data-block-id="B099" className="rounded-lg bg-bg px-3 text-sub" onClick={() => { setQ(""); setFilter(NO_FILTER, ""); }}>필터 해제</button>}
           </div>
           {zoom && (
             <div role="dialog" aria-modal="true" aria-label="사진 크게 보기" className="fixed inset-0 z-50 grid place-items-center bg-ink/70 p-4" onClick={() => setZoom(null)}>
@@ -354,7 +409,7 @@ export default function Admin() {
           )}
           <form onSubmit={makeTest} data-block-id="S097" data-block-name="테스트 회원 만들기" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-bg p-3">
             <span className="text-sm font-semibold">테스트 회원</span>
-            <input data-block-id="F091" className={`${input} w-48`} maxLength={20} placeholder="닉네임 (비우면 자동)" aria-label="테스트 회원 닉네임" value={testName} onChange={(e) => setTestName(e.target.value)} />
+            <input data-block-id="F091" className={`${fieldBase} w-48`} maxLength={20} placeholder="닉네임 (비우면 자동)" aria-label="테스트 회원 닉네임" value={testName} onChange={(e) => setTestName(e.target.value)} />
             <button data-block-id="B096" data-block-name="테스트 회원 만들기" className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">만들기</button>
             <span className="text-xs text-sub">테스트 회원의 글도 실제 회원에게 그대로 보입니다.</span>
           </form>
@@ -398,7 +453,7 @@ export default function Admin() {
                     </td>
                     <td className="num whitespace-nowrap px-2 py-2">{u.posts}{u.lastPost && <span className="block text-xs text-sub">{lastSeenText(u.lastPost)}</span>}</td>
                     <td className="num px-2 py-2">{(u.credits ?? 0).toLocaleString("ko-KR")}</td>
-                    <td className="px-2 py-2">{u.blocked ? <span className="font-semibold text-warn">차단됨</span> : "정상"}</td>
+                    <td className="whitespace-nowrap px-2 py-2">{u.withdrawn ? <span className="text-sub">탈퇴</span> : u.blocked ? <span className="font-semibold text-warn">차단됨</span> : u.pw_reset_required ? <span className="text-sub">비번 미설정</span> : "정상"}</td>
                     <td className="whitespace-nowrap px-2 py-2">
                       <button data-block-id="B241" data-block-name="회원 상세 보기" className="mr-3 min-h-0 font-semibold text-accent underline" onClick={() => setMember(u)}>상세</button>
                       {u.test && <button data-block-id="B097" data-block-name="이 회원으로 들어가기" className="mr-3 min-h-0 font-semibold text-accent underline" onClick={() => enter(u)}>이 회원으로 들어가기</button>}
@@ -410,12 +465,13 @@ export default function Admin() {
               </tbody>
             </table>
             {rows.length === 0 && <p className="py-6 text-center text-sub">회원이 없습니다.</p>}
-            <p className="mt-3 text-xs text-sub">고른 정렬 순서로 200명까지 보입니다. 정렬·성별·역할 필터는 전체 회원에서 찾습니다. 운전자 = 희망 역할 운전자·차량번호 등록·운전자 글 작성, 탑승자 = 희망 역할 탑승자·탑승자 글 작성.</p>
+            <p className="mt-3 text-xs text-sub">고른 정렬 순서로 200명까지 보입니다. 검색과 모든 필터는 전체 회원에서 찾고, 위 숫자는 조건에 맞는 전체 인원입니다. 테스트 회원은 '테스트 회원 포함'을 켜거나 상태를 '테스트'로 골라야 보입니다. 운전자 = 희망 역할 운전자·차량번호 등록·운전자 글 작성, 탑승자 = 희망 역할 탑승자·탑승자 글 작성.</p>
           </div>
         </section>
         );
       })()}
 
+      {tab === "requests" && <AdminRequests initial={reqStatus} />}
       {tab === "legacy" && <Legacy />}
       {tab === "credits" && <Credits />}
       {tab === "mail" && <AdminMail />}
