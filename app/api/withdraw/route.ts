@@ -47,11 +47,22 @@ async function request(req: Request, b: Record<string, unknown>) {
   if (await overLimit("withdraw-mail", email, 3, 60)) return json({ error: "확인 메일은 1시간에 3번까지 보낼 수 있어요." }, 429);
   await recordAttempt("withdraw-req-ip", ip);
   await recordAttempt("withdraw-mail", email);
-  const token = randomBytes(32).toString("hex");
-  await db()`insert into withdraw_claims (token_hash, email_norm, kind, expires_at) values (${hashWithdrawToken(token)}, ${email}, ${kind}, now() + interval '72 hours')`;
-  const sent = await sendWithdrawConfirmMail(email, `${siteUrl()}/?withdraw=${token}`, kind).catch(() => false);
+  // 메일 한 통에 탈퇴 확인 링크와(계정이 있으면) 개인정보만 삭제 링크를 함께 넣는다.
+  const withdrawToken = randomBytes(32).toString("hex");
+  await claimToken(withdrawToken, email, "withdraw");
+  let purgeLink: string | undefined;
+  if (s.account) {
+    const purgeToken = randomBytes(32).toString("hex");
+    await claimToken(purgeToken, email, "purge");
+    purgeLink = `${siteUrl()}/?withdraw=${purgeToken}`;
+  }
+  const sent = await sendWithdrawConfirmMail(email, { withdraw: `${siteUrl()}/?withdraw=${withdrawToken}`, purge: purgeLink }, kind).catch(() => false);
   if (!sent) return json({ error: "확인 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요." }, 503);
   return json({ ok: true, sentTo: maskEmail(email), kind });
+}
+
+async function claimToken(token: string, email: string, kind: "withdraw" | "purge") {
+  await db()`insert into withdraw_claims (token_hash, email_norm, kind, expires_at) values (${hashWithdrawToken(token)}, ${email}, ${kind}, now() + interval '72 hours')`;
 }
 
 async function confirm(b: Record<string, unknown>) {

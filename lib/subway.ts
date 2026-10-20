@@ -102,6 +102,10 @@ export type SubwayPlan = {
   timeBack: string;
   carBack: string;
   gateBack: string;
+  /** 출근 방면(다음 역). 비어 있으면 탑승역·하차역으로 정한 기본 방향. */
+  boardNext: string;
+  /** 퇴근 방면(다음 역) */
+  backNext: string;
 };
 
 export const EMPTY_PLAN: SubwayPlan = {
@@ -116,6 +120,8 @@ export const EMPTY_PLAN: SubwayPlan = {
   timeBack: "18:30",
   carBack: "",
   gateBack: "",
+  boardNext: "",
+  backNext: "",
 };
 
 /** 입력 검사. 시범 노선 여부, 역, 칸을 본다. */

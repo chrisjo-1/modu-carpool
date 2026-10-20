@@ -11,7 +11,7 @@
  * - 요일이 하나라도 겹쳐야 한다.
  * - 순위: 정거장 수가 적을수록, 그다음 시각 차이가 작을수록 앞.
  */
-import { routePath } from "./subwayRoute";
+import { routePathVia } from "./subwayRoute";
 
 export const MAX_STOPS = 3;
 export const TIME_WINDOW_MIN = 10;
@@ -32,6 +32,10 @@ export type SeatPlanRow = {
   timeBack: string;
   backCar: string;
   backGate: string;
+  /** 출근 방면(다음 역). 비어 있으면 경로 기본값을 쓴다. */
+  boardNext: string;
+  /** 퇴근 방면(다음 역). 화면 표시용. */
+  backNext: string;
 };
 
 /** 두 등록 사이의 자리 나눔 정보. */
@@ -72,8 +76,8 @@ export function seatPair(taker: SeatPlanRow, giver: SeatPlanRow): SeatPair | nul
   const line = taker.boardLine;
   if (taker.alightLine !== line || giver.boardLine !== line || giver.alightLine !== line) return null;
   if (!daysOverlap(taker.days, giver.days)) return null;
-  const T = routePath(line, taker.boardStation, taker.alightStation);
-  const G = routePath(line, giver.boardStation, giver.alightStation);
+  const T = routePathVia(line, taker.boardStation, taker.alightStation, taker.boardNext);
+  const G = routePathVia(line, giver.boardStation, giver.alightStation, giver.boardNext);
   if (!T || !G || T.length < 2 || G.length < 2) return null;
 
   const i = G.indexOf(T[0]); // 주는 사람 경로에서 받는 사람 탑승역 위치

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 
 type Policy = { dailyCap: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
 type Log = { id: string; created_at: number; kind: string; category: string; to_email: string; subject: string; status: string; error: string; provider_id: string; user_name: string | null };
-type Data = { policy: Policy; defaults: Policy; kinds: string[]; suppressed: number; today: { sent: number; marketing_sent: number; blocked: number; failed: number }; logs: Log[] };
+type Received = { unsub: number; withdrawn: number; purged: number; waiting: number };
+type Data = { policy: Policy; defaults: Policy; kinds: string[]; suppressed: number; received: Received; today: { sent: number; marketing_sent: number; blocked: number; failed: number }; logs: Log[] };
 
 const input = "rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const KIND: Record<string, string> = {
@@ -66,6 +67,25 @@ export default function AdminMail() {
 
       {d && draft && (
         <>
+          <section className="space-y-3 rounded-2xl bg-white p-5 shadow-card">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-[17px] font-bold">메일로 접수된 인원</h2>
+                <p className="text-[13px] text-sub">메일의 수신거부 링크, 탈퇴·개인정보 삭제 확인 링크로 처리된 요청입니다. 이름·전화번호는 내려받지 않습니다.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a href="/api/admin/mail/lists?list=suppressed" className="rounded-xl bg-accent px-4 py-2.5 text-[15px] font-semibold text-white">수신거부 명단 받기 (CSV)</a>
+                <a href="/api/admin/mail/lists?list=claims" className="rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-semibold text-ink">메일 접수 명단 받기 (CSV)</a>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {tile("수신거부 접수", `${d.received.unsub.toLocaleString("ko-KR")}명`, "메일 하단 수신거부 링크")}
+              {tile("탈퇴 확인 완료", `${d.received.withdrawn.toLocaleString("ko-KR")}명`, "메일 링크로 탈퇴")}
+              {tile("개인정보만 삭제", `${d.received.purged.toLocaleString("ko-KR")}명`, "계정 유지, 개인정보 삭제")}
+              {tile("확인 대기", `${d.received.waiting.toLocaleString("ko-KR")}명`, "링크 72시간 안에 누르지 않음")}
+            </div>
+          </section>
+
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {tile("오늘 발송", `${d.today.sent.toLocaleString("ko-KR")}통`)}
             {tile("오늘 광고성 발송", `${d.today.marketing_sent.toLocaleString("ko-KR")} / ${draft.dailyCap.toLocaleString("ko-KR")}`, "하루 한도 대비")}

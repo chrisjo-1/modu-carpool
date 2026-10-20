@@ -51,7 +51,8 @@ export async function GET(req: Request) {
       : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, false as owner_blocked, false as expired,
                          (not p.regular and p.depart_at <= now()) as ended
                   from posts p join users u on u.id = p.user_id
-                  where p.status in ('open', 'progress') and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown) and (p.regular or p.depart_at > now() - interval '7 days')
+                  where p.status in ('open', 'progress') and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown)
+                    and (p.regular or p.depart_at > now() - interval '7 days' or not u.test)
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                   order by p.depart_at asc limit 300`;
     const now = Date.now();

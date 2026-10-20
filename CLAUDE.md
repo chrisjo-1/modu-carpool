@@ -23,6 +23,9 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **회원 프로필의 당근함**(`MemberKarrot` in `components/Member.tsx`, GET `/api/karrot?user=회원ID`): 프로필을 열면 그 회원이 등록한 물건(최근 30개, 첫 사진만)을 2열로 보여 주고, 누르면 당근마켓 글로 이동. 물건이 없으면 숨김. 서로 차단한 사이는 빈 목록.
 - **관리자 현황 카드**(`app/admin/page.tsx` S091): 누르면 목록으로 — 가입 회원→회원 탭(필터 해제·테스트 포함), 차단→상태 '차단', 카풀 글→글 탭, 신청·수락된 매칭→'신청·매칭' 탭(`components/admin/Requests.tsx`, GET `/api/admin/requests?status=`). 카드 아래 내역(정상·비번 미설정·차단·탈퇴·테스트 / 모집·진행·마감 / 대기·수락·거절)은 `/api/admin` stats.
 - **관리자 회원 검색·필터**: 검색어는 이메일·닉네임·회원번호·차량번호·연락처. 필터 `status`(normal·pwreset·blocked·withdrawn·test)·`origin`(new·warp)·`from`/`to`(가입일, KST)·`seen`(7·30·90·old·never)·`has`(photo·car·commute)·`withTest`. 모두 서버에서 전체 대상, `count(*) over()`로 조건에 맞는 전체 인원(`userTotal`)을 함께 돌려준다.
+- **탈퇴 창구**: 내 정보 설정 › 계정 › '탈퇴 신청'(B069)이 `Withdraw`를 메일 주소 채운 채 연다. 확인 메일 한 통에 [탈퇴 확인하기(파랑)]와 계정이 있으면 [개인정보만 삭제(주황)] 두 버튼(`sendWithdrawConfirmMail(to, {withdraw, purge})`, 링크 토큰 두 개).
+- **관리자 메일 접수 명단**: 메일 탭 상단 '메일로 접수된 인원'(수신거부·탈퇴 확인 완료·개인정보 삭제·확인 대기 집계, `/api/admin/mail` `received`)과 CSV 내려받기(`/api/admin/mail/lists?list=suppressed|claims`). 이름·전화는 넣지 않는다.
+- **글 노출 기준**: 실이용자(`not u.test`) 글은 출발 시각이 지나도 목록에 남고 '종료'로 표시(신청 불가). 테스트 계정 글만 출발 7일 뒤 숨김(`/api/posts`).
 - **관리자 회원 정렬**: 회원 목록 필터 줄 맨 앞 선택칸 → GET `/api/admin?sort=` joined(가입일, 기본)·seen(최근 접속)·post(최근 작성)·credits(크레딧 많은)·posts(글 많은). 서버에서 정렬 후 200명. 글 칸 아래에 최근 작성 시각. 성별·역할 필터도 서버(`&gender=`, `&role=`)에서 전체 회원 대상: 운전자 = role_pref driver·차량번호·운전자 글, 탑승자 = role_pref rider·탑승자 글, 미입력 = 셋 다 없음.
 - **도움말**(`lib/help.ts`, DB `help_items`, 관리자 화면에서 수정): 기본 내용은 비었을 때 한 번. 나중에 더하는 내용은 `ADDITIONS` 묶음(key)으로 넣고 `help_seed_log`에 기록 → 묶음마다 한 번, 같은 제목은 건너뜀(관리자가 고치거나 지운 것 보존). 안내 그림은 `public/help/*.svg`·`public/subway/*.webp` 경로를 image에 그대로 쓴다(관리자 저장도 허용).
   자주 묻는 질문 소분류 `help_items.topic`(app 앱 사용 / law 카풀 규제): 사용자 화면은 두 갈래 모두 질문이 있을 때만 칩 [앱 사용 n][카풀 규제 n](localStorage `modu.faqTopic`), 관리자는 필터·편집 칩. 처음 한 번 법·규제 낱말로 기존 질문 자동 분류(`help_seed_log` 'faq-topic-classify'). 규제 기본 질문 6개(묶음 `2026-10-faq-law`)는 **숨김**으로 들어가 관리자 검토 뒤 공개.
@@ -78,6 +81,9 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **크레딧**: 지하철 출퇴근 정보 첫 저장 시 `subway` 2000 1회(`credit_subway_uniq`).
 
 ## 남은 일
+- 지하철 등록: 진행 방향(화살표) 직접 고르기 + 출근·퇴근·기타 구분(시간 제약 없음). 방향을 고르면 매칭도 그 방향을 따를지 결정 필요
+- 발송 흐름 단순화: 내용 저장 → 목록에서 발송 (작성본·초안·템플릿 3갈래 정리) — 방식 결정 대기
+- 수신거부 안내 문구: 현재 '안내(transactional)' 메일에는 붙지 않음 — 대량 안내 메일에도 붙일지 결정 대기
 - 카카오맵 사용 설정(Kakao Developers → 내 애플리케이션 → 카카오맵 ON): 지금 KAKAO_REST_KEY가 403이라 장소 검색·지역 글씨 모두 OSM으로 대신 중. 켜면 코드 수정 없이 카카오로 돌아감 — 추후 반영
 - 커뮤니티(후기·자유·질문): 1안 추천 = 찾기 화면 위 [카풀 | 이야기] 전환, 글이 쌓이면 등록 칸을 떠 있는 + 버튼으로 바꾸고 하단 칸 확보. 카풀 종료 별점 때 "이야기에도 후기 올리기" 연결 — 사용자 결정 대기
 - 등급별 관리자(부관리자): 모두의카풀 회원 계정에 관리자 권한을 주는 방식으로 로그인. 등급·탭 권한 방식은 추후 지시. 각 `/api/admin/*`에서 서버 권한 확인 필요

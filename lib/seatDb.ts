@@ -83,6 +83,9 @@ async function buildSeatSchema(sql: ReturnType<typeof seatSql>) {
     primary key (user_id, day))`;
   // 그림에서 고른 좌석(예: A2-4). lib/subwayPosition.ts parseSeat 형식.
   await sql`alter table seat_spots add column if not exists seat text not null default ''`;
+  // 등록한 방면(다음 역): 출근·퇴근. 매칭은 출근 방면을 쓴다.
+  await sql`alter table seat_plans add column if not exists board_next text not null default ''`;
+  await sql`alter table seat_plans add column if not exists back_next text not null default ''`;
   // 오늘의 힌트 사진(선택, JPEG base64). 오늘 하루치만 두고 이틀 지난 자리 정보와 함께 지운다.
   await sql`alter table seat_spots add column if not exists photo text not null default ''`;
   // 수락된 매칭끼리의 대화(카풀 채팅과 별도 저장소).
@@ -144,6 +147,8 @@ export function toRow(r: Raw): SeatPlanRow {
     timeBack: String(r.time_back),
     backCar: String(r.back_car),
     backGate: String(r.back_gate),
+    boardNext: String(r.board_next ?? ""),
+    backNext: String(r.back_next ?? ""),
   };
 }
 
@@ -161,6 +166,8 @@ export function toSubwayPlan(p: SeatPlanRow): SubwayPlan {
     timeBack: p.timeBack,
     carBack: p.backCar,
     gateBack: p.backGate,
+    boardNext: p.boardNext,
+    backNext: p.backNext,
   };
 }
 
@@ -176,15 +183,15 @@ export async function upsertPlan(userId: string, days: string, p: SubwayPlan): P
   const back = p.back;
   const rows = await seatSql()`insert into seat_plans
       (user_id, days, board_line, board_station, time_go, board_car, board_gate,
-       alight_line, alight_station, back, time_back, back_car, back_gate, status, updated_at)
+       alight_line, alight_station, back, time_back, back_car, back_gate, board_next, back_next, status, updated_at)
     values (${userId}, ${days}, ${p.boardLine}, ${p.board}, ${p.timeGo}, ${p.car}, ${p.gate},
-       ${p.alightLine}, ${p.alight}, ${back}, ${back ? p.timeBack : ""}, ${back ? p.carBack : ""}, ${back ? p.gateBack : ""}, 'active', now())
+       ${p.alightLine}, ${p.alight}, ${back}, ${back ? p.timeBack : ""}, ${back ? p.carBack : ""}, ${back ? p.gateBack : ""}, ${p.boardNext}, ${back ? p.backNext : ""}, 'active', now())
     on conflict (user_id) where status = 'active' do update set
       days = excluded.days, board_line = excluded.board_line, board_station = excluded.board_station,
       time_go = excluded.time_go, board_car = excluded.board_car, board_gate = excluded.board_gate,
       alight_line = excluded.alight_line, alight_station = excluded.alight_station,
       back = excluded.back, time_back = excluded.time_back, back_car = excluded.back_car,
-      back_gate = excluded.back_gate, updated_at = now()
+      back_gate = excluded.back_gate, board_next = excluded.board_next, back_next = excluded.back_next, updated_at = now()
     returning *`;
   return toRow(rows[0] as Raw);
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ALL_LINES, carNumbersOf, DEFAULT_PILOT_LINES, LINE_STATIONS, type LineId, type SubwayPlan } from "@/lib/subway";
 import { DOOR_NUMBERS, positionLabel } from "@/lib/subwayPosition";
 import { field, useT } from "../ui";
+import DirectionToggle from "./DirectionToggle";
 
 /** 지하철 탭의 입력 화면. 탭을 열었을 때만 불러온다(동적 로드). 요일은 상위 시트의 값을 쓴다. */
 export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPlan; setPlan: (p: SubwayPlan) => void; onPilot?: (p: LineId[]) => void; days?: string }) {
@@ -60,13 +61,14 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
       <div className="space-y-2">
         <p className="text-sm font-semibold text-ink">{t("출근")}</p>
         <div className="grid grid-cols-2 gap-3">
-          {lineSelect(plan.boardLine, (boardLine) => set({ boardLine, board: "" }), t("탑승 노선"))}
-          {stationSelect(plan.boardLine, plan.board, (board) => set({ board }), t("탑승역"))}
+          {lineSelect(plan.boardLine, (boardLine) => set({ boardLine, board: "", boardNext: "" }), t("탑승 노선"))}
+          {stationSelect(plan.boardLine, plan.board, (board) => set({ board, boardNext: "" }), t("탑승역"))}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {lineSelect(plan.alightLine, (alightLine) => set({ alightLine, alight: "" }), t("하차 노선"))}
-          {stationSelect(plan.alightLine, plan.alight, (alight) => set({ alight }), t("하차역"))}
+          {lineSelect(plan.alightLine, (alightLine) => set({ alightLine, alight: "", backNext: "" }), t("하차 노선"))}
+          {stationSelect(plan.alightLine, plan.alight, (alight) => set({ alight, backNext: "" }), t("하차역"))}
         </div>
+        <DirectionToggle line={plan.boardLine} station={plan.board} value={plan.boardNext} onChange={(boardNext) => set({ boardNext })} label={t("출근 진행 방면 (화살표)")} />
         <div className="grid grid-cols-2 gap-3">
           <label className="block text-sm text-sub">
             {t("보통 탑승 시각")}
@@ -111,6 +113,7 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
           <p className="text-[14px] leading-relaxed text-sub">
             {t("퇴근 탑승역")}: <span className="font-semibold text-ink">{plan.alight || "-"}</span> · {t("퇴근 하차역")}: <span className="font-semibold text-ink">{plan.board || "-"}</span>
           </p>
+          <DirectionToggle line={plan.alightLine} station={plan.alight} value={plan.backNext} onChange={(backNext) => set({ backNext })} label={t("퇴근 진행 방면 (화살표)")} />
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-sm text-sub">
               {t("퇴근 출발 시각")}

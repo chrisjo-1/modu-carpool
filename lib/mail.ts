@@ -133,9 +133,9 @@ export async function deliverWithStatus(m: Mail): Promise<Status> {
     // 모든 메일에 서비스 주소와 바로가기 버튼을 넣는다.
     const linked = ensureSiteLink(m.html, m.text);
     const html = m.category === "marketing"
-      ? `${linked.html}<div style="max-width:480px;margin:0 auto;padding:12px 4px;font-size:12px;line-height:1.6;color:#8B95A1;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">광고성 메일을 원하지 않으시면 <a href="${url}" style="color:#8B95A1">수신거부</a>를 눌러 주세요.</div>`
+      ? `${linked.html}<div style="max-width:480px;margin:0 auto;padding:12px 4px;font-size:12px;line-height:1.6;color:#8B95A1;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">광고성 메일을 원하지 않으시면 <a href="${url}" style="color:#8B95A1">수신거부</a>를 눌러 주세요. 웹에서도 <a href="${SITE}/unsubscribe" style="color:#8B95A1">${SITE_HOST}/unsubscribe</a>에서 거부할 수 있어요.</div>`
       : linked.html;
-    const text = m.category === "marketing" ? `${linked.text}\n\n수신거부: ${url}` : linked.text;
+    const text = m.category === "marketing" ? `${linked.text}\n\n수신거부: ${url}\n웹 수신거부: ${SITE}/unsubscribe` : linked.text;
     if (process.env.MAIL_DRYRUN === "1") {
       console.log(`[mail] to=${m.to} | ${m.subject}`);
       await record(m, "dryrun", m.testOnly ? "테스트 발송" : "");
@@ -273,21 +273,31 @@ ${quote ? `<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border
 }
 
 /** 탈퇴 확인 링크. 탈퇴 여부 확인 창에서 탈퇴를 신청했을 때 그 메일 주소로 보낸다. */
-export async function sendWithdrawConfirmMail(to: string, link: string, kind: "withdraw" | "purge" = "withdraw") {
-  const purge = kind === "purge";
-  const subject = purge ? "[모두의카풀] 개인정보 삭제 확인" : "[모두의카풀] 탈퇴 신청 확인";
-  const lead = purge
-    ? "계속 이용하시려면 가입 때 받은 개인정보(이름, 전화번호, 연락처, SNS 아이디 등)를 삭제해야 해요. 본인이 맞다면 아래 버튼을 눌러 확인해 주세요. 이메일 주소는 남아요. 확인 후에는 비밀번호 찾기로 새 비밀번호를 정해 주세요."
+/**
+ * 탈퇴 신청 확인 메일. 버튼은 두 가지: 탈퇴 확인하기(파랑), 개인정보만 삭제(주황, 계정이 있을 때만).
+ * links.purge가 없으면(가입 계정 없이 워프 행만 있는 경우) 탈퇴 버튼만 보낸다.
+ */
+export async function sendWithdrawConfirmMail(to: string, links: { withdraw: string; purge?: string }, kind: "withdraw" | "purge" = "withdraw") {
+  const subject = "[모두의카풀] 탈퇴 신청 확인";
+  const lead = links.purge
+    ? "모두의카풀 탈퇴를 신청하셨어요. 본인이 맞다면 아래에서 골라 주세요. 탈퇴 확인하기를 누르면 탈퇴가 끝나고 개인정보는 삭제되며 이메일 주소만 남아요. 계속 이용하고 싶다면 개인정보만 삭제를 누르세요. 계정은 그대로 두고 이름·전화번호·연락처 등만 지워요."
     : "모두의카풀 탈퇴를 신청하셨어요. 본인이 맞다면 아래 버튼을 눌러 탈퇴를 완료해 주세요. 탈퇴하면 개인정보는 삭제되고 이메일 주소만 남아요.";
   const note = "본인이 요청하지 않았다면 이 메일을 무시해 주세요. 링크는 72시간 동안 쓸 수 있어요.";
+  const btnBase = "display:inline-block;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 18px;border-radius:12px";
+  const buttons = links.purge
+    ? `<a href="${esc(links.withdraw)}" style="${btnBase};background:#2F6BFF;margin:0 8px 8px 0">탈퇴 확인하기</a><a href="${esc(links.purge)}" style="${btnBase};background:#E8590C;margin:0 0 8px 0">개인정보만 삭제</a>`
+    : `<a href="${esc(links.withdraw)}" style="${btnBase};background:#2F6BFF">탈퇴 확인하기</a>`;
   const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
 <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
 <p style="margin:0 0 16px;font-size:16px;line-height:1.6">${lead}</p>
-<a href="${esc(link)}" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">${purge ? "개인정보 삭제 확인하기" : "탈퇴 확인하기"}</a>
+<div>${buttons}</div>
 <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${note}</p>
 </div></div>`;
-  return deliver({ kind, category: "transactional", to, subject, html, text: `${lead}\n\n${link}\n\n${note}` });
+  const text = links.purge
+    ? `${lead}\n\n탈퇴 확인: ${links.withdraw}\n개인정보만 삭제: ${links.purge}\n\n${note}`
+    : `${lead}\n\n${links.withdraw}\n\n${note}`;
+  return deliver({ kind, category: "transactional", to, subject, html, text });
 }
 
 /** 이용 정지 안내 메일. 운영 정책 위반으로 로그인과 글쓰기가 막혔을 때 보낸다. 알림 수신 설정과 관계없이 보낸다. */

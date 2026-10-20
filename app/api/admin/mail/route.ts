@@ -35,6 +35,12 @@ export async function GET(req: Request) {
              count(*) filter (where status = 'failed')::int as failed
       from mail_log where created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
     const sup = await sql`select count(*)::int as n from mail_suppressions`;
+    // 메일로 접수된 요청: 수신거부 링크, 탈퇴·개인정보 삭제 확인 링크(주소 기준 중복 없이)
+    const rec = await sql`select
+        (select count(*)::int from mail_suppressions where reason = 'unsubscribe') as unsub,
+        (select count(distinct email_norm)::int from withdraw_claims where kind = 'withdraw' and used) as withdrawn,
+        (select count(distinct email_norm)::int from withdraw_claims where kind = 'purge' and used) as purged,
+        (select count(distinct email_norm)::int from withdraw_claims where not used and expires_at > now()) as waiting`;
     const policy = await getPolicy();
     return json({
       policy,
@@ -42,6 +48,7 @@ export async function GET(req: Request) {
       kinds: KINDS,
       today: today[0],
       suppressed: sup[0].n,
+      received: { unsub: rec[0].unsub, withdrawn: rec[0].withdrawn, purged: rec[0].purged, waiting: rec[0].waiting },
       logs: rows.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
     });
   } catch (e) {

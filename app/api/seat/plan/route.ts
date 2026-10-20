@@ -5,6 +5,7 @@ import { grant } from "@/lib/credits";
 import { seatPush } from "@/lib/seatNotify";
 import { planProblem, type SubwayPlan } from "@/lib/subway";
 import { toMinutes } from "@/lib/seatMatch";
+import { headingsAt } from "@/lib/subwayRoute";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +48,14 @@ export async function PUT(req: Request) {
     timeBack: text(b.timeBack, 5),
     carBack: text(b.carBack, 2),
     gateBack: text(b.gateBack, 8),
+    boardNext: text(b.boardNext, 20),
+    backNext: text(b.backNext, 20),
   };
   const problem = planProblem(p, cfg.pilot);
   if (problem) return json({ error: problem }, 400);
+  // 방면은 탑승역 바로 옆 역이어야 한다(아니면 비워서 기본 방향을 쓴다).
+  if (p.boardNext && !headingsAt(p.boardLine, p.board).some((h) => h.next === p.boardNext)) p.boardNext = "";
+  if (p.back && p.backNext && !headingsAt(p.alightLine, p.alight).some((h) => h.next === p.backNext)) p.backNext = "";
   if (toMinutes(p.timeGo) === null) return json({ error: "출근 탑승 시각을 확인해 주세요." }, 400);
   if (p.back && toMinutes(p.timeBack) === null) return json({ error: "퇴근 출발 시각을 확인해 주세요." }, 400);
 

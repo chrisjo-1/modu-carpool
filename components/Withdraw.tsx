@@ -2,6 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Sheet, api, btnGhost, btnPrimary, field } from "./ui";
 
+/** 개인정보만 삭제 버튼(주황). 탈퇴 버튼(파랑)과 구분한다. */
+const btnOrange = "w-full rounded-2xl bg-[#E8590C] px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
+
 type State = "active" | "withdrawn" | "none";
 type Kind = "withdraw" | "purge";
 
@@ -9,10 +12,11 @@ type Kind = "withdraw" | "purge";
  * 탈퇴 여부 확인 창(한국어만 제공).
  * - 기본: 메일 주소를 넣으면 상태를 알려 준다. 이용 중이면 탈퇴 신청, 또는 (가입 계정이 있으면) 계속 이용하며 개인정보만 삭제를 고른다.
  * - token이 있으면: 메일의 확인 링크(?withdraw=토큰)로 들어온 것이므로 그 처리를 완료한다.
+ * - initialEmail이 있으면(로그인한 회원이 내 정보 설정에서 열었을 때): 메일 주소를 채우고 바로 상태를 확인한다.
  * 워프 기존 회원과 모두의카풀 가입 회원 모두 이 창구를 쓴다.
  */
-export default function Withdraw({ token = "", onClose }: { token?: string; onClose: () => void }) {
-  const [email, setEmail] = useState("");
+export default function Withdraw({ token = "", initialEmail = "", onClose }: { token?: string; initialEmail?: string; onClose: () => void }) {
+  const [email, setEmail] = useState(initialEmail);
   const [state, setState] = useState<State | "">("");
   const [account, setAccount] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,6 +35,17 @@ export default function Withdraw({ token = "", onClose }: { token?: string; onCl
       else setMsg(r.error);
     });
   }, [token]);
+
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (token || !initialEmail || autoChecked.current) return;
+    autoChecked.current = true;
+    api<{ state: State; account: boolean }>("/api/withdraw", "POST", { action: "check", email: initialEmail }).then((r) => {
+      if (!r.ok) return setMsg(r.error);
+      setState(r.data.state);
+      setAccount(r.data.account);
+    });
+  }, [token, initialEmail]);
 
   if (token) {
     return (
@@ -95,7 +110,7 @@ export default function Withdraw({ token = "", onClose }: { token?: string; onCl
             </div>
             {account && (
               <div className="space-y-2">
-                <button data-block-id="B068" data-block-name="개인정보만 삭제하기" className={btnGhost} disabled={busy} onClick={() => request("purge")}>계속 이용하며 개인정보만 삭제</button>
+                <button data-block-id="B068" data-block-name="개인정보만 삭제하기" className={btnOrange} disabled={busy} onClick={() => request("purge")}>계속 이용하며 개인정보만 삭제</button>
                 <p className="text-[13px] leading-relaxed text-sub">계정은 그대로 두고 이름·전화번호·연락처 등 개인정보만 삭제해요. 이메일 주소는 남아요. 삭제 뒤에는 비밀번호를 다시 정해야 로그인할 수 있고, 글을 올릴 때 연락처를 다시 입력해야 해요.</p>
               </div>
             )}
@@ -103,7 +118,7 @@ export default function Withdraw({ token = "", onClose }: { token?: string; onCl
         )}
         {sent && (
           <p className="rounded-xl bg-accentSoft px-4 py-3 text-[15px] leading-relaxed text-accent">
-            {sent.to}(으)로 확인 메일을 보냈어요. 메일의 링크를 눌러 {sent.kind === "purge" ? "개인정보 삭제" : "탈퇴"}를 완료해 주세요.
+            {sent.to}(으)로 확인 메일을 보냈어요. 메일의 버튼으로 탈퇴 또는 개인정보만 삭제를 완료해 주세요.
           </p>
         )}
         {msg && <p role="alert" className="text-[14px] text-warn">{msg}</p>}

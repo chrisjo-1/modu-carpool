@@ -152,6 +152,37 @@ export function terminalOf(line: string, a: string, next: string): string | null
 export type Heading = { next: string; dir: Dir; terminal: string | null };
 
 /** 한 역에서 갈 수 있는 방향들(다음역 기준). 칸 안내의 방향 버튼에 쓴다. */
+/**
+ * 고른 방면(다음 역)을 첫 걸음으로 하는 경로. 2호선처럼 두 방향으로 갈 수 있을 때 쓴다.
+ * next가 없거나 그 역과 이어지지 않으면 기본 경로(routePath)를 돌려준다.
+ */
+export function routePathVia(line: string, from: string, to: string, next?: string): string[] | null {
+  const g = graph(line);
+  if (!next || !g || from === to) return routePath(line, from, to);
+  if (!(g.get(from) ?? []).some((e) => e.to === next)) return routePath(line, from, to);
+  if (next === to) return [from, to];
+  const prev = new Map<string, string>([[from, ""], [next, ""]]);
+  const queue = [next];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const e of g.get(cur) ?? []) {
+      if (prev.has(e.to)) continue;
+      prev.set(e.to, cur);
+      if (e.to === to) {
+        const path = [to];
+        let p = cur;
+        while (p) {
+          path.unshift(p);
+          p = prev.get(p)!;
+        }
+        return [from, ...path];
+      }
+      queue.push(e.to);
+    }
+  }
+  return routePath(line, from, to);
+}
+
 export function headingsAt(line: string, station: string): Heading[] {
   const g = graph(line);
   const edges = g?.get(station);

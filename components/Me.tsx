@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { LANGS, type Lang } from "@/lib/i18n";
 import { CONTACT_TYPES, HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type User } from "@/lib/types";
 import AuthForm from "./AuthForm";
@@ -13,6 +14,7 @@ import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
 import ChangePassword from "./ChangePassword";
+const Withdraw = dynamic(() => import("./Withdraw"), { ssr: false });
 import { Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 import { shrinkCar } from "./CarInput";
 
@@ -85,6 +87,7 @@ export default function Me({
   const [zoom, setZoom] = useState(false);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const regular = mine.find((p) => p.regular) ?? null;
 
@@ -392,6 +395,7 @@ export default function Me({
         </div>
       )}
       {noticesOpen && <NoticeList onClose={() => setNoticesOpen(false)} />}
+      {withdrawOpen && user && <Withdraw initialEmail={user.email} onClose={() => setWithdrawOpen(false)} />}
       {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} onClose={() => setFeedbackOpen(false)} />}
       {helpOpen && <HelpSheet onClose={() => setHelpOpen(false)} onOpenFeedback={() => { setHelpOpen(false); setFeedbackOpen(true); }} />}
       {settingsOpen && (
@@ -441,6 +445,10 @@ export default function Me({
               <div className="space-y-2">
               <h3 className="px-1 text-sm font-semibold text-sub">{t("계정")}</h3>
               <ChangePassword toast={toast} />
+              <button type="button" data-block-id="B069" data-block-name="탈퇴 신청 열기" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card" onClick={() => { setSettingsOpen(false); setWithdrawOpen(true); }}>
+                <span><b>{t("탈퇴 신청")}</b><span className="block text-[13px] text-sub">{t("탈퇴하거나, 계속 이용하며 개인정보만 지울 수 있어요.")}</span></span>
+                <span className="text-sub">{Icon.arrow()}</span>
+              </button>
               </div>
             )}
             {user && (

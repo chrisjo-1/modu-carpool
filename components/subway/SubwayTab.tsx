@@ -38,6 +38,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
   const [chatAsk, setChatAsk] = useState(0);
   const [today, setTodayState] = useState<Today | null>(null);
   const [editing, setEditing] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
   useEffect(() => {
     try {
       const v = JSON.parse(localStorage.getItem(TODAY_KEY) ?? "null") as Today | null;
@@ -107,7 +108,12 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
   }
 
   const lineName = plan ? ALL_LINES.find((l) => l.id === plan.boardLine)?.name ?? "" : "";
-  const planHeading = plan && plan.boardLine === plan.alightLine ? headingFor(plan.boardLine, plan.board, plan.alight) : null;
+  // 등록한 방면이 있으면 그 방면을, 없으면 탑승역·하차역으로 정한 기본 방향을 쓴다.
+  const planHeading = plan
+    ? plan.boardNext
+      ? headingsAt(plan.boardLine, plan.board).find((h) => h.next === plan.boardNext) ?? null
+      : plan.boardLine === plan.alightLine ? headingFor(plan.boardLine, plan.board, plan.alight) : null
+    : null;
   // 오늘만 바꾼 탑승역·방향·시간(이 기기). 없으면 등록한 출퇴근 정보를 쓴다.
   const board = today?.board || plan?.board || "";
   const timeNow = today?.time || plan?.timeGo || "";
@@ -147,6 +153,16 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
               <TodayEditor
                 line={plan.boardLine}
                 init={{ board, next: heading?.next ?? "", time: timeNow }}
+                canSaveToPlan={!!plan && board === plan.board}
+                onSaveToPlan={async (v) => {
+                  if (!plan) return;
+                  const r = await api<{ plan: SubwayPlan; days: string }>("/api/seat/plan", "PUT", { ...plan, timeGo: v.time, boardNext: v.next, days });
+                  if (!r.ok) return setSaveMsg(r.error);
+                  setPlan(r.data.plan);
+                  setToday(null);
+                  setEditing(false);
+                  setSaveMsg("내 출근 정보에 저장했어요.");
+                }}
                 onSave={(v) => {
                   setToday({ date: kstDate(), ...v });
                   setEditing(false);
@@ -159,6 +175,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
               />
             )}
           </div>
+          {saveMsg && <p role="status" className="px-1 text-[13px] text-violet">{saveMsg}</p>}
 
           <Segment
             label={t("지하철 메뉴")}
@@ -219,7 +236,7 @@ function EmptyPlan() {
 }
 
 /** '오늘 출근' 카드 안에서 오늘의 탑승역·방향·시간을 고친다(이 기기, 오늘 하루). */
-function TodayEditor({ line, init, onSave, onReset, changed }: { line: string; init: { board: string; next: string; time: string }; onSave: (v: { board: string; next: string; time: string }) => void; onReset: () => void; changed: boolean }) {
+function TodayEditor({ line, init, onSave, onReset, changed, canSaveToPlan, onSaveToPlan }: { line: string; init: { board: string; next: string; time: string }; onSave: (v: { board: string; next: string; time: string }) => void; onReset: () => void; changed: boolean; canSaveToPlan: boolean; onSaveToPlan: (v: { board: string; next: string; time: string }) => void }) {
   const t = useT();
   const [board, setBoard] = useState(init.board);
   const [next, setNext] = useState(init.next);
@@ -260,9 +277,12 @@ function TodayEditor({ line, init, onSave, onReset, changed }: { line: string; i
           </div>
         </div>
       )}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button type="button" className="flex-1 rounded-xl bg-violet py-2.5 text-[14px] font-semibold text-white disabled:opacity-40" disabled={!board || !/^\d{1,2}:\d{2}$/.test(time)} onClick={() => onSave({ board, next: nextOk, time })}>
           {t("오늘만 이렇게 보기")}
+        </button>
+        <button type="button" className="flex-1 rounded-xl border border-violet bg-white py-2.5 text-[14px] font-semibold text-violet disabled:opacity-40" disabled={!canSaveToPlan || !/^\d{1,2}:\d{2}$/.test(time)} onClick={() => onSaveToPlan({ board, next: nextOk, time })}>
+          {t("저장 (내 출근 정보에도 반영)")}
         </button>
         {changed && (
           <button type="button" className="rounded-xl bg-white px-3 py-2.5 text-[14px] text-sub" onClick={onReset}>
@@ -270,7 +290,9 @@ function TodayEditor({ line, init, onSave, onReset, changed }: { line: string; i
           </button>
         )}
       </div>
-      <p className="text-[12px] leading-relaxed text-sub">{t("오늘 하루 이 기기에서만 바뀌어요. 매칭에 쓰는 출퇴근 정보는 내 출퇴근 정보에서 고쳐 주세요.")}</p>
+      <p className="text-[12px] leading-relaxed text-sub">
+        {canSaveToPlan ? t("오늘만 이렇게 보기는 이 기기에서만 바뀌어요. 저장하면 매칭에 쓰는 출근 방면과 시각도 함께 바뀝니다.") : t("탑승역을 바꾸었다면 칸까지 골라야 하므로, 내 출퇴근 정보에서 저장해 주세요.")}
+      </p>
     </div>
   );
 }
