@@ -279,15 +279,19 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                       onPosture={(p) => setToday({ ...today, posture: p })}
                       onSent={() => setReloadKey((k) => k + 1)}
                     />
-                    <div className="pt-4">
-                      <RidePing line={plan.boardLine} from={board} />
-                    </div>
-                    {/* 착의 메모는 앉은 분만 남긴다. */}
-                    {posture === "sit" && (
-                      <div className="pt-4">
-                        <ClothesMemo />
+                    {/* 기본은 '앉았어요' 한 번이면 된다. 현재역·착의 메모는 필요할 때만 펼친다. */}
+                    <details className="group pt-4" data-block-id="C133" data-block-name="더 알리기 (선택)">
+                      <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                        {t("더 알리기 (선택)")}
+                        <span className="text-[12px] font-normal text-sub group-open:hidden">{t("펼치기")}</span>
+                        <span className="hidden text-[12px] font-normal text-sub group-open:inline">{t("접기")}</span>
+                      </summary>
+                      <div className="space-y-3 pt-3">
+                        <RidePing line={plan.boardLine} from={board} />
+                        {/* 착의 메모는 앉은 분만 남긴다. */}
+                        {posture === "sit" && <ClothesMemo />}
                       </div>
-                    )}
+                    </details>
                     <div className="pt-4">
                       <p className="pb-2 text-[13px] text-sub">{t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요")}</p>
                       <SeatSpotCard
