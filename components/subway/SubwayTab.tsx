@@ -9,7 +9,8 @@ import { headingsAt } from "@/lib/subwayRoute";
 import SubwayCarGuide from "./SubwayCarGuide";
 import SubwayMatches from "./SubwayMatches";
 import SeatSpotCard from "./SeatSpotCard";
-import SubwayCall, { type Posture } from "./SubwayCall";
+import SubwayCall, { type Posture, type SeatKey } from "./SubwayCall";
+import { slotOf } from "@/lib/seatCar";
 import RidePing from "./RidePing";
 import ClothesMemo from "./ClothesMemo";
 import DirectionToggle from "./DirectionToggle";
@@ -300,6 +301,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                     posture={posture}
                     onPosture={(p) => setToday({ ...today, posture: p })}
                     onSent={() => setReloadKey((k) => k + 1)}
+                    seatKey={{ line: plan.boardLine, station: board, dir: heading?.dir ?? "up", dow: String(dayNow), slot: slotOf(timeNow) }}
                   />
                   {/* 현재역·착의 메모는 필요할 때만 펼친다. */}
                   <details className="group" data-block-id="C133" data-block-name="더 알리기 (선택)">
