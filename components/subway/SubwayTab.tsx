@@ -276,7 +276,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                     <>
                       <div>
                         <p className="pb-2 text-[13px] text-sub">{t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요")}</p>
-                        <SeatSpotCard line={lineNow} next={heading?.next} presetCar={spotCar} onChat={() => setChatAsk((k) => k + 1)} />
+                        <SeatSpotCard line={lineNow} next={heading?.next} presetCar={spotCar} hideCar onChat={() => setChatAsk((k) => k + 1)} />
                       </div>
                       <details className="group" data-block-id="C133" data-block-name="현재역 다시 알리기 (선택)">
                         <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-semibold text-ink [&::-webkit-details-marker]:hidden">

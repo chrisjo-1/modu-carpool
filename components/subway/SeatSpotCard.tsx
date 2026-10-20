@@ -34,7 +34,7 @@ async function shrink(file: File): Promise<string> {
  * 오늘 앉은 자리: 칸을 고르고 차량 그림에서 좌석을 누른다. 오늘의 힌트(옷 색깔·소지품)를 함께 남긴다.
  * 수락된 상대에게만 보이고, 저장하면 상대에게 알린다. 하루만 쓰고 다음 날에는 다시 입력한다.
  */
-export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onSaved, presetCar = "" }: { line: LineId; next?: string; onChat?: () => void; autoEdit?: boolean; onSaved?: () => void; presetCar?: string }) {
+export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onSaved, presetCar = "", hideCar = false }: { line: LineId; next?: string; onChat?: () => void; autoEdit?: boolean; onSaved?: () => void; presetCar?: string; hideCar?: boolean }) {
   const t = useT();
   const [spot, setSpot] = useState<Spot | null>(null);
   const [edit, setEdit] = useState(false);
@@ -81,6 +81,19 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
   };
 
   const save = async () => {
+    if (!car && hideCar) {
+      // 칸은 위 '앉았어요'에서만 고른다. 칸 없이 힌트만 저장할 수 있다.
+      setBusy(true);
+      const r = await api<{ spot: Spot }>("/api/seat/spot", "PUT", { memoOnly: true, memo, ...(photo !== undefined ? { photo } : {}) });
+      setBusy(false);
+      if (!r.ok) return setMsg(t(r.error));
+      setSpot(r.data.spot);
+      setPhoto(undefined);
+      setPhotoVer((v) => v + 1);
+      setMsg(t("힌트를 저장했어요. 위에서 앉은 칸을 고르면 좌석도 표시할 수 있어요."));
+      onSaved?.();
+      return;
+    }
     if (!car) return setMsg(t("칸 번호를 골라 주세요."));
     // 좌석은 선택: 그림으로 짚기 어려우면 칸만 저장하고 대화로 알린다.
     setBusy(true);
@@ -130,13 +143,15 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
       )}
       {edit && (
         <div className="space-y-4">
-          {presetCar && car === presetCar ? (
+          {hideCar ? (
+            car ? <p className="text-sm text-sub">{t("탄 칸")} <b className="num text-ink">{car}{t("번째 칸")}</b></p> : null
+          ) : presetCar && car === presetCar ? (
             <p className="text-sm text-sub">
-              {t("① 탄 칸")} <b className="num text-ink">{car}{t("번째 칸")}</b>
+              {t("탄 칸")} <b className="num text-ink">{car}{t("번째 칸")}</b>
             </p>
           ) : (
           <label className="block w-1/2 text-sm text-sub">
-            {t("① 탄 칸")}
+            {t("탄 칸")}
             <select className={`${field} mt-1`} value={car} onChange={(e) => setCar(e.target.value)}>
               <option value="">{t("고르세요")}</option>
               {carNumbersOf(line).map((c) => (
@@ -146,12 +161,12 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
           </label>
           )}
           <div className="space-y-1.5">
-            <p className="text-sm text-sub">{t("② 그림에서 앉은 좌석 누르기 (선택)")}</p>
-            <SeatMap value={seat} onChange={setSeat} car={car} next={next} />
+            <p className="text-sm text-sub">{t("그림에서 앉은 좌석 누르기 (선택)")}</p>
+            {car || !hideCar ? <SeatMap value={seat} onChange={setSeat} car={car} next={next} /> : <p className="text-[13px] text-sub">{t("위에서 앉은 칸을 고르면 좌석을 표시할 수 있어요.")}</p>}
           </div>
           {onChat && <ChatInstead onChat={onChat} />}
           <div className="space-y-2">
-            <p className="text-sm text-sub">{t("③ 오늘의 힌트 (선택)")}</p>
+            <p className="text-sm text-sub">{t("오늘의 힌트 (선택)")}</p>
             <textarea className={field} rows={2} maxLength={80} placeholder={t("예: 네이비 패딩, 검정 백팩, 책 읽는 중")} value={memo} onChange={(e) => setMemo(e.target.value)} />
             <div className="flex items-center gap-3">
               {(photo || (photo === undefined && spot?.photo)) ? (
