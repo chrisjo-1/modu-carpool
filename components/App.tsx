@@ -48,7 +48,15 @@ export default function App() {
   // 지하철 탭을 보여 줄지(앉아가기 열림 또는 관리자). 첫 화면을 막지 않도록 뒤에서 불러온다.
   const [seatVisible, setSeatVisible] = useState(false);
   useEffect(() => {
-    fetch("/api/seat/config").then((r) => r.json()).then((j) => setSeatVisible(!!j.visible)).catch(() => {});
+    fetch("/api/seat/config")
+      .then((r) => r.json())
+      .then((j) => {
+        const visible = !!j.visible;
+        setSeatVisible(visible);
+        // 새로고침 때 지하철 탭을 복원했는데 메뉴가 꺼져 있으면 빈 화면 대신 홈으로 보낸다.
+        if (!visible) setTab((cur) => (cur === "subway" ? "home" : cur));
+      })
+      .catch(() => {});
   }, []);
   // 홈 상단 주제목(관리자 > 사이트에서 바꾼 문구). 못 받으면 기본 문구.
   const [slogan, setSlogan] = useState("같은 방향, 같이 가요");
@@ -219,7 +227,8 @@ export default function App() {
   useEffect(() => {
     try {
       const savedTab = sessionStorage.getItem("modu.tab") as Tab | null;
-      if (savedTab === "chat" || savedTab === "me") setTab(savedTab);
+      // 지하철은 설정 확인 뒤에 꺼져 있으면 홈으로 돌린다(아래 seat/config 처리).
+      if (savedTab === "chat" || savedTab === "me" || savedTab === "subway") setTab(savedTab);
     } catch {
       /* 무시 */
     }
