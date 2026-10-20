@@ -34,7 +34,7 @@ async function shrink(file: File): Promise<string> {
  * 오늘 앉은 자리: 칸을 고르고 차량 그림에서 좌석을 누른다. 오늘의 힌트(옷 색깔·소지품)를 함께 남긴다.
  * 수락된 상대에게만 보이고, 저장하면 상대에게 알린다. 하루만 쓰고 다음 날에는 다시 입력한다.
  */
-export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onSaved }: { line: LineId; next?: string; onChat?: () => void; autoEdit?: boolean; onSaved?: () => void }) {
+export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onSaved, presetCar = "" }: { line: LineId; next?: string; onChat?: () => void; autoEdit?: boolean; onSaved?: () => void; presetCar?: string }) {
   const t = useT();
   const [spot, setSpot] = useState<Spot | null>(null);
   const [edit, setEdit] = useState(false);
@@ -57,7 +57,7 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
       // 칸이 없으면(탑승 전 착의 메모만 남긴 경우) 칸부터 고르게 하고, 메모는 그대로 보여 준다.
       // autoEdit(수락 직후 메모창)이면 기존 값을 채운 채 바로 편집으로 연다.
       if (!sp || !sp.car || autoEdit) {
-        setCar(sp?.car ?? "");
+        setCar(presetCar || sp?.car || "");
         setSeat(sp?.seat ?? "");
         setMemo(sp?.memo ?? "");
         setEdit(true);
@@ -65,6 +65,11 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
       setLoaded(true);
     });
   }, []);
+
+  // 앉았어요 뒤에 고른 칸은 그대로 쓴다(다시 묻지 않는다).
+  useEffect(() => {
+    if (presetCar) setCar(presetCar);
+  }, [presetCar]);
 
   const startEdit = () => {
     setCar(spot?.car ?? "");
@@ -125,6 +130,11 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
       )}
       {edit && (
         <div className="space-y-4">
+          {presetCar && car === presetCar ? (
+            <p className="text-sm text-sub">
+              {t("① 탄 칸")} <b className="num text-ink">{car}{t("번째 칸")}</b>
+            </p>
+          ) : (
           <label className="block w-1/2 text-sm text-sub">
             {t("① 탄 칸")}
             <select className={`${field} mt-1`} value={car} onChange={(e) => setCar(e.target.value)}>
@@ -134,6 +144,7 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
               ))}
             </select>
           </label>
+          )}
           <div className="space-y-1.5">
             <p className="text-sm text-sub">{t("② 그림에서 앉은 좌석 누르기 (선택)")}</p>
             <SeatMap value={seat} onChange={setSeat} car={car} next={next} />

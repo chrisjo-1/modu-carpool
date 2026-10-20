@@ -1,3 +1,4 @@
+import { LINE_STATIONS } from "./subway";
 import { neon } from "@neondatabase/serverless";
 import type { SubwayPlan } from "./subway";
 import { FREE_PAIR, rankAhead, rankBefore, rankCandidates, seatPair, tripView, tripViews, vacatePair, type Candidate, type SeatPair, type SeatPlanRow, type Trip } from "./seatMatch";
@@ -221,12 +222,32 @@ export function todayDigit(): string {
 }
 
 /** 오늘 요일로 좁힌 내 방향 여정. 그 방향 정보가 없으면 null. */
-export async function todayPlan(userId: string, trip: Trip = "go"): Promise<SeatPlanRow | null> {
+/** 지하철 화면에서 오늘만 바꾼 노선·승차역·하차역·진행 방면. 등록 정보 대신 쓴다. */
+export type TodayRide = { line: string; board: string; alight: string; next: string };
+
+/** 요청 본문·주소에서 오늘 값을 읽는다. 노선의 역이 아니면 무시한다. */
+export function parseTodayRide(v: unknown): TodayRide | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const line = String(o.line ?? "");
+  const board = String(o.board ?? "");
+  const alight = String(o.alight ?? "");
+  const next = String(o.next ?? "");
+  const st = LINE_STATIONS[line] ?? [];
+  if (!st.includes(board) || !st.includes(alight) || board === alight) return null;
+  return { line, board, alight, next: st.includes(next) ? next : "" };
+}
+
+export async function todayPlan(userId: string, trip: Trip = "go", ride: TodayRide | null = null): Promise<SeatPlanRow | null> {
   const me = await getMyPlan(userId);
   if (!me) return null;
-  // 요일은 내 쪽에서 따지지 않는다(앉아 있는 지금이 기준). 상대는 오늘 요일이 등록돼 있어야 맞는다.
+  // 요일은 내 쪽에서 따지지 않는다(앉아 있는 지금이 기준).
   const v = tripView(me, trip);
-  return v ? { ...v, days: todayDigit() } : null;
+  if (!v) return null;
+  if (!ride) return { ...v, days: todayDigit() };
+  // 오늘 바꾼 노선·역이 있으면 그 값으로 본다(시각은 지금).
+  const now = new Date(Date.now() + 9 * 3600_000).toISOString().slice(11, 16);
+  return { ...v, days: todayDigit(), boardLine: ride.line, alightLine: ride.line, boardStation: ride.board, alightStation: ride.alight, boardNext: ride.next, timeGo: now };
 }
 
 /** 못 앉았을 때 목록: 내가 타고 있는 동안 중간에 자리를 비우는 분들. */
@@ -247,10 +268,10 @@ export async function listAhead(me: SeatPlanRow): Promise<Candidate[]> {
 
 /** 후보에게 앉아가기 요청을 보낸다. 규칙에 맞는 후보에게만 보낼 수 있다. */
 export type ReqMode = "auto" | "ahead" | "before";
-export async function createRequest(fromUser: string, toPlanId: number, kind: "manual" | "call" = "manual", mode: ReqMode = "auto", myTrip: Trip = "go", theirTrip: Trip = "go"): Promise<{ ok: true; id: string; toUser: string } | { ok: false; error: string }> {
+export async function createRequest(fromUser: string, toPlanId: number, kind: "manual" | "call" = "manual", mode: ReqMode = "auto", myTrip: Trip = "go", theirTrip: Trip = "go", ride: TodayRide | null = null): Promise<{ ok: true; id: string; toUser: string } | { ok: false; error: string }> {
   await ensureSeatSchema();
   const sql = seatSql();
-  const mine = await todayPlan(fromUser, myTrip);
+  const mine = await todayPlan(fromUser, myTrip, ride);
   if (!mine) return { ok: false, error: "등록한 방면 정보가 없어요. 설정에서 확인해 주세요." };
   const target = await sql`select * from seat_plans where id = ${toPlanId} and status = 'active' limit 1`;
   if (!target.length) return { ok: false, error: "이미 해제된 등록이에요." };
@@ -366,8 +387,8 @@ export async function activePlans(): Promise<SeatPlanRow[]> {
 }
 
 /** CALL: 맞는 상대 모두에게 요청을 보낸다(희망·양보는 자동 판단). 이미 주고받은 상대는 건너뛴다. */
-export async function callAll(userId: string, trip: Trip = "go"): Promise<{ ok: true; sent: { toUser: string; role: "take" | "give"; stops: number }[] } | { ok: false; error: string }> {
-  const mine = await todayPlan(userId, trip);
+export async function callAll(userId: string, trip: Trip = "go", ride: TodayRide | null = null): Promise<{ ok: true; sent: { toUser: string; role: "take" | "give"; stops: number }[] } | { ok: false; error: string }> {
+  const mine = await todayPlan(userId, trip, ride);
   if (!mine) return { ok: false, error: "등록한 방면 정보가 없어요. 설정에서 확인해 주세요." };
   // 푸시 대상: 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분 전부(목록과 같은 범위).
   const cands = await listAhead(mine);
@@ -385,7 +406,7 @@ export async function callAll(userId: string, trip: Trip = "go"): Promise<{ ok: 
     const key = `${c.id}:${other}`;
     if (touched.has(key) || seen.has(key)) continue;
     seen.add(key);
-    const r = await createRequest(userId, c.id, "call", "ahead", trip, other);
+    const r = await createRequest(userId, c.id, "call", "ahead", trip, other, ride);
     if (r.ok) sent.push({ toUser: r.toUser, role: c.role, stops: c.stops });
   }
   return { ok: true, sent };

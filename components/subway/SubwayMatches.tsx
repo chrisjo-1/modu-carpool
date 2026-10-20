@@ -6,7 +6,7 @@ import type { LineId } from "@/lib/subway";
 import SeatMap from "./SeatMap";
 import SeatSpotCard from "./SeatSpotCard";
 import { Avatar, Sheet, api, field, useT } from "../ui";
-import type { Posture } from "./SubwayCall";
+import type { Posture, TodayRide } from "./SubwayCall";
 
 type Pair = { role: "take" | "give"; stops: number; seatStation: string; meetStation: string; gapMin: number; car: string; gate: string };
 type Spot = { car: string; door: string; side: "left" | "right" | ""; seat?: string; memo: string; photo?: boolean };
@@ -37,7 +37,8 @@ export function spotText(s: Spot): string {
  * 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들의 목록(프로필·승차 정보)을 보여 준다.
  * 위쪽: 받은 요청·매칭됨. 수락 전에는 하차역·자리 위치를 숨기고, 수락 뒤에만 보여 준다.
  */
-export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "", line, next, trip = "go" }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture; line: LineId; next?: string; trip?: "go" | "back" }) {
+export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "", line, next, trip = "go", ride }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture; line: LineId; next?: string; trip?: "go" | "back"; ride?: TodayRide }) {
+  const rideQ = ride ? `&${new URLSearchParams({ line: ride.line, board: ride.board, alight: ride.alight, next: ride.next }).toString()}` : "";
   const t = useT();
   const [memoAsk, setMemoAsk] = useState(false);
   const [cands, setCands] = useState<Cand[] | null>(null);
@@ -62,11 +63,11 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
       setOffDay(false);
       return;
     }
-    const c = await api<{ candidates: Cand[]; offDay?: boolean }>(`/api/seat/match?list=${listKind}&trip=${trip}`);
+    const c = await api<{ candidates: Cand[]; offDay?: boolean }>(`/api/seat/match?list=${listKind}&trip=${trip}${rideQ}`);
     if (!c.ok) return setFailed(true);
     setCands(c.data.candidates);
     setOffDay(!!c.data.offDay);
-  }, [posture, listKind]);
+  }, [posture, listKind, trip, rideQ]);
 
   useEffect(() => {
     load();
@@ -87,7 +88,7 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
   const send = async (planId: number, theirTrip: "go" | "back" = "go") => {
     setBusy(`c${planId}`);
     setMsg("");
-    const r = await api("/api/seat/request", "POST", { planId, mode: listKind, trip, theirTrip });
+    const r = await api("/api/seat/request", "POST", { planId, mode: listKind, trip, theirTrip, today: ride });
     setBusy("");
     if (!r.ok) return setMsg(t(r.error));
     setMsg(t("요청을 보냈어요. 상대가 수락하면 매칭돼요."));

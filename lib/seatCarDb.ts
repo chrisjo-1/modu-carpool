@@ -8,10 +8,10 @@ export async function insertFeedback(k: GuideKey, car: string, entrance: string,
     values (${k.line}, ${k.station}, ${k.dir}, ${k.dow}, ${k.slot}, ${car}, ${entrance}, ${seated})`;
 }
 
-/** 같은 노선·역·방향·요일·시간대의 착석 기록을 가져온다. */
+/** 같은 노선·역·방향·시간대의 착석 기록을 가져온다. 요일은 나누지 않는다(요일별 차이보다 기록 수가 중요). */
 export async function loadFeedback(k: GuideKey): Promise<FeedbackRow[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select car, entrance, seated from seat_feedback
-    where line = ${k.line} and station = ${k.station} and dir = ${k.dir} and dow = ${k.dow} and slot = ${k.slot}`;
+    where line = ${k.line} and station = ${k.station} and dir = ${k.dir} and slot = ${k.slot}`;
   return rows.map((r) => ({ car: String(r.car), entrance: String(r.entrance), seated: Boolean(r.seated) }));
 }

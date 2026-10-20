@@ -1,5 +1,5 @@
 import { currentUserId, body, db, fail, json, needLogin } from "@/lib/server";
-import { createRequest, getSpot, listRequests, respondRequest, seatDbReady, type RequestView } from "@/lib/seatDb";
+import { createRequest, getSpot, listRequests, parseTodayRide, respondRequest, seatDbReady, type RequestView } from "@/lib/seatDb";
 import { seatPush } from "@/lib/seatNotify";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     // trip: 내 방향 여정, theirTrip: 상대가 맞은 방향 여정(목록에서 받은 값)
     const myTrip = b.trip === "back" ? "back" : "go";
     const theirTrip = b.theirTrip === "back" ? "back" : "go";
-    const r = await createRequest(uid, planId, "manual", mode, myTrip, theirTrip);
+    const r = await createRequest(uid, planId, "manual", mode, myTrip, theirTrip, parseTodayRide(b.today));
     if (!r.ok) return json({ error: r.error }, 400);
     await seatPush(r.toUser, "자리 나눔 요청이 왔어요", "지하철 메뉴에서 확인하고 수락해 주세요.", "seat-req");
     return json({ id: r.id });

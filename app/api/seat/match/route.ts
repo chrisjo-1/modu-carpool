@@ -1,5 +1,5 @@
 import { currentUserId, db, fail, json, needLogin } from "@/lib/server";
-import { getMyPlan, listAhead, listBefore, listCandidates, seatDbReady, todayPlan } from "@/lib/seatDb";
+import { getMyPlan, listAhead, listBefore, listCandidates, parseTodayRide, seatDbReady, todayPlan } from "@/lib/seatDb";
 import type { Candidate } from "@/lib/seatMatch";
 
 export const dynamic = "force-dynamic";
@@ -38,11 +38,13 @@ export async function GET(req: Request) {
   if (!uid) return needLogin();
   if (!seatDbReady()) return json({ error: "앉아가기 저장소가 아직 연결되지 않았어요." }, 503);
   const kind = new URL(req.url).searchParams.get("list") ?? "auto";
-  const trip = new URL(req.url).searchParams.get("trip") === "back" ? "back" : "go";
+  const sp = new URL(req.url).searchParams;
+  const trip = sp.get("trip") === "back" ? "back" : "go";
+  const ride = parseTodayRide({ line: sp.get("line"), board: sp.get("board"), alight: sp.get("alight"), next: sp.get("next") });
   try {
     const mine = await getMyPlan(uid);
     if (!mine) return json({ candidates: [], needPlan: true });
-    const me = await todayPlan(uid, trip);
+    const me = await todayPlan(uid, trip, ride);
     // 그 방향 정보가 없으면 빈 목록(요일은 내 쪽에서 따지지 않는다).
     if (!me) return json({ candidates: [], needPlan: false, offDay: false });
     const list = kind === "before" ? await listBefore(me) : kind === "ahead" ? await listAhead(me) : await listCandidates(me);

@@ -1,5 +1,5 @@
 import { currentUserId, fail, json, needLogin } from "@/lib/server";
-import { callAll, seatDbReady } from "@/lib/seatDb";
+import { callAll, parseTodayRide, seatDbReady } from "@/lib/seatDb";
 import { seatPush } from "@/lib/seatNotify";
 import { grant } from "@/lib/credits";
 
@@ -17,7 +17,8 @@ export async function POST(req: Request) {
     // 방향 여정: go(등록한 탑승역→하차역) 또는 back(반대 방향). 비어 있으면 go.
     const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const trip = b.trip === "back" ? "back" : "go";
-    const r = await callAll(uid, trip);
+    // 지하철 화면에서 오늘 바꾼 노선·역(없으면 등록 정보)
+    const r = await callAll(uid, trip, parseTodayRide(b.today));
     if (!r.ok) return json({ error: r.error }, 400);
     await Promise.all(
       r.sent.map((x) => seatPush(x.toUser, "자리 양보 가능 알림", `${x.stops}정거장 뒤 내리는 분이 자리를 양보할 수 있어요. 수락하면 대화할 수 있어요.`, "seat-call"))

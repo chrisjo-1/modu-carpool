@@ -157,6 +157,27 @@ export function terminalOf(line: string, a: string, next: string): string | null
 
 export type Heading = { next: string; dir: Dir; terminal: string | null };
 
+/**
+ * from에서 next 쪽으로 갈 때 이어지는 역 n개(next 포함). 갈래가 나뉘면 첫 갈래를 따른다.
+ * 예: 9호선 당산 → 국회의사당 쪽 = ["국회의사당", "여의도", "샛강"].
+ */
+export function nextStations(line: string, from: string, next: string, n = 3): string[] {
+  const g = graph(line);
+  if (!g || !(g.get(from) ?? []).some((e) => e.to === next)) return next ? [next] : [];
+  const out = [next];
+  let prev = from;
+  let cur = next;
+  while (out.length < n) {
+    const onward = (g.get(cur) ?? []).filter((e) => e.to !== prev);
+    if (!onward.length) break;
+    prev = cur;
+    cur = onward[0].to;
+    if (cur === from || out.includes(cur)) break;
+    out.push(cur);
+  }
+  return out;
+}
+
 /** 한 역에서 갈 수 있는 방향들(다음역 기준). 칸 안내의 방향 버튼에 쓴다. */
 /**
  * 고른 방면(다음 역)을 첫 걸음으로 하는 경로. 2호선처럼 두 방향으로 갈 수 있을 때 쓴다.
