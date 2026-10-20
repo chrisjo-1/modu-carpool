@@ -3,15 +3,15 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { CarMatch } from "@/lib/subwayPosition";
 import { parseSeat, positionLabel, seatLabel } from "@/lib/subwayPosition";
 import SeatMap from "./SeatMap";
-import { api, field, useT } from "../ui";
+import { Avatar, api, field, useT } from "../ui";
 
 type Pair = { role: "take" | "give"; stops: number; seatStation: string; meetStation: string; gapMin: number; car: string; gate: string };
 type Spot = { car: string; door: string; side: "left" | "right" | ""; seat?: string; memo: string; photo?: boolean };
 type Contact = { type: string; id: string };
-type Cand = Pair & { planId: number; timeGo: string };
+type Cand = Pair & { planId: number; timeGo: string; name: string };
 type Req = { id: string; status: string; incoming: boolean; otherPlanId: number; otherTime: string; pair: Pair | null; spot: Spot | null; contact: Contact | null };
 
-const smallBtn = "shrink-0 rounded-xl bg-violet px-4 py-2 text-[14px] font-semibold text-white active:opacity-90 disabled:opacity-40";
+const smallBtn = "shrink-0 rounded-xl bg-accent px-4 py-2 text-[14px] font-semibold text-white active:opacity-90 disabled:opacity-40";
 const ghostBtn = "shrink-0 rounded-xl bg-bg px-4 py-2 text-[14px] font-semibold text-ink active:opacity-80 disabled:opacity-40";
 
 const toMin = (hhmm: string) => {
@@ -28,9 +28,8 @@ export function spotText(s: Spot): string {
 }
 
 /**
- * 매칭 정보: 받은 요청 → 매칭됨 → 추천 상대 → 보낸 요청.
- * 수락 전에는 정거장 수·타는 역·시각만, 수락 후에는 하차역·자리 위치·연락처·대화를 보여 준다.
- * 매칭됨이 있으면 하차 2정거장 전부터 화면 위쪽에 안내를 계속 띄운다(시각 추정).
+ * 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들의 목록(프로필·승차 정보)을 보여 준다.
+ * 위쪽: 받은 요청·매칭됨. 수락 전에는 하차역·자리 위치를 숨기고, 수락 뒤에만 보여 준다.
  */
 export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0 }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number }) {
   const t = useT();
@@ -45,7 +44,7 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
 
   const load = useCallback(async () => {
     const [c, r] = await Promise.all([
-      api<{ candidates: Cand[] }>("/api/seat/match"),
+      api<{ candidates: Cand[] }>("/api/seat/match?ahead=1"),
       api<{ incoming: Req[]; outgoing: Req[] }>("/api/seat/request"),
     ]);
     if (!c.ok || !r.ok) return setFailed(true);
@@ -73,7 +72,7 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
   const send = async (planId: number) => {
     setBusy(`c${planId}`);
     setMsg("");
-    const r = await api("/api/seat/request", "POST", { planId });
+    const r = await api("/api/seat/request", "POST", { planId, ahead: true });
     setBusy("");
     if (!r.ok) return setMsg(t(r.error));
     setMsg(t("요청을 보냈어요. 상대가 수락하면 매칭돼요."));
@@ -98,16 +97,17 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
   const outgoingPending = reqs.outgoing.filter((r) => r.status === "pending");
   const touched = new Set(all.map((r) => r.otherPlanId));
   const fresh = cands.filter((c) => !touched.has(c.planId));
+  const pool = fresh;
 
   return (
-    <div className="space-y-5" data-block-id="S072" data-block-name="매칭 정보">
+    <div className="space-y-6" data-block-id="S072" data-block-name="매칭 정보">
       <RideBanner accepted={accepted} myTime={myTime} myDays={myDays} onChat={(id) => setChatOpen(id)} />
       {msg && <p className="rounded-xl bg-bg px-3 py-2 text-[13px] text-ink">{msg}</p>}
 
       {incomingPending.length > 0 && (
         <Group title={t("받은 요청")}>
           {incomingPending.map((r) => (
-            <div key={r.id} className="space-y-3 rounded-2xl border border-violet/40 bg-white p-4">
+            <div key={r.id} className="space-y-3 rounded-2xl border border-accent/40 bg-white p-4">
               <PairText pair={r.pair} time={r.otherTime} />
               <p className="text-[12px] text-sub">{t("수락하면 하차역·자리 위치·연락처가 서로 보이고 대화할 수 있어요.")}</p>
               <div className="flex gap-2">
@@ -127,17 +127,14 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
         </Group>
       )}
 
-      <Group title={t("추천 상대")}>
-        {fresh.length === 0 ? (
-          <p className="text-[14px] leading-relaxed text-sub">{t("지금은 자리를 나눌 수 있는 상대가 없어요. 같은 방향으로 1~3정거장 안에 내리거나 타는 분이 등록하면 알려 드려요.")}</p>
+      <Group title={t("같은 노선·같은 방향 · 내가 탄 뒤에 타는 분")} aside={pool.length ? `${pool.length}${t("명")}` : ""}>
+        {pool.length === 0 ? (
+          <div className="rounded-2xl bg-bg px-4 py-4">
+            <p className="text-[14px] leading-relaxed text-sub">{t("지금 내가 탄 뒤에 같은 방향으로 타고, 내가 내리기 전에 같은 길을 가는 분이 없어요. 등록하는 분이 생기면 여기에 나와요.")}</p>
+          </div>
         ) : (
-          fresh.map((c) => (
-            <div key={`${c.planId}-${c.role}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4">
-              <div className="min-w-0">
-                <PairText pair={c} time={c.timeGo} />
-              </div>
-              <button type="button" className={smallBtn} disabled={busy === `c${c.planId}`} onClick={() => send(c.planId)}>{t("요청")}</button>
-            </div>
+          pool.map((c) => (
+            <ProfileRow key={`${c.planId}-${c.role}`} c={c} busy={busy === `c${c.planId}`} onRequest={() => send(c.planId)} />
           ))
         )}
       </Group>
@@ -156,11 +153,38 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
   );
 }
 
-function Group({ title, children }: { title: string; children: ReactNode }) {
+function Group({ title, aside, children }: { title: string; aside?: string; children: ReactNode }) {
   return (
-    <div className="space-y-2">
-      <p className="text-[13px] font-semibold text-sub">{title}</p>
+    <div className="space-y-2.5">
+      <div className="flex items-baseline justify-between">
+        <p className="text-[13px] font-semibold text-sub">{title}</p>
+        {aside && <p className="num text-[12px] text-sub">{aside}</p>}
+      </div>
       {children}
+    </div>
+  );
+}
+
+/** 상대 한 줄: 프로필(이름·기본 아바타)과 승차·하차 정보, 요청 버튼. 사진과 하차역은 수락 뒤에만. */
+function ProfileRow({ c, busy, onRequest }: { c: Cand; busy: boolean; onRequest: () => void }) {
+  const t = useT();
+  const take = c.role === "take";
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-line bg-white p-3.5">
+      <Avatar name={c.name || t("회원")} size={44} />
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className="truncate text-[15px] font-semibold text-ink">{c.name || t("회원")}</p>
+          <span className="rounded-full bg-accentSoft px-2 py-0.5 text-[11px] font-semibold text-accent">{take ? t("자리 희망") : t("자리 양보")}</span>
+        </div>
+        <p className="text-[13px] text-sub">
+          <span className="font-semibold text-ink">{c.stops}{t("정거장")}</span> {take ? t("뒤 자리가 나요") : t("뒤 내 자리를 드려요")}
+        </p>
+        <p className="num text-[12px] text-sub">
+          {take ? `${c.meetStation} ${t("탑승")}` : `${t("상대")} ${c.meetStation} ${t("탑승")}`} · <span>{c.timeGo}</span>
+        </p>
+      </div>
+      <button type="button" className={smallBtn} disabled={busy} onClick={onRequest}>{t("요청")}</button>
     </div>
   );
 }
@@ -173,7 +197,7 @@ function PairText({ pair, time }: { pair: Pair | null; time: string }) {
   return (
     <div className="space-y-1">
       <p className="text-[15px] font-semibold text-ink">
-        <span className="mr-1.5 rounded-full bg-violetSoft px-2 py-0.5 text-[12px] font-semibold text-violet">{take ? t("자리 희망") : t("자리 양보")}</span>
+        <span className="mr-1.5 rounded-full bg-accentSoft px-2 py-0.5 text-[12px] font-semibold text-accent">{take ? t("자리 희망") : t("자리 양보")}</span>
         {pair.stops}{t("정거장")} {take ? t("뒤 자리가 나요") : t("뒤 내 자리를 드려요")}
       </p>
       <p className="text-[13px] text-sub">
@@ -274,7 +298,7 @@ function SeatChat({ id }: { id: string }) {
         {list.length === 0 && <p className="text-[13px] text-sub">{t("예: 다른 자리에 앉았어요 / 오늘은 자리가 필요 없어요")}</p>}
         {list.map((m) => (
           <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
-            <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-[14px] ${m.mine ? "bg-violet text-white" : "bg-bg text-ink"}`}>{m.body}</p>
+            <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-[14px] ${m.mine ? "bg-accent text-white" : "bg-bg text-ink"}`}>{m.body}</p>
           </div>
         ))}
       </div>
@@ -343,11 +367,11 @@ function RideBanner({ accepted, myTime, myDays, onChat }: { accepted: Req[]; myT
           : t("이번 역에서 자리가 나요");
 
   return (
-    <div className="fixed left-1/2 top-3 z-30 w-[calc(100%-32px)] max-w-md -translate-x-1/2 rounded-2xl border border-violet/40 bg-white px-4 py-3 shadow-card" role="status" aria-live="polite">
-      <p className="text-[12px] font-semibold text-violet">{p.seatStation} · {give ? t("자리 양보") : t("자리 희망")}</p>
+    <div className="fixed left-1/2 top-3 z-30 w-[calc(100%-32px)] max-w-md -translate-x-1/2 rounded-2xl border border-accent/40 bg-white px-4 py-3 shadow-card" role="status" aria-live="polite">
+      <p className="text-[12px] font-semibold text-accent">{p.seatStation} · {give ? t("자리 양보") : t("자리 희망")}</p>
       <p className="mt-0.5 text-[15px] font-semibold text-ink">{line}</p>
       {!give && r.spot && <p className="num mt-0.5 text-[13px] text-sub">{t("상대 자리")} {spotText(r.spot)}</p>}
-      <button type="button" className="mt-2 text-[13px] font-semibold text-violet" onClick={() => onChat(r.id)}>{t("대화하기")}</button>
+      <button type="button" className="mt-2 text-[13px] font-semibold text-accent" onClick={() => onChat(r.id)}>{t("대화하기")}</button>
     </div>
   );
 }
@@ -403,7 +427,7 @@ function CarConfirm({ id }: { id: string }) {
 function ResultLine({ result }: { result: CarMatch | null }) {
   const t = useT();
   if (!result) return <p className="text-[14px] text-sub">{t("상대가 아직 번호를 넣지 않았어요.")}</p>;
-  if (result.kind === "same_car") return <p className="text-[14px] font-semibold text-violet">{t("같은 칸이에요.")}</p>;
+  if (result.kind === "same_car") return <p className="text-[14px] font-semibold text-accent">{t("같은 칸이에요.")}</p>;
   if (result.kind === "same_train") {
     return <p className="text-[14px] text-ink">{t("같은 열차예요. 상대는")} {result.gap}{t("칸 떨어진 곳에 있어요.")}</p>;
   }

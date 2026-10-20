@@ -172,7 +172,7 @@ export default function SeatSpotCard({ line, next, onChat }: { line: LineId; nex
             />
           </div>
           <div className="flex gap-2">
-            <button type="button" className="flex-1 rounded-xl bg-violet py-3 text-[15px] font-semibold text-white disabled:opacity-40" disabled={busy} onClick={save}>{t("저장")}</button>
+            <button type="button" className="flex-1 rounded-xl bg-accent py-3 text-[15px] font-semibold text-white disabled:opacity-40" disabled={busy} onClick={save}>{t("저장")}</button>
             {spot?.seat && <button type="button" className="rounded-xl bg-bg px-4 py-3 text-[15px] text-sub" onClick={() => setEdit(false)}>{t("취소")}</button>}
           </div>
         </div>
@@ -186,9 +186,9 @@ export default function SeatSpotCard({ line, next, onChat }: { line: LineId; nex
 function ChatInstead({ onChat }: { onChat: () => void }) {
   const t = useT();
   return (
-    <div data-block-id="S076" data-block-name="대화로 자리 알리기" className="flex items-center justify-between gap-3 rounded-xl bg-violetSoft/60 px-3 py-2.5">
+    <div data-block-id="S076" data-block-name="대화로 자리 알리기" className="flex items-center justify-between gap-3 rounded-xl bg-accentSoft/60 px-3 py-2.5">
       <p className="min-w-0 text-[13px] leading-snug text-sub">{t("그림으로 알리기 어렵나요? 매칭된 상대와 대화로 알려 주세요.")}</p>
-      <button type="button" data-block-id="B264" data-block-name="대화로 알리기" className="shrink-0 rounded-xl bg-white px-3 py-2 text-[13px] font-semibold text-violet" onClick={onChat}>
+      <button type="button" data-block-id="B264" data-block-name="대화로 알리기" className="shrink-0 rounded-xl bg-white px-3 py-2 text-[13px] font-semibold text-accent" onClick={onChat}>
         {t("대화로 알리기")}
       </button>
     </div>

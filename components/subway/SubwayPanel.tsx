@@ -54,7 +54,7 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
 
   return (
     <div className="space-y-4" data-block-id="S061" data-block-name="지하철 앉아가기 입력">
-      <p className="rounded-2xl bg-violetSoft px-4 py-3 text-[14px] leading-relaxed text-violet">
+      <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">
         {t("현재 일부 노선만 테스트 준비 중입니다. 2호선·5호선부터 시작해요.")}
       </p>
 

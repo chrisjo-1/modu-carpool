@@ -71,7 +71,13 @@ export function daysOverlap(a: string, b: string): boolean {
 }
 
 /** taker가 giver의 자리를 받을 수 있으면 그 정보를, 아니면 null. */
-export function seatPair(taker: SeatPlanRow, giver: SeatPlanRow): SeatPair | null {
+/** 자유 조건(목록용): 정거장 수 제한과 시각 차이 조건을 끈다. 방향·요일·순서 조건은 그대로다. */
+export const FREE_PAIR: PairOpts = { maxStops: 99, window: false };
+export type PairOpts = { maxStops?: number; window?: boolean };
+
+export function seatPair(taker: SeatPlanRow, giver: SeatPlanRow, opts: PairOpts = {}): SeatPair | null {
+  const maxStops = opts.maxStops ?? MAX_STOPS;
+  const window = opts.window ?? true;
   if (taker.userId === giver.userId) return null;
   const line = taker.boardLine;
   if (taker.alightLine !== line || giver.boardLine !== line || giver.alightLine !== line) return null;
@@ -83,7 +89,7 @@ export function seatPair(taker: SeatPlanRow, giver: SeatPlanRow): SeatPair | nul
   const i = G.indexOf(T[0]); // 주는 사람 경로에서 받는 사람 탑승역 위치
   if (i <= 0) return null; // 주는 사람이 먼저 타고 있어야 한다
   const stops = G.length - 1 - i;
-  if (stops < 1 || stops > MAX_STOPS) return null;
+  if (stops < 1 || stops > maxStops) return null;
   if (T.length - 1 <= stops) return null; // 받는 사람이 더 멀리 가야 한다
   for (let j = 0; j <= stops; j++) if (T[j] !== G[i + j]) return null; // 같은 방향·같은 길
 
@@ -91,7 +97,7 @@ export function seatPair(taker: SeatPlanRow, giver: SeatPlanRow): SeatPair | nul
   const t = toMinutes(taker.timeGo);
   if (g === null || t === null) return null;
   const gapMin = Math.abs(g + MIN_PER_STOP * i - t);
-  if (gapMin > TIME_WINDOW_MIN) return null;
+  if (window && gapMin > TIME_WINDOW_MIN) return null;
 
   return { stops, seatStation: G[G.length - 1], meetStation: T[0], gapMin, car: giver.boardCar, gate: giver.boardGate };
 }
@@ -107,4 +113,18 @@ export function rankCandidates(me: SeatPlanRow, others: SeatPlanRow[]): Candidat
     if (give) out.push({ ...o, ...give, role: "give" });
   }
   return out.sort((x, y) => x.stops - y.stops || x.gapMin - y.gapMin || x.id - y.id);
+}
+
+/**
+ * 같은 노선·같은 방향에서 내가 탄 뒤에 타고, 내가 내리기 전에 같은 길을 가는 분들의 목록.
+ * 나는 내 자리를 내줄 수 있는 쪽(give)으로 본다. 시각·정거장 수 제한은 두지 않는다.
+ */
+export function rankAhead(me: SeatPlanRow, others: SeatPlanRow[]): Candidate[] {
+  const out: Candidate[] = [];
+  for (const o of others) {
+    if (o.userId === me.userId) continue;
+    const p = seatPair(o, me, FREE_PAIR);
+    if (p) out.push({ ...o, ...p, role: "give" });
+  }
+  return out.sort((x, y) => (toMinutes(x.timeGo) ?? 0) - (toMinutes(y.timeGo) ?? 0) || x.id - y.id);
 }

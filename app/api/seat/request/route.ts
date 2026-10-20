@@ -49,7 +49,8 @@ export async function POST(req: Request) {
   const planId = Number(b.planId);
   if (!Number.isInteger(planId) || planId <= 0) return json({ error: "요청할 등록을 골라 주세요." }, 400);
   try {
-    const r = await createRequest(uid, planId);
+    // ahead: 같은 방향 목록에서 고른 경우(정거장 수 제한 없음)
+    const r = await createRequest(uid, planId, "manual", b.ahead === true);
     if (!r.ok) return json({ error: r.error }, 400);
     await seatPush(r.toUser, "자리 나눔 요청이 왔어요", "지하철 메뉴에서 확인하고 수락해 주세요.", "seat-req");
     return json({ id: r.id });

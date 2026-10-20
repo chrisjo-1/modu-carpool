@@ -46,7 +46,7 @@ export default function SeatMap({ value, onChange, readOnly = false, car, next }
   };
   return (
     <figure className="space-y-2">
-      <div data-block-id="C131" data-block-name="진행 방향" className="flex items-center gap-1.5 text-[13px] font-semibold text-violet">
+      <div data-block-id="C131" data-block-name="진행 방향" className="flex items-center gap-1.5 text-[13px] font-semibold text-accent">
         <svg width="28" height="12" viewBox="0 0 28 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M27 6H2M7 1L2 6l5 5" />
         </svg>
@@ -111,7 +111,7 @@ export default function SeatMap({ value, onChange, readOnly = false, car, next }
               const p: SeatPos = { wall: focus.wall, bench: focus.bench, index: i + 1 };
               const on = !!sel && seatId(sel) === seatId(p);
               return (
-                <button key={i} type="button" aria-pressed={on} aria-label={seatLabel(p)} onClick={() => pick(p)} className={`min-h-[44px] rounded-lg border text-[14px] font-semibold ${on ? "border-violet bg-violet text-white" : "border-line bg-white text-ink"}`}>
+                <button key={i} type="button" aria-pressed={on} aria-label={seatLabel(p)} onClick={() => pick(p)} className={`min-h-[44px] rounded-lg border text-[14px] font-semibold ${on ? "border-accent bg-accent text-white" : "border-line bg-white text-ink"}`}>
                   {i + 1}
                 </button>
               );

@@ -1,4 +1,4 @@
-import { currentUserId, fail, json, needLogin } from "@/lib/server";
+import { body, currentUserId, fail, json, needLogin } from "@/lib/server";
 import { callAll, seatDbReady } from "@/lib/seatDb";
 import { seatPush } from "@/lib/seatNotify";
 
@@ -8,12 +8,15 @@ export const dynamic = "force-dynamic";
  * 지하철 CALL: 1~3정거장 안에서 자리를 나눌 수 있는 상대 모두에게 요청과 푸시를 보낸다.
  * 희망(내가 받음)·양보(내가 줌)는 등록 정보로 자동 판단한다. 횟수 제한·크레딧 차감 없음.
  */
-export async function POST() {
+export async function POST(req: Request) {
   const uid = await currentUserId();
   if (!uid) return needLogin();
   if (!seatDbReady()) return json({ error: "앉아가기 저장소가 아직 연결되지 않았어요." }, 503);
+  const b = await body(req);
+  // 앉아 있으면 양보(sit), 서 있으면 희망(stand)만 보낸다.
+  const posture = b.posture === "sit" || b.posture === "stand" ? b.posture : "";
   try {
-    const r = await callAll(uid);
+    const r = await callAll(uid, posture);
     if (!r.ok) return json({ error: r.error }, 400);
     await Promise.all(
       r.sent.map((s) =>

@@ -18,7 +18,7 @@ export default function DirectionToggle({ line, station, value, onChange, label 
         {headings.map((h) => {
           const on = current === h.next;
           return (
-            <button key={h.next} type="button" role="radio" aria-checked={on} onClick={() => onChange(h.next)} className={`min-h-[40px] rounded-xl border px-3 py-1 text-left text-[13px] ${on ? "border-violet bg-white font-semibold text-violet" : "border-line bg-white text-sub"}`}>
+            <button key={h.next} type="button" role="radio" aria-checked={on} onClick={() => onChange(h.next)} className={`min-h-[40px] rounded-xl border px-3 py-1 text-left text-[13px] ${on ? "border-accent bg-white font-semibold text-accent" : "border-line bg-white text-sub"}`}>
               {h.terminal ? `${h.terminal} ${t("방면")}` : `${h.next} ${t("방향")}`}
               <span className="block text-[11px] font-normal text-sub">{t("다음역")} {h.next}</span>
             </button>
