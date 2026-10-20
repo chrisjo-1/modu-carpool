@@ -59,7 +59,7 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
       </p>
 
       <div className="space-y-2">
-        <p className="text-sm font-semibold text-ink">{t("출근")}</p>
+        <p className="text-sm font-semibold text-ink">{t("내 방면")}</p>
         <div className="grid grid-cols-2 gap-3">
           {lineSelect(plan.boardLine, (boardLine) => set({ boardLine, board: "", boardNext: "" }), t("탑승 노선"))}
           {stationSelect(plan.boardLine, plan.board, (board) => set({ board, boardNext: "" }), t("탑승역"))}
@@ -68,7 +68,7 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
           {lineSelect(plan.alightLine, (alightLine) => set({ alightLine, alight: "", backNext: "" }), t("하차 노선"))}
           {stationSelect(plan.alightLine, plan.alight, (alight) => set({ alight, backNext: "" }), t("하차역"))}
         </div>
-        <DirectionToggle line={plan.boardLine} station={plan.board} value={plan.boardNext} onChange={(boardNext) => set({ boardNext })} label={t("출근 진행 방면 (화살표)")} />
+        <DirectionToggle line={plan.boardLine} station={plan.board} value={plan.boardNext} onChange={(boardNext) => set({ boardNext })} label={t("진행 방면 (화살표)")} />
         <div className="grid grid-cols-2 gap-3">
           <label className="block text-sm text-sub">
             {t("보통 탑승 시각")}
@@ -104,23 +104,23 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
 
       <label className="flex min-h-[44px] items-center gap-3 text-[15px]">
         <input type="checkbox" className="h-5 w-5 accent-[#7C3AED]" checked={plan.back} onChange={(e) => set({ back: e.target.checked })} />
-        {t("퇴근도 함께 (반대 방향 자동 등록)")}
+        {t("반대 방면도 함께 등록")}
       </label>
 
       {plan.back && (
         <div className="space-y-2 rounded-2xl border border-line bg-white p-4">
-          <p className="text-sm font-semibold text-ink">{t("퇴근")}</p>
+          <p className="text-sm font-semibold text-ink">{t("반대 방면")}</p>
           <p className="text-[14px] leading-relaxed text-sub">
-            {t("퇴근 탑승역")}: <span className="font-semibold text-ink">{plan.alight || "-"}</span> · {t("퇴근 하차역")}: <span className="font-semibold text-ink">{plan.board || "-"}</span>
+            {t("탑승역")}: <span className="font-semibold text-ink">{plan.alight || "-"}</span> · {t("하차역")}: <span className="font-semibold text-ink">{plan.board || "-"}</span>
           </p>
-          <DirectionToggle line={plan.alightLine} station={plan.alight} value={plan.backNext} onChange={(backNext) => set({ backNext })} label={t("퇴근 진행 방면 (화살표)")} />
+          <DirectionToggle line={plan.alightLine} station={plan.alight} value={plan.backNext} onChange={(backNext) => set({ backNext })} label={t("진행 방면 (화살표)")} />
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-sm text-sub">
-              {t("퇴근 출발 시각")}
+              {t("보통 탑승 시각")}
               <input className={`${field} num mt-1`} type="time" required value={plan.timeBack} onChange={(e) => set({ timeBack: e.target.value })} />
             </label>
             <label className="block text-sm text-sub">
-              {t("퇴근 탑승 칸 (선택)")}
+              {t("탑승 칸 (선택)")}
               <select className={`${field} mt-1`} value={plan.carBack} onChange={(e) => set({ carBack: e.target.value })}>
                 <option value="">{t("고르지 않음")}</option>
                 {carNumbersOf(plan.alightLine).map((c) => (
@@ -130,7 +130,7 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
             </label>
           </div>
           <label className="block text-sm text-sub">
-            {t("퇴근 문 번호 (선택)")}
+            {t("탑승 문 번호 (선택)")}
             <select className={`${field} mt-1`} value={DOOR_NUMBERS.includes(plan.gateBack) ? plan.gateBack : ""} onChange={(e) => set({ gateBack: e.target.value })}>
               <option value="">{t("고르지 않음")}</option>
               {DOOR_NUMBERS.map((d) => (

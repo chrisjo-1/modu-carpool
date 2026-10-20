@@ -105,13 +105,13 @@ export default function CommuteSheet({
   const saveSubway = async () => {
     if (!seatOn) return;
     setBusy(true);
-    const r = await api<{ plan: SubwayPlan; days: string; credit?: number }>("/api/seat/plan", "PUT", { ...plan, days });
+    const r = await api<{ plan: SubwayPlan; days: string; credit?: number }>("/api/seat/plan", "PUT", { ...plan, days: "0123456" });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setHasPlan(true);
     toast(r.data.credit
-      ? `${t("지하철 출퇴근 정보를 저장했어요.")} ${r.data.credit.toLocaleString("ko-KR")}${t("크레딧을 드렸어요.")}`
-      : t("지하철 출퇴근 정보를 저장했어요. 지하철 메뉴에서 앉아갈 정보와 매칭을 볼 수 있어요."));
+      ? `${t("지하철 정보를 저장했어요.")} ${r.data.credit.toLocaleString("ko-KR")}${t("크레딧을 드렸어요.")}`
+      : t("지하철 정보를 저장했어요. 지하철 메뉴에서 앉아갈 정보와 매칭을 볼 수 있어요."));
   };
 
   const cancelSubway = async () => {
@@ -189,7 +189,7 @@ export default function CommuteSheet({
           <p className="text-[13px] leading-relaxed text-sub">
             {mode === "driver" && t("운전자 모드: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.")}
             {mode === "rider" && t("탑승자 모드: 같이 탈 차를 찾는 글이에요.")}
-            {mode === "subway" && t("지하철: 지하철 출퇴근 정보를 등록해요. 앉아갈 정보와 매칭은 지하철 메뉴에서 볼 수 있어요.")}
+            {mode === "subway" && t("지하철: 탑승 방면 정보를 등록해요. 앉아갈 정보와 매칭은 지하철 메뉴에서 볼 수 있어요.")}
           </p>
         </div>
         {!subwayOpen && (
@@ -199,7 +199,7 @@ export default function CommuteSheet({
           </>
         )}
 
-        <div className="space-y-1.5">
+        {!subwayOpen && <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("출퇴근 요일")}</p>
           <div className="grid grid-cols-7 gap-1.5" role="group" aria-label={t("출퇴근 요일")}>
             {[1, 2, 3, 4, 5, 6, 0].map((i) => {
@@ -211,7 +211,7 @@ export default function CommuteSheet({
               );
             })}
           </div>
-        </div>
+        </div>}
 
         {subwayOpen ? (
           <SubwayPanel plan={plan} setPlan={setPlan} days={days} />
