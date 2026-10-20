@@ -1,11 +1,11 @@
-import { DEFAULT_PILOT_LINES, type LineId } from "./subway";
+import { DEFAULT_PILOT_LINES, OPENABLE_LINES, type LineId } from "./subway";
 import { db, ensureSchema, hasDb } from "./server";
 
 /** 앉아가기 설정: 열기 여부와 시범 노선. 설정 테이블(settings)에 저장한다. */
 export const SEAT_ENABLED_KEY = "seat_enabled";
 export const SEAT_PILOT_KEY = "seat_pilot_lines";
-/** 관리자가 고를 수 있는 시범 노선. 지금은 2호선·5호선만 허용한다. */
-export const PILOT_CHOICES: LineId[] = ["2", "5"];
+/** 관리자가 고를 수 있는 시범 노선(역 목록·방향 자료가 있는 노선). */
+export const PILOT_CHOICES: LineId[] = OPENABLE_LINES;
 
 export type SeatConfig = { enabled: boolean; pilot: LineId[] };
 

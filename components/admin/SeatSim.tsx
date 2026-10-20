@@ -11,7 +11,7 @@ const WINDOW: Record<"go" | "back", [string, string]> = { go: ["07:00", "09:00"]
 
 const input = "rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const lineName = (id: string) => ALL_LINES.find((l) => l.id === id)?.name ?? id;
-const PILOT = ["2", "5"];
+const PILOT = ["2", "5", "6", "7", "9"];
 
 /** 앉아가기 시뮬레이션: 가상 회원을 만들어 실제 매칭 규칙을 돌린다. 실제 회원 데이터는 쓰지 않는다. */
 export default function AdminSeatSim() {

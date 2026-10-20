@@ -1,6 +1,6 @@
 /**
  * 지하철 앉아가기: 노선·역 목록과 이용 등록 기본값.
- * 노선은 전부 보여 주고, 시범 노선(2호선·5호선)만 고를 수 있다.
+ * 노선은 열린 노선(관리자 설정)만 고를 수 있다.
  * 역 목록은 검수가 끝나기 전 임시 목록이다.
  */
 
@@ -27,8 +27,42 @@ export const ALL_LINES: { id: LineId; name: string }[] = [
   { id: "incheon2", name: "인천2호선" },
 ];
 
-/** 시범 노선. 관리자 설정 기본값이며 현재 2호선·5호선이다. */
-export const DEFAULT_PILOT_LINES: LineId[] = ["2", "5"];
+/** 시범 노선. 관리자 설정 기본값이며 현재 2·5·6·7·9호선이다. */
+export const DEFAULT_PILOT_LINES: LineId[] = ["2", "5", "6", "7", "9"];
+
+/** 관리자가 열 수 있는 노선(역 목록·방향 자료가 있는 노선). */
+export const OPENABLE_LINES: LineId[] = ["2", "5", "6", "7", "9"];
+
+/** 노선 고유색(수도권 전철 공식 색). text는 배경 위 글자색(밝은 색 노선은 짙은 글자). */
+export const LINE_COLORS: Record<LineId, { bg: string; text: string }> = {
+  "1": { bg: "#0052A4", text: "#FFFFFF" },
+  "2": { bg: "#00A84D", text: "#FFFFFF" },
+  "3": { bg: "#EF7C1C", text: "#FFFFFF" },
+  "4": { bg: "#00A5DE", text: "#FFFFFF" },
+  "5": { bg: "#996CAC", text: "#FFFFFF" },
+  "6": { bg: "#CD7C2F", text: "#FFFFFF" },
+  "7": { bg: "#747F00", text: "#FFFFFF" },
+  "8": { bg: "#E6186C", text: "#FFFFFF" },
+  "9": { bg: "#BDB092", text: "#3B3320" },
+  gyeongui: { bg: "#77C4A3", text: "#123B2B" },
+  suin: { bg: "#F5A200", text: "#3B2A00" },
+  sinbundang: { bg: "#D4003B", text: "#FFFFFF" },
+  airport: { bg: "#0090D2", text: "#FFFFFF" },
+  gyeongchun: { bg: "#0C8E72", text: "#FFFFFF" },
+  ui: { bg: "#B0CE18", text: "#2E3A00" },
+  sillim: { bg: "#6789CA", text: "#FFFFFF" },
+  incheon1: { bg: "#7CA8D5", text: "#FFFFFF" },
+  incheon2: { bg: "#ED8B00", text: "#FFFFFF" },
+};
+
+export const lineColor = (id: LineId) => LINE_COLORS[id] ?? { bg: "#2F6BFF", text: "#FFFFFF" };
+
+/** 노선 이름 목록을 "2·5·6호선"처럼 짧게 잇는다. */
+export function linesLabel(ids: LineId[]): string {
+  const nums = ids.filter((id) => /^\d$/.test(id)).sort();
+  const others = ids.filter((id) => !/^\d$/.test(id)).map((id) => ALL_LINES.find((l) => l.id === id)?.name ?? id);
+  return [nums.length ? `${nums.join("·")}호선` : "", ...others].filter(Boolean).join("·");
+}
 
 export const LINE_STATIONS: Record<LineId, string[]> = {
   // 1·3·4·6·7·8호선: 서울교통공사 혼잡도 자료(2026년 6월)의 역번호 순서. 서울교통공사 운영 구간만 들어 있다
@@ -58,6 +92,11 @@ export const LINE_STATIONS: Record<LineId, string[]> = {
     "암사역사공원", "암사", "천호", "강동구청", "몽촌토성", "잠실", "석촌", "송파", "가락시장", "문정", "장지", "복정", "남위례", "산성", "남한산성입구", "단대오거리", "신흥", "수진",
     "모란"
   ],
+  "9": [
+    "개화", "김포공항", "공항시장", "신방화", "마곡나루", "양천향교", "가양", "증미", "등촌", "염창", "신목동", "선유도", "당산",
+    "국회의사당", "여의도", "샛강", "노량진", "노들", "흑석", "동작", "구반포", "신반포", "고속터미널", "사평", "신논현", "언주",
+    "선정릉", "삼성중앙", "봉은사", "종합운동장", "삼전", "석촌고분", "석촌", "송파나루", "한성백제", "올림픽공원", "둔촌오륜", "중앙보훈병원",
+  ],
   "2": [
     "시청", "을지로입구", "을지로3가", "을지로4가", "동대문역사문화공원", "신당", "상왕십리", "왕십리", "한양대", "뚝섬",
     "성수", "건대입구", "구의", "강변", "잠실나루", "잠실", "잠실새내", "종합운동장", "삼성", "선릉", "역삼", "강남",
@@ -76,11 +115,11 @@ export const LINE_STATIONS: Record<LineId, string[]> = {
 
 /**
  * 노선별 칸 수. 서울교통공사 노선별 운영 현황(2024년 3월) 기준: 1~4호선 10칸, 5~7호선 8칸, 8호선 6칸.
- * 9호선 등 자료에 없는 노선은 확인 전까지 10칸으로 둔다.
+ * 9호선은 6칸(8칸 도입 계획은 무산). 그 밖에 자료에 없는 노선은 확인 전까지 10칸으로 둔다.
  */
 export function carCountOf(line: LineId): number {
   if (line === "5" || line === "6" || line === "7") return 8;
-  if (line === "8") return 6;
+  if (line === "8" || line === "9") return 6;
   return 10;
 }
 
@@ -126,7 +165,7 @@ export const EMPTY_PLAN: SubwayPlan = {
 
 /** 입력 검사. 시범 노선 여부, 역, 칸을 본다. */
 export function planProblem(p: SubwayPlan, pilot: LineId[] = DEFAULT_PILOT_LINES): string | null {
-  if (!pilot.includes(p.boardLine) || !pilot.includes(p.alightLine)) return "현재는 시범 노선(2호선·5호선)만 등록할 수 있어요.";
+  if (!pilot.includes(p.boardLine) || !pilot.includes(p.alightLine)) return "지금은 열린 노선만 등록할 수 있어요.";
   if (!p.board) return "탑승역을 골라 주세요.";
   if (!p.alight) return "하차역을 골라 주세요.";
   if (p.board === p.alight && p.boardLine === p.alightLine) return "탑승역과 하차역이 같아요.";

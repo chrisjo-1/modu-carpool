@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ALL_LINES, DEFAULT_PILOT_LINES, LINE_STATIONS, type LineId, type SubwayPlan } from "@/lib/subway";
+import { ALL_LINES, DEFAULT_PILOT_LINES, LINE_STATIONS, lineColor, linesLabel, type LineId, type SubwayPlan } from "@/lib/subway";
 import { field, useT } from "../ui";
 import DirectionToggle from "./DirectionToggle";
 
@@ -23,20 +23,30 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
       .catch(() => {});
   }, [onPilot]);
 
+  // 노선은 열린 노선만 고유색 칩으로 고른다(선택한 칩은 노선색으로 채운다).
   const lineSelect = (value: LineId, onLine: (l: LineId) => void, label: string) => (
-    <label className="block text-sm text-sub">
+    <div className="text-sm text-sub">
       {label}
-      <select className={`${field} mt-1`} value={value} onChange={(e) => onLine(e.target.value)}>
-        {ALL_LINES.map((l) => {
-          const open = pilot.includes(l.id);
+      <div className="mt-1 flex flex-wrap gap-1.5" role="radiogroup" aria-label={label}>
+        {ALL_LINES.filter((l) => pilot.includes(l.id)).map((l) => {
+          const on = value === l.id;
+          const c = lineColor(l.id);
           return (
-            <option key={l.id} value={l.id} disabled={!open}>
-              {open ? t(l.name) : `${t(l.name)} · ${t("준비 중")}`}
-            </option>
+            <button
+              key={l.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onLine(l.id)}
+              className="min-h-[40px] rounded-full border-2 px-3 text-[14px] font-semibold"
+              style={on ? { background: c.bg, borderColor: c.bg, color: c.text } : { background: "#FFFFFF", borderColor: c.bg, color: "#1F2937" }}
+            >
+              {t(l.name)}
+            </button>
           );
         })}
-      </select>
-    </label>
+      </div>
+    </div>
   );
 
   const stationSelect = (line: LineId, value: string, onStation: (s: string) => void, label: string) => (
@@ -54,19 +64,15 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
   return (
     <div className="space-y-4" data-block-id="S061" data-block-name="지하철 앉아가기 입력">
       <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">
-        {t("현재 일부 노선만 테스트 준비 중입니다. 2호선·5호선부터 시작해요.")}
+        {t("지금 이용할 수 있는 노선")}: {linesLabel(pilot)}
       </p>
 
       <div className="space-y-2">
         <p className="text-sm font-semibold text-ink">{t("내 방면")}</p>
-        <div className="grid grid-cols-2 gap-3">
-          {lineSelect(plan.boardLine, (boardLine) => set({ boardLine, board: "", boardNext: "" }), t("탑승 노선"))}
-          {stationSelect(plan.boardLine, plan.board, (board) => set({ board, boardNext: "" }), t("탑승역"))}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {lineSelect(plan.alightLine, (alightLine) => set({ alightLine, alight: "", backNext: "" }), t("하차 노선"))}
-          {stationSelect(plan.alightLine, plan.alight, (alight) => set({ alight, backNext: "" }), t("하차역"))}
-        </div>
+        {lineSelect(plan.boardLine, (boardLine) => set({ boardLine, board: "", boardNext: "" }), t("탑승 노선"))}
+        {stationSelect(plan.boardLine, plan.board, (board) => set({ board, boardNext: "" }), t("탑승역"))}
+        {lineSelect(plan.alightLine, (alightLine) => set({ alightLine, alight: "", backNext: "" }), t("하차 노선"))}
+        {stationSelect(plan.alightLine, plan.alight, (alight) => set({ alight, backNext: "" }), t("하차역"))}
         <DirectionToggle line={plan.boardLine} station={plan.board} value={plan.boardNext} onChange={(boardNext) => set({ boardNext })} label={t("진행 방면 (화살표)")} />
       </div>
 

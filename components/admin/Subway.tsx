@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ALL_LINES, type LineId } from "@/lib/subway";
+import { ALL_LINES, OPENABLE_LINES, lineColor, type LineId } from "@/lib/subway";
 
 type Config = { enabled: boolean; pilot: LineId[] };
-const PILOT_OK: LineId[] = ["2", "5"];
+const PILOT_OK: LineId[] = OPENABLE_LINES;
 
-/** 관리자 > 지하철: 앉아가기 열기 여부와 시범 노선. 전 노선을 보여 주고 2·5호선만 고를 수 있다. */
+/** 관리자 > 지하철: 앉아가기 열기 여부와 시범 노선. 전 노선을 보여 주고 열 수 있는 노선만 고를 수 있다. */
 export default function AdminSubway() {
   const [cfg, setCfg] = useState<Config | null>(null);
   const [msg, setMsg] = useState("");
@@ -38,7 +38,7 @@ export default function AdminSubway() {
     <section className="grid gap-4 rounded-2xl bg-white p-5 shadow-card">
       <div>
         <h2 className="text-[18px] font-bold">지하철 관리</h2>
-        <p className="mt-1 text-[14px] text-sub">앉아가기 준비 상태와 시범 노선을 정합니다. 시범 노선은 2호선·5호선만 고를 수 있어요.</p>
+        <p className="mt-1 text-[14px] text-sub">앉아가기 준비 상태와 시범 노선을 정합니다. 열 수 있는 노선은 2·5·6·7·9호선이에요.</p>
       </div>
 
       <label className="flex min-h-[44px] items-center gap-3 text-[15px] font-semibold">
@@ -55,6 +55,7 @@ export default function AdminSubway() {
             return (
               <label key={l.id} className={`flex min-h-[44px] items-center gap-2 rounded-xl border px-3 text-[14px] ${ok ? "border-line bg-white" : "border-line bg-bg text-sub opacity-60"}`}>
                 <input type="checkbox" className="h-4 w-4 accent-[#7C3AED]" disabled={!ok} checked={on} onChange={() => togglePilot(l.id)} />
+                <span aria-hidden className="h-3 w-3 shrink-0 rounded-full" style={{ background: lineColor(l.id).bg }} />
                 {l.name}
                 {!ok && <span className="ml-auto text-[12px]">준비 중</span>}
               </label>

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import type { Post, User } from "@/lib/types";
 import type { LineId, SubwayPlan } from "@/lib/subway";
-import { ALL_LINES, LINE_STATIONS } from "@/lib/subway";
+import { ALL_LINES, LINE_STATIONS, lineColor } from "@/lib/subway";
 import { Segment, Sheet, api, field, useT } from "../ui";
 import { headingsAt } from "@/lib/subwayRoute";
 import SubwayCarGuide from "./SubwayCarGuide";
@@ -214,7 +214,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                 />
               ) : null}
               <p className="text-[17px] font-bold text-ink">
-                <span className="mr-1.5 rounded-md bg-accent px-1.5 py-0.5 text-[12px] font-bold text-white">{t(lineName)}</span>
+                <span className="mr-1.5 rounded-md px-1.5 py-0.5 text-[12px] font-bold" style={{ background: lineColor(lineNow).bg, color: lineColor(lineNow).text }}>{t(lineName)}</span>
                 {board}
                 {board === stationOf(plan, kind) ? ` → ${kind === "go" ? plan.alight : plan.board}` : ` ${t("탑승")}`}{" "}
                 <span className="num font-semibold text-accent">{timeNow}</span>

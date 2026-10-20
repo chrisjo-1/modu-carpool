@@ -16,7 +16,7 @@ export async function GET() {
   }
 }
 
-/** 열기 여부와 시범 노선 저장. 시범 노선은 허용된 노선(2호선·5호선)만 받는다. */
+/** 열기 여부와 시범 노선 저장. 시범 노선은 열 수 있는 노선(PILOT_CHOICES)만 받는다. */
 export async function PUT(req: Request) {
   if (!(await isAdmin())) return denied();
   if (!hasDb()) return json({ error: "DB가 연결되지 않았습니다." }, 503);
@@ -31,7 +31,7 @@ export async function PUT(req: Request) {
     if (Array.isArray(b.pilot)) {
       const pilot = [...new Set(b.pilot.map(String))];
       if (!pilot.every((p) => PILOT_CHOICES.includes(p))) {
-        return json({ error: "시범 노선은 2호선과 5호선 중에서만 고를 수 있어요." }, 400);
+        return json({ error: "열 수 없는 노선이 들어 있어요. 2·5·6·7·9호선 중에서 골라 주세요." }, 400);
       }
       await sql`insert into settings (key, value) values (${SEAT_PILOT_KEY}, ${JSON.stringify(pilot)})
         on conflict (key) do update set value = excluded.value`;
