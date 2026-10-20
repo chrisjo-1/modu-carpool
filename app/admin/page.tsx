@@ -35,6 +35,7 @@ const AdminDemo = dynamic(() => import("@/components/admin/Demo"), { ssr: false 
 const AdminRequests = dynamic(() => import("@/components/admin/Requests"), { ssr: false });
 // 출퇴근 지도(leaflet)는 탭을 열 때만 불러온다.
 const AdminFlowMap = dynamic(() => import("@/components/admin/FlowMap"), { ssr: false });
+const AdminSeatSim = dynamic(() => import("@/components/admin/SeatSim"), { ssr: false });
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
@@ -59,7 +60,7 @@ type Info = { db: boolean; stats: Stats | null; userTotal: number; posts: PostRo
 /** 회원 필터(모두 서버에서 전체 회원 대상) */
 type UserFilter = { gen: string; role: string; status: string; origin: string; from: string; to: string; seen: string; has: string; withTest: boolean };
 const NO_FILTER: UserFilter = { gen: "", role: "", status: "", origin: "", from: "", to: "", seen: "", has: "", withTest: false };
-type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows";
+type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
@@ -240,6 +241,7 @@ export default function Admin() {
         {tabBtn("send", "발송")}
         {tabBtn("subway", "지하철")}
         {tabBtn("flows", "출퇴근 지도")}
+        {tabBtn("simulate", "앉아가기 시뮬레이션")}
         {tabBtn("legacy", "구 워프 회원 이전")}
         {msg && <p role="status" className="ml-2 text-sm text-sub">{msg}</p>}
       </div>
@@ -477,6 +479,7 @@ export default function Admin() {
       {tab === "mail" && <AdminMail />}
       {tab === "send" && <AdminSend />}
       {tab === "subway" && <AdminSubway />}
+      {tab === "simulate" && <AdminSeatSim />}
       {tab === "flows" && <AdminFlowMap />}
       {tab === "notices" && <AdminNotices />}
       {tab === "keywords" && <AdminKeywords />}
