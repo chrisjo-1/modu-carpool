@@ -82,7 +82,7 @@ export default function App() {
   const [editing, setEditing] = useState<Post | null>(null);
   const [member, setMember] = useState<string | null>(null);
   const [why, setWhy] = useState<{ mode: "report" | "block"; userId: string; name: string; requestId?: string } | null>(null);
-  const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean; prefill?: { origin: Place; dest: Place } } | null>(null);
+  const [commute, setCommute] = useState<{ post: Post | null; onboarding: boolean; prefill?: { origin: Place; dest: Place }; startMode?: "subway" } | null>(null);
 
   // 로그인한 회원의 현재 위치를 앱을 열 때 기록한다(CALL 대상 찾기용).
   // 위치 권한이 이미 허용된 경우에만 조용히 보내고, 권한 창은 띄우지 않는다. 5분에 한 번만 보낸다.
@@ -544,7 +544,7 @@ export default function App() {
           {tab === "home" &&
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
-          {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} onSettings={() => setTab("me")} />}
+          {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} onSettings={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} onChanged={loadThreads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {
             // 받은 신청: 내 글 목록에서 찾아 글 상세(수락·거절 버튼)를 연다.
             const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
@@ -595,7 +595,7 @@ export default function App() {
         )}
         {commuteStart && joinFlow && <CommuteOnboard user={user} toast={setToastMsg} onDone={(msg) => { setCommuteStart(false); setJoinFlow(false); setToastMsg(msg); refresh(); setTab("home"); }} />}
         {commuteStart && !joinFlow && <CommuteStart onNext={commuteNext} onClose={() => setCommuteStart(false)} toast={setToastMsg} />}
-        {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); setJoinFlow(false); refresh(); setTab("home"); }} />}
+        {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} startMode={commute.startMode} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); setJoinFlow(false); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {enabled && checked && !user && !preview && !resetToken && !withdrawToken && (

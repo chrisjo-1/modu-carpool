@@ -52,6 +52,7 @@ export default function CommuteSheet({
   initial,
   prefill,
   onboarding,
+  startMode,
   onClose,
   onDone,
   toast,
@@ -61,6 +62,8 @@ export default function CommuteSheet({
   /** 출발지·도착지를 미리 채운 값(등록 탭에서 먼저 고른 경로) */
   prefill?: { origin: Place; dest: Place };
   onboarding: boolean;
+  /** 처음 열 때 선택해 둘 칸(지하철 메뉴에서 "설정으로 이동"으로 열 때 subway) */
+  startMode?: "subway";
   onClose: () => void;
   onDone: () => void;
   toast: (m: string) => void;
@@ -71,7 +74,7 @@ export default function CommuteSheet({
   // 지하철을 골라도 마지막으로 고른 운전자·탑승자 입장(role)은 그대로 둔다.
   // 안내(앉아갈 정보)와 매칭은 하단 '지하철' 메뉴에서 본다.
   const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
-  const [mode, setMode] = useState<"driver" | "rider" | "subway">(role);
+  const [mode, setMode] = useState<"driver" | "rider" | "subway">(startMode ?? role);
   const subwayOpen = mode === "subway";
   const pickMode = (m: "driver" | "rider" | "subway") => {
     setMode(m);
