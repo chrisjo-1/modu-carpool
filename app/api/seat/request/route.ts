@@ -51,7 +51,10 @@ export async function POST(req: Request) {
   try {
     // mode: 목록(ahead: 내 뒤에 타는 분, before: 내 하차 전에 자리를 비우는 분)에서 고른 경우
     const mode = b.mode === "ahead" || b.mode === "before" ? b.mode : "auto";
-    const r = await createRequest(uid, planId, "manual", mode);
+    // trip: 내 방향 여정, theirTrip: 상대가 맞은 방향 여정(목록에서 받은 값)
+    const myTrip = b.trip === "back" ? "back" : "go";
+    const theirTrip = b.theirTrip === "back" ? "back" : "go";
+    const r = await createRequest(uid, planId, "manual", mode, myTrip, theirTrip);
     if (!r.ok) return json({ error: r.error }, 400);
     await seatPush(r.toUser, "자리 나눔 요청이 왔어요", "지하철 메뉴에서 확인하고 수락해 주세요.", "seat-req");
     return json({ id: r.id });

@@ -1,6 +1,6 @@
 import { json } from "@/lib/server";
 import { activePlans, seatDbReady } from "@/lib/seatDb";
-import { rankCandidates } from "@/lib/seatMatch";
+import { rankCandidates, tripViews } from "@/lib/seatMatch";
 import { seatPush } from "@/lib/seatNotify";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +17,14 @@ export async function GET(req: Request) {
   const dow = String(new Date(Date.now() + 9 * 3600_000).getUTCDay());
   const plans = (await activePlans()).filter((p) => p.days.includes(dow));
   let notified = 0;
+  // 두 방향 여정을 모두 보고, 같은 방향끼리 맞는 상대를 센다.
+  const views = plans.flatMap(tripViews);
   for (const me of plans) {
-    const n = new Set(rankCandidates(me, plans).map((c) => c.userId)).size;
+    const others = new Set<string>();
+    for (const mv of tripViews(me)) for (const c of rankCandidates(mv, views)) if (c.userId !== me.userId) others.add(c.userId);
+    const n = others.size;
     if (!n) continue;
-    await seatPush(me.userId, "오늘 자리를 나눌 수 있는 분이 있어요", `${n}명과 1~3정거장 안에서 자리를 나눌 수 있어요. 지하철 메뉴에서 CALL을 눌러 보세요.`, "seat-daily");
+    await seatPush(me.userId, "오늘 자리를 나눌 수 있는 분이 있어요", `${n}명과 1~3정거장 안에서 자리를 나눌 수 있어요. 지하철 메뉴에서 앉았어요를 눌러 보세요.`, "seat-daily");
     notified++;
   }
   return json({ plans: plans.length, notified });

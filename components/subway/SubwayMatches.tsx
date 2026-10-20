@@ -11,7 +11,7 @@ import type { Posture } from "./SubwayCall";
 type Pair = { role: "take" | "give"; stops: number; seatStation: string; meetStation: string; gapMin: number; car: string; gate: string };
 type Spot = { car: string; door: string; side: "left" | "right" | ""; seat?: string; memo: string; photo?: boolean };
 type Contact = { type: string; id: string };
-type Cand = Pair & { planId: number; timeGo: string; name: string };
+type Cand = Pair & { planId: number; timeGo: string; name: string; trip?: "go" | "back" };
 type Req = { id: string; status: string; incoming: boolean; otherPlanId: number; otherTime: string; pair: Pair | null; spot: Spot | null; contact: Contact | null };
 
 const smallBtn = "shrink-0 rounded-xl bg-accent px-4 py-2 text-[14px] font-semibold text-white active:opacity-90 disabled:opacity-40";
@@ -37,7 +37,7 @@ export function spotText(s: Spot): string {
  * 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들의 목록(프로필·승차 정보)을 보여 준다.
  * 위쪽: 받은 요청·매칭됨. 수락 전에는 하차역·자리 위치를 숨기고, 수락 뒤에만 보여 준다.
  */
-export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "", line, next }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture; line: LineId; next?: string }) {
+export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "", line, next, trip = "go" }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture; line: LineId; next?: string; trip?: "go" | "back" }) {
   const t = useT();
   const [memoAsk, setMemoAsk] = useState(false);
   const [cands, setCands] = useState<Cand[] | null>(null);
@@ -62,7 +62,7 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
       setOffDay(false);
       return;
     }
-    const c = await api<{ candidates: Cand[]; offDay?: boolean }>(`/api/seat/match?list=${listKind}`);
+    const c = await api<{ candidates: Cand[]; offDay?: boolean }>(`/api/seat/match?list=${listKind}&trip=${trip}`);
     if (!c.ok) return setFailed(true);
     setCands(c.data.candidates);
     setOffDay(!!c.data.offDay);
@@ -84,10 +84,10 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
     else setMsg(t("매칭이 수락되면 대화로 자리를 알려 줄 수 있어요. 먼저 상대에게 요청을 보내 주세요."));
   }, [askPending, reqs, t]);
 
-  const send = async (planId: number) => {
+  const send = async (planId: number, theirTrip: "go" | "back" = "go") => {
     setBusy(`c${planId}`);
     setMsg("");
-    const r = await api("/api/seat/request", "POST", { planId, mode: listKind });
+    const r = await api("/api/seat/request", "POST", { planId, mode: listKind, trip, theirTrip });
     setBusy("");
     if (!r.ok) return setMsg(t(r.error));
     setMsg(t("요청을 보냈어요. 상대가 수락하면 매칭돼요."));
@@ -165,7 +165,7 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
           {pool.length === 0 ? (
             <EmptyList text={t("지금 내가 내리기 전에 자리를 비우는 분이 없어요. 등록하는 분이 생기면 여기에 나와요.")} />
           ) : (
-            pool.map((c) => <ProfileRow key={`${c.planId}-${c.role}`} c={c} busy={busy === `c${c.planId}`} onRequest={() => send(c.planId)} />)
+            pool.map((c) => <ProfileRow key={`${c.planId}-${c.role}`} c={c} busy={busy === `c${c.planId}`} onRequest={() => send(c.planId, c.trip)} />)
           )}
         </Group>
       ) : (
@@ -173,7 +173,7 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
           {pool.length === 0 ? (
             <EmptyList text={t("지금 내가 탄 뒤에 같은 방향으로 타고, 내가 내리기 전에 같은 길을 가는 분이 없어요. 등록하는 분이 생기면 여기에 나와요.")} />
           ) : (
-            pool.map((c) => <ProfileRow key={`${c.planId}-${c.role}`} c={c} busy={busy === `c${c.planId}`} onRequest={() => send(c.planId)} />)
+            pool.map((c) => <ProfileRow key={`${c.planId}-${c.role}`} c={c} busy={busy === `c${c.planId}`} onRequest={() => send(c.planId, c.trip)} />)
           )}
         </Group>
       ))}

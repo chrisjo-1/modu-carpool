@@ -19,7 +19,7 @@ import DirectionToggle from "./DirectionToggle";
 const LocationHelp = dynamic(() => import("./LocationHelp"), { ssr: false });
 
 /**
- * 하단 '지하철' 메뉴. 오늘 탑승(출근·퇴근 자동, 방향) 아래에 두 기능: ① 앉을 칸 찾기(추천 칸·앉았어요)
+ * 하단 '지하철' 메뉴. 오늘 탑승(시각에 맞춘 방면 자동, 선택 가능) 아래에 두 기능: ① 앉을 칸 찾기(추천 칸·앉았어요)
  * ② 매칭(받은 요청 수락 → 자리·메모 보여 주기). 앉았어요는 같은 방향 가능자 전체에 푸시하고 하루 1회 적립한다.
  * 지하철 출퇴근 등록은 '설정(내 출퇴근 정보)'의 지하철 칸에서 한다.
  * 이 폴더와 App.tsx의 탭 연결 한 곳을 지우면 기능 전체를 뺄 수 있다.
@@ -168,10 +168,8 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
   const heading = dirs.find((h) => h.next === today?.next) ?? dirs[0] ?? null;
   const lineName = ALL_LINES.find((l) => l.id === lineNow)?.name ?? "";
   const posture: Posture = today?.posture ?? "";
-  // 요일 자동: 오늘(한국 시간) 요일이 등록 요일에 있는지 본다.
+  // 요일은 화면에 보이지 않는다. 칸 기록 키에만 오늘 요일을 쓴다.
   const dayNow = new Date(Date.now() + 9 * 3600_000).getUTCDay();
-  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
-  const dayOk = (planDays || days).includes(String(dayNow));
   // 역을 바꾸면 이 역에서 이어지는 방면으로 맞춘다.
   const pickNext = (b: string) => {
     const hs = plan ? headingsAt(lineNow, b) : [];
@@ -195,7 +193,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
       {loaded && plan && today && (
         <>
           {/* ① 오늘 탑승: 시각으로 출근·퇴근을 고르고, 열차 진행 방향 화살표를 고른다. */}
-          <Step n={1} title={kind === "go" ? t("오늘 출근") : t("오늘 퇴근")}>
+          <Step n={1} title={t("오늘 탑승 방면")}>
             <div data-block-id="C130" data-block-name="오늘 탑승" className="space-y-4 rounded-2xl border border-line bg-white p-4 shadow-card">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[13px] text-sub">
@@ -205,32 +203,25 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                   {editing ? t("닫기") : t("변경")}
                 </button>
               </div>
+              {/* 방면 선택: 역 이름으로 두 방향을 보여 준다. 기본은 현재 시각에 맞춘 방면이다. */}
               {plan.back ? (
                 <Segment
-                  label={t("출근·퇴근")}
+                  label={t("방면")}
                   value={kind}
                   onChange={switchKind}
                   accents={{ go: "accent", back: "accent" }}
                   options={[
-                    ["go", t("출근")],
-                    ["back", t("퇴근")],
+                    ["go", `${plan.board} → ${plan.alight}`],
+                    ["back", `${plan.alight} → ${plan.board}`],
                   ]}
                 />
-              ) : (
-                <p className="text-[12px] text-sub">{t("퇴근도 등록하면 시간에 따라 출근·퇴근이 자동으로 바뀌어요.")}</p>
-              )}
+              ) : null}
               <p className="text-[17px] font-bold text-ink">
                 <span className="mr-1.5 rounded-md bg-accent px-1.5 py-0.5 text-[12px] font-bold text-white">{t(lineName)}</span>
                 {board}
                 {board === stationOf(plan, kind) ? ` → ${kind === "go" ? plan.alight : plan.board}` : ` ${t("탑승")}`}{" "}
                 <span className="num font-semibold text-accent">{timeNow}</span>
               </p>
-              <div className="flex flex-wrap items-center gap-2 text-[13px]">
-                <span className="text-sub">{t("요일")}</span>
-                <span className="rounded-full bg-accentSoft px-2.5 py-0.5 font-semibold text-accent">{dayNames[dayNow]}{t("요일")}</span>
-                <span className="text-sub">{t("자동")}</span>
-                {!dayOk && <span className="text-warn">{t("등록한 요일이 아니에요. 오늘은 쉬어요.")}</span>}
-              </div>
               <DirectionToggle line={lineNow} station={board} value={today.next} onChange={(next) => setToday({ ...today, next })} label={t("열차 진행 방향 (화살표)")} />
               {editing && (
                 <TodayEditor
@@ -250,7 +241,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                     setPlan(r.data.plan);
                     setToday({ ...today, date: kstDate(), kind, board: v.board, next, time: v.time, timeSet: true });
                     setEditing(false);
-                    setSaveMsg(kind === "go" ? "내 출근 정보에 저장했어요." : "내 퇴근 정보에 저장했어요.");
+                    setSaveMsg("이 방면 정보에 저장했어요.");
                   }}
                   onReset={() => {
                     setToday({ ...freshToday(plan, kind, null), posture: today.posture ?? "" });
@@ -263,14 +254,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
           </Step>
 
 
-          {kind === "back" ? (
-            <>
-              <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">
-                {t("지금은 퇴근 시간이에요. 앉을 칸 안내만 보여 드려요. 앉았어요와 매칭은 출근 기준이에요.")}
-              </p>
-              <CarSection line={lineNow} board={board} alight="" next={heading?.next ?? ""} timeNow={timeNow} days={days} kind="back" />
-            </>
-          ) : !seatOn ? (
+          {!seatOn ? (
             <NotOpen />
           ) : view === "" ? (
             /* 메뉴: 두 기능만 보여 준다. */
@@ -295,13 +279,14 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
               </button>
               {view === "seat" ? (
                 <>
-                  <CarSection line={plan.boardLine} board={board} alight={board === plan.board && plan.boardLine === plan.alightLine ? plan.alight : ""} next={heading?.next ?? ""} timeNow={timeNow} days={days} kind="go" />
+                  <CarSection line={lineNow} board={board} alight={(board === stationOf(plan, kind) ? (kind === "go" ? plan.alight : plan.board) : "")} next={heading?.next ?? ""} timeNow={timeNow} days={days} kind={kind} />
                   <SubwayCall
                     hasPlan={!!plan}
                     posture={posture}
                     onPosture={(p) => setToday({ ...today, posture: p })}
                     onSent={() => setReloadKey((k) => k + 1)}
-                    seatKey={{ line: plan.boardLine, station: board, dir: heading?.dir ?? "up", dow: String(dayNow), slot: slotOf(timeNow) }}
+                    trip={kind}
+                    seatKey={{ line: lineNow, station: board, dir: heading?.dir ?? "up", dow: String(dayNow), slot: slotOf(timeNow) }}
                   />
                   {/* 현재역·착의 메모는 필요할 때만 펼친다. */}
                   <details className="group" data-block-id="C133" data-block-name="더 알리기 (선택)">
@@ -311,17 +296,17 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                       <span className="hidden text-[12px] font-normal text-sub group-open:inline">{t("접기")}</span>
                     </summary>
                     <div className="space-y-3 pt-3">
-                      <RidePing line={plan.boardLine} from={board} />
+                      <RidePing line={lineNow} from={board} />
                       {posture === "sit" && <ClothesMemo />}
                     </div>
                   </details>
                   <div>
                     <p className="pb-2 text-[13px] text-sub">{t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요")}</p>
-                    <SeatSpotCard line={plan.boardLine} next={heading?.next} onChat={() => setChatAsk((k) => k + 1)} />
+                    <SeatSpotCard line={lineNow} next={heading?.next} onChat={() => setChatAsk((k) => k + 1)} />
                   </div>
                 </>
               ) : (
-                <SubwayMatches myTime={plan.timeGo} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} posture={posture} line={plan.boardLine} next={heading?.next} />
+                <SubwayMatches myTime={timeNow} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} posture={posture} line={lineNow} next={heading?.next} trip={kind} />
               )}
             </section>
           )}
@@ -332,7 +317,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
         <Sheet title={t("먼저 등록이 필요해요")} blockId="S077" onClose={() => setAskPlan(false)}>
           <div className="space-y-4 pb-2">
             <p className="text-[15px] leading-relaxed text-ink">
-              {t("지하철 출근·퇴근 시각을 설정에 먼저 등록하면, 시간에 맞춰 출근과 퇴근을 자동으로 골라 드려요. 지금 설정으로 이동할까요?")}
+              {t("지하철 탑승역과 시각을 설정에 먼저 등록하면, 시간에 맞춰 탑승 방면을 자동으로 골라 드려요. 지금 설정으로 이동할까요?")}
             </p>
             <div className="flex gap-2">
               <button
@@ -394,7 +379,7 @@ function CarSection({ line, board, alight, next, timeNow, days, kind }: { line: 
   return (
     <details open className="group rounded-2xl border border-line bg-white" data-block-id="S078" data-block-name="앉을 칸 확률">
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 text-[15px] font-semibold text-ink">
-        {kind === "back" ? t("퇴근 앉을 칸 확률") : t("앉을 칸 확률")}
+        {t("앉을 칸 확률")}
         <span className="text-[13px] font-normal text-sub group-open:hidden">{t("열기")}</span>
         <span className="hidden text-[13px] font-normal text-sub group-open:inline">{t("접기")}</span>
       </summary>
@@ -415,8 +400,8 @@ function EmptyPlan({ onSettings }: { onSettings?: () => void }) {
   const t = useT();
   return (
     <div className="space-y-3 rounded-2xl border border-line bg-white px-4 py-4">
-      <p className="text-[15px] font-semibold text-ink">{t("지하철 출퇴근 정보를 먼저 등록해 주세요")}</p>
-      <p className="text-[13px] leading-relaxed text-sub">{t("설정에서 노선·역·출근 시각을 저장하면, 시간에 맞춰 출근과 퇴근을 골라 드려요.")}</p>
+      <p className="text-[15px] font-semibold text-ink">{t("지하철 정보를 먼저 등록해 주세요")}</p>
+      <p className="text-[13px] leading-relaxed text-sub">{t("설정에서 노선·역·시각을 저장하면, 시간에 맞춰 탑승 방면을 골라 드려요.")}</p>
       {onSettings && (
         <button type="button" className="rounded-xl bg-accent px-4 py-2.5 text-[14px] font-semibold text-white" onClick={onSettings}>
           {t("설정으로 이동")}
@@ -455,14 +440,14 @@ function TodayEditor({ line, kind, init, onSave, onReset, canSaveToPlan, onSaveT
           {t("오늘만 이렇게 보기")}
         </button>
         <button type="button" className="flex-1 rounded-xl border border-accent bg-white py-2.5 text-[14px] font-semibold text-accent disabled:opacity-40" disabled={!canSaveToPlan || !timeOk} onClick={() => onSaveToPlan({ board, time })}>
-          {kind === "go" ? t("저장 (내 출근 정보에도 반영)") : t("저장 (내 퇴근 정보에도 반영)")}
+          {t("저장 (내 지하철 정보에도 반영)")}
         </button>
         <button type="button" className="rounded-xl bg-white px-3 py-2.5 text-[14px] text-sub" onClick={onReset}>
           {t("등록 정보로")}
         </button>
       </div>
       <p className="text-[12px] leading-relaxed text-sub">
-        {canSaveToPlan ? t("오늘만 이렇게 보기는 이 기기에서만 바뀌어요. 저장하면 매칭에 쓰는 시각과 방면도 함께 바뀝니다.") : t("탑승역을 바꾸었다면 칸까지 골라야 하므로, 내 출퇴근 정보에서 저장해 주세요.")}
+        {canSaveToPlan ? t("오늘만 이렇게 보기는 이 기기에서만 바뀌어요. 저장하면 매칭에 쓰는 시각과 방면도 함께 바뀝니다.") : t("탑승역을 바꾸었다면 칸까지 골라야 하므로, 내 지하철 정보에서 저장해 주세요.")}
       </p>
     </div>
   );

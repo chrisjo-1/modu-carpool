@@ -17,7 +17,12 @@ export const MAX_STOPS = 3;
 export const TIME_WINDOW_MIN = 10;
 export const MIN_PER_STOP = 2;
 
+/** 등록 한 건이 가진 두 방향의 여정: go = 등록한 탑승역→하차역, back = 그 반대 방향. 이름이 아니라 방향으로만 쓴다. */
+export type Trip = "go" | "back";
+
 export type SeatPlanRow = {
+  /** 이 행이 어느 방향 여정으로 본 것인지(tripView가 채운다). 비어 있으면 go. */
+  trip?: Trip;
   id: number;
   userId: string;
   days: string;
@@ -37,6 +42,32 @@ export type SeatPlanRow = {
   /** 퇴근 방면(다음 역). 화면 표시용. */
   backNext: string;
 };
+
+/**
+ * 등록 한 건을 방향별 여정으로 본 행. go는 그대로, back은 출발·도착을 뒤집고 시각·칸·방면을 반대 방향 값으로 바꾼다.
+ * 반대 방향 정보가 없으면 null. 매칭 규칙은 이 행을 그대로 받아 같은 방향끼리만 맞춘다.
+ */
+export function tripView(p: SeatPlanRow, trip: Trip): SeatPlanRow | null {
+  if (trip === "go") return { ...p, trip: "go" };
+  if (!p.back || !p.timeBack) return null;
+  return {
+    ...p,
+    trip: "back",
+    boardLine: p.alightLine,
+    boardStation: p.alightStation,
+    alightLine: p.boardLine,
+    alightStation: p.boardStation,
+    timeGo: p.timeBack,
+    boardCar: p.backCar || p.boardCar,
+    boardGate: p.backGate || p.boardGate,
+    boardNext: p.backNext,
+  };
+}
+
+/** 가진 방향 여정을 모두 모은다(반대 방향이 없으면 go 하나). */
+export function tripViews(p: SeatPlanRow): SeatPlanRow[] {
+  return (["go", "back"] as Trip[]).map((t) => tripView(p, t)).filter((v): v is SeatPlanRow => !!v);
+}
 
 /** 두 등록 사이의 자리 나눔 정보. */
 export type SeatPair = {

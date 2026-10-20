@@ -12,7 +12,7 @@ export type Posture = "sit" | "stand" | "";
  * 앉았어요 한 번. 같은 방향으로 자리를 받을 수 있는 분 모두에게 푸시를 보내고, 결과와 상관없이 오늘 첫 번째에 적립한다.
  * 성공 피드백(앉았다는 확인)을 바로 보여 준다.
  */
-export default function SubwayCall({ hasPlan, posture, onPosture, onSent, seatKey }: { hasPlan: boolean; posture: Posture; onPosture: (p: Posture) => void; onSent: () => void; seatKey?: SeatKey }) {
+export default function SubwayCall({ hasPlan, posture, onPosture, onSent, seatKey, trip = "go" }: { hasPlan: boolean; posture: Posture; onPosture: (p: Posture) => void; onSent: () => void; seatKey?: SeatKey; trip?: "go" | "back" }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -33,7 +33,7 @@ export default function SubwayCall({ hasPlan, posture, onPosture, onSent, seatKe
   const sit = async () => {
     setBusy(true);
     setMsg("");
-    const r = await api<{ sent: number; credit: number }>("/api/seat/call", "POST");
+    const r = await api<{ sent: number; credit: number }>("/api/seat/call", "POST", { trip });
     setBusy(false);
     if (!r.ok) return setMsg(t(r.error));
     onPosture("sit");
@@ -41,7 +41,7 @@ export default function SubwayCall({ hasPlan, posture, onPosture, onSent, seatKe
     onSent();
   };
 
-  if (!hasPlan) return <p className="text-[14px] text-sub">{t("설정에서 지하철 출퇴근 정보를 먼저 등록해 주세요.")}</p>;
+  if (!hasPlan) return <p className="text-[14px] text-sub">{t("설정에서 지하철 정보를 먼저 등록해 주세요.")}</p>;
 
   return (
     <div data-block-id="S074" data-block-name="앉았어요" className="space-y-3">

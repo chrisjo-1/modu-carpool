@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import type { SubwayPlan } from "./subway";
-import { FREE_PAIR, rankAhead, rankBefore, rankCandidates, seatPair, vacatePair, type Candidate, type SeatPair, type SeatPlanRow } from "./seatMatch";
+import { FREE_PAIR, rankAhead, rankBefore, rankCandidates, seatPair, tripView, tripViews, vacatePair, type Candidate, type SeatPair, type SeatPlanRow, type Trip } from "./seatMatch";
 import { compareCarNo, type CarMatch } from "./subwayPosition";
 
 /**
@@ -49,6 +49,11 @@ async function buildSeatSchema(sql: ReturnType<typeof seatSql>) {
     responded_at timestamptz,
     unique (from_plan, to_plan))`;
   await sql`create index if not exists seat_requests_to_idx on seat_requests (to_user, status)`;
+  // 요청마다 두 사람이 각각 어느 방향 여정(go/back)으로 맞았는지 남긴다. 같은 두 사람이 방향마다 따로 요청할 수 있다.
+  await sql`alter table seat_requests add column if not exists from_trip text not null default 'go'`;
+  await sql`alter table seat_requests add column if not exists to_trip text not null default 'go'`;
+  await sql`alter table seat_requests drop constraint if exists seat_requests_from_plan_to_plan_key`;
+  await sql`create unique index if not exists seat_requests_trip_uniq on seat_requests (from_plan, to_plan, from_trip, to_trip)`;
   // 입구 안내용 착석 기록. 회원 번호를 넣지 않는다(익명 집계).
   await sql`create table if not exists seat_feedback (
     id bigserial primary key,
@@ -207,7 +212,7 @@ export async function listCandidates(me: SeatPlanRow): Promise<Candidate[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select * from seat_plans
     where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.boardLine} and user_id <> ${me.userId}`;
-  return rankCandidates(me, rows.map((r) => toRow(r as Raw)));
+  return rankCandidates(me, rows.flatMap((r) => tripViews(toRow(r as Raw))));
 }
 
 /** 오늘(한국 시간) 요일 한 글자. 0=일 … 6=토. 등록 요일 표기와 같다. */
@@ -215,12 +220,13 @@ export function todayDigit(): string {
   return String(new Date(Date.now() + 9 * 3600_000).getUTCDay());
 }
 
-/** 오늘 요일로 좁힌 내 등록. 등록 요일에 오늘이 없으면 null(오늘은 쉬는 날). */
-export async function todayPlan(userId: string): Promise<SeatPlanRow | null> {
+/** 오늘 요일로 좁힌 내 방향 여정. 그 방향 정보가 없으면 null. */
+export async function todayPlan(userId: string, trip: Trip = "go"): Promise<SeatPlanRow | null> {
   const me = await getMyPlan(userId);
   if (!me) return null;
-  const d = todayDigit();
-  return me.days.includes(d) ? { ...me, days: d } : null;
+  // 요일은 내 쪽에서 따지지 않는다(앉아 있는 지금이 기준). 상대는 오늘 요일이 등록돼 있어야 맞는다.
+  const v = tripView(me, trip);
+  return v ? { ...v, days: todayDigit() } : null;
 }
 
 /** 못 앉았을 때 목록: 내가 타고 있는 동안 중간에 자리를 비우는 분들. */
@@ -228,7 +234,7 @@ export async function listBefore(me: SeatPlanRow): Promise<Candidate[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select * from seat_plans
     where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.boardLine} and user_id <> ${me.userId}`;
-  return rankBefore(me, rows.map((r) => toRow(r as Raw)));
+  return rankBefore(me, rows.flatMap((r) => tripViews(toRow(r as Raw))));
 }
 
 /** 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들(목록). 앉았어요 푸시 대상도 이 범위다. */
@@ -236,26 +242,27 @@ export async function listAhead(me: SeatPlanRow): Promise<Candidate[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select * from seat_plans
     where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.boardLine} and user_id <> ${me.userId}`;
-  return rankAhead(me, rows.map((r) => toRow(r as Raw)));
+  return rankAhead(me, rows.flatMap((r) => tripViews(toRow(r as Raw))));
 }
 
 /** 후보에게 앉아가기 요청을 보낸다. 규칙에 맞는 후보에게만 보낼 수 있다. */
 export type ReqMode = "auto" | "ahead" | "before";
-export async function createRequest(fromUser: string, toPlanId: number, kind: "manual" | "call" = "manual", mode: ReqMode = "auto"): Promise<{ ok: true; id: string; toUser: string } | { ok: false; error: string }> {
+export async function createRequest(fromUser: string, toPlanId: number, kind: "manual" | "call" = "manual", mode: ReqMode = "auto", myTrip: Trip = "go", theirTrip: Trip = "go"): Promise<{ ok: true; id: string; toUser: string } | { ok: false; error: string }> {
   await ensureSeatSchema();
   const sql = seatSql();
-  const mine = await todayPlan(fromUser);
-  if (!mine) return { ok: false, error: "오늘 요일에 맞는 등록이 없어요. 등록 요일을 확인해 주세요." };
+  const mine = await todayPlan(fromUser, myTrip);
+  if (!mine) return { ok: false, error: "등록한 방면 정보가 없어요. 설정에서 확인해 주세요." };
   const target = await sql`select * from seat_plans where id = ${toPlanId} and status = 'active' limit 1`;
   if (!target.length) return { ok: false, error: "이미 해제된 등록이에요." };
-  const t = toRow(target[0] as Raw);
+  const t = tripView(toRow(target[0] as Raw), theirTrip);
+  if (!t) return { ok: false, error: "이미 해제된 등록이에요." };
   if (t.userId === fromUser) return { ok: false, error: "내 등록에는 요청할 수 없어요." };
   // 목록(ahead)에서 고른 분: 내가 먼저 타 있고 그 뒤에 타는 분. 자동 요청·CALL은 1~3정거장만.
   const ok = mode === "ahead" ? !!seatPair(t, mine, FREE_PAIR) : mode === "before" ? !!vacatePair(mine, t) : rankCandidates(mine, [t]).length > 0;
   if (!ok) return { ok: false, error: "시간이나 역이 맞지 않아 요청할 수 없어요." };
-  const rows = await sql`insert into seat_requests (from_user, to_user, from_plan, to_plan, kind)
-    values (${fromUser}, ${t.userId}, ${mine.id}, ${t.id}, ${kind})
-    on conflict (from_plan, to_plan) do nothing returning id`;
+  const rows = await sql`insert into seat_requests (from_user, to_user, from_plan, to_plan, kind, from_trip, to_trip)
+    values (${fromUser}, ${t.userId}, ${mine.id}, ${t.id}, ${kind}, ${myTrip}, ${theirTrip})
+    on conflict (from_plan, to_plan, from_trip, to_trip) do nothing returning id`;
   if (!rows.length) return { ok: false, error: "이미 요청을 보냈어요." };
   return { ok: true, id: String(rows[0].id), toUser: t.userId };
 }
@@ -287,22 +294,25 @@ export type RequestView = {
 export async function listRequests(userId: string): Promise<{ incoming: RequestView[]; outgoing: RequestView[] }> {
   await ensureSeatSchema();
   const sql = seatSql();
-  const rows = await sql`select id, status, from_user, to_user, from_plan, to_plan from seat_requests
+  const rows = await sql`select id, status, from_user, to_user, from_plan, to_plan, from_trip, to_trip from seat_requests
     where from_user = ${userId} or to_user = ${userId} order by created_at desc limit 100`;
   const ids = [...new Set(rows.flatMap((r) => [Number(r.from_plan), Number(r.to_plan)]))];
   const plans = ids.length ? await sql`select * from seat_plans where id = any(${ids})` : [];
   const byId = new Map(plans.map((p) => [Number(p.id), toRow(p as Raw)]));
   const view: RequestView[] = rows.map((r) => {
     const incoming = String(r.to_user) === userId;
-    const mine = byId.get(Number(incoming ? r.to_plan : r.from_plan));
-    const other = byId.get(Number(incoming ? r.from_plan : r.to_plan));
+    const myRaw = byId.get(Number(incoming ? r.to_plan : r.from_plan));
+    const otherRaw = byId.get(Number(incoming ? r.from_plan : r.to_plan));
+    // 요청 때 맞았던 방향 여정으로 본다.
+    const mine = myRaw ? tripView(myRaw, (String(incoming ? r.to_trip : r.from_trip) === "back" ? "back" : "go")) : null;
+    const other = otherRaw ? tripView(otherRaw, (String(incoming ? r.from_trip : r.to_trip) === "back" ? "back" : "go")) : null;
     let pair: RequestView["pair"] = null;
     if (mine && other) {
       const take = seatPair(mine, other) ?? seatPair(mine, other, FREE_PAIR) ?? vacatePair(mine, other);
       const give = take ? null : seatPair(other, mine) ?? seatPair(other, mine, FREE_PAIR) ?? vacatePair(other, mine);
       pair = take ? { ...take, role: "take" } : give ? { ...give, role: "give" } : null;
     }
-    return { id: String(r.id), status: String(r.status), incoming, otherPlanId: other?.id ?? 0, otherTime: other?.timeGo ?? "", otherUser: String(incoming ? r.from_user : r.to_user), pair };
+    return { id: String(r.id), status: String(r.status), incoming, otherPlanId: otherRaw?.id ?? 0, otherTime: other?.timeGo ?? "", otherUser: String(incoming ? r.from_user : r.to_user), pair };
   });
   return { incoming: view.filter((v) => v.incoming), outgoing: view.filter((v) => !v.incoming) };
 }
@@ -356,22 +366,26 @@ export async function activePlans(): Promise<SeatPlanRow[]> {
 }
 
 /** CALL: 맞는 상대 모두에게 요청을 보낸다(희망·양보는 자동 판단). 이미 주고받은 상대는 건너뛴다. */
-export async function callAll(userId: string): Promise<{ ok: true; sent: { toUser: string; role: "take" | "give"; stops: number }[] } | { ok: false; error: string }> {
-  const mine = await todayPlan(userId);
-  if (!mine) return { ok: false, error: "오늘 요일에 맞는 등록이 없어요." };
+export async function callAll(userId: string, trip: Trip = "go"): Promise<{ ok: true; sent: { toUser: string; role: "take" | "give"; stops: number }[] } | { ok: false; error: string }> {
+  const mine = await todayPlan(userId, trip);
+  if (!mine) return { ok: false, error: "등록한 방면 정보가 없어요. 설정에서 확인해 주세요." };
   // 푸시 대상: 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분 전부(목록과 같은 범위).
   const cands = await listAhead(mine);
   const sql = seatSql();
-  const done = await sql`select from_plan, to_plan from seat_requests where from_plan = ${mine.id} or to_plan = ${mine.id}`;
-  const touched = new Set(done.flatMap((r) => [Number(r.from_plan), Number(r.to_plan)]));
+  const done = await sql`select from_plan, to_plan, from_trip, to_trip from seat_requests
+    where (from_plan = ${mine.id} and from_trip = ${trip}) or (to_plan = ${mine.id} and to_trip = ${trip})`;
+  // 이미 주고받은 (등록, 방향) 쌍은 건너뛴다.
+  const touched = new Set(done.map((r) => (Number(r.from_plan) === mine.id && String(r.from_trip) === trip ? `${r.to_plan}:${r.to_trip}` : `${r.from_plan}:${r.from_trip}`)));
   const sent: { toUser: string; role: "take" | "give"; stops: number }[] = [];
-  const seen = new Set<number>();
+  const seen = new Set<string>();
   for (const c of cands) {
-    // PUSH는 앉아 있을 때만 보낸다: 내가 자리를 양보할 수 있는 상대(give)에게만.
+    // 앉았어요는 내가 자리를 양보할 수 있는 상대(give)에게만 보낸다.
     if (c.role !== "give") continue;
-    if (touched.has(c.id) || seen.has(c.id)) continue;
-    seen.add(c.id);
-    const r = await createRequest(userId, c.id, "call", "ahead");
+    const other: Trip = c.trip === "back" ? "back" : "go";
+    const key = `${c.id}:${other}`;
+    if (touched.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    const r = await createRequest(userId, c.id, "call", "ahead", trip, other);
     if (r.ok) sent.push({ toUser: r.toUser, role: c.role, stops: c.stops });
   }
   return { ok: true, sent };

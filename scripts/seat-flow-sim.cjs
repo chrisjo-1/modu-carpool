@@ -48,6 +48,18 @@ check("⑥ 추천 1위 칸으로 앉은 뒤 푸시 대상이 생긴다", sentTo.
 const afterSave = { car: pick, memo: "네이비 패딩" };
 check("⑥ 저장 뒤에는 메모창이 뜨지 않는다", P.needsMemoPopup(afterSave) === false);
 
+
+// ⑦ 방향 기준: 같은 사람의 반대 방향 보기(back)도 똑같이 매칭된다
+const both = (id, user, from, to, tGo, tBack) => ({ ...plan(id, user, "5", from, to, tGo), back: true, timeBack: tBack, backCar: "", backGate: "", backNext: "" });
+const meB = M.tripView(both(10, "me2", "장한평", "마포", "08:00", "18:00"), "back");
+check("⑦ 반대 방향 보기는 출발·도착이 바뀐다", meB && meB.boardStation === "마포" && meB.alightStation === "장한평" && meB.timeGo === "18:00", JSON.stringify(meB && [meB.boardStation, meB.alightStation, meB.timeGo]));
+const aB = M.tripView(both(11, "x1", "답십리", "여의도", "08:10", "18:03"), "back"); // 여의도→답십리 방향
+const sameDir = M.tripView(both(12, "x2", "군자", "공덕", "08:20", "18:05"), "back"); // 공덕→군자 (마포 뒤에 탐, 더 멀리, 같은 방향)
+const r = M.rankAhead(meB, [aB, sameDir].filter(Boolean));
+check("⑦ 반대 방향도 같은 방향 뒤 승차자가 대상이 된다", r.some((c) => c.userId === "x2"), JSON.stringify(r.map((c) => c.userId)));
+check("⑦ 퇴근 정보 없으면 반대 방향 보기가 없다", M.tripView(plan(13, "n1", "5", "장한평", "마포", "08:00"), "back") === null);
+check("⑦ 두 방향 보기는 최대 2개", M.tripViews(both(14, "t1", "장한평", "마포", "08:00", "18:00")).length === 2);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 console.log("참고: 크레딧 하루 1회·푸시 발송·DB 저장은 DB 연결이 필요해 이 스크립트에서 빠져 있다(스테이징에서 따로 확인).");
 process.exit(fail ? 1 : 0);
