@@ -81,3 +81,11 @@ export function seatLabel(p: SeatPos): string {
   if (p.bench === 4) return `4번 문 뒤 노약자석 ${p.index}번째`;
   return `${p.bench}~${p.bench + 1}번 문 사이 ${p.index}번째 좌석`;
 }
+
+/**
+ * 매칭을 수락할 때 메모창을 띄워야 하는지. 칸이 없거나 메모가 비어 있으면 띄운다.
+ * 자리 위치를 상대에게 보여 주기 전에 한 번 채우게 하려는 규칙이다.
+ */
+export function needsMemoPopup(spot: { car: string; memo: string } | null): boolean {
+  return !spot || !spot.car || !spot.memo.trim();
+}

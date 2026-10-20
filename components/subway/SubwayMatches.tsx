@@ -1,9 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { CarMatch } from "@/lib/subwayPosition";
-import { parseSeat, positionLabel, seatLabel } from "@/lib/subwayPosition";
+import { needsMemoPopup, parseSeat, positionLabel, seatLabel } from "@/lib/subwayPosition";
+import type { LineId } from "@/lib/subway";
 import SeatMap from "./SeatMap";
-import { Avatar, api, field, useT } from "../ui";
+import SeatSpotCard from "./SeatSpotCard";
+import { Avatar, Sheet, api, field, useT } from "../ui";
 import type { Posture } from "./SubwayCall";
 
 type Pair = { role: "take" | "give"; stops: number; seatStation: string; meetStation: string; gapMin: number; car: string; gate: string };
@@ -35,8 +37,9 @@ export function spotText(s: Spot): string {
  * 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들의 목록(프로필·승차 정보)을 보여 준다.
  * 위쪽: 받은 요청·매칭됨. 수락 전에는 하차역·자리 위치를 숨기고, 수락 뒤에만 보여 준다.
  */
-export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "" }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture }) {
+export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "", line, next }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture; line: LineId; next?: string }) {
   const t = useT();
+  const [memoAsk, setMemoAsk] = useState(false);
   const [cands, setCands] = useState<Cand[] | null>(null);
   const [offDay, setOffDay] = useState(false);
   const [reqs, setReqs] = useState<{ incoming: Req[]; outgoing: Req[] } | null>(null);
@@ -97,6 +100,11 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
     const r = await api("/api/seat/request", "PUT", { id, accept });
     setBusy("");
     if (!r.ok) return setMsg(t(r.error));
+    // 수락하면 내 자리를 상대에게 보여 준다. 칸이나 메모가 없으면 먼저 메모창을 띄운다.
+    if (accept) {
+      const sp = await api<{ spot: { car: string; memo: string } | null }>("/api/seat/spot");
+      if (sp.ok && needsMemoPopup(sp.data.spot)) setMemoAsk(true);
+    }
     load();
   };
 
@@ -169,6 +177,15 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
           )}
         </Group>
       ))}
+
+      {memoAsk && (
+        <Sheet title={t("내 자리와 메모를 남겨 주세요")} blockId="S080" onClose={() => setMemoAsk(false)}>
+          <div className="space-y-3 pb-2">
+            <p className="text-[13px] leading-relaxed text-sub">{t("수락한 상대에게 보여 줄 자리와 메모예요. 칸을 고르고, 옷차림 메모를 남겨 주세요.")}</p>
+            <SeatSpotCard line={line} next={next} autoEdit onSaved={() => setMemoAsk(false)} />
+          </div>
+        </Sheet>
+      )}
 
       {outgoingPending.length > 0 && (
         <Group title={t("보낸 요청")}>

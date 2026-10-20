@@ -231,7 +231,7 @@ export async function listBefore(me: SeatPlanRow): Promise<Candidate[]> {
   return rankBefore(me, rows.map((r) => toRow(r as Raw)));
 }
 
-/** 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들(목록). */
+/** 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들(목록). 앉았어요 푸시 대상도 이 범위다. */
 export async function listAhead(me: SeatPlanRow): Promise<Candidate[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select * from seat_plans
@@ -359,7 +359,8 @@ export async function activePlans(): Promise<SeatPlanRow[]> {
 export async function callAll(userId: string): Promise<{ ok: true; sent: { toUser: string; role: "take" | "give"; stops: number }[] } | { ok: false; error: string }> {
   const mine = await todayPlan(userId);
   if (!mine) return { ok: false, error: "오늘 요일에 맞는 등록이 없어요." };
-  const cands = await listCandidates(mine);
+  // 푸시 대상: 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분 전부(목록과 같은 범위).
+  const cands = await listAhead(mine);
   const sql = seatSql();
   const done = await sql`select from_plan, to_plan from seat_requests where from_plan = ${mine.id} or to_plan = ${mine.id}`;
   const touched = new Set(done.flatMap((r) => [Number(r.from_plan), Number(r.to_plan)]));
@@ -370,7 +371,7 @@ export async function callAll(userId: string): Promise<{ ok: true; sent: { toUse
     if (c.role !== "give") continue;
     if (touched.has(c.id) || seen.has(c.id)) continue;
     seen.add(c.id);
-    const r = await createRequest(userId, c.id, "call");
+    const r = await createRequest(userId, c.id, "call", "ahead");
     if (r.ok) sent.push({ toUser: r.toUser, role: c.role, stops: c.stops });
   }
   return { ok: true, sent };

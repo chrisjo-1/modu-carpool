@@ -1,7 +1,7 @@
 import { db } from "./server";
 
 /** 크레딧 기준(관리자 화면에서 바꿀 수 있다). nudge 는 '메일로 알리기' 1회에 차감하는 양. */
-export const DEFAULT_RULES = { signup: 1000, attend: 100, post: 1000, nudge: 500, legacy: 2000, car: 1000, photo: 1000, firstpost: 2000, subway: 2000 };
+export const DEFAULT_RULES = { signup: 1000, attend: 100, post: 1000, nudge: 500, legacy: 2000, car: 1000, photo: 1000, firstpost: 2000, subway: 2000, sit: 200 };
 export type Rules = typeof DEFAULT_RULES;
 export const REASON_LABEL: Record<string, string> = {
   signup: "가입 축하",
@@ -11,6 +11,7 @@ export const REASON_LABEL: Record<string, string> = {
   feedback: "의견 감사",
   firstpost: "첫 카풀 등록 축하",
   subway: "지하철 출퇴근 등록 축하",
+  sit: "지하철 앉아가기(하루 1회)",
   photo_del: "프로필 사진 삭제 차감",
   attend: "출석",
   post: "카풀 게시",
@@ -39,7 +40,7 @@ export const kstDay = (t = Date.now()) => new Date(t + 9 * 3600_000).toISOString
  * 적립. 같은 날 같은 사유(출석·게시)나 가입 축하가 이미 있으면 아무것도 하지 않고 0을 돌려준다.
  * 장부 기록과 잔액 변경을 한 문장으로 처리해 중복 지급을 막는다.
  */
-export async function grant(userId: string, reason: "signup" | "attend" | "post" | "legacy" | "car" | "photo" | "firstpost" | "subway", memo = ""): Promise<number> {
+export async function grant(userId: string, reason: "signup" | "attend" | "post" | "legacy" | "car" | "photo" | "firstpost" | "subway" | "sit", memo = ""): Promise<number> {
   const rules = await getRules();
   const amount = rules[reason];
   if (!amount) return 0;

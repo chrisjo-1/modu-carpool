@@ -18,8 +18,8 @@ import DirectionToggle from "./DirectionToggle";
 const LocationHelp = dynamic(() => import("./LocationHelp"), { ssr: false });
 
 /**
- * 하단 '지하철' 메뉴. 흐름: ① 오늘 탑승(출근·퇴근 자동, 방향) → ② 앉았나요 서 있나요 → ③ 주변에 CALL
- * → ④ 같은 노선 리스트(프로필·승하차) → ⑤ 없으면 직접 고르기. 아래쪽에 앉을 칸 찾기.
+ * 하단 '지하철' 메뉴. 오늘 탑승(출근·퇴근 자동, 방향) 아래에 두 기능: ① 앉을 칸 찾기(추천 칸·앉았어요)
+ * ② 매칭(받은 요청 수락 → 자리·메모 보여 주기). 앉았어요는 같은 방향 가능자 전체에 푸시하고 하루 1회 적립한다.
  * 지하철 출퇴근 등록은 '설정(내 출퇴근 정보)'의 지하철 칸에서 한다.
  * 이 폴더와 App.tsx의 탭 연결 한 곳을 지우면 기능 전체를 뺄 수 있다.
  */
@@ -105,6 +105,8 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
   const [today, setTodayState] = useState<Today | null>(null);
   const [editing, setEditing] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  // 메뉴 안의 화면: 빈 값 = 두 기능 메뉴, seat = 앉을 칸 찾기, match = 매칭
+  const [view, setView] = useState<"" | "seat" | "match">("");
   const initRef = useRef(false);
   const setToday = (v: Today) => {
     setTodayState(v);
@@ -263,57 +265,63 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
           {kind === "back" ? (
             <>
               <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">
-                {t("지금은 퇴근 시간이에요. 앉을 칸 안내만 보여 드려요. 자리 알리기와 매칭은 출근 기준이에요.")}
+                {t("지금은 퇴근 시간이에요. 앉을 칸 안내만 보여 드려요. 앉았어요와 매칭은 출근 기준이에요.")}
               </p>
               <CarSection line={lineNow} board={board} alight="" next={heading?.next ?? ""} timeNow={timeNow} days={days} kind="back" />
             </>
+          ) : !seatOn ? (
+            <NotOpen />
+          ) : view === "" ? (
+            /* 메뉴: 두 기능만 보여 준다. */
+            <div className="space-y-3" data-block-id="S071" data-block-name="지하철 메뉴">
+              <MenuCard
+                blockId="B280"
+                title={t("앉을 칸 찾기")}
+                desc={t("지금 시간·역 기준으로 앉을 확률이 높은 칸을 알려 드려요.")}
+                onClick={() => setView("seat")}
+              />
+              <MenuCard
+                blockId="B281"
+                title={t("매칭")}
+                desc={t("앉았어요를 누르면 같은 방향 분께 알리고, 수락하면 자리를 보여 드려요.")}
+                onClick={() => setView("match")}
+              />
+            </div>
           ) : (
-            <>
-              {/* ② PUSH: 앉았으면 자리를 받을 분께 알리고, 못 앉았으면 양보해 줄 분을 찾는다. */}
-              {seatOn ? (
+            <section className="space-y-5">
+              <button type="button" data-block-id="B282" className="min-h-0 py-1 text-[14px] font-semibold text-accent" onClick={() => setView("")}>
+                {t("← 메뉴")}
+              </button>
+              {view === "seat" ? (
                 <>
-                  <Step n={2} title={t("앉았는지 알리기")} hint={t("앉았어요를 누르면 자리를 받을 분께 바로 알려요. 못 앉았어요는 알림 없이 기록만 해요.")}>
-                    <SubwayCall
-                      hasPlan={!!plan}
-                      posture={posture}
-                      onPosture={(p) => setToday({ ...today, posture: p })}
-                      onSent={() => setReloadKey((k) => k + 1)}
-                    />
-                    {/* 기본은 '앉았어요' 한 번이면 된다. 현재역·착의 메모는 필요할 때만 펼친다. */}
-                    <details className="group pt-4" data-block-id="C133" data-block-name="더 알리기 (선택)">
-                      <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
-                        {t("더 알리기 (선택)")}
-                        <span className="text-[12px] font-normal text-sub group-open:hidden">{t("펼치기")}</span>
-                        <span className="hidden text-[12px] font-normal text-sub group-open:inline">{t("접기")}</span>
-                      </summary>
-                      <div className="space-y-3 pt-3">
-                        <RidePing line={plan.boardLine} from={board} />
-                        {/* 착의 메모는 앉은 분만 남긴다. */}
-                        {posture === "sit" && <ClothesMemo />}
-                      </div>
-                    </details>
-                    <div className="pt-4">
-                      <p className="pb-2 text-[13px] text-sub">{t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요")}</p>
-                      <SeatSpotCard
-                        line={plan.boardLine}
-                        next={heading?.next}
-                        onChat={() => {
-                          setChatAsk((k) => k + 1);
-                        }}
-                      />
+                  <CarSection line={plan.boardLine} board={board} alight={board === plan.board && plan.boardLine === plan.alightLine ? plan.alight : ""} next={heading?.next ?? ""} timeNow={timeNow} days={days} kind="go" />
+                  <SubwayCall
+                    hasPlan={!!plan}
+                    posture={posture}
+                    onPosture={(p) => setToday({ ...today, posture: p })}
+                    onSent={() => setReloadKey((k) => k + 1)}
+                  />
+                  {/* 현재역·착의 메모는 필요할 때만 펼친다. */}
+                  <details className="group" data-block-id="C133" data-block-name="더 알리기 (선택)">
+                    <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                      {t("더 알리기 (선택)")}
+                      <span className="text-[12px] font-normal text-sub group-open:hidden">{t("펼치기")}</span>
+                      <span className="hidden text-[12px] font-normal text-sub group-open:inline">{t("접기")}</span>
+                    </summary>
+                    <div className="space-y-3 pt-3">
+                      <RidePing line={plan.boardLine} from={board} />
+                      {posture === "sit" && <ClothesMemo />}
                     </div>
-                  </Step>
-
-                  <Step n={3} title={t("매칭 현황")}>
-                    <SubwayMatches myTime={plan.timeGo} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} posture={posture} />
-                  </Step>
+                  </details>
+                  <div>
+                    <p className="pb-2 text-[13px] text-sub">{t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요")}</p>
+                    <SeatSpotCard line={plan.boardLine} next={heading?.next} onChat={() => setChatAsk((k) => k + 1)} />
+                  </div>
                 </>
               ) : (
-                <NotOpen />
+                <SubwayMatches myTime={plan.timeGo} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} posture={posture} line={plan.boardLine} next={heading?.next} />
               )}
-
-              <CarSection line={plan.boardLine} board={board} alight={board === plan.board && plan.boardLine === plan.alightLine ? plan.alight : ""} next={heading?.next ?? ""} timeNow={timeNow} days={days} kind="go" />
-            </>
+            </section>
           )}
         </>
       )}
@@ -346,6 +354,19 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
 
       {help && <LocationHelp onClose={() => setHelp(false)} />}
     </section>
+  );
+}
+
+/** 메뉴 카드: 제목과 한 줄 설명. 누르면 그 기능 화면으로 간다. */
+function MenuCard({ blockId, title, desc, onClick }: { blockId: string; title: string; desc: string; onClick: () => void }) {
+  return (
+    <button type="button" data-block-id={blockId} onClick={onClick} className="flex w-full items-center justify-between gap-4 rounded-2xl border border-line bg-white px-5 py-5 text-left shadow-card active:opacity-90">
+      <span className="min-w-0">
+        <span className="block text-[17px] font-bold text-ink">{title}</span>
+        <span className="mt-1 block text-[13px] leading-relaxed text-sub">{desc}</span>
+      </span>
+      <span aria-hidden className="shrink-0 text-[20px] text-sub">›</span>
+    </button>
   );
 }
 
