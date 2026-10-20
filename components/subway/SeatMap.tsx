@@ -1,4 +1,5 @@
 "use client";
+import StationSign from "./StationSign";
 import { useState } from "react";
 import { SEAT_BENCHES, parseSeat, seatId, seatLabel, type SeatPos } from "@/lib/subwayPosition";
 import { useT } from "../ui";
@@ -34,7 +35,7 @@ const SEGS = layout();
  * 그림의 왼쪽(1번 문 쪽)이 열차 앞쪽이다. 진행 방향을 보고 서면 그림의 위쪽 줄이 오른쪽, 아래쪽 줄이 왼쪽이다.
  * next: 다음역 이름(알면 화살표 옆에 함께 보여 준다).
  */
-export default function SeatMap({ value, onChange, readOnly = false, car, next }: { value: string; onChange?: (seat: string) => void; readOnly?: boolean; car?: string; next?: string }) {
+export default function SeatMap({ value, onChange, readOnly = false, car, next, line, station }: { value: string; onChange?: (seat: string) => void; readOnly?: boolean; car?: string; next?: string; line?: string; station?: string }) {
   const t = useT();
   const sel = parseSeat(value);
   // 휴대폰에서 좌석이 작아서, 그림을 누르면 그 구간을 아래에 크게 펼쳐 정확한 좌석을 고르게 한다.
@@ -46,6 +47,9 @@ export default function SeatMap({ value, onChange, readOnly = false, car, next }
   };
   return (
     <figure className="space-y-2">
+      {line && station ? (
+        <StationSign line={line} station={station} next={next} />
+      ) : (
       <div data-block-id="C131" data-block-name="진행 방향" className="flex items-center gap-1.5 text-[13px] font-semibold text-accent">
         <svg width="28" height="12" viewBox="0 0 28 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M27 6H2M7 1L2 6l5 5" />
@@ -53,6 +57,7 @@ export default function SeatMap({ value, onChange, readOnly = false, car, next }
         <span>{t("진행 방향")}</span>
         {next && <span className="font-normal text-sub">· {t("다음역")} {next}</span>}
       </div>
+      )}
       <svg viewBox="0 0 340 150" role={readOnly ? "img" : "group"} aria-label={t("차량 안 좌석 그림")} className="h-auto w-full select-none">
         {/* 차체 */}
         <rect x="2" y="12" width="336" height="126" rx="18" fill="#FFFFFF" stroke="#D9DEE8" strokeWidth="1.25" />

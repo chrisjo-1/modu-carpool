@@ -34,7 +34,7 @@ async function shrink(file: File): Promise<string> {
  * 오늘 앉은 자리: 칸을 고르고 차량 그림에서 좌석을 누른다. 오늘의 힌트(옷 색깔·소지품)를 함께 남긴다.
  * 수락된 상대에게만 보이고, 저장하면 상대에게 알린다. 하루만 쓰고 다음 날에는 다시 입력한다.
  */
-export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onSaved, presetCar = "", hideCar = false }: { line: LineId; next?: string; onChat?: () => void; autoEdit?: boolean; onSaved?: () => void; presetCar?: string; hideCar?: boolean }) {
+export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onSaved, presetCar = "", hideCar = false, station = "" }: { line: LineId; next?: string; station?: string; onChat?: () => void; autoEdit?: boolean; onSaved?: () => void; presetCar?: string; hideCar?: boolean }) {
   const t = useT();
   const [spot, setSpot] = useState<Spot | null>(null);
   const [edit, setEdit] = useState(false);
@@ -123,7 +123,7 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
     <div className="space-y-3 rounded-2xl border border-line bg-white p-4" data-block-id="S073" data-block-name="내 자리 위치">
       {!edit && spot && (
         <div className="space-y-3">
-          {spot.seat && <SeatMap value={spot.seat} car={spot.car} next={next} readOnly />}
+          {spot.seat && <SeatMap value={spot.seat} car={spot.car} next={next} line={line} station={station} readOnly />}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[13px] text-sub">{t("오늘 내 자리")}</p>
@@ -162,7 +162,7 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
           )}
           <div className="space-y-1.5">
             <p className="text-sm text-sub">{t("그림에서 앉은 좌석 누르기 (선택)")}</p>
-            {car || !hideCar ? <SeatMap value={seat} onChange={setSeat} car={car} next={next} /> : <p className="text-[13px] text-sub">{t("위에서 앉은 칸을 고르면 좌석을 표시할 수 있어요.")}</p>}
+            {car || !hideCar ? <SeatMap value={seat} onChange={setSeat} car={car} next={next} line={line} station={station} /> : <p className="text-[13px] text-sub">{t("위에서 앉은 칸을 고르면 좌석을 표시할 수 있어요.")}</p>}
           </div>
           {onChat && <ChatInstead onChat={onChat} />}
           <div className="space-y-2">

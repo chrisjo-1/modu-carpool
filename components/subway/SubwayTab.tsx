@@ -12,7 +12,6 @@ import SeatSpotCard from "./SeatSpotCard";
 import SubwayCall, { type Posture, type TodayRide } from "./SubwayCall";
 import { slotOf } from "@/lib/seatCar";
 import RidePing from "./RidePing";
-import DirectionToggle from "./DirectionToggle";
 
 // 안내 사진은 시트를 열 때만 불러온다.
 const LocationHelp = dynamic(() => import("./LocationHelp"), { ssr: false });
@@ -165,7 +164,8 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
   const alight = today?.alight || (plan ? alightOf(plan, kind) : "");
   const timeNow = kstHM();
   const dirs = plan && board ? headingsAt(lineNow, board) : [];
-  const heading = dirs.find((h) => h.next === today?.next) ?? (alight ? dirs.find((h) => h.next === headingFor(lineNow, board, alight)?.next) : undefined) ?? dirs[0] ?? null;
+  // 진행 방향은 승차역 → 하차역으로 정한다(따로 고르지 않는다).
+  const heading = (alight ? dirs.find((h) => h.next === headingFor(lineNow, board, alight)?.next) : undefined) ?? dirs[0] ?? null;
   const lineName = ALL_LINES.find((l) => l.id === lineNow)?.name ?? "";
   const posture: Posture = today?.posture ?? "";
   // 요일은 화면에 보이지 않는다. 혼잡도 자료(평일·토·일) 구분에만 쓴다.
@@ -230,7 +230,6 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                   }}
                 />
               )}
-              <DirectionToggle line={lineNow} station={board} value={heading?.next ?? ""} onChange={(next) => setToday({ ...today, next })} label={t("진행 방향")} />
             </div>
           </Step>
 
@@ -276,7 +275,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                     <>
                       <div>
                         <p className="pb-2 text-[13px] text-sub">{t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요")}</p>
-                        <SeatSpotCard line={lineNow} next={heading?.next} presetCar={spotCar} hideCar onChat={() => setChatAsk((k) => k + 1)} />
+                        <SeatSpotCard line={lineNow} station={board} next={heading?.next} presetCar={spotCar} hideCar onChat={() => setChatAsk((k) => k + 1)} />
                       </div>
                       <details className="group" data-block-id="C133" data-block-name="현재역 다시 알리기 (선택)">
                         <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
@@ -292,7 +291,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                   )}
                 </>
               ) : (
-                <SubwayMatches myTime={timeNow} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} posture={posture} line={lineNow} next={heading?.next} trip={kind} ride={ride} />
+                <SubwayMatches myTime={timeNow} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} posture={posture} line={lineNow} station={board} next={heading?.next} trip={kind} ride={ride} />
               )}
             </section>
           )}

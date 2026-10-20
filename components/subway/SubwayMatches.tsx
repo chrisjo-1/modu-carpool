@@ -37,7 +37,7 @@ export function spotText(s: Spot): string {
  * 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들의 목록(프로필·승차 정보)을 보여 준다.
  * 위쪽: 받은 요청·매칭됨. 수락 전에는 하차역·자리 위치를 숨기고, 수락 뒤에만 보여 준다.
  */
-export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "", line, next, trip = "go", ride }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture; line: LineId; next?: string; trip?: "go" | "back"; ride?: TodayRide }) {
+export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "", line, station = "", next, trip = "go", ride }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture; line: LineId; station?: string; next?: string; trip?: "go" | "back"; ride?: TodayRide }) {
   const rideQ = ride ? `&${new URLSearchParams({ line: ride.line, board: ride.board, alight: ride.alight, next: ride.next }).toString()}` : "";
   const t = useT();
   const [memoAsk, setMemoAsk] = useState(false);
@@ -125,6 +125,13 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
       <RideBanner accepted={accepted} myTime={myTime} myDays={myDays} onChat={(id) => setChatOpen(id)} />
       {msg && <p className="rounded-xl bg-bg px-3 py-2 text-[13px] text-ink">{msg}</p>}
 
+      {incomingPending.length === 0 && accepted.length === 0 && outgoingPending.length === 0 && (
+        <div className="space-y-2 rounded-2xl border border-line bg-white px-4 py-5" data-block-id="C135" data-block-name="매칭 없음">
+          <p className="text-[15px] font-semibold text-ink">{t("아직 매칭이 없어요")}</p>
+          <p className="text-[13px] leading-relaxed text-sub">{t("앉은 분이 '앉았어요'를 누르면 같은 노선·같은 방향 분께 알림이 가요. 알림을 받거나 보낸 요청이 생기면 여기에 나오고, 연결되면 대화로 자리를 넘겨받을 수 있어요.")}</p>
+        </div>
+      )}
+
       {incomingPending.length > 0 && (
         <Group title={t("받은 요청")}>
           {incomingPending.map((r) => (
@@ -183,7 +190,7 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
         <Sheet title={t("내 자리와 메모를 남겨 주세요")} blockId="S080" onClose={() => setMemoAsk(false)}>
           <div className="space-y-3 pb-2">
             <p className="text-[13px] leading-relaxed text-sub">{t("수락한 상대에게 보여 줄 자리와 메모예요. 칸을 고르고, 옷차림 메모를 남겨 주세요.")}</p>
-            <SeatSpotCard line={line} next={next} autoEdit onSaved={() => setMemoAsk(false)} />
+            <SeatSpotCard line={line} station={station} next={next} autoEdit onSaved={() => setMemoAsk(false)} />
           </div>
         </Sheet>
       )}
