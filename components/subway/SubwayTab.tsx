@@ -41,15 +41,12 @@ const toMin = (hm: string) => {
 };
 
 /**
- * 접속 시각으로 출근·퇴근을 고른다. 출근 시각 전 → 출근, 출근 이후 퇴근 시각 전 → 퇴근,
- * 퇴근 시각이 지나면 다음 날 출근으로 본다. 퇴근을 등록하지 않았으면 항상 출근.
+ * 접속 시각으로 방면을 고른다(등록 화면에서 시각을 받지 않는다).
+ * 반대 방면을 등록하지 않았으면 항상 내 방면, 등록했으면 오후 2시 전 → 내 방면, 이후 → 반대 방면.
  */
 function autoKind(plan: SubwayPlan, hm: string): Kind {
-  const now = toMin(hm);
-  const go = toMin(plan.timeGo);
-  const back = plan.back ? toMin(plan.timeBack) : -1;
-  if (back < 0 || now < go) return "go";
-  return now < back ? "back" : "go";
+  if (!plan.back) return "go";
+  return toMin(hm) < 14 * 60 ? "go" : "back";
 }
 
 const stationOf = (p: SubwayPlan, k: Kind) => (k === "go" ? p.board : p.alight);

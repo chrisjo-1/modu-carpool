@@ -56,8 +56,9 @@ export async function PUT(req: Request) {
   // 방면은 탑승역 바로 옆 역이어야 한다(아니면 비워서 기본 방향을 쓴다).
   if (p.boardNext && !headingsAt(p.boardLine, p.board).some((h) => h.next === p.boardNext)) p.boardNext = "";
   if (p.back && p.backNext && !headingsAt(p.alightLine, p.alight).some((h) => h.next === p.backNext)) p.backNext = "";
-  if (toMinutes(p.timeGo) === null) return json({ error: "출근 탑승 시각을 확인해 주세요." }, 400);
-  if (p.back && toMinutes(p.timeBack) === null) return json({ error: "퇴근 출발 시각을 확인해 주세요." }, 400);
+  // 시각·칸은 등록 화면에서 받지 않는다(지하철 메뉴에서 지금 시각으로 쓴다). 저장용 기본값만 둔다.
+  if (toMinutes(p.timeGo) === null) p.timeGo = "07:30";
+  if (p.back && toMinutes(p.timeBack) === null) p.timeBack = "18:30";
 
   try {
     const before = await getMyPlan(uid);

@@ -127,10 +127,8 @@ export const EMPTY_PLAN: SubwayPlan = {
 /** 입력 검사. 시범 노선 여부, 역, 칸을 본다. */
 export function planProblem(p: SubwayPlan, pilot: LineId[] = DEFAULT_PILOT_LINES): string | null {
   if (!pilot.includes(p.boardLine) || !pilot.includes(p.alightLine)) return "현재는 시범 노선(2호선·5호선)만 등록할 수 있어요.";
-  if (!p.board) return "출근 탑승역을 골라 주세요.";
-  if (!p.alight) return "출근 하차역을 골라 주세요.";
+  if (!p.board) return "탑승역을 골라 주세요.";
+  if (!p.alight) return "하차역을 골라 주세요.";
   if (p.board === p.alight && p.boardLine === p.alightLine) return "탑승역과 하차역이 같아요.";
-  if (!p.car) return "출근 탑승 칸을 골라 주세요.";
-  if (p.back && !p.timeBack) return "퇴근 출발 시각을 적어 주세요.";
   return null;
 }
