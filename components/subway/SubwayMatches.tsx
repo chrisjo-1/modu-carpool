@@ -4,6 +4,7 @@ import type { CarMatch } from "@/lib/subwayPosition";
 import { parseSeat, positionLabel, seatLabel } from "@/lib/subwayPosition";
 import SeatMap from "./SeatMap";
 import { Avatar, api, field, useT } from "../ui";
+import type { Posture } from "./SubwayCall";
 
 type Pair = { role: "take" | "give"; stops: number; seatStation: string; meetStation: string; gapMin: number; car: string; gate: string };
 type Spot = { car: string; door: string; side: "left" | "right" | ""; seat?: string; memo: string; photo?: boolean };
@@ -20,20 +21,24 @@ const toMin = (hhmm: string) => {
 };
 
 /** 자리 위치를 한 줄로: "6번째 칸 · 2~3번 문 사이 4번째 좌석 · 힌트: 네이비 패딩" */
+/** 같은 노선 목록 표시 여부. 목록은 추후 개발 전까지 숨긴다. */
+const SHOW_LIST = false;
+
 export function spotText(s: Spot): string {
   const p = s.seat ? parseSeat(s.seat) : null;
   const side = s.side === "left" ? " 왼쪽" : s.side === "right" ? " 오른쪽" : "";
-  const where = p ? `${s.car}번째 칸 · ${seatLabel(p)}` : `${s.car}-${s.door}${side}`;
-  return `${where}${s.memo ? ` · 힌트: ${s.memo}` : ""}`;
+  const where = !s.car ? "" : p ? `${s.car}번째 칸 · ${seatLabel(p)}` : `${s.car}-${s.door}${side}`;
+  return [where, s.memo ? `힌트: ${s.memo}` : ""].filter(Boolean).join(" · ");
 }
 
 /**
  * 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들의 목록(프로필·승차 정보)을 보여 준다.
  * 위쪽: 받은 요청·매칭됨. 수락 전에는 하차역·자리 위치를 숨기고, 수락 뒤에만 보여 준다.
  */
-export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0 }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number }) {
+export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0, posture = "" }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number; posture?: Posture }) {
   const t = useT();
   const [cands, setCands] = useState<Cand[] | null>(null);
+  const [offDay, setOffDay] = useState(false);
   const [reqs, setReqs] = useState<{ incoming: Req[]; outgoing: Req[] } | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState("");
@@ -42,16 +47,23 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
   // "대화로 알리기"를 누르면 한 번 대기했다가, 목록이 준비되면 수락된 매칭의 대화창을 연다.
   const [askPending, setAskPending] = useState(false);
 
+  // 목록 종류: 서 있을 때는 내리기 전에 자리를 비우는 분, 앉았을 때는 내 뒤에 타는 분.
+  const listKind = posture === "stand" ? "before" : "ahead";
   const load = useCallback(async () => {
-    const [c, r] = await Promise.all([
-      api<{ candidates: Cand[] }>("/api/seat/match?ahead=1"),
-      api<{ incoming: Req[]; outgoing: Req[] }>("/api/seat/request"),
-    ]);
-    if (!c.ok || !r.ok) return setFailed(true);
+    const [r] = await Promise.all([api<{ incoming: Req[]; outgoing: Req[] }>("/api/seat/request")]);
+    if (!r.ok) return setFailed(true);
     setFailed(false);
-    setCands(c.data.candidates);
     setReqs(r.data);
-  }, []);
+    if (!posture) {
+      setCands([]);
+      setOffDay(false);
+      return;
+    }
+    const c = await api<{ candidates: Cand[]; offDay?: boolean }>(`/api/seat/match?list=${listKind}`);
+    if (!c.ok) return setFailed(true);
+    setCands(c.data.candidates);
+    setOffDay(!!c.data.offDay);
+  }, [posture, listKind]);
 
   useEffect(() => {
     load();
@@ -72,7 +84,7 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
   const send = async (planId: number) => {
     setBusy(`c${planId}`);
     setMsg("");
-    const r = await api("/api/seat/request", "POST", { planId, ahead: true });
+    const r = await api("/api/seat/request", "POST", { planId, mode: listKind });
     setBusy("");
     if (!r.ok) return setMsg(t(r.error));
     setMsg(t("요청을 보냈어요. 상대가 수락하면 매칭돼요."));
@@ -127,17 +139,36 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
         </Group>
       )}
 
-      <Group title={t("같은 노선·같은 방향 · 내가 탄 뒤에 타는 분")} aside={pool.length ? `${pool.length}${t("명")}` : ""}>
-        {pool.length === 0 ? (
+      {/* 같은 노선 목록은 추후 개발 중이라 숨긴다(코드는 유지). */}
+      {SHOW_LIST && (posture === "" ? (
+        <Group title={t("같은 노선 상대")}>
           <div className="rounded-2xl bg-bg px-4 py-4">
-            <p className="text-[14px] leading-relaxed text-sub">{t("지금 내가 탄 뒤에 같은 방향으로 타고, 내가 내리기 전에 같은 길을 가는 분이 없어요. 등록하는 분이 생기면 여기에 나와요.")}</p>
+            <p className="text-[14px] leading-relaxed text-sub">{t("위 PUSH에서 앉았는지 못 앉았는지 먼저 알려 주세요. 알려 주시면 맞는 분 목록이 나와요.")}</p>
           </div>
-        ) : (
-          pool.map((c) => (
-            <ProfileRow key={`${c.planId}-${c.role}`} c={c} busy={busy === `c${c.planId}`} onRequest={() => send(c.planId)} />
-          ))
-        )}
-      </Group>
+        </Group>
+      ) : offDay ? (
+        <Group title={t("같은 노선 상대")}>
+          <div className="rounded-2xl bg-bg px-4 py-4">
+            <p className="text-[14px] leading-relaxed text-sub">{t("오늘은 등록한 요일이 아니에요. 자리 나눔은 등록 요일에만 해요.")}</p>
+          </div>
+        </Group>
+      ) : posture === "stand" ? (
+        <Group title={t("내가 탄 동안 자리를 비우는 분")} aside={pool.length ? `${pool.length}${t("명")}` : ""}>
+          {pool.length === 0 ? (
+            <EmptyList text={t("지금 내가 내리기 전에 자리를 비우는 분이 없어요. 등록하는 분이 생기면 여기에 나와요.")} />
+          ) : (
+            pool.map((c) => <ProfileRow key={`${c.planId}-${c.role}`} c={c} busy={busy === `c${c.planId}`} onRequest={() => send(c.planId)} />)
+          )}
+        </Group>
+      ) : (
+        <Group title={t("내 뒤에 타는 분 · 자리를 드릴 수 있어요")} aside={pool.length ? `${pool.length}${t("명")}` : ""}>
+          {pool.length === 0 ? (
+            <EmptyList text={t("지금 내가 탄 뒤에 같은 방향으로 타고, 내가 내리기 전에 같은 길을 가는 분이 없어요. 등록하는 분이 생기면 여기에 나와요.")} />
+          ) : (
+            pool.map((c) => <ProfileRow key={`${c.planId}-${c.role}`} c={c} busy={busy === `c${c.planId}`} onRequest={() => send(c.planId)} />)
+          )}
+        </Group>
+      ))}
 
       {outgoingPending.length > 0 && (
         <Group title={t("보낸 요청")}>
@@ -149,6 +180,14 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk =
           ))}
         </Group>
       )}
+    </div>
+  );
+}
+
+function EmptyList({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl bg-bg px-4 py-4">
+      <p className="text-[14px] leading-relaxed text-sub">{text}</p>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { body, currentUserId, fail, json, needLogin, text } from "@/lib/server";
-import { acceptedPartners, clearSpot, getMyPlan, getSpot, seatDbReady, setSpot, type Spot } from "@/lib/seatDb";
-import { parseKarrotPhoto } from "@/lib/karrot";
+import { acceptedPartners, clearSpot, getMyPlan, getSpot, seatDbReady, setSpot, type Spot } from "@/lib/seatDb";import { parseKarrotPhoto } from "@/lib/karrot";
 import { seatPush } from "@/lib/seatNotify";
 import { carCountOf } from "@/lib/subway";
 import { doorOfSeat, parseSeat, seatId, seatLabel } from "@/lib/subwayPosition";
@@ -43,6 +42,12 @@ export async function PUT(req: Request) {
       const p = parseKarrotPhoto(b.photo);
       if (!p) return json({ error: "사진 파일을 확인해 주세요." }, 400);
       photo = p;
+    }
+    // 탑승 전 착의 메모: 칸·좌석 없이 메모와 사진만 저장한다. 상대에게는 알리지 않는다(칸이 정해진 뒤 알림).
+    if (b.memoOnly === true) {
+      const cur = await getSpot(uid);
+      await setSpot(uid, { car: cur?.car ?? "", door: cur?.door ?? "", side: cur?.side ?? "", seat: cur?.seat ?? "", memo }, undefined, photo);
+      return json({ spot: await getSpot(uid) });
     }
     if (!/^\d{1,2}$/.test(car) || Number(car) < 1 || Number(car) > max) return json({ error: "칸 번호를 골라 주세요." }, 400);
     if (!/^[1-4]$/.test(door)) return json({ error: "앉은 좌석을 그림에서 골라 주세요." }, 400);

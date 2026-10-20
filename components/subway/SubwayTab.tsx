@@ -10,6 +10,8 @@ import SubwayCarGuide from "./SubwayCarGuide";
 import SubwayMatches from "./SubwayMatches";
 import SeatSpotCard from "./SeatSpotCard";
 import SubwayCall, { type Posture } from "./SubwayCall";
+import RidePing from "./RidePing";
+import ClothesMemo from "./ClothesMemo";
 import DirectionToggle from "./DirectionToggle";
 
 // 안내 사진은 시트를 열 때만 불러온다.
@@ -163,6 +165,10 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
   const heading = dirs.find((h) => h.next === today?.next) ?? dirs[0] ?? null;
   const lineName = ALL_LINES.find((l) => l.id === lineNow)?.name ?? "";
   const posture: Posture = today?.posture ?? "";
+  // 요일 자동: 오늘(한국 시간) 요일이 등록 요일에 있는지 본다.
+  const dayNow = new Date(Date.now() + 9 * 3600_000).getUTCDay();
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const dayOk = (planDays || days).includes(String(dayNow));
   // 역을 바꾸면 이 역에서 이어지는 방면으로 맞춘다.
   const pickNext = (b: string) => {
     const hs = plan ? headingsAt(lineNow, b) : [];
@@ -216,6 +222,12 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
                 {board === stationOf(plan, kind) ? ` → ${kind === "go" ? plan.alight : plan.board}` : ` ${t("탑승")}`}{" "}
                 <span className="num font-semibold text-accent">{timeNow}</span>
               </p>
+              <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                <span className="text-sub">{t("요일")}</span>
+                <span className="rounded-full bg-accentSoft px-2.5 py-0.5 font-semibold text-accent">{dayNames[dayNow]}{t("요일")}</span>
+                <span className="text-sub">{t("자동")}</span>
+                {!dayOk && <span className="text-warn">{t("등록한 요일이 아니에요. 오늘은 쉬어요.")}</span>}
+              </div>
               <DirectionToggle line={lineNow} station={board} value={today.next} onChange={(next) => setToday({ ...today, next })} label={t("열차 진행 방향 (화살표)")} />
               {editing && (
                 <TodayEditor
@@ -247,6 +259,7 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
             {saveMsg && <p role="status" className="px-1 pt-2 text-[13px] text-accent">{saveMsg}</p>}
           </Step>
 
+
           {kind === "back" ? (
             <>
               <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">
@@ -256,39 +269,39 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
             </>
           ) : (
             <>
-              {/* ② 앉았는지 서 있는지 */}
-              <Step n={2} title={t("앉았나요, 서 있나요?")} hint={t("앉으면 자리를 양보할 수 있고, 서 있으면 자리를 받고 싶은 쪽으로 알려 드려요.")}>
-                <PostureToggle value={posture} onChange={(p) => setToday({ ...today, posture: p })} />
-                {seatOn && (
-                  <div className="pt-3">
-                    <p className="pb-2 text-[13px] text-sub">{t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요")}</p>
-                    <SeatSpotCard
-                      line={plan.boardLine}
-                      next={heading?.next}
-                      onChat={() => {
-                        setChatAsk((k) => k + 1);
-                      }}
-                    />
-                  </div>
-                )}
-              </Step>
-
+              {/* ② PUSH: 앉았으면 자리를 받을 분께 알리고, 못 앉았으면 양보해 줄 분을 찾는다. */}
               {seatOn ? (
                 <>
-                  {/* ③ 주변에 CALL */}
-                  <Step n={3} title={t("주변에 CALL")}>
+                  <Step n={2} title={t("앉았는지 알리기")} hint={t("앉았어요를 누르면 자리를 받을 분께 바로 알려요. 못 앉았어요는 알림 없이 기록만 해요.")}>
                     <SubwayCall
                       hasPlan={!!plan}
                       posture={posture}
-                      onSent={() => {
-                        setReloadKey((k) => k + 1);
-                      }}
+                      onPosture={(p) => setToday({ ...today, posture: p })}
+                      onSent={() => setReloadKey((k) => k + 1)}
                     />
+                    <div className="pt-4">
+                      <RidePing line={plan.boardLine} from={board} />
+                    </div>
+                    {/* 착의 메모는 앉은 분만 남긴다. */}
+                    {posture === "sit" && (
+                      <div className="pt-4">
+                        <ClothesMemo />
+                      </div>
+                    )}
+                    <div className="pt-4">
+                      <p className="pb-2 text-[13px] text-sub">{t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요")}</p>
+                      <SeatSpotCard
+                        line={plan.boardLine}
+                        next={heading?.next}
+                        onChat={() => {
+                          setChatAsk((k) => k + 1);
+                        }}
+                      />
+                    </div>
                   </Step>
 
-                  {/* ④ 같은 노선 리스트 · ⑤ 직접 고르기 */}
-                  <Step n={4} title={t("같은 노선에서 만나는 분")}>
-                    <SubwayMatches myTime={plan.timeGo} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} />
+                  <Step n={3} title={t("매칭 현황")}>
+                    <SubwayMatches myTime={plan.timeGo} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} posture={posture} />
                   </Step>
                 </>
               ) : (
@@ -345,35 +358,6 @@ function Step({ n, title, hint, children }: { n: number; title: string; hint?: s
       </div>
       <div className="pl-0">{children}</div>
     </section>
-  );
-}
-
-/** ② 앉음·섬 선택. 두 칸 중 하나를 고른다. */
-function PostureToggle({ value, onChange }: { value: Posture; onChange: (p: Posture) => void }) {
-  const t = useT();
-  const opts: [Posture, string, string][] = [
-    ["sit", t("앉아 있어요"), t("자리를 양보할 수 있어요")],
-    ["stand", t("서 있어요"), t("자리를 받고 싶어요")],
-  ];
-  return (
-    <div role="radiogroup" aria-label={t("앉았는지 서 있는지")} className="grid grid-cols-2 gap-2">
-      {opts.map(([v, label, sub]) => {
-        const on = value === v;
-        return (
-          <button
-            key={v}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            onClick={() => onChange(v)}
-            className={`rounded-2xl border px-4 py-3.5 text-left transition-colors ${on ? "border-accent bg-accentSoft" : "border-line bg-white"}`}
-          >
-            <span className={`block text-[15px] font-semibold ${on ? "text-accent" : "text-ink"}`}>{label}</span>
-            <span className="mt-0.5 block text-[12px] leading-snug text-sub">{sub}</span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 

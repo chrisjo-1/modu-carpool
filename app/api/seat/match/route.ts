@@ -1,5 +1,5 @@
 import { currentUserId, db, fail, json, needLogin } from "@/lib/server";
-import { getMyPlan, listAhead, listCandidates, seatDbReady } from "@/lib/seatDb";
+import { getMyPlan, listAhead, listBefore, listCandidates, seatDbReady, todayPlan } from "@/lib/seatDb";
 import type { Candidate } from "@/lib/seatMatch";
 
 export const dynamic = "force-dynamic";
@@ -27,19 +27,23 @@ async function view(list: Candidate[]) {
 }
 
 /**
- * 나와 자리를 나눌 수 있는 등록 목록. 기본은 자동 매칭(출근, 1~3정거장).
- * ?ahead=1 이면 같은 노선·같은 방향에서 내가 탄 뒤에 타는 분들의 목록을 준다.
+ * 같은 노선 상대 목록. 오늘 요일 기준.
+ * ?list=ahead  : 내가 탄 뒤에 타는 분(앉았을 때 자리를 드릴 상대)
+ * ?list=before : 내가 타고 있는 동안 자리를 비우는 분(서 있을 때 양보를 부탁할 상대)
+ * 기본(auto)   : 자동 매칭(1~3정거장, 시각 차이 10분 이내)
  */
 export async function GET(req: Request) {
   const uid = await currentUserId();
   if (!uid) return needLogin();
   if (!seatDbReady()) return json({ error: "앉아가기 저장소가 아직 연결되지 않았어요." }, 503);
-  const ahead = new URL(req.url).searchParams.get("ahead") === "1";
+  const kind = new URL(req.url).searchParams.get("list") ?? "auto";
   try {
-    const me = await getMyPlan(uid);
-    if (!me) return json({ candidates: [], needPlan: true });
-    const list = ahead ? await listAhead(me) : await listCandidates(me);
-    return json({ needPlan: false, candidates: await view(list) });
+    const mine = await getMyPlan(uid);
+    if (!mine) return json({ candidates: [], needPlan: true });
+    const me = await todayPlan(uid);
+    if (!me) return json({ candidates: [], needPlan: false, offDay: true });
+    const list = kind === "before" ? await listBefore(me) : kind === "ahead" ? await listAhead(me) : await listCandidates(me);
+    return json({ needPlan: false, offDay: false, candidates: await view(list) });
   } catch (e) {
     return fail(e);
   }

@@ -54,10 +54,11 @@ export default function SeatSpotCard({ line, next, onChat }: { line: LineId; nex
       const sp = r.ok ? r.data.spot : null;
       setSpot(sp);
       // 처음이면 바로 그림을 펼쳐 고르게 한다. 좌석 없이 칸만 저장한 경우(대화로 알림)는 그대로 둔다.
-      if (!sp) {
+      // 칸이 없으면(탑승 전 착의 메모만 남긴 경우) 칸부터 고르게 하고, 메모는 그대로 보여 준다.
+      if (!sp || !sp.car) {
         setCar("");
         setSeat("");
-        setMemo("");
+        setMemo(sp?.memo ?? "");
         setEdit(true);
       }
       setLoaded(true);
