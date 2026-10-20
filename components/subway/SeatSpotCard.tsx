@@ -34,7 +34,7 @@ async function shrink(file: File): Promise<string> {
  * 오늘 앉은 자리: 칸을 고르고 차량 그림에서 좌석을 누른다. 오늘의 힌트(옷 색깔·소지품)를 함께 남긴다.
  * 수락된 상대에게만 보이고, 저장하면 상대에게 알린다. 하루만 쓰고 다음 날에는 다시 입력한다.
  */
-export default function SeatSpotCard({ line, next }: { line: LineId; next?: string }) {
+export default function SeatSpotCard({ line, next, onChat }: { line: LineId; next?: string; onChat?: () => void }) {
   const t = useT();
   const [spot, setSpot] = useState<Spot | null>(null);
   const [edit, setEdit] = useState(false);
@@ -53,11 +53,11 @@ export default function SeatSpotCard({ line, next }: { line: LineId; next?: stri
     api<{ spot: Spot | null }>("/api/seat/spot").then((r) => {
       const sp = r.ok ? r.data.spot : null;
       setSpot(sp);
-      // 좌석을 아직 고르지 않았으면(처음이거나 칸만 저장된 경우) 바로 그림을 펼쳐 고르게 한다.
-      if (!sp || !sp.seat) {
-        setCar(sp?.car ?? "");
+      // 처음이면 바로 그림을 펼쳐 고르게 한다. 좌석 없이 칸만 저장한 경우(대화로 알림)는 그대로 둔다.
+      if (!sp) {
+        setCar("");
         setSeat("");
-        setMemo(sp?.memo ?? "");
+        setMemo("");
         setEdit(true);
       }
       setLoaded(true);
@@ -75,7 +75,7 @@ export default function SeatSpotCard({ line, next }: { line: LineId; next?: stri
 
   const save = async () => {
     if (!car) return setMsg(t("칸 번호를 골라 주세요."));
-    if (!seat) return setMsg(t("앉은 좌석을 그림에서 골라 주세요."));
+    // 좌석은 선택: 그림으로 짚기 어려우면 칸만 저장하고 대화로 알린다.
     setBusy(true);
     const r = await api<{ spot: Spot }>("/api/seat/spot", "PUT", { car, seat, memo, ...(photo !== undefined ? { photo } : {}) });
     setBusy(false);
@@ -84,7 +84,7 @@ export default function SeatSpotCard({ line, next }: { line: LineId; next?: stri
     setPhoto(undefined);
     setPhotoVer((v) => v + 1);
     setEdit(false);
-    setMsg(t("저장했어요. 매칭된 상대에게 알렸어요."));
+    setMsg(seat ? t("저장했어요. 매칭된 상대에게 알렸어요.") : t("칸만 저장했어요. 자세한 자리는 대화로 알려 주세요."));
   };
 
   const clear = async () => {
@@ -117,6 +117,7 @@ export default function SeatSpotCard({ line, next }: { line: LineId; next?: stri
               <button type="button" className="rounded-xl bg-bg px-3 py-2 text-[14px] text-sub" disabled={busy} onClick={clear}>{t("지우기")}</button>
             </div>
           </div>
+          {onChat && <ChatInstead onChat={onChat} />}
         </div>
       )}
       {edit && (
@@ -131,9 +132,10 @@ export default function SeatSpotCard({ line, next }: { line: LineId; next?: stri
             </select>
           </label>
           <div className="space-y-1.5">
-            <p className="text-sm text-sub">{t("② 그림에서 앉은 좌석 누르기")}</p>
+            <p className="text-sm text-sub">{t("② 그림에서 앉은 좌석 누르기 (선택)")}</p>
             <SeatMap value={seat} onChange={setSeat} car={car} next={next} />
           </div>
+          {onChat && <ChatInstead onChat={onChat} />}
           <div className="space-y-2">
             <p className="text-sm text-sub">{t("③ 오늘의 힌트 (선택)")}</p>
             <textarea className={field} rows={2} maxLength={80} placeholder={t("예: 네이비 패딩, 검정 백팩, 책 읽는 중")} value={memo} onChange={(e) => setMemo(e.target.value)} />
@@ -176,6 +178,19 @@ export default function SeatSpotCard({ line, next }: { line: LineId; next?: stri
         </div>
       )}
       {msg && <p className="text-[13px] text-sub">{msg}</p>}
+    </div>
+  );
+}
+
+/** 그림으로 짚기 어려울 때: 매칭 탭으로 가서 매칭된 상대 대화를 연다. */
+function ChatInstead({ onChat }: { onChat: () => void }) {
+  const t = useT();
+  return (
+    <div data-block-id="S076" data-block-name="대화로 자리 알리기" className="flex items-center justify-between gap-3 rounded-xl bg-violetSoft/60 px-3 py-2.5">
+      <p className="min-w-0 text-[13px] leading-snug text-sub">{t("그림으로 알리기 어렵나요? 매칭된 상대와 대화로 알려 주세요.")}</p>
+      <button type="button" data-block-id="B264" data-block-name="대화로 알리기" className="shrink-0 rounded-xl bg-white px-3 py-2 text-[13px] font-semibold text-violet" onClick={onChat}>
+        {t("대화로 알리기")}
+      </button>
     </div>
   );
 }

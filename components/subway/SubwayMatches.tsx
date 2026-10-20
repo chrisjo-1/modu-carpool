@@ -32,7 +32,7 @@ export function spotText(s: Spot): string {
  * 수락 전에는 정거장 수·타는 역·시각만, 수락 후에는 하차역·자리 위치·연락처·대화를 보여 준다.
  * 매칭됨이 있으면 하차 2정거장 전부터 화면 위쪽에 안내를 계속 띄운다(시각 추정).
  */
-export default function SubwayMatches({ myTime, myDays, reloadKey = 0 }: { myTime: string; myDays: string; reloadKey?: number }) {
+export default function SubwayMatches({ myTime, myDays, reloadKey = 0, chatAsk = 0 }: { myTime: string; myDays: string; reloadKey?: number; chatAsk?: number }) {
   const t = useT();
   const [cands, setCands] = useState<Cand[] | null>(null);
   const [reqs, setReqs] = useState<{ incoming: Req[]; outgoing: Req[] } | null>(null);
@@ -40,6 +40,8 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0 }: { myTim
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [chatOpen, setChatOpen] = useState("");
+  // "대화로 알리기"를 누르면 한 번 대기했다가, 목록이 준비되면 수락된 매칭의 대화창을 연다.
+  const [askPending, setAskPending] = useState(false);
 
   const load = useCallback(async () => {
     const [c, r] = await Promise.all([
@@ -55,6 +57,18 @@ export default function SubwayMatches({ myTime, myDays, reloadKey = 0 }: { myTim
   useEffect(() => {
     load();
   }, [load, reloadKey]);
+
+  useEffect(() => {
+    if (chatAsk > 0) setAskPending(true);
+  }, [chatAsk]);
+
+  useEffect(() => {
+    if (!askPending || !reqs) return;
+    const first = [...reqs.incoming, ...reqs.outgoing].find((r) => r.status === "accepted");
+    setAskPending(false);
+    if (first) setChatOpen(first.id);
+    else setMsg(t("매칭이 수락되면 대화로 자리를 알려 줄 수 있어요. 먼저 상대에게 요청을 보내 주세요."));
+  }, [askPending, reqs, t]);
 
   const send = async (planId: number) => {
     setBusy(`c${planId}`);

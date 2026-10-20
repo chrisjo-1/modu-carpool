@@ -34,6 +34,8 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
   const [help, setHelp] = useState(false);
   const [planDays, setPlanDays] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  // 내 자리 알리기의 "대화로 알리기" → 매칭 탭에서 매칭된 상대 대화를 연다.
+  const [chatAsk, setChatAsk] = useState(0);
   const [today, setTodayState] = useState<Today | null>(null);
   const [editing, setEditing] = useState(false);
   useEffect(() => {
@@ -98,7 +100,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
   if (!user) {
     return (
       <section className="space-y-3 pt-2">
-        <h2 className="text-xl font-bold">{t("지하철")}</h2>
+        <h1 className="text-[28px] font-bold">{t("지하철 앉아가기")}</h1>
         <p className="text-[15px] leading-relaxed text-sub">{t("로그인하고 출퇴근 정보에서 지하철을 등록하면 앉아갈 수 있는 정보와 매칭을 보여 드려요.")}</p>
       </section>
     );
@@ -114,7 +116,7 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
   return (
     <section className="space-y-4 pb-24 pt-2" data-block-id="S070" data-block-name="지하철 탭">
       <div className="flex items-end justify-between gap-3">
-        <h2 className="text-xl font-bold">{t("지하철")}</h2>
+        <h1 className="text-[28px] font-bold">{t("지하철 앉아가기")}</h1>
         <button type="button" data-block-id="B260" className="min-h-0 text-[13px] font-medium text-violet" onClick={() => setHelp(true)}>{t("위치 찾는 법")}</button>
       </div>
 
@@ -173,14 +175,21 @@ export default function SubwayTab({ user }: { user: User | null; toast: (m: stri
           {view === "seat" &&
             (seatOn ? (
               <div className="space-y-2">
-                <p className="text-[13px] leading-relaxed text-sub">{t("자리를 양보할 분이 앉은 자리를 알려 주는 곳이에요. 칸과 좌석을 그림에서 눌러 주세요. 매칭된 상대에게만 보여요.")}</p>
-                <SeatSpotCard line={plan.boardLine} next={heading?.next} />
+                <p className="text-[13px] leading-relaxed text-sub">{t("자리를 양보할 분이 앉은 자리를 알려 주는 곳이에요. 칸과 좌석을 그림에서 눌러 주세요. 그림으로 짚기 어려우면 대화로 알려도 돼요. 매칭된 상대에게만 보여요.")}</p>
+                <SeatSpotCard
+                  line={plan.boardLine}
+                  next={heading?.next}
+                  onChat={() => {
+                    setChatAsk((k) => k + 1);
+                    pickView("match");
+                  }}
+                />
               </div>
             ) : (
               <NotOpen />
             ))}
 
-          {view === "match" && (seatOn ? <SubwayMatches myTime={plan.timeGo} myDays={planDays} reloadKey={reloadKey} /> : <NotOpen />)}
+          {view === "match" && (seatOn ? <SubwayMatches myTime={plan.timeGo} myDays={planDays} reloadKey={reloadKey} chatAsk={chatAsk} /> : <NotOpen />)}
 
           {view === "car" && <SubwayCarGuide key={`${board}|${heading?.next ?? ""}|${timeNow}`} line={plan.boardLine} station={board} alight={!today && plan.boardLine === plan.alightLine ? plan.alight : ""} prefer={heading?.next ?? ""} timeGo={timeNow} days={days} />}
         </>
