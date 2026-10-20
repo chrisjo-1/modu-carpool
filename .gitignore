@@ -10,3 +10,4 @@ next-env.d.ts
 /.sim-build4
 /.sim-build5
 /.sim-build6
+/.sim-build*
