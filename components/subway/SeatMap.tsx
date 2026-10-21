@@ -68,7 +68,7 @@ export default function SeatMap({ value, onChange, readOnly = false, car, next, 
             <g key={`d${s.door}`}>
               <rect x={s.x} y="9" width={DOOR} height="6" rx="2" fill="#FFFFFF" stroke="#B9C2D3" strokeWidth="1" />
               <rect x={s.x} y="135" width={DOOR} height="6" rx="2" fill="#FFFFFF" stroke="#B9C2D3" strokeWidth="1" />
-              <text x={s.x + DOOR / 2} y="79" textAnchor="middle" fontSize="10" fontWeight="600" fill="#6B7385">{s.door}</text>
+              <text x={s.x + DOOR / 2} y="79" textAnchor="middle" fontSize="13" fontWeight="700" fill="#4B5568">{s.door}</text>
             </g>
           ) : (
             (["A", "B"] as const).map((wall) =>

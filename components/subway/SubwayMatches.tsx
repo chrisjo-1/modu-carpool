@@ -431,7 +431,7 @@ function RideBanner({ accepted, myTime, myDays, onChat }: { accepted: Req[]; myT
           : t("이번 역에서 자리가 나요");
 
   return (
-    <div className="fixed left-1/2 top-3 z-30 w-[calc(100%-32px)] max-w-md -translate-x-1/2 rounded-2xl border border-accent/40 bg-white px-4 py-3 shadow-card" role="status" aria-live="polite">
+    <div className="fixed left-1/2 top-[calc(0.75rem+env(safe-area-inset-top))] z-30 w-[calc(100%-32px)] max-w-md -translate-x-1/2 rounded-2xl border border-accent/40 bg-white px-4 py-3 shadow-card" role="status" aria-live="polite">
       <p className="text-[12px] font-semibold text-accent">{p.seatStation} · {give ? t("자리 양보") : t("자리 희망")}</p>
       <p className="mt-0.5 text-[15px] font-semibold text-ink">{line}</p>
       {!give && r.spot && <p className="num mt-0.5 text-[13px] text-sub">{t("상대 자리")} {spotText(r.spot)}</p>}

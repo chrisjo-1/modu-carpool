@@ -103,7 +103,8 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
         <EstimateAnswer e={data.estimate} carCount={carNumbersOf(line).length} />
       ) : null}
 
-      {data && (data.congestion ? <CongestionAnswer c={data.congestion} /> : <p className="text-[13px] text-sub">{t("이 역·방향은 혼잡도 자료가 없어요.")}</p>)}
+      {/* 혼잡도 자료가 없으면 추정 아래 안내 한 줄로 충분하다(같은 말을 두 번 하지 않는다). */}
+      {data?.congestion && <CongestionAnswer c={data.congestion} />}
 
       <Tips carCount={carNumbersOf(line).length} />
     </section>
@@ -176,7 +177,7 @@ function EstimateAnswer({ e, carCount }: { e: Estimate; carCount: number }) {
                 <span className="num">{c.car}</span>{t("번째 칸")}
                 <span className="ml-1.5 text-[13px] font-normal text-sub">/ {carCount}{t("칸")}</span>
               </p>
-              <p className="num text-[12px] text-sub">{c.n > 0 ? `${t("착석 기록")} ${c.n}${t("건 반영")}` : Number(c.car) === 1 || Number(c.car) === carCount ? t("맨 끝 칸 · 덜 붐비지만 좌석이 적어요") : t("칸 위치 기준")}</p>
+              <p className="num text-[12px] text-sub">{c.n > 0 ? `${t("착석 기록")} ${c.n}${t("건 반영")}` : Number(c.car) === 1 || Number(c.car) === carCount ? t("맨 끝 칸 · 좌석이 적어요") : Number(c.car) === 2 || Number(c.car) === carCount - 1 ? t("끝에서 두 번째 칸 · 덜 붐비고 좌석이 온전해요") : t("칸 위치 기준")}</p>
             </div>
             <Chance p={c.prob} />
           </li>

@@ -147,9 +147,13 @@ export function seatChance(pct: number | null): number {
   return Math.min(0.9, Math.max(0.05, p));
 }
 
+/**
+ * 칸 위치 가중치. 맨 끝 칸(1번째·마지막)은 덜 붐비지만 노약자석·서서 가는 공간(손잡이 기둥)이 많아
+ * 일반 좌석이 적으므로 낮게, 끝에서 두 번째 칸은 덜 붐비면서 좌석이 온전해 가장 높게 둔다.
+ */
 export function carFactor(car: number, count: number): number {
   const d = Math.min(car - 1, count - car);
-  return d === 0 ? 1.2 : d === 1 ? 1.08 : 0.95;
+  return d === 0 ? 0.85 : d === 1 ? 1.15 : d === 2 ? 1.05 : 0.95;
 }
 
 export function estimateCars(carCount: number, pct: number | null, rows: FeedbackRow[], top = 3): Estimate {
