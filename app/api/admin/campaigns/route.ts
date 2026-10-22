@@ -13,7 +13,7 @@ export async function GET() {
     await ensureSchema();
     const sql = db();
     const rows = await sql`
-      select c.id, c.created_at, c.title, c.category, c.segment, c.only_consent, c.only_driver, c.subject, c.status, c.started_at, c.finished_at, c.auto,
+      select c.id, c.created_at, c.title, c.category, c.segment, c.only_consent, c.only_driver, c.subject, c.status, c.started_at, c.finished_at,
         case when c.status = 'draft' then c.body end as body,
         (select count(*)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent') as sent,
         (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status in ('failed','blocked')

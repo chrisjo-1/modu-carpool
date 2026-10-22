@@ -66,7 +66,6 @@ export default async function HomeSeo() {
         </p>
       </div>
       <p className="flex flex-wrap gap-x-3 gap-y-1">
-        <a href="/guide" className="underline">출퇴근 가이드</a>
         <a href="/faq" className="underline">자주 묻는 질문</a>
         <a href="/warp" className="underline">워프에서 모두의카풀로</a>
         <a href="/terms" className="underline">이용약관</a>

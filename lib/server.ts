@@ -334,20 +334,6 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     status text not null default 'draft',
     started_at timestamptz,
     finished_at timestamptz)`;
-  // 마케팅 자료(공개 가이드 글 /guide/slug). 관리자 '마케팅' 탭에서 만들고 게시하면 사이트맵·IndexNow로 검색엔진에 알린다.
-  await sql`create table if not exists marketing_posts (
-    id bigserial primary key,
-    slug text not null unique,
-    title text not null,
-    summary text not null default '',
-    body text not null,
-    keywords text[] not null default '{}',
-    status text not null default 'draft',
-    published_at timestamptz,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now())`;
-  // 매일 자동으로 이어 보내기(발송 한도가 풀리는 아침에 예약 실행이 이어서 보낸다)
-  await sql`alter table mail_campaigns add column if not exists auto boolean not null default false`;
   await sql`create table if not exists mail_policy (
     id int primary key,
     daily_cap int not null default 100,

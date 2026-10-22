@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Segment = { key: string; label: string };
 type Template = { key: string; label: string; category: string; subject: string; body: string };
-type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean };
+type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
 type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[] };
 
@@ -187,13 +187,6 @@ export default function AdminSend() {
     setMsg("이미지를 본문 끝에 넣었어요. 위치는 {{img}} 줄을 옮겨서 바꿀 수 있어요.");
   };
 
-  // 매일 아침 예약 실행이 남은 대상에게 하루 한도만큼 이어서 보낸다(CRON_SECRET 필요).
-  const toggleAuto = async (c: Campaign, auto: boolean) => {
-    const r = await fetch(`/api/admin/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ auto }) });
-    setMsg(r.ok ? (auto ? `"${c.title}"을(를) 매일 아침 자동으로 이어 보내요.` : `"${c.title}" 자동 이어 보내기를 껐어요.`) : "바꾸지 못했어요.");
-    load();
-  };
-
   const cancel = async (c: Campaign) => {
     if (!window.confirm(`"${c.title}" 캠페인을 취소할까요? 아직 나가지 않은 대상만 멈춥니다.`)) return;
     await fetch(`/api/admin/campaigns/${c.id}`, { method: "PATCH" });
@@ -339,12 +332,6 @@ export default function AdminSend() {
                         <button className={btnPrimary} disabled={!!running} onClick={() => start(c)}>{c.status === "draft" ? "발송" : "이어서 발송"}</button>
                         <button className={btn} disabled={!!running} onClick={() => cancel(c)}>취소</button>
                       </div>
-                    )}
-                    {(c.status === "sending" || (c.status === "done" && c.retry > 0)) && (
-                      <label className="mt-2 flex items-center gap-2 text-[13px]" title="매일 아침 9시 10분(한도가 풀린 뒤) 남은 대상에게 하루 한도만큼 이어서 보내요.">
-                        <input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={!!c.auto} onChange={(e) => toggleAuto(c, e.target.checked)} />
-                        매일 자동 이어 보내기
-                      </label>
                     )}
                   </td>
                 </tr>

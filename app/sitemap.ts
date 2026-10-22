@@ -26,11 +26,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select p.id, p.created_at from posts p join users u on u.id = p.user_id
       where p.status = 'open' and not p.demo and not u.test and not u.blocked and (p.regular or p.depart_at > now())
       order by p.created_at desc limit 1000`;
-    const guides = await db()`select slug, updated_at from marketing_posts where status = 'published'`;
     return [
       ...base,
-      { url: `${SITE_URL}/guide`, lastModified: now, changeFrequency: "weekly" as const, priority: 0.6 },
-      ...guides.map((g) => ({ url: `${SITE_URL}/guide/${String(g.slug)}`, lastModified: new Date(g.updated_at as string), changeFrequency: "monthly" as const, priority: 0.7 })),
       ...rows.map((r) => ({ url: `${SITE_URL}/post/${String(r.id)}`, lastModified: new Date(r.created_at as string), changeFrequency: "daily" as const, priority: 0.6 })),
     ];
   } catch {
