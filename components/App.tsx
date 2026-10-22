@@ -116,7 +116,7 @@ export default function App() {
   }, [user]);
   const [commuteStart, setCommuteStart] = useState(false);
   // CALL에서 지하철로 갈 때 처음 열 화면(매칭·앉을 칸 찾기). n은 같은 화면을 다시 눌러도 바뀌게 하는 값.
-  const [subwayStart, setSubwayStart] = useState<{ view: "seat" | "match"; n: number } | null>(null);
+  const [subwayStart, setSubwayStart] = useState<{ view: "seat" | "match" | "edit"; n: number } | null>(null);
   // 가입 직후 필수 등록 흐름(희망 선택 → 출퇴근 출발·도착지 → 정기카풀 게시). 끝날 때까지 닫을 수 없다.
   const [joinFlow, setJoinFlow] = useState(false);
   // 차량 등록 시트 등에서 회원 정보가 바뀌면 여기서도 같은 값을 쓰도록 맞춘다.

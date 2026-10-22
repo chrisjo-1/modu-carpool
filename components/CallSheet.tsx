@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { type Place, type Post } from "@/lib/types";
 import PlaceField from "./PlaceField";
+import { ALL_LINES, lineColor } from "@/lib/subway";
 import { Bubble, useHintTap, Card, Sheet, api, btnGhost, btnPrimary, currentHere, useLang, useT, when } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
@@ -28,7 +29,28 @@ function RegisterContact({ onGoProfile }: { onGoProfile?: () => void }) {
 
 /** 하단 메뉴 바로 위, 가운데에 떠 있는 CALL 버튼 (홈 화면에서만 보인다) */
 /** onSubway: 지하철 메뉴의 화면(매칭·앉을 칸 찾기)으로 이동, onSubwaySetup: 출퇴근 정보 창(지하철 칸)을 연다. */
-type SubwayGo = { onSubway?: (view: "seat" | "match") => void; onSubwaySetup?: () => void };
+type SubwayGo = { onSubway?: (view: "seat" | "match" | "edit") => void; onSubwaySetup?: () => void };
+
+type SubwayPlanLite = { boardLine: string; board: string; alightLine: string; alight: string; back?: boolean };
+type SubwayRide = { trip: "go" | "back"; line: string; board: string; alight: string; time: string };
+
+/**
+ * 지금 탈 노선·역. 반대 방면을 등록했으면 오후 2시부터 반대 방면. 오늘 지하철 메뉴에서 바꾼 값(이 기기, modu.subwayToday)이 있으면 그 값을 쓴다.
+ */
+function rideNow(p: SubwayPlanLite): SubwayRide {
+  const now = new Date(Date.now() + 9 * 3600_000);
+  const time = now.toISOString().slice(11, 16);
+  const date = now.toISOString().slice(0, 10);
+  const trip: "go" | "back" = p.back && now.getUTCHours() >= 14 ? "back" : "go";
+  const base = trip === "go" ? { line: p.boardLine, board: p.board, alight: p.alight } : { line: p.alightLine, board: p.alight, alight: p.board };
+  try {
+    const v = JSON.parse(localStorage.getItem("modu.subwayToday") ?? "null") as { date?: string; kind?: string; line?: string; board?: string; alight?: string } | null;
+    if (v && v.date === date && v.kind === trip && v.line && v.board && v.alight) return { trip, line: v.line, board: v.board, alight: v.alight, time };
+  } catch {
+    /* 무시 */
+  }
+  return { trip, ...base, time };
+}
 
 export function FloatingCall({ toast, onGoProfile, onSubway, onSubwaySetup }: { toast: (m: string) => void; onGoProfile?: () => void } & SubwayGo) {
   const [open, setOpen] = useState(false);
@@ -47,31 +69,36 @@ export function FloatingCall({ toast, onGoProfile, onSubway, onSubwaySetup }: { 
   );
 }
 
-type Step = "choose" | "pick" | "confirm" | "taxi";
+type Step = "choose" | "pick" | "confirm" | "taxi" | "subway";
 
 function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { onClose: () => void; toast: (m: string) => void; onGoProfile?: () => void } & SubwayGo) {
   const t = useT();
   const [subwayBusy, setSubwayBusy] = useState(false);
-  // 지하철 앉아가기: 지하철 정보가 있으면 지하철 메뉴로, 없으면 입력해야 이용할 수 있다고 알리고 출퇴근 정보 창(지하철 칸)을 연다.
+  // 지하철 호출 확인: "○○역에서 지금 타서 ○○역에서 내리시나요?"
+  const [ride, setRide] = useState<SubwayRide | null>(null);
+  // 지하철 앉아가기: 등록이 없으면 입력해야 이용할 수 있다고 알리고 출퇴근 정보 창(지하철 칸)을 연다.
+  // 등록이 있으면 오늘 탈 노선·역을 팝업에서 확인받는다(오늘 지하철 메뉴에서 바꾼 값이 있으면 그 값).
   const subway = async () => {
     setSubwayBusy(true);
-    const r = await api<{ plan: { back?: boolean } | null }>("/api/seat/plan");
-    if (!r.ok) {
-      setSubwayBusy(false);
-      return toast(t(r.error));
-    }
+    const r = await api<{ plan: SubwayPlanLite | null }>("/api/seat/plan");
+    setSubwayBusy(false);
+    if (!r.ok) return toast(t(r.error));
     if (!r.data.plan) {
-      setSubwayBusy(false);
       onClose();
       toast(t("지하철 출퇴근 정보를 입력해야 앉아가기를 이용할 수 있어요."));
       return onSubwaySetup?.();
     }
-    // 지금 시각의 방향(반대 방면을 등록했으면 오후 2시부터 반대 방면)으로 같은 노선·같은 방향 승차자를 센다.
-    const hour = new Date(Date.now() + 9 * 3600_000).getUTCHours();
-    const trip = r.data.plan.back && hour >= 14 ? "back" : "go";
+    setRide(rideNow(r.data.plan));
+    setStep("subway");
+  };
+  // 맞아요: 지금 같은 노선·같은 방향 승차자가 있으면 매칭, 없으면 앉을 칸 찾기로 간다.
+  const subwayGo = async () => {
+    if (!ride) return;
+    setSubwayBusy(true);
+    const q = new URLSearchParams({ trip: ride.trip, line: ride.line, board: ride.board, alight: ride.alight, next: "" }).toString();
     const [a, b] = await Promise.all([
-      api<{ candidates: unknown[] }>(`/api/seat/match?list=ahead&trip=${trip}`),
-      api<{ candidates: unknown[] }>(`/api/seat/match?list=before&trip=${trip}`),
+      api<{ candidates: unknown[] }>(`/api/seat/match?list=ahead&${q}`),
+      api<{ candidates: unknown[] }>(`/api/seat/match?list=before&${q}`),
     ]);
     setSubwayBusy(false);
     const riders = (a.ok ? a.data.candidates.length : 0) + (b.ok ? b.data.candidates.length : 0);
@@ -231,6 +258,28 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
             ))}
           </ul>
           <button type="button" className={btnGhost} onClick={() => setStep("choose")}>{t("뒤로")}</button>
+        </div>
+      )}
+      {step === "subway" && ride && (
+        <div className="space-y-4" data-block-id="S012" data-block-name="지하철 호출 확인">
+          <div className="space-y-2 rounded-2xl bg-violetSoft px-4 py-4">
+            <p className="text-[13px] font-semibold text-violet">{t("지하철 앉아가기")}</p>
+            <p className="text-[17px] font-bold leading-snug text-ink">
+              <span className="mr-1.5 rounded-md px-1.5 py-0.5 align-middle text-[12px] font-bold" style={{ background: lineColor(ride.line).bg, color: lineColor(ride.line).text }}>{t(ALL_LINES.find((l) => l.id === ride.line)?.name ?? ride.line)}</span>
+              {ride.board} → {ride.alight}
+            </p>
+            <p className="text-[15px] leading-relaxed text-ink">
+              {`${ride.board}${t("역에서")} ${t("지금")}(${ride.time}) ${t("타서")} ${ride.alight}${t("역에서 내리시나요?")}`}
+            </p>
+          </div>
+          <button type="button" data-block-id="B223" data-block-name="지하철 호출 진행" className={btnPrimary} disabled={subwayBusy} onClick={subwayGo}>
+            {subwayBusy ? t("확인 중…") : t("맞아요, 진행")}
+          </button>
+          <button type="button" data-block-id="B224" data-block-name="오늘만 수정" className={btnGhost} disabled={subwayBusy} onClick={() => { onClose(); onSubway?.("edit"); }}>
+            {t("아니요, 오늘만 수정")}
+          </button>
+          <p className="px-1 text-[12px] leading-relaxed text-sub">{t("오늘만 수정은 지하철 메뉴에서 노선·역을 바꿔요. 설정의 등록 정보는 그대로예요.")}</p>
+          <button type="button" className="w-full py-2 text-[14px] text-sub" onClick={() => setStep("choose")}>{t("뒤로")}</button>
         </div>
       )}
       {step === "taxi" && <TaxiForm onBack={() => setStep("choose")} onDone={onClose} toast={toast} onGoProfile={onGoProfile} />}

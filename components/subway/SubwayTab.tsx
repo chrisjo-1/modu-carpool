@@ -86,7 +86,7 @@ function freshToday(plan: SubwayPlan, kind: Kind, prev: Today | null): Today {
   };
 }
 
-export default function SubwayTab({ user, onSettings, start }: { user: User | null; toast: (m: string) => void; onSettings?: () => void; start?: { view: "seat" | "match"; n: number } | null }) {
+export default function SubwayTab({ user, onSettings, start }: { user: User | null; toast: (m: string) => void; onSettings?: () => void; start?: { view: "seat" | "match" | "edit"; n: number } | null }) {
   const t = useT();
   const [plan, setPlan] = useState<SubwayPlan | null>(null);
   const [days, setDays] = useState("");
@@ -104,10 +104,14 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
   const [today, setTodayState] = useState<Today | null>(null);
   const [editing, setEditing] = useState(false);
   // 메뉴 안의 화면: 빈 값 = 두 기능 메뉴, seat = 앉을 칸 찾기, match = 매칭
-  const [view, setView] = useState<"" | "seat" | "match">(start?.view ?? "");
-  // CALL에서 들어오면 그 화면을 바로 연다.
+  const [view, setView] = useState<"" | "seat" | "match">(start && start.view !== "edit" ? start.view : "");
+  // CALL에서 들어오면 그 화면을 바로 연다. edit은 "오늘 노선·역 바꾸기"를 펼친 메뉴.
   useEffect(() => {
-    if (start) setView(start.view);
+    if (!start) return;
+    if (start.view === "edit") {
+      setView("");
+      setEditing(true);
+    } else setView(start.view);
   }, [start]);
   const initRef = useRef(false);
   const setToday = (v: Today) => {
