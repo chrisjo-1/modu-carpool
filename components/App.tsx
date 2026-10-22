@@ -542,7 +542,7 @@ export default function App() {
 
         <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-2">
           {tab === "home" &&
-            (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
+            (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} onSubway={() => setTab("subway")} onSubwaySetup={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} onSettings={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} onChanged={loadThreads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {

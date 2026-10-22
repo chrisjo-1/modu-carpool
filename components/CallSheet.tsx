@@ -27,7 +27,10 @@ function RegisterContact({ onGoProfile }: { onGoProfile?: () => void }) {
 }
 
 /** 하단 메뉴 바로 위, 가운데에 떠 있는 CALL 버튼 (홈 화면에서만 보인다) */
-export function FloatingCall({ toast, onGoProfile }: { toast: (m: string) => void; onGoProfile?: () => void }) {
+/** onSubway: 지하철 메뉴로 이동, onSubwaySetup: 출퇴근 정보 창(지하철 칸)을 연다. */
+type SubwayGo = { onSubway?: () => void; onSubwaySetup?: () => void };
+
+export function FloatingCall({ toast, onGoProfile, onSubway, onSubwaySetup }: { toast: (m: string) => void; onGoProfile?: () => void } & SubwayGo) {
   const [open, setOpen] = useState(false);
   const t = useT();
   const hintTap = useHintTap();
@@ -39,15 +42,27 @@ export function FloatingCall({ toast, onGoProfile }: { toast: (m: string) => voi
       <button type="button" data-block-id="B217" data-block-name="CALL" aria-label="CALL" className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-30 -translate-x-1/2 rounded-full bg-accent px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => { if (hintTap("C933")) return; setOpen(true); }}>
         CALL
       </button>
-      {open && <CallSheet onClose={() => setOpen(false)} toast={toast} onGoProfile={onGoProfile} />}
+      {open && <CallSheet onClose={() => setOpen(false)} toast={toast} onGoProfile={onGoProfile} onSubway={onSubway} onSubwaySetup={onSubwaySetup} />}
     </>
   );
 }
 
 type Step = "choose" | "pick" | "confirm" | "taxi";
 
-function CallSheet({ onClose, toast, onGoProfile }: { onClose: () => void; toast: (m: string) => void; onGoProfile?: () => void }) {
+function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { onClose: () => void; toast: (m: string) => void; onGoProfile?: () => void } & SubwayGo) {
   const t = useT();
+  const [subwayBusy, setSubwayBusy] = useState(false);
+  // 지하철 앉아가기: 지하철 정보가 있으면 지하철 메뉴로, 없으면 입력해야 이용할 수 있다고 알리고 출퇴근 정보 창(지하철 칸)을 연다.
+  const subway = async () => {
+    setSubwayBusy(true);
+    const r = await api<{ plan: unknown | null }>("/api/seat/plan");
+    setSubwayBusy(false);
+    if (!r.ok) return toast(t(r.error));
+    onClose();
+    if (r.data.plan) return onSubway?.();
+    toast(t("지하철 출퇴근 정보를 입력해야 앉아가기를 이용할 수 있어요."));
+    onSubwaySetup?.();
+  };
   const [step, setStep] = useState<Step>("choose");
   const [mine, setMine] = useState<Post[] | null>(null);
   const [picked, setPicked] = useState<Post | null>(null);
@@ -157,10 +172,10 @@ function CallSheet({ onClose, toast, onGoProfile }: { onClose: () => void; toast
         <div className="space-y-3">
           <button type="button" data-block-id="B218" data-block-name="택시동승 호출" className={btnGhost} onClick={taxi}>{t("택시동승 호출")}</button>
           <div className="space-y-1.5">
-            <button type="button" data-block-id="B222" data-block-name="지하철 앉아가기 호출" className="w-full rounded-xl border border-violet bg-violetSoft px-4 py-3 text-[16px] font-semibold text-violet disabled:opacity-70" disabled>
-              {t("지하철 앉아가기")} · {t("준비 중")}
+            <button type="button" data-block-id="B222" data-block-name="지하철 앉아가기 호출" className="w-full rounded-xl border border-violet bg-violetSoft px-4 py-3 text-[16px] font-semibold text-violet disabled:opacity-70" disabled={subwayBusy} onClick={subway}>
+              {subwayBusy ? t("확인 중…") : t("지하철 앉아가기")}
             </button>
-            <p className="px-1 text-[13px] leading-relaxed text-sub">{t("지하철 앉아가기는 준비 중이에요. 오픈되면 이 자리에서 호출할 수 있어요.")}</p>
+            <p className="px-1 text-[13px] leading-relaxed text-sub">{t("지하철 출퇴근 정보를 입력하면 이용할 수 있어요.")}</p>
           </div>
           {ready === false && <RegisterContact onGoProfile={onGoProfile} />}
           {band !== null && (

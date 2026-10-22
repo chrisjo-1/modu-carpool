@@ -124,7 +124,7 @@ export function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?
   );
 }
 
-export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void }) {
+export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost, onSubway, onSubwaySetup }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void; onSubway?: () => void; onSubwaySetup?: () => void }) {
   const t = useT();
   const lang = useLang();
   const hintTap = useHintTap();
@@ -286,7 +286,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         </>
       )}
       {/* 떠 있는 CALL 버튼·받은 호출 창은 맨 뒤에 둔다(space-y 여백이 첫 칸 위에 생기지 않게) */}
-      <FloatingCall toast={toast} onGoProfile={onGoProfile} />
+      <FloatingCall toast={toast} onGoProfile={onGoProfile} onSubway={onSubway} onSubwaySetup={onSubwaySetup} />
       {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
       {incomingTaxiId && <IncomingTaxiCall callId={incomingTaxiId} toast={toast} onClose={() => { setIncomingTaxiId(null); window.history.replaceState(null, "", "/"); }} />}
     </section>
