@@ -35,6 +35,7 @@ export default function AdminSubway() {
   };
 
   return (
+    <div className="grid gap-4">
     <section className="grid gap-4 rounded-2xl bg-white p-5 shadow-card">
       <div>
         <h2 className="text-[18px] font-bold">지하철 관리</h2>
@@ -70,6 +71,86 @@ export default function AdminSubway() {
         </button>
         {msg && <span role="status" className="text-[14px] text-sub">{msg}</span>}
       </div>
+    </section>
+    <SubwayRegistrations />
+    </div>
+  );
+}
+
+type Reg = { id: number; name: string; email: string; test: boolean; boardLine: string; board: string; alightLine: string; alight: string; back: boolean; createdAt: string; updatedAt: string };
+
+const kstDay = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
+const lineName = (id: string) => ALL_LINES.find((l) => l.id === id)?.name ?? id;
+
+/** 지하철 등록 현황: 노선별 인원(노선색 칩, 누르면 그 노선만)과 활성 등록자 목록. */
+function SubwayRegistrations() {
+  const [data, setData] = useState<{ total: number; byLine: Record<string, number>; plans: Reg[] } | null>(null);
+  const [err, setErr] = useState("");
+  const [line, setLine] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/subway/plans")
+      .then((r) => r.json())
+      .then((j) => (j.plans ? setData(j) : setErr(j.error ?? "불러오지 못했습니다.")))
+      .catch(() => setErr("불러오지 못했습니다."));
+  }, []);
+
+  const lines = data ? Object.entries(data.byLine).sort((a, b) => b[1] - a[1]) : [];
+  const shown = data ? data.plans.filter((p) => !line || p.boardLine === line || p.alightLine === line) : [];
+
+  return (
+    <section className="grid gap-4 rounded-2xl bg-white p-5 shadow-card" data-block-id="S099" data-block-name="지하철 등록 현황">
+      <div>
+        <h2 className="text-[18px] font-bold">지하철 등록 현황</h2>
+        <p className="mt-1 text-[14px] text-sub">지금 활성인 지하철 등록(해제한 등록 제외)입니다. 노선을 누르면 그 노선 등록자만 봅니다.</p>
+      </div>
+      {err && <p className="text-[14px] text-warn">{err}</p>}
+      {!data && !err && <p className="text-[14px] text-sub">불러오는 중…</p>}
+      {data && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setLine("")} className={`min-h-[36px] rounded-full border-2 px-3 text-[14px] font-semibold ${line === "" ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`}>
+              전체 {data.total}명
+            </button>
+            {lines.map(([id, n]) => {
+              const c = lineColor(id);
+              const on = line === id;
+              return (
+                <button key={id} type="button" onClick={() => setLine(on ? "" : id)} className="min-h-[36px] rounded-full border-2 px-3 text-[14px] font-semibold" style={on ? { background: c.bg, borderColor: c.bg, color: c.text } : { background: "#FFFFFF", borderColor: c.bg, color: "#1F2937" }}>
+                  {lineName(id)} {n}명
+                </button>
+              );
+            })}
+          </div>
+          {shown.length === 0 ? (
+            <p className="rounded-xl bg-bg px-4 py-3 text-[14px] text-sub">등록자가 없습니다.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="text-sub">
+                  <tr>{["닉네임", "이메일", "노선", "승차 → 하차", "반대 방면", "등록일", "수정일"].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {shown.map((p) => (
+                    <tr key={p.id} className="border-t border-line">
+                      <td className="px-2 py-2">{p.name || "-"}{p.test && <span className="ml-1 rounded bg-bg px-1 text-[11px] text-sub">테스트</span>}</td>
+                      <td className="px-2 py-2 text-sub">{p.email || "-"}</td>
+                      <td className="px-2 py-2">
+                        <span className="rounded-md px-1.5 py-0.5 text-[12px] font-bold" style={{ background: lineColor(p.boardLine).bg, color: lineColor(p.boardLine).text }}>{lineName(p.boardLine)}</span>
+                        {p.alightLine !== p.boardLine && <span className="ml-1 rounded-md px-1.5 py-0.5 text-[12px] font-bold" style={{ background: lineColor(p.alightLine).bg, color: lineColor(p.alightLine).text }}>{lineName(p.alightLine)}</span>}
+                      </td>
+                      <td className="px-2 py-2">{p.board} → {p.alight}</td>
+                      <td className="px-2 py-2">{p.back ? "등록" : "-"}</td>
+                      <td className="num px-2 py-2 text-sub">{kstDay(p.createdAt)}</td>
+                      <td className="num px-2 py-2 text-sub">{kstDay(p.updatedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }
