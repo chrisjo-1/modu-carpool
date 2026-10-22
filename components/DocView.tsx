@@ -1,4 +1,11 @@
-/** 약관용 아주 작은 마크다운 표시기: #/## 제목, 표(|), 번호·글머리 목록, 문단 */
+/** 글 안의 주소(http…)를 눌러 열 수 있는 링크로 바꾼다. */
+function linkify(text: string): React.ReactNode {
+  const parts = text.split(/(https?:\/\/[^\s)]+)/g);
+  if (parts.length === 1) return text;
+  return parts.map((p, i) => (/^https?:\/\//.test(p) ? <a key={i} href={p} className="break-all text-accent underline">{p}</a> : p));
+}
+
+/** 약관·가이드용 아주 작은 마크다운 표시기: #/## 제목, 표(|), 번호·글머리 목록, 문단 */
 export default function DocView({ body }: { body: string }) {
   const lines = body.replace(/\r/g, "").split("\n");
   const out: React.ReactNode[] = [];
@@ -33,9 +40,9 @@ export default function DocView({ body }: { body: string }) {
       const items: string[] = [];
       while (i < lines.length && /^(\d+\.|-) /.test(lines[i])) items.push(lines[i++].replace(/^(\d+\.|-) /, ""));
       const cls = `my-2 space-y-1 pl-5 text-[15px] leading-relaxed ${ordered ? "list-decimal" : "list-disc"}`;
-      out.push(ordered ? <ol key={k++} className={cls}>{items.map((x, j) => <li key={j}>{x}</li>)}</ol> : <ul key={k++} className={cls}>{items.map((x, j) => <li key={j}>{x}</li>)}</ul>);
+      out.push(ordered ? <ol key={k++} className={cls}>{items.map((x, j) => <li key={j}>{linkify(x)}</li>)}</ol> : <ul key={k++} className={cls}>{items.map((x, j) => <li key={j}>{linkify(x)}</li>)}</ul>);
       continue;
-    } else out.push(<p key={k++} className="my-2 text-[15px] leading-relaxed">{l}</p>);
+    } else out.push(<p key={k++} className="my-2 text-[15px] leading-relaxed">{linkify(l)}</p>);
     i++;
   }
   return <article className="text-ink">{out}</article>;

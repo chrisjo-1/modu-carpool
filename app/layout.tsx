@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SITE_URL } from "@/lib/site";
 
-const title = "모두의카풀 — 같은 방향, 같이 가요";
+const title = "모두의카풀 — 출퇴근 카풀·지하철 앉아가기";
 const description =
-  "출퇴근길도 서울 나들이도 방향이 같은 사람과 함께. 무료 운행을 원칙으로 하는 카풀 매칭 서비스입니다. 한국어·English·日本語·中文 지원.";
+  "방향이 같은 사람과 함께 타는 출퇴근 카풀, 앉을 칸을 알려 주는 지하철 앉아가기. 무료 운행을 원칙으로 하는 모두의카풀(구 워프)입니다.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -17,10 +17,10 @@ export const metadata: Metadata = {
   },
   title: { default: title, template: "%s | 모두의카풀" },
   description,
-  keywords: ["카풀", "출퇴근 카풀", "모두의카풀", "모카", "carpool Seoul", "ride share Korea"],
+  keywords: ["모두의카풀", "출퇴근 카풀", "카풀", "지하철 앉아가기", "워프 카풀", "모카"],
   authors: [{ name: "모두의카풀" }],
   robots: { index: true, follow: true },
-  openGraph: { type: "website", locale: "ko_KR", url: "/", title, description, siteName: "모두의카풀", images: [{ url: "/og.png", width: 1200, height: 630, alt: "모두의카풀 — 같은 방향, 같이 가요" }] },
+  openGraph: { type: "website", locale: "ko_KR", url: "/", title, description, siteName: "모두의카풀", images: [{ url: "/og.png", width: 1200, height: 630, alt: "모두의카풀 — 출퇴근 카풀·지하철 앉아가기" }] },
   twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
   formatDetection: { telephone: false },
   appleWebApp: { capable: true, title: "모두의카풀", statusBarStyle: "default" },

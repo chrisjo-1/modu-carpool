@@ -1,6 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
+import AdminMarketing from "@/components/admin/Marketing";
 import ReportChat from "@/components/admin/ReportChat";
 import MemberCode from "@/components/admin/MemberCode";
 import AdminMail from "@/components/admin/Mail";
@@ -60,7 +61,7 @@ type Info = { db: boolean; stats: Stats | null; userTotal: number; posts: PostRo
 /** 회원 필터(모두 서버에서 전체 회원 대상) */
 type UserFilter = { gen: string; role: string; status: string; origin: string; from: string; to: string; seen: string; has: string; withTest: boolean };
 const NO_FILTER: UserFilter = { gen: "", role: "", status: "", origin: "", from: "", to: "", seen: "", has: "", withTest: false };
-type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate";
+type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate" | "marketing";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
@@ -239,6 +240,7 @@ export default function Admin() {
         {tabBtn("help", "도움말")}
         {tabBtn("mail", "메일")}
         {tabBtn("send", "발송")}
+        {tabBtn("marketing", "마케팅")}
         {tabBtn("subway", "지하철")}
         {tabBtn("flows", "출퇴근 지도")}
         {tabBtn("simulate", "앉아가기 시뮬레이션")}
@@ -479,6 +481,7 @@ export default function Admin() {
       {tab === "mail" && <AdminMail />}
       {tab === "send" && <AdminSend />}
       {tab === "subway" && <AdminSubway />}
+      {tab === "marketing" && <AdminMarketing />}
       {tab === "simulate" && <AdminSeatSim />}
       {tab === "flows" && <AdminFlowMap />}
       {tab === "notices" && <AdminNotices />}

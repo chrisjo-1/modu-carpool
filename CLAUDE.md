@@ -39,6 +39,11 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **첫 로딩**(홈 139KB, 2026-10-18 기준): 번역 사전은 `lib/i18nDict.ts`로 분리해 한국어가 아닐 때만 `loadDict()`로 불러온다(App의 `shownLang`). 찾기 외 탭·창(Chat·Me·PostForm·Commute·Member·Reset·Withdraw·Interests·CommuteStart·CommuteOnboard)은 `dynamic`으로 열 때 불러오고, 첫 화면 뒤 한가할 때 등록·채팅·내 정보를 미리 받는다. 마지막 카풀 목록은 localStorage `modu.posts`(하루)에 두고 앱을 열면 먼저 보여 준다. 글꼴은 Pretendard Variable dynamic-subset(필요한 글자 조각만). 첫 화면 컴포넌트에서 다른 탭 파일을 import하면 다시 무거워지니 공용 상수는 lib에 둔다.
 - **스키마 준비**(`ensureSchema` in `lib/server.ts`, `ensureSeatSchema` in `lib/seatDb.ts`): DDL은 `buildSchema`/`buildSeatSchema` 안에만 둔다. 함수 내용의 해시를 `settings.schema_hash`(seat DB는 `seat_meta`)에 적어 두고 같으면 건너뛴다(예전엔 서버가 뜰 때마다 DDL 150여 개). 매번 할 자료 정리는 `maintainData`에. buildSchema 안에서는 바깥 함수·변수를 쓰지 않는다(해시가 빌드마다 흔들리지 않게).
 - **채팅 속도**: `/api/messages?after=마지막번호`로 새 메시지만 받는다(권한 확인·조회 동시, 새 메시지 있을 때만 읽음 기록). 대화 내용은 sessionStorage `modu.chat.<신청ID>`, 채팅 목록은 `modu.threads`에 두었다가 바로 보여 준다(로그아웃 시 지움). 색인 `requests_user_idx`, `posts_user_idx`, `chat_reads_req_idx`.
+- **검색 노출(SEO)·마케팅**(2026-10-22): 홈 아래 서버 렌더 소개(`components/HomeSeo.tsx`, App `seo` prop, 찾기 탭에서만, 홈 revalidate 600). 공개 페이지 틀 `components/PublicPage.tsx`(+BreadcrumbLd).
+  `/subway`·`/subway/[line]`(2·5·6·7·9)·`/subway/[line]/[station]`(`lib/seoSubway.ts`, 혼잡도·추천 칸, 색인은 노선별 출근 시간 붐비는 주요 역 8곳만, 나머지 noindex), `/faq`(help_items FAQ + FAQPage), `/warp`(워프 이전 안내), `/guide`·`/guide/[slug]`(마케팅 자료).
+  IndexNow(`lib/indexnow.ts`, 키 파일 `/indexnow.txt`, 운영에서만): 새 카풀 글·가이드 게시 때 네이버·빙에 알림. 구글은 사이트맵.
+  관리자 '마케팅' 탭(`components/admin/Marketing.tsx`, `/api/admin/marketing`, DB `marketing_posts`): 혼잡도·FAQ로 가이드 초안 → 고치기 → 게시, 채널 배포본(네이버 블로그·인스타·쓰레드·X) 복사/글쓰기 열기, 공개 페이지 전체 다시 알리기.
+  메일 자동 이어 보내기: `mail_campaigns.auto`, 발송 탭 체크 → `/api/cron/mail-daily`(매일 09:10 KST, `CRON_SECRET` 필요)가 `lib/campaignRun.ts`로 한도만큼 이어 보냄.
 - `lib/i18n.ts`: 한국어 키 사전(번역 문구는 `lib/i18nDict.ts`). **번역 문구는 지금 넣지 않는다.** 국내 유저가 우선이라 서비스가 완성된 뒤 한꺼번에 추가한다. 화면 문구는 `t("한국어")`로만 감싸 둔다.
 
 ## 메일

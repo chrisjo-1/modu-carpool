@@ -9,6 +9,7 @@ import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needL
 import { samplePosts } from "@/lib/sample";
 import { after } from "next/server";
 import { fillPostAreas } from "@/lib/area";
+import { pingIndexNow } from "@/lib/indexnow";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular, toMinutes, validDays } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -151,6 +152,8 @@ export async function POST(req: Request) {
     const credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
     await notifyRouteAlerts(String(rows[0].id));
     if (v.role === "rider") await notifyDrivers(String(rows[0].id));
+    // 새 글 주소를 검색엔진에 알린다(응답 뒤, 실패해도 무시).
+    after(() => pingIndexNow([`/post/${rows[0].id}`]).catch(() => {}));
     return json({ id: rows[0].id, credit });
   } catch (e) {
     return fail(e);
@@ -201,6 +204,7 @@ export async function PUT(req: Request) {
       returning id`;
     const credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
     await notifyRouteAlerts(String(rows[0].id));
+    after(() => pingIndexNow([`/post/${rows[0].id}`]).catch(() => {}));
     return json({ id: rows[0].id, updated: false, credit });
   } catch (e) {
     return fail(e);

@@ -43,7 +43,8 @@ const POSTS_CACHE = "modu.posts";
 const POSTS_CACHE_MS = 24 * 60 * 60 * 1000;
 const THREADS_CACHE = "modu.threads";
 
-export default function App() {
+/** seo: 홈 아래 서비스 소개(서버에서 그린 내용, 찾기 탭에서만 보임) */
+export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const [tab, setTab] = useState<Tab>("home");
   // 지하철 탭을 보여 줄지(앉아가기 열림 또는 관리자). 첫 화면을 막지 않도록 뒤에서 불러온다.
   const [seatVisible, setSeatVisible] = useState(false);
@@ -545,6 +546,7 @@ export default function App() {
         <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-2">
           {tab === "home" &&
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} onSubway={(v) => { setSubwayStart({ view: v, n: Date.now() }); setTab("subway"); }} onSubwaySetup={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
+          {tab === "home" && seo}
           {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} start={subwayStart} onSettings={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} onChanged={loadThreads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {
