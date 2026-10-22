@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { type Place, type Post } from "@/lib/types";
 import PlaceField from "./PlaceField";
-import { ALL_LINES, lineColor } from "@/lib/subway";
+import { ALL_LINES, lineColor } from "@/lib/lineMeta";
 import { Bubble, useHintTap, Card, Sheet, api, btnGhost, btnPrimary, currentHere, useLang, useT, when } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
