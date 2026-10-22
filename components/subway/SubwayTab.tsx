@@ -86,7 +86,7 @@ function freshToday(plan: SubwayPlan, kind: Kind, prev: Today | null): Today {
   };
 }
 
-export default function SubwayTab({ user, onSettings }: { user: User | null; toast: (m: string) => void; onSettings?: () => void }) {
+export default function SubwayTab({ user, onSettings, start }: { user: User | null; toast: (m: string) => void; onSettings?: () => void; start?: { view: "seat" | "match"; n: number } | null }) {
   const t = useT();
   const [plan, setPlan] = useState<SubwayPlan | null>(null);
   const [days, setDays] = useState("");
@@ -104,7 +104,11 @@ export default function SubwayTab({ user, onSettings }: { user: User | null; toa
   const [today, setTodayState] = useState<Today | null>(null);
   const [editing, setEditing] = useState(false);
   // 메뉴 안의 화면: 빈 값 = 두 기능 메뉴, seat = 앉을 칸 찾기, match = 매칭
-  const [view, setView] = useState<"" | "seat" | "match">("");
+  const [view, setView] = useState<"" | "seat" | "match">(start?.view ?? "");
+  // CALL에서 들어오면 그 화면을 바로 연다.
+  useEffect(() => {
+    if (start) setView(start.view);
+  }, [start]);
   const initRef = useRef(false);
   const setToday = (v: Today) => {
     setTodayState(v);

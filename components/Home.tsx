@@ -124,7 +124,7 @@ export function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?
   );
 }
 
-export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost, onSubway, onSubwaySetup }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void; onSubway?: () => void; onSubwaySetup?: () => void }) {
+export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost, onSubway, onSubwaySetup }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void; onSubway?: (view: "seat" | "match") => void; onSubwaySetup?: () => void }) {
   const t = useT();
   const lang = useLang();
   const hintTap = useHintTap();

@@ -27,8 +27,8 @@ function RegisterContact({ onGoProfile }: { onGoProfile?: () => void }) {
 }
 
 /** 하단 메뉴 바로 위, 가운데에 떠 있는 CALL 버튼 (홈 화면에서만 보인다) */
-/** onSubway: 지하철 메뉴로 이동, onSubwaySetup: 출퇴근 정보 창(지하철 칸)을 연다. */
-type SubwayGo = { onSubway?: () => void; onSubwaySetup?: () => void };
+/** onSubway: 지하철 메뉴의 화면(매칭·앉을 칸 찾기)으로 이동, onSubwaySetup: 출퇴근 정보 창(지하철 칸)을 연다. */
+type SubwayGo = { onSubway?: (view: "seat" | "match") => void; onSubwaySetup?: () => void };
 
 export function FloatingCall({ toast, onGoProfile, onSubway, onSubwaySetup }: { toast: (m: string) => void; onGoProfile?: () => void } & SubwayGo) {
   const [open, setOpen] = useState(false);
@@ -55,13 +55,33 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
   // 지하철 앉아가기: 지하철 정보가 있으면 지하철 메뉴로, 없으면 입력해야 이용할 수 있다고 알리고 출퇴근 정보 창(지하철 칸)을 연다.
   const subway = async () => {
     setSubwayBusy(true);
-    const r = await api<{ plan: unknown | null }>("/api/seat/plan");
+    const r = await api<{ plan: { back?: boolean } | null }>("/api/seat/plan");
+    if (!r.ok) {
+      setSubwayBusy(false);
+      return toast(t(r.error));
+    }
+    if (!r.data.plan) {
+      setSubwayBusy(false);
+      onClose();
+      toast(t("지하철 출퇴근 정보를 입력해야 앉아가기를 이용할 수 있어요."));
+      return onSubwaySetup?.();
+    }
+    // 지금 시각의 방향(반대 방면을 등록했으면 오후 2시부터 반대 방면)으로 같은 노선·같은 방향 승차자를 센다.
+    const hour = new Date(Date.now() + 9 * 3600_000).getUTCHours();
+    const trip = r.data.plan.back && hour >= 14 ? "back" : "go";
+    const [a, b] = await Promise.all([
+      api<{ candidates: unknown[] }>(`/api/seat/match?list=ahead&trip=${trip}`),
+      api<{ candidates: unknown[] }>(`/api/seat/match?list=before&trip=${trip}`),
+    ]);
     setSubwayBusy(false);
-    if (!r.ok) return toast(t(r.error));
+    const riders = (a.ok ? a.data.candidates.length : 0) + (b.ok ? b.data.candidates.length : 0);
     onClose();
-    if (r.data.plan) return onSubway?.();
-    toast(t("지하철 출퇴근 정보를 입력해야 앉아가기를 이용할 수 있어요."));
-    onSubwaySetup?.();
+    if (riders > 0) {
+      toast(`${t("지금 같은 방향 승차자")} ${riders}${t("명이 있어요.")}`);
+      return onSubway?.("match");
+    }
+    toast(t("지금 같은 방향 승차자가 없어요. 앉을 칸부터 찾아보세요."));
+    onSubway?.("seat");
   };
   const [step, setStep] = useState<Step>("choose");
   const [mine, setMine] = useState<Post[] | null>(null);
