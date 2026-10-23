@@ -133,6 +133,8 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const [toastMsg, setToastMsg] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [withdrawToken, setWithdrawToken] = useState("");
+  // 메일의 '개인정보 삭제 신청' 링크(?leave=1): 로그인 없이 탈퇴 여부 확인 창을 연다.
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const [bubbleTexts, setBubbleTexts] = useState<Record<string, string>>({});
   useEffect(() => {
     fetch("/api/bubbles").then((r) => r.json()).then((j) => setBubbleTexts(j.texts ?? {})).catch(() => {});
@@ -249,6 +251,10 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       const reset = q.get("reset");
       if (reset) setResetToken(reset);
       // 탈퇴 확인 링크: 메일의 링크로 들어오면 탈퇴를 완료한다.
+      if (q.get("leave")) {
+        history.replaceState(null, "", location.pathname);
+        setLeaveOpen(true);
+      }
       const withdraw = q.get("withdraw");
       if (withdraw) {
         history.replaceState(null, "", location.pathname);
@@ -621,6 +627,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
         <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {withdrawToken && <Withdraw token={withdrawToken} onClose={() => setWithdrawToken("")} />}
+        {leaveOpen && !withdrawToken && <Withdraw initialEmail={user?.email ?? ""} onClose={() => setLeaveOpen(false)} />}
         {resetToken && (
           <ResetSheet
             token={resetToken}

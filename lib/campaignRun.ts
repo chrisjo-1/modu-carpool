@@ -1,4 +1,4 @@
-import { audienceRows, renderHtml, type Audience, type Segment } from "./campaign";
+import { RETENTION_TEXT, audienceRows, renderHtml, type Audience, type Segment } from "./campaign";
 import { campaignAllowance, deliverCampaignBatch, reconcileFailed, type MailCategory } from "./mail";
 import { db, ensureSchema } from "./server";
 
@@ -37,7 +37,7 @@ export async function runCampaignBatch(id: string, limit: number): Promise<Batch
   if (c.status === "done") await sql`update mail_campaigns set status = 'sending', finished_at = null where id = ${id}`;
 
   const html = renderHtml(c.body as string);
-  const text = String(c.body).replace(/\{\{img:[0-9a-f-]{36}\}\}/g, "[이미지]");
+  const text = `${String(c.body).replace(/\{\{img:[0-9a-f-]{36}\}\}/g, "[이미지]")}\n\n${RETENTION_TEXT}`;
   const r = await deliverCampaignBatch(rows.map((x) => ({ kind: "campaign", category, to: x.email, userId: x.user_id, subject: c.subject as string, html, text, campaignId: id })));
   const sent = r.sent;
   const held = r.held === "off" || r.held === "quiet" || r.held === "cap" || r.held === "quota" ? r.held : null;

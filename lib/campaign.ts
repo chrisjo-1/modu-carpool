@@ -79,6 +79,13 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 
 /** 본문 텍스트를 메일 모양으로 바꾼다. 빈 줄은 문단, 줄바꿈은 줄바꿈으로 둔다. */
+/** 개인정보 보관·삭제 안내(대량·공지 메일 맨 아래). 링크를 누르면 로그인 없이 '탈퇴 여부 확인' 창이 열린다. */
+export const LEAVE_URL = `${SITE}/?leave=1`;
+export const RETENTION_TEXT = `개인정보 보관 안내: 메일 발송 시 개인정보는 5년간 보관하도록 되어 있어, 개인정보 삭제에 동의해 주셔야 삭제가 가능합니다.\n개인정보 삭제 신청: ${LEAVE_URL}`;
+export function retentionBlock(): string {
+  return `<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">개인정보 보관 안내: 메일 발송 시 개인정보는 5년간 보관하도록 되어 있어, 개인정보 삭제에 동의해 주셔야 삭제가 가능합니다. <a href="${LEAVE_URL}" style="color:#8B95A1;text-decoration:underline">개인정보 삭제 신청</a></p>`;
+}
+
 export function renderHtml(text: string): string {
   const paras = text.trim().split(/\n\s*\n/).map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.7">${esc(p).replace(/\n/g, "<br>")}</p>`).join("")
     .replace(/\{\{img:([0-9a-f-]{36})\}\}/g, (_m, id: string) => `<img src="${SITE}/api/mail/image/${id}" alt="" style="display:block;max-width:100%;height:auto;margin:0 0 16px;border-radius:12px" />`);
@@ -86,7 +93,7 @@ export function renderHtml(text: string): string {
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
 <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
 ${paras}
-<div style="border-top:1px solid #E5E8EB;margin-top:8px;padding-top:16px">${siteLinkBlock()}</div>
+<div style="border-top:1px solid #E5E8EB;margin-top:8px;padding-top:16px">${siteLinkBlock()}${retentionBlock()}</div>
 </div></div>`;
 }
 
