@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
-type Policy = { dailyCap: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
+type Policy = { dailyCap: number; monthlyCap: number; cycleDay: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
 type Log = { id: string; created_at: number; kind: string; category: string; to_email: string; subject: string; status: string; error: string; provider_id: string; user_name: string | null };
 type Received = { unsub: number; withdrawn: number; purged: number; waiting: number };
-type Data = { policy: Policy; defaults: Policy; kinds: string[]; suppressed: number; received: Received; today: { sent: number; marketing_sent: number; campaign_sent?: number; blocked: number; failed: number }; logs: Log[] };
+type Allowance = { auto: boolean; cap: number; left: number; sentToday: number; monthSent: number; monthlyCap: number; daysLeft: number };
+type Data = { policy: Policy; allowance?: Allowance; defaults: Policy; kinds: string[]; suppressed: number; received: Received; today: { sent: number; marketing_sent: number; campaign_sent?: number; blocked: number; failed: number }; logs: Log[] };
 
 const input = "rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const KIND: Record<string, string> = {
@@ -88,7 +89,8 @@ export default function AdminMail() {
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {tile("오늘 발송", `${d.today.sent.toLocaleString("ko-KR")}통`)}
-            {tile("오늘 대량 발송", `${(d.today.campaign_sent ?? 0).toLocaleString("ko-KR")} / ${draft.dailyCap.toLocaleString("ko-KR")}`, "캠페인 메일 하루 한도 대비(꼭 필요한 메일은 한도 없음)")}
+            {tile("오늘 대량 발송", `${(d.today.campaign_sent ?? 0).toLocaleString("ko-KR")} / ${(d.allowance?.cap ?? draft.dailyCap).toLocaleString("ko-KR")}`, d.allowance?.auto ? "월 한도에 맞춘 오늘 몫(자동)" : "하루 한도 대비(꼭 필요한 메일은 한도 없음)")}
+            {d.allowance && tile("이번 달 사용", `${d.allowance.monthSent.toLocaleString("ko-KR")} / ${d.allowance.monthlyCap.toLocaleString("ko-KR")}`, `모든 메일 합계 · 주기 끝까지 ${d.allowance.daysLeft}일`)}
             {tile("오늘 차단", `${d.today.blocked.toLocaleString("ko-KR")}통`, "정책으로 보내지 않음")}
             {tile("오늘 실패", `${d.today.failed.toLocaleString("ko-KR")}통`)}
             {tile("발송 제외 주소", `${d.suppressed.toLocaleString("ko-KR")}개`, "수신거부·반송·스팸 신고")}
@@ -104,10 +106,19 @@ export default function AdminMail() {
               광고성 메일 발송 허용
             </label>
             <label className="flex flex-wrap items-center gap-2 text-[15px]">
-              하루 광고성 메일 한도
+              하루 대량(캠페인) 메일 한도
               <input type="number" min={0} max={100000} className={`${input} w-32`} value={draft.dailyCap} onChange={(e) => set("dailyCap", Number(e.target.value))} />
               통
-              <span className="text-[13px] text-sub">(무료 요금제는 Resend 전체 하루 100통이므로 안내 메일 몫을 남기세요)</span>
+              <button type="button" className={`rounded-lg border px-2.5 py-1 text-[13px] ${draft.dailyCap === 0 ? "border-accent font-semibold text-accent" : "border-line text-sub"}`} onClick={() => set("dailyCap", 0)}>자동(월 한도 기준)</button>
+              <span className="w-full text-[13px] text-sub">0 = 자동: (월 한도 − 이번 달 보낸 양 − 꼭 필요한 메일 몫 10%) ÷ 남은 날수만큼 매일 최대로 보냅니다. 덜 보낸 날이 있으면 다음 날 몫이 늘어납니다.</span>
+            </label>
+            <label className="flex flex-wrap items-center gap-2 text-[15px]">
+              Resend 월 한도
+              <input type="number" min={100} className={`${input} w-32`} value={draft.monthlyCap} onChange={(e) => set("monthlyCap", Number(e.target.value))} />
+              통 · 결제 주기 시작일 매월
+              <input type="number" min={1} max={31} className={`${input} w-20`} value={draft.cycleDay} onChange={(e) => set("cycleDay", Number(e.target.value))} />
+              일
+              <span className="w-full text-[13px] text-sub">Pro 50,000통 · Scale 100,000통. 요금제를 바꾸면 여기 숫자만 고치세요.</span>
             </label>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-[15px]">

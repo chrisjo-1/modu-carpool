@@ -150,7 +150,7 @@ export default function AdminSend() {
     setRunning(c.id); setProgress(0); setMsg("");
     let total = 0;
     for (let i = 0; i < 2000 && !stopRef.current; i++) {
-      const r = await fetch(`/api/admin/campaigns/${c.id}/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limit: 50 }) });
+      const r = await fetch(`/api/admin/campaigns/${c.id}/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limit: 300 }) });
       const j = await r.json();
       if (!r.ok) { setMsg(j.error ?? "발송 중 오류가 났습니다."); break; }
       total += j.sent;
@@ -273,7 +273,7 @@ export default function AdminSend() {
 
         <div className="flex flex-wrap items-center gap-2">
           <button className={btn} disabled={busy} onClick={doCount}>대상자 수 확인</button>
-          {count !== null && <span className="text-[14px]"><b>{segLabel}</b> 대상 <b>{count.toLocaleString()}명</b>{d && count > d.policy.dailyCap ? ` · 하루 한도 ${d.policy.dailyCap}통이라 나눠서 발송됩니다(매일 자동 이어 보내기 가능)` : ""}</span>}
+          {count !== null && <span className="text-[14px]"><b>{segLabel}</b> 대상 <b>{count.toLocaleString()}명</b>{d && d.policy.dailyCap > 0 && count > d.policy.dailyCap ? ` · 하루 한도 ${d.policy.dailyCap}통이라 나눠서 발송됩니다(매일 자동 이어 보내기 가능)` : d && count > 1000 ? " · 월 한도에 맞춘 하루 몫만큼 나눠 보냅니다(매일 자동 이어 보내기 가능)" : ""}</span>}
         </div>
 
         <div className="flex flex-wrap items-end gap-2 border-t border-line pt-4">

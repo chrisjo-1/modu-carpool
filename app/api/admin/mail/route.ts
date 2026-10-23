@@ -1,4 +1,4 @@
-import { DEFAULT_POLICY, getPolicy, type MailPolicy } from "@/lib/mail";
+import { DEFAULT_POLICY, campaignAllowance, getPolicy, type MailPolicy } from "@/lib/mail";
 import { body, db, ensureSchema, fail, hasDb, isAdmin, json, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +43,10 @@ export async function GET(req: Request) {
         (select count(distinct email_norm)::int from withdraw_claims where kind = 'purge' and used) as purged,
         (select count(distinct email_norm)::int from withdraw_claims where not used and expires_at > now()) as waiting`;
     const policy = await getPolicy();
+    const allowance = await campaignAllowance(policy);
     return json({
       policy,
+      allowance,
       defaults: DEFAULT_POLICY,
       kinds: KINDS,
       today: today[0],
@@ -65,6 +67,8 @@ export async function PATCH(req: Request) {
   const cur = await getPolicy();
   const next: MailPolicy = {
     dailyCap: typeof b.dailyCap === "number" ? Math.round(b.dailyCap) : cur.dailyCap,
+    monthlyCap: typeof b.monthlyCap === "number" ? Math.round(b.monthlyCap) : cur.monthlyCap,
+    cycleDay: typeof b.cycleDay === "number" ? Math.round(b.cycleDay) : cur.cycleDay,
     quietOn: typeof b.quietOn === "boolean" ? b.quietOn : cur.quietOn,
     quietFrom: typeof b.quietFrom === "number" ? Math.round(b.quietFrom) : cur.quietFrom,
     quietTo: typeof b.quietTo === "number" ? Math.round(b.quietTo) : cur.quietTo,
@@ -72,10 +76,12 @@ export async function PATCH(req: Request) {
     requireConsent: typeof b.requireConsent === "boolean" ? b.requireConsent : cur.requireConsent,
   };
   if (!Number.isFinite(next.dailyCap) || next.dailyCap < 0 || next.dailyCap > 100000) return json({ error: "하루 한도는 0~100000 사이로 입력해 주세요." }, 400);
+  if (!Number.isFinite(next.monthlyCap) || next.monthlyCap < 100 || next.monthlyCap > 10_000_000) return json({ error: "월 한도는 100 이상으로 입력해 주세요." }, 400);
+  if (!Number.isInteger(next.cycleDay) || next.cycleDay < 1 || next.cycleDay > 31) return json({ error: "결제 주기 시작일은 1~31일로 입력해 주세요." }, 400);
   if (![next.quietFrom, next.quietTo].every((h) => Number.isInteger(h) && h >= 0 && h <= 23)) return json({ error: "야간 제한 시간은 0~23시 사이로 입력해 주세요." }, 400);
   try {
     await ensureSchema();
-    await db()`update mail_policy set daily_cap = ${next.dailyCap}, quiet_on = ${next.quietOn}, quiet_from = ${next.quietFrom}, quiet_to = ${next.quietTo},
+    await db()`update mail_policy set daily_cap = ${next.dailyCap}, monthly_cap = ${next.monthlyCap}, cycle_day = ${next.cycleDay}, quiet_on = ${next.quietOn}, quiet_from = ${next.quietFrom}, quiet_to = ${next.quietTo},
       marketing_on = ${next.marketingOn}, require_consent = ${next.requireConsent}, updated_at = now() where id = 1`;
     return json({ ok: true, policy: next });
   } catch (e) {

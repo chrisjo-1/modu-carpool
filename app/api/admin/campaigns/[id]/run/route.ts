@@ -10,7 +10,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   if (!isUuid(id)) return json({ error: "잘못된 캠페인입니다." }, 400);
   const b = await body(req);
-  const limit = Math.min(Math.max(Number(b.limit) || 50, 1), 200);
+  const limit = Math.min(Math.max(Number(b.limit) || 50, 1), 500);
   try {
     const r = await runCampaignBatch(id, limit);
     if (!r.ok) return json({ error: r.error }, r.status);

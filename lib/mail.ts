@@ -15,16 +15,18 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 export type MailCategory = "transactional" | "marketing";
 
 /** 메일 정책. 관리자 메일 탭에서 바꾼다. 하루 한도는 대량(캠페인) 메일 전체에, 나머지는 광고성 메일에만 적용한다. */
-export type MailPolicy = { dailyCap: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
-export const DEFAULT_POLICY: MailPolicy = { dailyCap: 500, quietOn: true, quietFrom: 21, quietTo: 8, marketingOn: false, requireConsent: true };
+export type MailPolicy = { dailyCap: number; monthlyCap: number; cycleDay: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
+export const DEFAULT_POLICY: MailPolicy = { dailyCap: 0, monthlyCap: 50000, cycleDay: 3, quietOn: true, quietFrom: 21, quietTo: 8, marketingOn: false, requireConsent: true };
 
 export async function getPolicy(): Promise<MailPolicy> {
   await ensureSchema();
-  const r = await db()`select daily_cap, quiet_on, quiet_from, quiet_to, marketing_on, require_consent from mail_policy where id = 1`;
+  const r = await db()`select daily_cap, monthly_cap, cycle_day, quiet_on, quiet_from, quiet_to, marketing_on, require_consent from mail_policy where id = 1`;
   if (!r.length) return DEFAULT_POLICY;
   const x = r[0];
   return {
     dailyCap: Number(x.daily_cap),
+    monthlyCap: Number(x.monthly_cap),
+    cycleDay: Number(x.cycle_day),
     quietOn: x.quiet_on === true,
     quietFrom: Number(x.quiet_from),
     quietTo: Number(x.quiet_to),
@@ -90,6 +92,46 @@ export async function campaignSentToday(): Promise<number> {
   const n = await db()`select count(*)::int as n from mail_log
     where campaign_id is not null and status = 'sent' and created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
   return Number(n[0].n);
+}
+
+const DAY = 86_400_000;
+
+/** 오늘(KST) 대량 메일 발송 몫. 하루 한도를 정했으면 그 값, 0이면 월 한도에 맞춰 자동으로 나눈다. */
+export type Allowance = { auto: boolean; cap: number; left: number; sentToday: number; monthSent: number; monthlyCap: number; daysLeft: number; cycleStart: number; cycleEnd: number };
+
+/**
+ * 자동(하루 한도 0): (월 한도 − 이번 결제 주기에 이미 보낸 전체 메일(오늘 전까지) − 꼭 필요한 메일 몫) ÷ 남은 날수(오늘 포함).
+ * 꼭 필요한 메일 몫은 월 한도의 10%를 남은 날수 비율로 남긴다. 어제 덜 보냈으면 오늘 몫이 늘어난다.
+ * 수동 한도도 월 한도 남은 양을 넘지 않는다.
+ */
+export async function campaignAllowance(p?: MailPolicy): Promise<Allowance> {
+  const pol = p ?? (await getPolicy());
+  const k = new Date(Date.now() + 9 * 3600_000);
+  const y = k.getUTCFullYear(), mo = k.getUTCMonth(), d = k.getUTCDate();
+  const dayIn = (yy: number, mm: number) => Math.min(pol.cycleDay, new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate());
+  let sy = y, sm = mo;
+  if (d < dayIn(y, mo)) { sm -= 1; if (sm < 0) { sm = 11; sy -= 1; } }
+  const kst = (yy: number, mm: number, dd: number) => Date.UTC(yy, mm, dd) - 9 * 3600_000;
+  const cycleStart = kst(sy, sm, dayIn(sy, sm));
+  const ny = sm === 11 ? sy + 1 : sy, nm = (sm + 1) % 12;
+  const cycleEnd = kst(ny, nm, dayIn(ny, nm));
+  const todayStart = kst(y, mo, d);
+  const daysLeft = Math.max(1, Math.round((cycleEnd - todayStart) / DAY));
+  const cycleLen = Math.max(1, Math.round((cycleEnd - cycleStart) / DAY));
+  const r = await db()`select count(*) filter (where created_at < ${new Date(todayStart).toISOString()})::int as before,
+      count(*)::int as total,
+      count(*) filter (where campaign_id is not null and created_at >= ${new Date(todayStart).toISOString()})::int as today
+    from mail_log where status = 'sent' and created_at >= ${new Date(cycleStart).toISOString()}`;
+  const before = Number(r[0].before), monthSent = Number(r[0].total), sentToday = Number(r[0].today);
+  const monthLeft = Math.max(0, pol.monthlyCap - monthSent);
+  let cap: number;
+  if (pol.dailyCap > 0) cap = pol.dailyCap;
+  else {
+    const reserve = Math.round(pol.monthlyCap * 0.1 * daysLeft / cycleLen);
+    cap = Math.max(0, Math.floor((pol.monthlyCap - before - reserve) / daysLeft));
+  }
+  const left = Math.max(0, Math.min(cap - sentToday, monthLeft));
+  return { auto: pol.dailyCap <= 0, cap, left, sentToday, monthSent, monthlyCap: pol.monthlyCap, daysLeft, cycleStart, cycleEnd };
 }
 
 type Prepared = { held: Status } | { payload: { from: string; to: string[]; subject: string; html: string; text: string; headers?: Record<string, string> } };
@@ -212,9 +254,9 @@ export async function deliverWithStatus(m: Mail): Promise<Status> {
   try {
     // 대량(캠페인) 메일은 하루 한도 안에서만 보낸다(꼭 필요한 메일은 한도 없이).
     if (m.campaignId && !m.testOnly) {
-      const p = await getPolicy();
-      if ((await campaignSentToday()) >= p.dailyCap) {
-        console.log(`[mail] held campaign (cap): 하루 발송 한도(${p.dailyCap}통) 초과`);
+      const al = await campaignAllowance();
+      if (al.left <= 0) {
+        console.log(`[mail] held campaign (cap): 오늘 대량 발송 몫(${al.cap}통) 소진`);
         return "cap";
       }
     }

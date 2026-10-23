@@ -1,5 +1,5 @@
 import { audienceRows, renderHtml, type Audience, type Segment } from "./campaign";
-import { campaignSentToday, deliverCampaignBatch, getPolicy, type MailCategory } from "./mail";
+import { campaignAllowance, deliverCampaignBatch, type MailCategory } from "./mail";
 import { db, ensureSchema } from "./server";
 
 export type BatchResult = { ok: true; sent: number; more: boolean; held: string | null; done: boolean } | { ok: false; status: number; error: string };
@@ -23,8 +23,8 @@ export async function runCampaignBatch(id: string, limit: number): Promise<Batch
   const category = c.category as MailCategory;
   const before = new Date(c.created_at as string).toISOString();
   // 오늘 남은 한도만큼만 꺼낸다.
-  const policy = await getPolicy();
-  const left = policy.dailyCap - (await campaignSentToday());
+  // 하루 한도를 정했으면 그 값, 0(자동)이면 월 한도를 남은 날수로 나눈 몫. Resend가 429를 주면 quota로 멈춘다.
+  const { left } = await campaignAllowance();
   if (left <= 0) return { ok: true, sent: 0, more: true, held: "cap", done: false };
   const rows = await audienceRows(a, { campaignId: id, before, limit: Math.min(limit, left) });
   if (rows.length === 0) {

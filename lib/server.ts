@@ -347,6 +347,9 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     updated_at timestamptz not null default now(),
     constraint mail_policy_one_row check (id = 1))`;
   await sql`insert into mail_policy (id) values (1) on conflict do nothing`;
+  // 월 한도(Resend 요금제)와 결제 주기 시작일 — 하루 한도 0이면 이 값으로 매일 몫을 자동 계산
+  await sql`alter table mail_policy add column if not exists monthly_cap int not null default 50000`;
+  await sql`alter table mail_policy add column if not exists cycle_day int not null default 3`;
   await sql`create table if not exists mail_suppressions (
     email text primary key,
     reason text not null,
@@ -499,8 +502,9 @@ async function maintainData(sql: ReturnType<typeof db>) {
   await backfillMemberCodes(sql);
   await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
   // Resend 유료 전환(2026-10-23): 대량 메일 하루 한도를 100 → 500으로 한 번만 올린다(관리자가 바꾼 값은 건드리지 않음).
-  await sql`with flag as (insert into settings (key, value) values ('mail_cap_500', '1') on conflict (key) do nothing returning 1)
-    update mail_policy set daily_cap = 500, updated_at = now() where id = 1 and daily_cap = 100 and exists (select 1 from flag)`;
+  // 하루 한도를 '자동(월 한도 기준)'(0)으로 한 번 바꾼다(관리자가 나중에 다시 정하면 그 값 유지).
+  await sql`with flag as (insert into settings (key, value) values ('mail_cap_unlimited', '1') on conflict (key) do nothing returning 1)
+    update mail_policy set daily_cap = 0, updated_at = now() where id = 1 and daily_cap in (100, 500) and exists (select 1 from flag)`;
 }
 
 function textHash(s: string) {
