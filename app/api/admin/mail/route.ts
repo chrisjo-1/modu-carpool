@@ -43,7 +43,9 @@ export async function GET(req: Request) {
         (select count(*)::int from mail_suppressions where reason = 'unsubscribe') as unsub,
         (select count(distinct email_norm)::int from withdraw_claims where kind = 'withdraw' and used) as withdrawn,
         (select count(distinct email_norm)::int from withdraw_claims where kind = 'purge' and used) as purged,
-        (select count(distinct email_norm)::int from withdraw_claims where not used and expires_at > now()) as waiting`;
+        (select count(distinct email_norm)::int from withdraw_claims where not used and expires_at > now()) as waiting,
+        (select count(*)::int from legacy_members where not withdrawn and withdrawn_at is null and coalesce(phone_norm, '') <> '') as legacy_phone,
+        (select count(*)::int from users where not test and withdrawn_at is null and contact_type = 'phone' and contact <> '') as user_phone`;
     const policy = await getPolicy();
     const allowance = await campaignAllowance(policy);
     return json({
@@ -53,7 +55,7 @@ export async function GET(req: Request) {
       kinds: KINDS,
       today: today[0],
       suppressed: sup[0].n,
-      received: { unsub: rec[0].unsub, withdrawn: rec[0].withdrawn, purged: rec[0].purged, waiting: rec[0].waiting },
+      received: { unsub: rec[0].unsub, withdrawn: rec[0].withdrawn, purged: rec[0].purged, waiting: rec[0].waiting, legacyPhone: rec[0].legacy_phone, userPhone: rec[0].user_phone },
       logs: rows.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
     });
   } catch (e) {

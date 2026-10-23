@@ -73,6 +73,9 @@ ${COMPANY}(이하 "운영자")는 「개인정보 보호법」에 따라 회원�
 ## 2. 보유 기간
 - 회원 탈퇴 시까지 보유하고, 탈퇴하면 지체 없이 파기합니다.
 - 다만 부정 이용 방지를 위해 이용 정지 기록은 1년, 「통신비밀보호법」에 따른 접속 기록은 3개월 보관합니다.
+- 개인정보 최소화: 운영자는 개인정보를 최소한으로만 보관하는 방침에 따라 휴대폰 번호 등 서비스에 꼭 필요하지 않은 개인정보를 삭제합니다. 회원(워프 이전 회원 포함)은 안내 메일의 '개인정보 삭제 동의하기' 또는 '탈퇴 여부 확인' 창(moducarpool.com/?leave=1)에서 삭제에 동의할 수 있으며, 동의하면 지체 없이 삭제합니다.
+- 메일 발송 기록(받는 메일 주소, 발송 일시, 발송 결과)은 5년간 보관합니다.
+- 삭제 동의 처리가 되지 않은 회원에게는 서비스 이전·정책 변경 등 중요한 안내를 위해 보관 중인 휴대폰 번호로 연락할 수 있습니다.
 
 ## 3. 제3자 제공
 운영자는 회원의 개인정보를 외부에 제공하지 않습니다. 단, 카풀 신청이 수락된 상대방에게는 회원이 입력한 연락처와 차량 번호가 공개됩니다.
@@ -103,12 +106,22 @@ ${COMPANY}(이하 "운영자")는 「개인정보 보호법」에 따라 회원�
 `,
 };
 
+/** 2026-10 개인정보 최소화 안내(휴대폰 번호 삭제·삭제 동의·메일 기록 5년·미동의 시 휴대폰 안내). 관리자가 저장한 처리방침에 없으면 '2. 보유 기간' 끝에 넣어 보여 준다. */
+const PRIVACY_2026_10 = `- 개인정보 최소화: 운영자는 개인정보를 최소한으로만 보관하는 방침에 따라 휴대폰 번호 등 서비스에 꼭 필요하지 않은 개인정보를 삭제합니다. 회원(워프 이전 회원 포함)은 안내 메일의 '개인정보 삭제 동의하기' 또는 '탈퇴 여부 확인' 창(moducarpool.com/?leave=1)에서 삭제에 동의할 수 있으며, 동의하면 지체 없이 삭제합니다.
+- 메일 발송 기록(받는 메일 주소, 발송 일시, 발송 결과)은 5년간 보관합니다.
+- 삭제 동의 처리가 되지 않은 회원에게는 서비스 이전·정책 변경 등 중요한 안내를 위해 보관 중인 휴대폰 번호로 연락할 수 있습니다.`;
+function withPrivacyAdditions(key: DocKey, body: string): string {
+  if (key !== "privacy" || body.includes("개인정보 최소화:")) return body;
+  const at = body.search(/\n## 3\./);
+  return at >= 0 ? `${body.slice(0, at).trimEnd()}\n${PRIVACY_2026_10}\n${body.slice(at)}` : `${body.trimEnd()}\n\n${PRIVACY_2026_10}\n`;
+}
+
 export async function getDoc(key: DocKey): Promise<{ body: string; updatedAt: number | null }> {
   const rows = await db()`select value from settings where key = ${`doc_${key}`}`;
   if (!rows.length) return { body: DEFAULT_DOCS[key], updatedAt: null };
   try {
     const v = JSON.parse(String(rows[0].value));
-    return { body: String(v.body ?? DEFAULT_DOCS[key]), updatedAt: Number(v.at) || null };
+    return { body: withPrivacyAdditions(key, String(v.body ?? DEFAULT_DOCS[key])), updatedAt: Number(v.at) || null };
   } catch {
     return { body: DEFAULT_DOCS[key], updatedAt: null };
   }

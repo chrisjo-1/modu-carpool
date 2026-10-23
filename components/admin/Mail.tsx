@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 type Policy = { dailyCap: number; monthlyCap: number; cycleDay: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
 type Log = { id: string; created_at: number; kind: string; category: string; to_email: string; subject: string; status: string; error: string; provider_id: string; user_name: string | null };
-type Received = { unsub: number; withdrawn: number; purged: number; waiting: number };
+type Received = { unsub: number; withdrawn: number; purged: number; waiting: number; legacyPhone?: number; userPhone?: number };
 type Allowance = { auto: boolean; cap: number; left: number; sentToday: number; monthSent: number; monthlyCap: number; daysLeft: number };
 type Data = { policy: Policy; allowance?: Allowance; defaults: Policy; kinds: string[]; suppressed: number; received: Received; today: { sent: number; marketing_sent: number; campaign_sent?: number; blocked: number; failed: number }; logs: Log[] };
 
@@ -84,6 +84,7 @@ export default function AdminMail() {
               {tile("탈퇴 확인 완료", `${d.received.withdrawn.toLocaleString("ko-KR")}명`, "메일 링크로 탈퇴")}
               {tile("개인정보만 삭제", `${d.received.purged.toLocaleString("ko-KR")}명`, "계정 유지, 개인정보 삭제")}
               {tile("확인 대기", `${d.received.waiting.toLocaleString("ko-KR")}명`, "링크 72시간 안에 누르지 않음")}
+              {d.received.legacyPhone !== undefined && tile("휴대폰 번호 보관 중", `${((d.received.legacyPhone ?? 0) + (d.received.userPhone ?? 0)).toLocaleString("ko-KR")}명`, `워프 ${(d.received.legacyPhone ?? 0).toLocaleString("ko-KR")} · 가입 회원 ${(d.received.userPhone ?? 0).toLocaleString("ko-KR")} (삭제 동의 전)`)}
             </div>
           </section>
 
