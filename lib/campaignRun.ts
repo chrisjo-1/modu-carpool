@@ -1,5 +1,5 @@
 import { audienceRows, renderHtml, type Audience, type Segment } from "./campaign";
-import { campaignAllowance, deliverCampaignBatch, type MailCategory } from "./mail";
+import { campaignAllowance, deliverCampaignBatch, reconcileFailed, type MailCategory } from "./mail";
 import { db, ensureSchema } from "./server";
 
 export type BatchResult = { ok: true; sent: number; more: boolean; held: string | null; done: boolean } | { ok: false; status: number; error: string };
@@ -12,6 +12,8 @@ export type BatchResult = { ok: true; sent: number; more: boolean; held: string 
  */
 export async function runCampaignBatch(id: string, limit: number): Promise<BatchResult> {
   await ensureSchema();
+  // Resend에서 나중에 실패한 일괄 발송분을 먼저 '다시 보낼 대상'으로 돌린다(3분에 한 번).
+  await reconcileFailed();
   const sql = db();
   const found = await sql`select * from mail_campaigns where id = ${id}`;
   const c = found[0];

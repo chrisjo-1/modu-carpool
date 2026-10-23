@@ -51,6 +51,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **테스트 발송**(관리자 메일 보내기, `/api/admin/campaigns/test`): 받는 주소 5개까지 `settings.mail_test_recipients`에 저장(GET/PUT), 체크한 주소로 한 번에 발송(POST `to: string[]`). **메일 이미지**는 관리자 화면에서 올리기 전에 가로 1200px JPEG(1MB 이하)로 줄인다(휴대폰 사진·HEIC 거절 방지, GIF는 그대로). 본문 `{{img:uuid}}` → `/api/mail/image/uuid`, 텍스트 버전은 "[이미지]".
 - **발송 한도 실패분 재발송**: 캠페인 중 Resend가 429(하루 한도)를 돌려주면 이력을 남기지 않고 멈춘다(held `quota`). 예전에 `failed`·`429…`로 기록된 주소는 `audienceRows`에서 다시 대상이 된다. 완료된 캠페인에 남아 있으면 관리자 목록에 [실패분 다시 보내기 (n명)](`retry` 수) → run이 상태를 sending으로 되돌려 이어서 보낸다. 무료 플랜은 하루 100통(매일 09:00 KST 초기화).
 - **대량 메일 하루 몫**(`campaignAllowance` in `lib/mail.ts`): 하루 한도 0 = 자동. (월 한도 `mail_policy.monthly_cap` − 이번 결제 주기(`cycle_day`일 시작)에 보낸 전체 메일 − 꼭 필요한 메일 몫 10%) ÷ 남은 날수. 수동 한도도 월 남은 양을 넘지 않음. 캠페인은 Resend 묶음 발송(100통씩), 매일 09:10·12:10 KST `/api/cron/mail-daily`가 '매일 자동 이어 보내기' 켠 캠페인을 이어 보냄(`CRON_SECRET` 필요). 수동 [발송]도 같은 몫 안에서.
+- **일괄 발송 실패 반영**: Resend `/emails/batch`는 200으로 받아 놓고 한도 초과 시 나중에 failed 처리한다. 그래서 (1) 배치마다 첫 통은 보통 발송으로 보내 429면 바로 멈추고(`sendOne`), (2) `reconcileFailed`(3분에 한 번, 발송·예약 실행·관리자 메일 화면)가 Resend 최근 목록의 failed를 우리 기록 'sent'→'failed'(429…)로 돌려 다시 보낼 대상으로 만든다.
 - 테스트: `npx tsc lib/mail.ts lib/campaign.ts --outDir .sim-build6 --module commonjs --target es2019 --moduleResolution node --esModuleInterop --skipLibCheck --resolveJsonModule` 후 `node scripts/mail-link-test.cjs <출력 폴더>`.
 
 ## 지하철 앉아가기 (하단 '지하철' 메뉴)

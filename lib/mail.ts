@@ -170,6 +170,61 @@ async function prepare(m: Mail): Promise<Prepared> {
  * 캠페인 메일 여러 통을 Resend 묶음 발송(한 번에 최대 100통)으로 보낸다. 하루 한도는 호출하는 쪽(runCampaignBatch)이 맞춘다.
  * 보류(꺼짐·야간)를 만나면 그 자리에서 멈추고, Resend 한도(429)면 이력 없이 quota로 멈춘다(다음에 다시 대상).
  */
+/**
+ * Resend 일괄 발송은 요청을 200으로 받아 둔 뒤 한도 초과 등으로 나중에 '실패' 처리할 수 있다.
+ * 그래서 Resend의 최근 발송 목록을 읽어, 우리 기록에 '발송됨'인데 Resend에서 실패한 메일을
+ * 'failed'(429 …)로 바꾼다 → 캠페인 대상에 다시 들어가 다음 발송 때 다시 보낸다.
+ * 3분에 한 번만(관리자 메일 화면·발송·예약 실행이 부른다). 지난번 확인 시각 15분 전까지 거슬러 본다.
+ */
+export async function reconcileFailed(force = false): Promise<number> {
+  if (!process.env.RESEND_API_KEY) return 0;
+  try {
+    const sql = db();
+    const now = Date.now();
+    const r = await sql`select value from settings where key = 'mail_reconcile_at'`;
+    const last = r[0] ? Date.parse(String(r[0].value)) : NaN;
+    if (!force && Number.isFinite(last) && now - last < 180_000) return 0;
+    await sql`insert into settings (key, value) values ('mail_reconcile_at', ${new Date(now).toISOString()})
+      on conflict (key) do update set value = excluded.value`;
+    const since = Number.isFinite(last) ? last - 15 * 60_000 : now - 3 * 86_400_000;
+    const failed: string[] = [];
+    let after = "";
+    for (let page = 0; page < 60; page++) {
+      const res = await fetch(`https://api.resend.com/emails?limit=100${after ? `&after=${after}` : ""}`, {
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) break;
+      const j = (await res.json().catch(() => ({}))) as { data?: { id: string; created_at: string; last_event?: string }[]; has_more?: boolean };
+      const list = j.data ?? [];
+      for (const e of list) if (e.last_event === "failed") failed.push(e.id);
+      const oldest = list[list.length - 1];
+      if (!oldest || !j.has_more || Date.parse(oldest.created_at.replace(" ", "T").replace(/\+00$/, "Z")) < since) break;
+      after = oldest.id;
+    }
+    if (!failed.length) return 0;
+    const u = await sql`update mail_log set status = 'failed', error = '429 Resend 발송 실패(한도 초과 등) — 다시 보낼 대상'
+      where status = 'sent' and provider_id = any(${failed}) returning 1`;
+    if (u.length) console.log(`[mail] reconcile: Resend 실패 ${u.length}건을 다시 보낼 대상으로 돌림`);
+    return u.length;
+  } catch (e) {
+    console.error("[mail reconcile]", e);
+    return 0;
+  }
+}
+
+/** 한 통을 보통 발송으로 보내 본다. 한도에 막혀 있으면 429를 바로 알 수 있다(일괄 발송은 200을 주고 나중에 실패시키므로). */
+async function sendOne(payload: unknown): Promise<{ ok: boolean; status: number; id: string; err: string }> {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15000),
+  });
+  const j = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
+  return { ok: res.ok, status: res.status, id: String(j.id ?? ""), err: `${res.status} ${j.message ?? ""}`.trim() };
+}
+
 export async function deliverCampaignBatch(ms: Mail[]): Promise<{ sent: number; held: Status | null }> {
   let sent = 0;
   const ready: { m: Mail; payload: Extract<Prepared, { payload: unknown }>["payload"] }[] = [];
@@ -193,6 +248,23 @@ export async function deliverCampaignBatch(ms: Mail[]): Promise<{ sent: number; 
   if (!mailEnabled()) {
     for (const r of ready) await record(r.m, "disabled", "RESEND_API_KEY 또는 MAIL_FROM 없음");
     return { sent: 0, held: null };
+  }
+  // 첫 통은 보통 발송으로 보내 한도 상태를 먼저 확인한다. 막혀 있으면 아무것도 기록하지 않고 멈춘다.
+  if (ready.length) {
+    try {
+      const first = await sendOne(ready[0].payload);
+      if (first.status === 429) {
+        console.error("[mail batch] probe 429", first.err);
+        return { sent, held: "quota" };
+      }
+      if (first.ok) {
+        await record(ready[0].m, "sent", "", first.id);
+        sent += 1;
+      } else await record(ready[0].m, "failed", first.err);
+    } catch (e) {
+      await record(ready[0].m, "failed", String(e));
+    }
+    ready.shift();
   }
   for (let i = 0; i < ready.length; i += 100) {
     const chunk = ready.slice(i, i + 100);

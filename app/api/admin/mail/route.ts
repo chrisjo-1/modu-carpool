@@ -1,4 +1,4 @@
-import { DEFAULT_POLICY, campaignAllowance, getPolicy, type MailPolicy } from "@/lib/mail";
+import { DEFAULT_POLICY, campaignAllowance, getPolicy, reconcileFailed, type MailPolicy } from "@/lib/mail";
 import { body, db, ensureSchema, fail, hasDb, isAdmin, json, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +10,8 @@ const KINDS = ["reset", "verify", "legacy-confirm", "nudge", "notify-request", "
 export async function GET(req: Request) {
   if (!(await isAdmin())) return denied();
   if (!hasDb()) return json({ error: "DB가 연결되지 않았습니다." }, 503);
+  // Resend에서 나중에 실패한 일괄 발송분을 기록에 반영(3분에 한 번)
+  await reconcileFailed();
   const p = new URL(req.url).searchParams;
   const status = text(p.get("status") ?? "", 20);
   const category = text(p.get("category") ?? "", 20);
