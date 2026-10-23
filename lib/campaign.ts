@@ -81,9 +81,9 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 /** 본문 텍스트를 메일 모양으로 바꾼다. 빈 줄은 문단, 줄바꿈은 줄바꿈으로 둔다. */
 /** 개인정보 보관·삭제 안내(대량·공지 메일 맨 아래). 링크를 누르면 로그인 없이 '탈퇴 여부 확인' 창이 열린다. */
 export const LEAVE_URL = `${SITE}/?leave=1`;
-export const RETENTION_TEXT = `개인정보 보관 안내: 메일 발송 시 개인정보는 5년간 보관하도록 되어 있어, 개인정보 삭제에 동의해 주셔야 삭제가 가능합니다.\n개인정보 삭제 신청: ${LEAVE_URL}`;
+export const RETENTION_TEXT = `개인정보 최소화 안내: 모두의카풀은 개인정보를 최소한으로만 보관하도록 정책을 바꿔 휴대폰 번호 등 개인정보를 삭제하기로 했습니다. 메일 발송 시 개인정보는 5년간 보관하도록 되어 있어, 개인정보 삭제에 동의해 주셔야 삭제가 가능합니다. 동의 처리가 되지 않은 경우에는 휴대폰을 이용한 안내가 불가피한 점 양해 부탁드립니다.\n개인정보 삭제 동의하기: ${LEAVE_URL}`;
 export function retentionBlock(): string {
-  return `<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">개인정보 보관 안내: 메일 발송 시 개인정보는 5년간 보관하도록 되어 있어, 개인정보 삭제에 동의해 주셔야 삭제가 가능합니다. <a href="${LEAVE_URL}" style="color:#8B95A1;text-decoration:underline">개인정보 삭제 신청</a></p>`;
+  return `<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">개인정보 최소화 안내: 모두의카풀은 개인정보를 최소한으로만 보관하도록 정책을 바꿔 휴대폰 번호 등 개인정보를 삭제하기로 했습니다. 메일 발송 시 개인정보는 5년간 보관하도록 되어 있어, 개인정보 삭제에 동의해 주셔야 삭제가 가능합니다. 동의 처리가 되지 않은 경우에는 휴대폰을 이용한 안내가 불가피한 점 양해 부탁드립니다. <a href="${LEAVE_URL}" style="color:#8B95A1;text-decoration:underline">개인정보 삭제 동의하기</a></p>`;
 }
 
 export function renderHtml(text: string): string {

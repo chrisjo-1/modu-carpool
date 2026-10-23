@@ -90,7 +90,7 @@ export default function Withdraw({ token = "", initialEmail = "", onClose }: { t
   return (
     <Sheet title="탈퇴 여부 확인" blockId="S085" onClose={onClose}>
       <div className="space-y-4">
-        <p className="rounded-xl bg-bg px-4 py-3 text-[13px] leading-relaxed text-sub">메일 발송 시 개인정보는 5년간 보관하도록 되어 있어, 개인정보 삭제에 동의해 주셔야 삭제가 가능합니다. 아래에서 메일 주소를 확인한 뒤 탈퇴 또는 개인정보만 삭제를 골라 주세요.</p>
+        <p className="rounded-xl bg-bg px-4 py-3 text-[13px] leading-relaxed text-sub">모두의카풀은 개인정보를 최소한으로만 보관하도록 정책을 바꿔 휴대폰 번호 등 개인정보를 삭제하기로 했습니다. 메일 발송 시 개인정보는 5년간 보관하도록 되어 있어 삭제에 동의해 주셔야 삭제가 가능하며, 동의 처리가 되지 않으면 휴대폰을 이용한 안내가 불가피합니다. 아래에서 메일 주소를 확인한 뒤 탈퇴 또는 개인정보만 삭제를 골라 주세요.</p>
         <p className="text-[15px] leading-relaxed text-sub">가입할 때 사용한 메일 주소를 입력해 주세요.</p>
         <form className="space-y-3" onSubmit={check}>
           <label className="block text-sm text-sub">
