@@ -31,6 +31,7 @@ export async function GET(req: Request) {
     const today = await sql`
       select count(*) filter (where status = 'sent')::int as sent,
              count(*) filter (where status = 'sent' and category = 'marketing')::int as marketing_sent,
+             count(*) filter (where status = 'sent' and campaign_id is not null)::int as campaign_sent,
              count(*) filter (where status = 'blocked')::int as blocked,
              count(*) filter (where status = 'failed')::int as failed
       from mail_log where created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;

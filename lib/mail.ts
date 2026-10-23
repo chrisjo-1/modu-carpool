@@ -14,9 +14,9 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 /** 구분: transactional = 계정·거래 안내(항상 발송), marketing = 광고성·홍보성(정책 적용) */
 export type MailCategory = "transactional" | "marketing";
 
-/** 메일 정책. 관리자 메일 탭에서 바꾼다. 광고성 메일에만 적용한다. */
+/** 메일 정책. 관리자 메일 탭에서 바꾼다. 하루 한도는 대량(캠페인) 메일 전체에, 나머지는 광고성 메일에만 적용한다. */
 export type MailPolicy = { dailyCap: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
-export const DEFAULT_POLICY: MailPolicy = { dailyCap: 100, quietOn: true, quietFrom: 21, quietTo: 8, marketingOn: false, requireConsent: true };
+export const DEFAULT_POLICY: MailPolicy = { dailyCap: 500, quietOn: true, quietFrom: 21, quietTo: 8, marketingOn: false, requireConsent: true };
 
 export async function getPolicy(): Promise<MailPolicy> {
   await ensureSchema();
@@ -79,10 +79,104 @@ async function blockCheck(m: Mail): Promise<{ code: "log" | "off" | "quiet" | "c
     const u = await db()`select marketing from users where id = ${m.userId}`;
     if (u[0]?.marketing !== true) return { code: "log", reason: "광고성 메일 수신 동의 없음" };
   }
-  const n = await db()`select count(*)::int as n from mail_log
-    where category = 'marketing' and status = 'sent' and created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
-  if ((n[0].n as number) >= p.dailyCap) return { code: "cap", reason: `하루 발송 한도(${p.dailyCap}통) 초과` };
   return null;
+}
+
+/**
+ * 오늘(한국 시각) 나간 대량(캠페인) 메일 수. 하루 한도는 캠페인 메일에만 걸고,
+ * 탈퇴 확인·이메일 인증·비밀번호 재설정 같은 꼭 필요한 메일은 막지 않는다.
+ */
+export async function campaignSentToday(): Promise<number> {
+  const n = await db()`select count(*)::int as n from mail_log
+    where campaign_id is not null and status = 'sent' and created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
+  return Number(n[0].n);
+}
+
+type Prepared = { held: Status } | { payload: { from: string; to: string[]; subject: string; html: string; text: string; headers?: Record<string, string> } };
+
+/** 정책 확인(광고성)과 본문 꾸미기. 차단은 여기서 이력을 남기고, 보류는 이력 없이 돌려준다. */
+async function prepare(m: Mail): Promise<Prepared> {
+  if (m.category === "marketing" && !m.testOnly) {
+    const b = await blockCheck(m);
+    if (b) {
+      if (b.code === "log") {
+        console.log(`[mail] blocked ${m.kind} to=${m.to}: ${b.reason}`);
+        await record(m, "blocked", b.reason);
+        return { held: "blocked" };
+      }
+      console.log(`[mail] held ${m.kind} (${b.code}): ${b.reason}`);
+      return { held: b.code };
+    }
+  }
+  // 광고성 메일에는 수신거부 링크와 원클릭 수신거부 헤더를 붙인다(테스트 발송도 같은 모양으로 보인다).
+  const url = m.category === "marketing" ? unsubUrl(m.to) : "";
+  // 모든 메일에 서비스 주소와 바로가기 버튼을 넣는다.
+  const linked = ensureSiteLink(m.html, m.text);
+  const html = m.category === "marketing"
+    ? `${linked.html}<div style="max-width:480px;margin:0 auto;padding:12px 4px;font-size:12px;line-height:1.6;color:#8B95A1;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">광고성 메일을 원하지 않으시면 <a href="${url}" style="color:#8B95A1">수신거부</a>를 눌러 주세요. 웹에서도 <a href="${SITE}/unsubscribe" style="color:#8B95A1">${SITE_HOST}/unsubscribe</a>에서 거부할 수 있어요.</div>`
+    : linked.html;
+  const text = m.category === "marketing" ? `${linked.text}\n\n수신거부: ${url}\n웹 수신거부: ${SITE}/unsubscribe` : linked.text;
+  return {
+    payload: {
+      from: String(process.env.MAIL_FROM ?? ""), to: [m.to], subject: m.subject, html, text,
+      ...(url ? { headers: { "List-Unsubscribe": `<${url}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
+    },
+  };
+}
+
+/**
+ * 캠페인 메일 여러 통을 Resend 묶음 발송(한 번에 최대 100통)으로 보낸다. 하루 한도는 호출하는 쪽(runCampaignBatch)이 맞춘다.
+ * 보류(꺼짐·야간)를 만나면 그 자리에서 멈추고, Resend 한도(429)면 이력 없이 quota로 멈춘다(다음에 다시 대상).
+ */
+export async function deliverCampaignBatch(ms: Mail[]): Promise<{ sent: number; held: Status | null }> {
+  let sent = 0;
+  const ready: { m: Mail; payload: Extract<Prepared, { payload: unknown }>["payload"] }[] = [];
+  for (const m of ms) {
+    const p = await prepare(m).catch(async (e) => {
+      console.error("[mail]", e);
+      await record(m, "failed", String(e));
+      return { held: "failed" as Status };
+    });
+    if ("held" in p) {
+      if (p.held === "blocked" || p.held === "failed") continue;
+      if (ready.length === 0) return { sent, held: p.held };
+      break;
+    }
+    ready.push({ m, payload: p.payload });
+  }
+  if (process.env.MAIL_DRYRUN === "1") {
+    for (const r of ready) await record(r.m, "dryrun");
+    return { sent: 0, held: null };
+  }
+  if (!mailEnabled()) {
+    for (const r of ready) await record(r.m, "disabled", "RESEND_API_KEY 또는 MAIL_FROM 없음");
+    return { sent: 0, held: null };
+  }
+  for (let i = 0; i < ready.length; i += 100) {
+    const chunk = ready.slice(i, i + 100);
+    try {
+      const res = await fetch("https://api.resend.com/emails/batch", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(chunk.map((c) => c.payload)),
+        signal: AbortSignal.timeout(20000),
+      });
+      const j = (await res.json().catch(() => ({}))) as { data?: { id?: string }[]; message?: string };
+      if (!res.ok) {
+        const err = `${res.status} ${j.message ?? ""}`.trim();
+        console.error("[mail batch]", err);
+        if (res.status === 429) return { sent, held: "quota" };
+        for (const c of chunk) await record(c.m, "failed", err);
+        continue;
+      }
+      await Promise.all(chunk.map((c, k) => record(c.m, "sent", "", String(j.data?.[k]?.id ?? ""))));
+      sent += chunk.length;
+    } catch (e) {
+      console.error("[mail batch]", e);
+      for (const c of chunk) await record(c.m, "failed", String(e));
+    }
+  }
+  return { sent, held: null };
 }
 
 /** 메일을 보내고 결과를 돌려준다. 이력은 보류가 아닌 경우에만 남긴다. */
@@ -116,26 +210,16 @@ export function ensureSiteLink(html: string, text: string): { html: string; text
 
 export async function deliverWithStatus(m: Mail): Promise<Status> {
   try {
-    if (m.category === "marketing" && !m.testOnly) {
-      const b = await blockCheck(m);
-      if (b) {
-        if (b.code === "log") {
-          console.log(`[mail] blocked ${m.kind} to=${m.to}: ${b.reason}`);
-          await record(m, "blocked", b.reason);
-          return "blocked";
-        }
-        console.log(`[mail] held ${m.kind} (${b.code}): ${b.reason}`);
-        return b.code;
+    // 대량(캠페인) 메일은 하루 한도 안에서만 보낸다(꼭 필요한 메일은 한도 없이).
+    if (m.campaignId && !m.testOnly) {
+      const p = await getPolicy();
+      if ((await campaignSentToday()) >= p.dailyCap) {
+        console.log(`[mail] held campaign (cap): 하루 발송 한도(${p.dailyCap}통) 초과`);
+        return "cap";
       }
     }
-    // 광고성 메일에는 수신거부 링크와 원클릭 수신거부 헤더를 붙인다(테스트 발송도 같은 모양으로 보인다).
-    const url = m.category === "marketing" ? unsubUrl(m.to) : "";
-    // 모든 메일에 서비스 주소와 바로가기 버튼을 넣는다.
-    const linked = ensureSiteLink(m.html, m.text);
-    const html = m.category === "marketing"
-      ? `${linked.html}<div style="max-width:480px;margin:0 auto;padding:12px 4px;font-size:12px;line-height:1.6;color:#8B95A1;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif">광고성 메일을 원하지 않으시면 <a href="${url}" style="color:#8B95A1">수신거부</a>를 눌러 주세요. 웹에서도 <a href="${SITE}/unsubscribe" style="color:#8B95A1">${SITE_HOST}/unsubscribe</a>에서 거부할 수 있어요.</div>`
-      : linked.html;
-    const text = m.category === "marketing" ? `${linked.text}\n\n수신거부: ${url}\n웹 수신거부: ${SITE}/unsubscribe` : linked.text;
+    const prep = await prepare(m);
+    if ("held" in prep) return prep.held;
     if (process.env.MAIL_DRYRUN === "1") {
       console.log(`[mail] to=${m.to} | ${m.subject}`);
       await record(m, "dryrun", m.testOnly ? "테스트 발송" : "");
@@ -148,10 +232,7 @@ export async function deliverWithStatus(m: Mail): Promise<Status> {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: process.env.MAIL_FROM, to: [m.to], subject: m.subject, html, text,
-        headers: url ? { "List-Unsubscribe": `<${url}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : undefined,
-      }),
+      body: JSON.stringify(prep.payload),
       signal: AbortSignal.timeout(6000),
     });
     const j = (await res.json().catch(() => ({}))) as { id?: string; message?: string };

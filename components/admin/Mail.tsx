@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 type Policy = { dailyCap: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
 type Log = { id: string; created_at: number; kind: string; category: string; to_email: string; subject: string; status: string; error: string; provider_id: string; user_name: string | null };
 type Received = { unsub: number; withdrawn: number; purged: number; waiting: number };
-type Data = { policy: Policy; defaults: Policy; kinds: string[]; suppressed: number; received: Received; today: { sent: number; marketing_sent: number; blocked: number; failed: number }; logs: Log[] };
+type Data = { policy: Policy; defaults: Policy; kinds: string[]; suppressed: number; received: Received; today: { sent: number; marketing_sent: number; campaign_sent?: number; blocked: number; failed: number }; logs: Log[] };
 
 const input = "rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const KIND: Record<string, string> = {
@@ -88,7 +88,7 @@ export default function AdminMail() {
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {tile("오늘 발송", `${d.today.sent.toLocaleString("ko-KR")}통`)}
-            {tile("오늘 광고성 발송", `${d.today.marketing_sent.toLocaleString("ko-KR")} / ${draft.dailyCap.toLocaleString("ko-KR")}`, "하루 한도 대비")}
+            {tile("오늘 대량 발송", `${(d.today.campaign_sent ?? 0).toLocaleString("ko-KR")} / ${draft.dailyCap.toLocaleString("ko-KR")}`, "캠페인 메일 하루 한도 대비(꼭 필요한 메일은 한도 없음)")}
             {tile("오늘 차단", `${d.today.blocked.toLocaleString("ko-KR")}통`, "정책으로 보내지 않음")}
             {tile("오늘 실패", `${d.today.failed.toLocaleString("ko-KR")}통`)}
             {tile("발송 제외 주소", `${d.suppressed.toLocaleString("ko-KR")}개`, "수신거부·반송·스팸 신고")}

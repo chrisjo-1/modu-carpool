@@ -334,6 +334,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     status text not null default 'draft',
     started_at timestamptz,
     finished_at timestamptz)`;
+  // 매일 자동으로 이어 보내기(예약 실행이 하루 한도만큼 이어서 보낸다)
+  await sql`alter table mail_campaigns add column if not exists auto boolean not null default false`;
   await sql`create table if not exists mail_policy (
     id int primary key,
     daily_cap int not null default 100,
@@ -496,6 +498,9 @@ async function buildSchema(sql: ReturnType<typeof db>) {
 async function maintainData(sql: ReturnType<typeof db>) {
   await backfillMemberCodes(sql);
   await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
+  // Resend 유료 전환(2026-10-23): 대량 메일 하루 한도를 100 → 500으로 한 번만 올린다(관리자가 바꾼 값은 건드리지 않음).
+  await sql`with flag as (insert into settings (key, value) values ('mail_cap_500', '1') on conflict (key) do nothing returning 1)
+    update mail_policy set daily_cap = 500, updated_at = now() where id = 1 and daily_cap = 100 and exists (select 1 from flag)`;
 }
 
 function textHash(s: string) {
