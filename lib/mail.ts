@@ -176,8 +176,25 @@ async function prepare(m: Mail): Promise<Prepared> {
  * 'failed'(429 …)로 바꾼다 → 캠페인 대상에 다시 들어가 다음 발송 때 다시 보낸다.
  * 3분에 한 번만(관리자 메일 화면·발송·예약 실행이 부른다). 지난번 확인 시각 15분 전까지 거슬러 본다.
  */
+/** 발송 목록·상태를 읽는 키. 발송 전용 키(RESEND_API_KEY)는 읽기가 401이라 전체 권한 키를 RESEND_READ_KEY에 따로 둔다. */
+const readKey = () => process.env.RESEND_READ_KEY || "";
+
+/** 방금 보낸 한 통이 Resend에서 실패했는지 확인(읽기 키가 있을 때만). 3초 기다린 뒤 상태를 본다. */
+async function failedAfterAccept(id: string): Promise<boolean> {
+  if (!readKey() || !id) return false;
+  await new Promise((r) => setTimeout(r, 3000));
+  try {
+    const res = await fetch(`https://api.resend.com/emails/${id}`, { headers: { Authorization: `Bearer ${readKey()}` }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return false;
+    const j = (await res.json().catch(() => ({}))) as { last_event?: string };
+    return j.last_event === "failed";
+  } catch {
+    return false;
+  }
+}
+
 export async function reconcileFailed(force = false): Promise<number> {
-  if (!process.env.RESEND_API_KEY) return 0;
+  if (!readKey()) return 0;
   try {
     const sql = db();
     const now = Date.now();
@@ -191,7 +208,7 @@ export async function reconcileFailed(force = false): Promise<number> {
     let after = "";
     for (let page = 0; page < 60; page++) {
       const res = await fetch(`https://api.resend.com/emails?limit=100${after ? `&after=${after}` : ""}`, {
-        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+        headers: { Authorization: `Bearer ${readKey()}` },
         signal: AbortSignal.timeout(10000),
       });
       if (!res.ok) break;
@@ -255,6 +272,11 @@ export async function deliverCampaignBatch(ms: Mail[]): Promise<{ sent: number; 
       const first = await sendOne(ready[0].payload);
       if (first.status === 429) {
         console.error("[mail batch] probe 429", first.err);
+        return { sent, held: "quota" };
+      }
+      if (first.ok && (await failedAfterAccept(first.id))) {
+        // Resend가 받아 놓고 실패시킴(한도·계정 문제) → 다시 보낼 대상으로 남기고 멈춘다
+        await record(ready[0].m, "failed", "429 Resend가 접수 후 실패 처리 — 다시 보낼 대상");
         return { sent, held: "quota" };
       }
       if (first.ok) {
