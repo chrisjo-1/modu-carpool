@@ -16,7 +16,7 @@ export type MailCategory = "transactional" | "marketing";
 
 /** 메일 정책. 관리자 메일 탭에서 바꾼다. 하루 한도는 대량(캠페인) 메일 전체에, 나머지는 광고성 메일에만 적용한다. */
 export type MailPolicy = { dailyCap: number; monthlyCap: number; cycleDay: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
-export const DEFAULT_POLICY: MailPolicy = { dailyCap: 0, monthlyCap: 50000, cycleDay: 3, quietOn: true, quietFrom: 21, quietTo: 8, marketingOn: false, requireConsent: true };
+export const DEFAULT_POLICY: MailPolicy = { dailyCap: 0, monthlyCap: 50000, cycleDay: 23, quietOn: true, quietFrom: 21, quietTo: 8, marketingOn: false, requireConsent: true };
 
 export async function getPolicy(): Promise<MailPolicy> {
   await ensureSchema();
