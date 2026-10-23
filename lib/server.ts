@@ -502,6 +502,11 @@ async function maintainData(sql: ReturnType<typeof db>) {
   await backfillMemberCodes(sql);
   await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
   // Resend 유료 전환(2026-10-23): 대량 메일 하루 한도를 100 → 500으로 한 번만 올린다(관리자가 바꾼 값은 건드리지 않음).
+  // 2026-10-23 11:10~13:30(KST) 무료 한도 초과로 Resend가 접수 후 모두 실패시킨 캠페인 발송분을 한 번만 '다시 보낼 대상'으로 되돌린다
+  await sql`with flag as (insert into settings (key, value) values ('mail_fix_20261023', '1') on conflict (key) do nothing returning 1)
+    update mail_log set status = 'failed', error = '429 Resend 한도 초과로 실패 — 다시 보낼 대상'
+    where status = 'sent' and campaign_id is not null
+      and created_at >= '2026-10-23T02:10:00Z' and created_at < '2026-10-23T04:30:00Z' and exists (select 1 from flag)`;
   // Resend Pro 결제 주기는 매월 23일 시작(2026-10-23 결제) — 처음 기본값 3일을 한 번 23일로 고친다
   await sql`with flag as (insert into settings (key, value) values ('mail_cycle_23', '1') on conflict (key) do nothing returning 1)
     update mail_policy set cycle_day = 23, updated_at = now() where id = 1 and cycle_day = 3 and exists (select 1 from flag)`;
