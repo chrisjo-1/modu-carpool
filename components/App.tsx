@@ -39,6 +39,8 @@ const CommuteStart = dynamic(() => import("./CommuteStart"), { ssr: false });
 const CommuteOnboard = dynamic(() => import("./CommuteOnboard"), { ssr: false });
 // 글이 없는 회원에게만 보이는 홈 안내 카드(로그인 뒤에 불러와 첫 화면을 막지 않는다)
 const PostNudge = dynamic(() => import("./PostNudge"), { ssr: false });
+// 앱 접속 팝업(관리자 > 사이트). 첫 화면이 뜬 뒤에 불러온다.
+const LaunchPopup = dynamic(() => import("./LaunchPopup"), { ssr: false });
 const LANG_KEY = "modu.lang";
 // 마지막으로 받은 카풀 목록(하루 안 것만). 앱을 열면 먼저 보여 주고, 서버 목록이 오면 바꾼다.
 const POSTS_CACHE = "modu.posts";
@@ -628,6 +630,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
         {!splashTimedOut && !splashGone && <Splash />}
         {!booted && !splashTimedOut && <TopLoading />}
         <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
+        {booted && !preview && <LaunchPopup />}
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {withdrawToken && <Withdraw token={withdrawToken} onClose={() => setWithdrawToken("")} />}
         {leaveOpen && !withdrawToken && <Withdraw initialEmail={user?.email ?? ""} onClose={() => setLeaveOpen(false)} />}
