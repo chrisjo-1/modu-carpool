@@ -101,7 +101,7 @@ export function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?
       aria-label={`${t("현재 역할")}: ${isDriver ? t("운전자 모드") : t("탑승자 모드")}`}
       onClick={toggle}
       disabled={busy}
-      className={`min-h-[44px] shrink-0 rounded-full px-4 py-2 text-[15px] motion-safe:transition-colors ${isDriver ? "bg-accent font-bold text-white" : "bg-mint font-bold text-white"}`}
+      className={`min-h-[44px] shrink-0 rounded-full px-4 py-2 text-[15px] motion-safe:transition-colors ${isDriver ? "border border-accent/30 bg-accentSoft font-bold text-accent" : "border border-mint/30 bg-mintSoft font-bold text-mint"}`}
     >
       {isDriver ? t("운전자 모드") : t("탑승자 모드")}
     </button>
@@ -499,7 +499,7 @@ export function PostDetail({
               data-block-id="B012"
               data-block-name="카풀 신청"
               disabled={busy}
-              className={post.role === "driver" ? btnPrimary : btnPrimary.replace("bg-accent", "bg-mint")}
+              className={btnPrimary}
               onClick={() => {
                 if (sample) return toast(t("예시 글에는 신청할 수 없어요."));
                 if (!user) return goLogin();

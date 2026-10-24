@@ -73,7 +73,7 @@ export default function RouteAlerts({ regular, toast, push }: { regular: Post | 
         {list.length < max && (
           <div className="flex flex-wrap gap-2">
             {canQuick && regular && (
-              <button data-block-id="B206" data-block-name="출퇴근 경로로 알림" disabled={busy} className="rounded-xl bg-accentSoft px-4 text-[15px] font-semibold text-accent" onClick={() => add({ name: regular.origin, lat: regular.originLat ?? null, lng: regular.originLng ?? null }, { name: regular.dest, lat: regular.destLat ?? null, lng: regular.destLng ?? null }, regular.role === "driver" ? "rider" : "driver")}>
+              <button data-block-id="B206" data-block-name="출퇴근 경로로 알림" disabled={busy} className="rounded-xl border border-line bg-white px-4 text-[15px] font-semibold text-ink active:bg-bg" onClick={() => add({ name: regular.origin, lat: regular.originLat ?? null, lng: regular.originLng ?? null }, { name: regular.dest, lat: regular.destLat ?? null, lng: regular.destLng ?? null }, regular.role === "driver" ? "rider" : "driver")}>
                 {t("내 출퇴근 경로로 받기")}
               </button>
             )}

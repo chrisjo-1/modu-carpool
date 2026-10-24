@@ -90,13 +90,13 @@ export default function PostNudge({ user, onCommute, onGoMe, onPosted, toast }: 
         <button type="button" data-block-id="B330" className={`${btn} w-full bg-accent text-white`} onClick={onCommute}>{t("출퇴근 경로 올리기")}</button>
       ) : role === "" ? (
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" data-block-id="B331" disabled={busy} className={`${btn} border border-accent bg-white text-accent`} onClick={() => (s.carOk ? post("driver") : onGoMe())}>{t("운전자로 올리기")}</button>
+          <button type="button" data-block-id="B331" disabled={busy} className={`${btn} border border-line bg-white text-ink`} onClick={() => (s.carOk ? post("driver") : onGoMe())}>{t("운전자로 올리기")}</button>
           <button type="button" data-block-id="B332" disabled={busy} className={`${btn} bg-accent text-white`} onClick={() => post("rider")}>{t("탑승자로 올리기")}</button>
         </div>
       ) : needCar ? (
         <div className="grid grid-cols-2 gap-2">
           <button type="button" data-block-id="B334" className={`${btn} bg-accent text-white`} onClick={onGoMe}>{t("차량 등록하기")}</button>
-          <button type="button" data-block-id="B335" disabled={busy} className={`${btn} border border-accent bg-white text-accent`} onClick={() => post("rider")}>{t("탑승자로 올리기")}</button>
+          <button type="button" data-block-id="B335" disabled={busy} className={`${btn} border border-line bg-white text-ink`} onClick={() => post("rider")}>{t("탑승자로 올리기")}</button>
         </div>
       ) : (
         <button type="button" data-block-id="B336" disabled={busy} className={`${btn} w-full bg-accent text-white`} onClick={() => post(role)}>

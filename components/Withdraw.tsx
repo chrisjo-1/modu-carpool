@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Sheet, api, btnGhost, btnPrimary, field } from "./ui";
 
 /** 개인정보만 삭제 버튼(주황). 탈퇴 버튼(파랑)과 구분한다. */
-const btnOrange = "w-full rounded-2xl bg-[#E8590C] px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
+const btnOrange = "w-full rounded-2xl bg-warn px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
 
 type State = "active" | "withdrawn" | "none";
 type Kind = "withdraw" | "purge";

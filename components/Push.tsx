@@ -125,7 +125,7 @@ export function UnsupportedNotice() {
           <a href={origin || undefined} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate rounded-xl bg-white px-3 py-2.5 text-[14px] font-semibold text-[#2F6BFF] underline">
             {origin || "moducarpool.com"}
           </a>
-          <button type="button" data-block-id="B500" data-block-name="이동 링크 복사" onClick={copy} className="shrink-0 rounded-xl bg-[#2F6BFF] px-4 py-2.5 text-[14px] font-semibold text-white active:opacity-90">
+          <button type="button" data-block-id="B500" data-block-name="이동 링크 복사" onClick={copy} className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-[14px] font-semibold text-white active:opacity-90">
             {copied ? t("복사됨") : t("링크 복사")}
           </button>
         </div>

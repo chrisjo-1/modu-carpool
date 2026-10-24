@@ -294,9 +294,9 @@ export function RoleTag({ role }: { role?: string }) {
 export function Segment<T extends string>({ value, options, onChange, label, compact, accents }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string; compact?: boolean; accents?: Partial<Record<T, "accent" | "mint" | "violet">> }) {
   const onStyle = (v: T) => {
     const a = accents?.[v];
-    if (a === "accent") return "bg-accent font-bold text-white shadow-card";
-    if (a === "mint") return "bg-mint font-bold text-white shadow-card";
-    if (a === "violet") return "bg-violet font-bold text-white shadow-card";
+    if (a === "accent") return "bg-accentSoft font-bold text-accent shadow-sm";
+    if (a === "mint") return "bg-mintSoft font-bold text-mint shadow-sm";
+    if (a === "violet") return "bg-violetSoft font-bold text-violet shadow-sm";
     return "bg-white font-semibold text-ink shadow-sm";
   };
   return (
@@ -376,5 +376,7 @@ export function Bubble({ blockId, children, pointer = "top", align = "left" }: {
 }
 
 export const btnPrimary = "w-full rounded-2xl bg-accent px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
-export const btnGhost = "w-full rounded-2xl bg-bg px-5 py-4 text-[17px] font-semibold text-ink active:opacity-80 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
+// 버튼 색 규칙: 주 버튼 = 파랑 채움(화면당 하나, 역할과 무관), 보조 = 흰 바탕·회색 테두리·검정 글씨, 작은 부가 동작 = 파랑 글자,
+// 위험(탈퇴·삭제) = 주황(warn) 채움, 지하철 기능 = 보라. 운전자 파랑·탑승자 초록은 태그·선택 표시에만 쓴다(연한 바탕).
+export const btnGhost = "w-full rounded-2xl border border-line bg-white px-5 py-4 text-[17px] font-semibold text-ink active:bg-bg disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
 export const field = "w-full rounded-xl border border-line bg-white px-3 py-3 text-[16px] text-ink outline-none focus:border-accent";
