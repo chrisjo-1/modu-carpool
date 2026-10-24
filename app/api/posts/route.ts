@@ -52,10 +52,11 @@ export async function GET(req: Request) {
       : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, false as owner_blocked, false as expired,
                          (not p.regular and p.depart_at <= now()) as ended
                   from posts p join users u on u.id = p.user_id
-                  where p.status in ('open', 'progress') and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown)
+                  where (p.status in ('open', 'progress') or (p.status = 'closed' and not u.test and not p.demo))
+                    and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown)
                     and (p.regular or p.depart_at > now() - interval '7 days' or not u.test)
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
-                  order by p.depart_at asc limit 300`;
+                  order by p.created_at desc limit 300`;
     const now = Date.now();
     const kw = await getKeywords();
     const posts = rows.map((r) => ({
@@ -93,9 +94,12 @@ export async function GET(req: Request) {
       mine: !!me && r.user_id === me,
       // 출발 시각이 지난 일회성 글: 목록에 '종료'로 남고 신청은 받지 않는다.
       ended: !!r.ended,
+      // 최신순에서 실사용자 글을 임시글·테스트 계정 글보다 위에 두기 위한 표시
+      demo: r.demo === true,
+      ownerTest: r.owner_test === true,
       createdAt: new Date(r.created_at as string).getTime(),
       // 내 글 목록에서만: 다른 회원 목록에 보이지 않는 이유
-      hidden: me && r.user_id === me ? (r.owner_blocked ? "blocked" : r.owner_test ? "test" : r.status === "closed" ? "closed" : r.expired ? "expired" : "") : undefined,
+      hidden: me && r.user_id === me ? (r.owner_blocked ? "blocked" : r.owner_test ? "test" : r.expired ? "expired" : "") : undefined,
     }));
     // 출발 임박순, 종료된 글은 맨 아래(최근에 끝난 순)
     // 지역 이름이 빠진 글은 응답을 보낸 뒤에 조금씩 채운다(첫 화면을 막지 않음).

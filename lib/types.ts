@@ -30,6 +30,8 @@ export type Post = {
   /** 내 글이 다른 회원에게 보이지 않는 이유 */
   hidden?: "" | "test" | "closed" | "expired" | "blocked";
   ended?: boolean;
+  demo?: boolean;
+  ownerTest?: boolean;
   createdAt?: number;
   origin: string;
   dest: string;

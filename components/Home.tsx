@@ -195,12 +195,18 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
         (!k || `${p.origin} ${p.dest} ${p.note} ${(p.tags ?? []).map((x) => x.label).join(" ")} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
     );
-    // 종료된 글은 어떤 정렬에서도 맨 아래에 둔다.
-    const live = hit.filter((p) => !p.ended);
-    const done = hit.filter((p) => p.ended);
-    if (sort === "new") live.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    // 최신순: 마감·종료된 글도 등록 순서대로 섞어 보여 준다(회원이 적은 동안 실사용자 글이 위에 보이도록).
+    // 실사용자 글을 임시글·테스트 계정 글보다 먼저, 그 안에서는 최근 등록 순.
+    if (sort === "new") {
+      const real = (p: Post) => (p.demo || p.ownerTest ? 1 : 0);
+      return [...hit].sort((a, b) => real(a) - real(b) || (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    }
+    // 다른 정렬에서는 종료·마감된 글을 맨 아래에 둔다.
+    const over = (p: Post) => !!p.ended || p.status === "closed";
+    const live = hit.filter((p) => !over(p));
+    const done = hit.filter(over);
     // 가까운 순: 출발 위치가 저장된 글을 거리순으로, 위치가 없는 글은 뒤에 둔다.
-    else if (sort === "near" && here) live.sort((a, b) => (far(a) ?? Infinity) - (far(b) ?? Infinity));
+    if (sort === "near" && here) live.sort((a, b) => (far(a) ?? Infinity) - (far(b) ?? Infinity));
     return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -261,11 +267,11 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         <ul className="space-y-3">
           {list.slice(0, shown).map((p) => (
             <li key={p.id}>
-              <button data-block-id="C001" data-block-name="카풀 카드" onClick={() => onOpen(p)} className={`block w-full text-left ${p.ended ? "opacity-60" : ""}`}>
+              <button data-block-id="C001" data-block-name="카풀 카드" onClick={() => onOpen(p)} className={`block w-full text-left ${p.ended || p.status === "closed" ? "opacity-60" : ""}`}>
                 <Card className="space-y-3 p-5">
                   <div className="flex items-center justify-between gap-2">
                     <PostTags post={p} />
-                    <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
+                    <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "closed" && <Tag>{t("마감")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
                   </div>
                   <Route origin={p.origin} dest={p.dest} originArea={p.originArea} destArea={p.destArea} />
                   <KeywordChips post={p} max={2} />
@@ -477,6 +483,8 @@ export function PostDetail({
         ) : (
           post.ended ? (
             <p data-block-id="C016" data-block-name="종료 안내" className="rounded-2xl bg-bg px-4 py-4 text-center text-[15px] font-semibold text-sub">{t("출발 시각이 지나 종료된 카풀이에요.")}</p>
+          ) : post.status === "closed" ? (
+            <p data-block-id="C017" data-block-name="마감 안내" className="rounded-2xl bg-bg px-4 py-4 text-center text-[15px] font-semibold text-sub">{t("마감된 카풀이에요. 지금은 신청을 받지 않습니다.")}</p>
           ) : post.status === "progress" ? (
             <p data-block-id="C011" data-block-name="카풀 진행 중 안내" className="rounded-2xl bg-accentSoft px-4 py-4 text-center text-[15px] font-semibold text-accent">{t("카풀 진행 중인 글이에요. 지금은 신청을 받지 않습니다.")}</p>
           ) : (
