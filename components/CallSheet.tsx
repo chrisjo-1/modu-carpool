@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { type Place, type Post } from "@/lib/types";
 import PlaceField from "./PlaceField";
 import { ALL_LINES, lineColor } from "@/lib/lineMeta";
-import { Bubble, useHintTap, Card, Sheet, api, btnGhost, btnPrimary, btnRider, currentHere, useLang, useT, when } from "./ui";
+import { Bubble, useHintTap, Card, Sheet, api, btnGhost, btnPrimary, btnRider, btnSubway, currentHere, useLang, useT, when } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
 function toLocalInput(ms: number) {
@@ -272,7 +272,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
               {`${ride.board}${t("역에서")} ${t("지금")}(${ride.time}) ${t("타서")} ${ride.alight}${t("역에서 내리시나요?")}`}
             </p>
           </div>
-          <button type="button" data-block-id="B223" data-block-name="지하철 호출 진행" className={btnPrimary} disabled={subwayBusy} onClick={subwayGo}>
+          <button type="button" data-block-id="B223" data-block-name="지하철 호출 진행" className={btnSubway} disabled={subwayBusy} onClick={subwayGo}>
             {subwayBusy ? t("확인 중…") : t("맞아요, 진행")}
           </button>
           <button type="button" data-block-id="B224" data-block-name="오늘만 수정" className={btnGhost} disabled={subwayBusy} onClick={() => { onClose(); onSubway?.("edit"); }}>

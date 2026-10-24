@@ -63,7 +63,7 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
 
   return (
     <div className="space-y-4" data-block-id="S061" data-block-name="지하철 앉아가기 입력">
-      <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">
+      <p className="rounded-2xl bg-violetSoft px-4 py-3 text-[14px] leading-relaxed text-violet">
         {t("지금 이용할 수 있는 노선")}: {linesLabel(pilot)}
       </p>
 

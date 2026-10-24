@@ -34,7 +34,7 @@ export default function RidePing({ line, from }: { line: LineId; from: string })
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        <button type="button" data-block-id="B253" disabled={busy} onClick={send} className="shrink-0 rounded-xl bg-accent px-4 py-2 text-[14px] font-semibold text-white disabled:opacity-40">
+        <button type="button" data-block-id="B253" disabled={busy} onClick={send} className="shrink-0 rounded-xl bg-violet px-4 py-2 text-[14px] font-semibold text-white disabled:opacity-40">
           {busy ? t("보내는 중…") : t("현재역 알리기")}
         </button>
       </div>

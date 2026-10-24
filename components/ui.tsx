@@ -377,9 +377,10 @@ export function Bubble({ blockId, children, pointer = "top", align = "left" }: {
 
 export const btnPrimary = "w-full rounded-2xl bg-accent px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
 // 버튼 색 규칙: 운전자가 누르는 주 버튼 = 파랑(btnPrimary), 탑승자가 누르는 주 버튼 = 초록(btnRider).
-// 글 상세의 버튼은 글쓴이 역할 색(운전자 글 파랑·탑승자 글 초록). 역할과 무관한 공통 주 버튼 = 파랑.
+// 글 상세도 누르는 사람 색: [운전자에게 신청하기]=초록(탑승자가 누름), [탑승자에게 신청하기]=파랑, 수락·수정은 글쓴이 역할 색. 역할과 무관한 공통 주 버튼 = 파랑. 지하철 관련 = 보라(btnSubway).
 // 보조 = 흰 바탕·회색 테두리·검정 글씨(btnGhost), 작은 부가 동작 = 글자색만, 위험(탈퇴·삭제) = bg-warn, 지하철 = 보라. 색은 hex 대신 토큰.
 export const btnRider = btnPrimary.replace("bg-accent", "bg-mint");
+export const btnSubway = btnPrimary.replace("bg-accent", "bg-violet");
 export const btnRole = (role: string | null | undefined) => (role === "rider" ? btnRider : btnPrimary);
 export const btnGhost = "w-full rounded-2xl border border-line bg-white px-5 py-4 text-[17px] font-semibold text-ink active:bg-bg disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
 export const field = "w-full rounded-xl border border-line bg-white px-3 py-3 text-[16px] text-ink outline-none focus:border-accent";

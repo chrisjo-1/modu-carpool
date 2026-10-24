@@ -85,7 +85,7 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
               <li key={`${r.car}-${r.entrance}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-[15px] font-semibold text-ink">
-                    {i === 0 && <span className="mr-1.5 text-accent">{t("추천")}</span>}
+                    {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
                     <span className="num">{positionLabel(r.car, r.entrance)}</span>
                     <span className="ml-1.5 text-[13px] font-normal text-sub">
                       {r.car}{t("번째 칸")} {r.entrance}{t("번 문")}
@@ -136,11 +136,11 @@ function CongestionAnswer({ c }: { c: Congestion }) {
           <p className="text-[13px] text-sub">{t("혼잡도")}</p>
           <p className="num text-[32px] font-semibold leading-none text-ink">{c.pct}%</p>
         </div>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold ${c.level === "low" ? "bg-white text-sub" : "bg-accentSoft text-accent"}`}>{t(c.label)}</span>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold ${c.level === "low" ? "bg-white text-sub" : "bg-violetSoft text-violet"}`}>{t(c.label)}</span>
       </div>
       <p className="text-[15px] text-ink">{t(HINT[c.level])}</p>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-line" aria-hidden>
-        <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, c.pct)}%` }} />
+        <div className="h-full rounded-full bg-violet" style={{ width: `${Math.min(100, c.pct)}%` }} />
       </div>
       <p className="text-[12px] leading-relaxed text-sub">{t("서울교통공사 2026년 6월 자료 · 이 역·방향·시간대 기준")}</p>
     </div>
@@ -152,7 +152,7 @@ function Chance({ p }: { p: number }) {
   const t = useT();
   const pct = Math.round(p * 100);
   return (
-    <span className={`num shrink-0 rounded-full px-3 py-1 text-right text-[13px] font-semibold ${pct >= 60 ? "bg-accentSoft text-accent" : pct >= 35 ? "bg-bg text-ink" : "bg-bg text-sub"}`}>
+    <span className={`num shrink-0 rounded-full px-3 py-1 text-right text-[13px] font-semibold ${pct >= 60 ? "bg-violetSoft text-violet" : pct >= 35 ? "bg-bg text-ink" : "bg-bg text-sub"}`}>
       <span className="block text-[10px] font-normal text-sub">{t("적중확률")}</span>
       {pct}%
     </span>
@@ -173,7 +173,7 @@ function EstimateAnswer({ e, carCount }: { e: Estimate; carCount: number }) {
           <li key={c.car} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
             <div className="min-w-0">
               <p className="text-[15px] font-semibold text-ink">
-                {i === 0 && <span className="mr-1.5 text-accent">{t("추천")}</span>}
+                {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
                 <span className="num">{c.car}</span>{t("번째 칸")}
                 <span className="ml-1.5 text-[13px] font-normal text-sub">/ {carCount}{t("칸")}</span>
               </p>

@@ -5,7 +5,7 @@ import { priceAllowedRegular } from "@/lib/time";
 import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import PlaceField from "./PlaceField";
-import { Segment, Sheet, api, btnGhost, btnPrimary, btnRole, field, useLang, useT } from "./ui";
+import { Segment, Sheet, api, btnGhost, btnPrimary, btnRole, btnSubway, field, useLang, useT } from "./ui";
 import dynamic from "next/dynamic";
 import { EMPTY_PLAN, planProblem, type SubwayPlan } from "@/lib/subway";
 
@@ -248,7 +248,7 @@ export default function CommuteSheet({
         <div className="space-y-2">
           {subwayOpen ? (
             <>
-              <button type="button" data-block-id="B061" data-block-name="앉아가기 저장" className={btnPrimary} disabled={busy || !seatOn || !!planProblem(plan)} onClick={saveSubway}>
+              <button type="button" data-block-id="B061" data-block-name="앉아가기 저장" className={btnSubway} disabled={busy || !seatOn || !!planProblem(plan)} onClick={saveSubway}>
                 {busy ? t("처리 중…") : seatOn ? t("앉아가기 저장") : t("준비 중")}
               </button>
               {planProblem(plan) && <p className="text-center text-[13px] text-sub">{t(planProblem(plan) as string)}</p>}

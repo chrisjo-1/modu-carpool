@@ -462,7 +462,7 @@ export function PostDetail({
           <div className="space-y-2 rounded-2xl bg-accentSoft p-4">
             <p className="font-semibold">{t("내 신청")}: {statusText[mineThread.status]}</p>
             {mineThread.status === "accepted" ? (
-              <button className={`${btnRole(post.role)} py-3 text-[15px]`} onClick={() => openChat(mineThread)}>{t("대화하기")}</button>
+              <button className={`${btnRole(post.role === "driver" ? "rider" : "driver")} py-3 text-[15px]`} onClick={() => openChat(mineThread)}>{t("대화하기")}</button>
             ) : (
               mineThread.status === "pending" && (
                 <button
@@ -499,7 +499,7 @@ export function PostDetail({
               data-block-id="B012"
               data-block-name="카풀 신청"
               disabled={busy}
-              className={btnRole(post.role)}
+              className={btnRole(post.role === "driver" ? "rider" : "driver")}
               onClick={() => {
                 if (sample) return toast(t("예시 글에는 신청할 수 없어요."));
                 if (!user) return goLogin();

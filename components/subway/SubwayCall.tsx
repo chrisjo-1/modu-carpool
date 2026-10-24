@@ -55,7 +55,7 @@ export default function SubwayCall({ hasPlan, onPosture, onSent, onCar, seatKey,
             type="button"
             data-block-id="B250"
             disabled={busy}
-            className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-[15px] font-semibold text-white active:opacity-90 disabled:opacity-60"
+            className="shrink-0 rounded-xl bg-violet px-4 py-2.5 text-[15px] font-semibold text-white active:opacity-90 disabled:opacity-60"
             onClick={sit}
           >
             {busy ? t("알리는 중…") : t("앉았어요")}
@@ -75,14 +75,14 @@ export default function SubwayCall({ hasPlan, onPosture, onSent, onCar, seatKey,
               <p className="text-[13px] font-semibold text-ink">{t("어느 칸·문에 앉았나요? (선택)")}</p>
               <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("탄 칸")}>
                 {cars.map((c) => (
-                  <button key={c} type="button" role="radio" aria-checked={car === c} onClick={() => { setCar(c); onCar?.(c); record(c, door); }} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${car === c ? "border-accent bg-white font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+                  <button key={c} type="button" role="radio" aria-checked={car === c} onClick={() => { setCar(c); onCar?.(c); record(c, door); }} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${car === c ? "border-violet bg-white font-semibold text-violet" : "border-line bg-white text-sub"}`}>
                     {c}{t("칸")}
                   </button>
                 ))}
               </div>
               <div className="flex gap-1.5" role="radiogroup" aria-label={t("문")}>
                 {["1", "2", "3", "4"].map((d) => (
-                  <button key={d} type="button" role="radio" aria-checked={door === d} onClick={() => { setDoor(d); record(car, d); }} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${door === d ? "border-accent bg-white font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+                  <button key={d} type="button" role="radio" aria-checked={door === d} onClick={() => { setDoor(d); record(car, d); }} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${door === d ? "border-violet bg-white font-semibold text-violet" : "border-line bg-white text-sub"}`}>
                     {d}{t("번 문")}
                   </button>
                 ))}

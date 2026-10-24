@@ -189,7 +189,7 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
     <section className="space-y-6 pb-10 pt-2" data-block-id="S070" data-block-name="지하철 탭">
       <div className="flex items-end justify-between gap-3">
         <h1 className="text-[28px] font-bold text-ink">{t("지하철 앉아가기")}</h1>
-        <button type="button" data-block-id="B260" className="min-h-0 text-[13px] font-medium text-accent" onClick={() => setHelp(true)}>{t("위치 찾는 법")}</button>
+        <button type="button" data-block-id="B260" className="min-h-0 text-[13px] font-medium text-violet" onClick={() => setHelp(true)}>{t("위치 찾는 법")}</button>
       </div>
 
       {!loaded && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
@@ -206,7 +206,7 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
                   label={t("방면")}
                   value={kind}
                   onChange={switchKind}
-                  accents={{ go: "accent", back: "accent" }}
+                  accents={{ go: "violet", back: "violet" }}
                   options={[
                     ["go", `${plan.board} → ${plan.alight}`],
                     ["back", `${plan.alight} → ${plan.board}`],
@@ -216,9 +216,9 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 text-[17px] font-bold text-ink">
                   <span className="mr-1.5 rounded-md px-1.5 py-0.5 align-middle text-[12px] font-bold" style={{ background: lineColor(lineNow).bg, color: lineColor(lineNow).text }}>{t(lineName)}</span>
-                  {board} → {alight} <span className="num text-[14px] font-semibold text-accent">{timeNow}</span>
+                  {board} → {alight} <span className="num text-[14px] font-semibold text-violet">{timeNow}</span>
                 </p>
-                <button type="button" data-block-id="B262" data-block-name="오늘 노선·역 바꾸기" className="min-h-0 shrink-0 py-1 text-[13px] font-semibold text-accent" onClick={() => setEditing((v) => !v)}>
+                <button type="button" data-block-id="B262" data-block-name="오늘 노선·역 바꾸기" className="min-h-0 shrink-0 py-1 text-[13px] font-semibold text-violet" onClick={() => setEditing((v) => !v)}>
                   {editing ? t("닫기") : t("노선·역 바꾸기")}
                 </button>
               </div>
@@ -262,7 +262,7 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
             </div>
           ) : (
             <section className="space-y-5">
-              <button type="button" data-block-id="B282" className="min-h-0 py-1 text-[14px] font-semibold text-accent" onClick={() => setView("")}>
+              <button type="button" data-block-id="B282" className="min-h-0 py-1 text-[14px] font-semibold text-violet" onClick={() => setView("")}>
                 {t("← 메뉴")}
               </button>
               {view === "seat" ? (
@@ -316,7 +316,7 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
               <button
                 type="button"
                 data-block-id="B270"
-                className="flex-1 rounded-2xl bg-accent py-3.5 text-[15px] font-semibold text-white active:opacity-90"
+                className="flex-1 rounded-2xl bg-violet py-3.5 text-[15px] font-semibold text-white active:opacity-90"
                 onClick={() => {
                   setAskPlan(false);
                   onSettings?.();
@@ -356,7 +356,7 @@ function Step({ n, title, hint, children }: { n: number; title: string; hint?: s
     <section className="space-y-3">
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <span className="num grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-[12px] font-bold text-white">{n}</span>
+          <span className="num grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet text-[12px] font-bold text-white">{n}</span>
           <h2 className="text-[16px] font-bold text-ink">{title}</h2>
         </div>
         {hint && <p className="pl-8 text-[13px] leading-relaxed text-sub">{hint}</p>}
@@ -385,7 +385,7 @@ function CarSection({ line, board, alight, next, timeNow, kind }: { line: LineId
 
 function NotOpen() {
   const t = useT();
-  return <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">{t("앉아가기 매칭은 아직 준비 중이에요.")}</p>;
+  return <p className="rounded-2xl bg-violetSoft px-4 py-3 text-[14px] leading-relaxed text-violet">{t("앉아가기 매칭은 아직 준비 중이에요.")}</p>;
 }
 
 /** 지하철 출퇴근 정보가 없을 때: 설정에서 등록하도록 안내한다. */
@@ -396,7 +396,7 @@ function EmptyPlan({ onSettings }: { onSettings?: () => void }) {
       <p className="text-[15px] font-semibold text-ink">{t("지하철 정보를 먼저 등록해 주세요")}</p>
       <p className="text-[13px] leading-relaxed text-sub">{t("설정에서 노선·역·시각을 저장하면, 시간에 맞춰 탑승 방면을 골라 드려요.")}</p>
       {onSettings && (
-        <button type="button" className="rounded-xl bg-accent px-4 py-2.5 text-[14px] font-semibold text-white" onClick={onSettings}>
+        <button type="button" className="rounded-xl bg-violet px-4 py-2.5 text-[14px] font-semibold text-white" onClick={onSettings}>
           {t("설정으로 이동")}
         </button>
       )}
@@ -453,7 +453,7 @@ function TodayEditor({ pilot, init, onSave, onReset }: { pilot: LineId[]; init: 
         </label>
       </div>
       <div className="flex gap-2">
-        <button type="button" className="flex-1 rounded-xl bg-accent py-2.5 text-[14px] font-semibold text-white disabled:opacity-40" disabled={!ok} onClick={() => onSave({ line, board, alight })}>
+        <button type="button" className="flex-1 rounded-xl bg-violet py-2.5 text-[14px] font-semibold text-white disabled:opacity-40" disabled={!ok} onClick={() => onSave({ line, board, alight })}>
           {t("오늘 이렇게 타기")}
         </button>
         <button type="button" className="rounded-xl bg-bg px-4 py-2.5 text-[14px] text-sub" onClick={onReset}>
