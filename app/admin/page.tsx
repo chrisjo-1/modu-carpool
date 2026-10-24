@@ -6,6 +6,7 @@ import MemberCode from "@/components/admin/MemberCode";
 import AdminMail from "@/components/admin/Mail";
 import AdminSend from "@/components/admin/Send";
 import AdminSubway from "@/components/admin/Subway";
+import Funnel from "@/components/admin/Funnel";
 import { JOIN_SOURCES } from "@/lib/types";
 
 /** 마지막 접속을 '방금·n분 전·n시간 전'으로 */
@@ -219,6 +220,7 @@ export default function Admin() {
           </button>
         ))}
       </section>
+      {info?.db && <Funnel />}
       {!info?.db && <p className="rounded-xl bg-warnSoft px-4 py-3 text-sm text-warn">DB가 아직 연결되지 않았습니다. 연결 전에는 현황과 관리 기능이 동작하지 않습니다.</p>}
 
       <div className="flex flex-wrap items-center gap-2">

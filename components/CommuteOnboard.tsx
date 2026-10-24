@@ -20,6 +20,8 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
   const t = useT();
   const empty: Place = { name: "", lat: null, lng: null };
   const [kind, setKind] = useState<Kind | "">("");
+  // 운전해요/타고 가요를 먼저 고른다. 탑승자는 차량 등록을 묻지 않는다.
+  const [role, setRole] = useState<"driver" | "rider" | "">(user?.rolePref === "driver" || user?.rolePref === "rider" ? user.rolePref : "");
   const [origin, setOrigin] = useState<Place>(empty);
   const [dest, setDest] = useState<Place>(empty);
   const [timeGo, setTimeGo] = useState("08:00");
@@ -47,16 +49,17 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
   const timeValid = toMinutes(timeGo) >= 0;
   // 정기카풀 시간대 규칙과 같은 기준(서버와 공유): 시간대 안이면 금액을 적고, 밖이면 무료.
   const allowed = kind === "commute" && timeValid && priceAllowedRegular("12345", timeGo, "");
-  const driver = user?.rolePref !== "rider";
+  const driver = role === "driver";
   const carOk = !!user?.carNo && !!user?.carPhoto;
   const needCar = kind === "commute" && driver && !carOk;
   const priceOk = Number(price) >= 500 && Number(price) <= MAX_PRICE;
-  const ready = kind !== "" && routeNamed && (kind === "other" || (timeValid && !needCar && (!allowed || priceOk)));
+  const ready = kind !== "" && routeNamed && (kind === "other" || (role !== "" && timeValid && !needCar && (!allowed || priceOk)));
   // 아직 빠진 필수 항목을 버튼 위에 적어 준다(버튼이 왜 안 눌리는지 알 수 있게).
   const missing: string[] = [];
   if (kind === "") missing.push(t("출퇴근 종류"));
   if (kind !== "" && !routeNamed) missing.push(t("출발지·도착지"));
   if (kind === "commute") {
+    if (role === "") missing.push(t("운전·탑승 선택"));
     if (!timeValid) missing.push(t("출근 시간"));
     if (allowed && !priceOk) missing.push(t("희망 금액"));
     if (needCar) missing.push(t("차량 등록"));
@@ -74,9 +77,12 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
       destLng: dest.lng,
       timeGo,
       price: allowed ? Number(price) : 0,
+      role,
     });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
+    // 고른 역할을 화면의 회원 정보에도 반영(모드 알약 등)
+    if (user && role && user.rolePref !== role) window.dispatchEvent(new CustomEvent("moducarpool:user", { detail: { ...user, rolePref: role } }));
     if (kind === "other") return onDone(t("주요 이동경로를 저장했어요."));
     if (!r.data.posted) return onDone(`${t("출퇴근 정보를 저장했어요.")} ${t(r.data.reason ?? "")}`.trim());
     const credit = r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : "";
@@ -104,6 +110,16 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
           <p data-block-id="C320" data-block-name="주요 이동경로 권고" role="note" className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">
             {t("출퇴근이 아니어도 자주 가는 주요 이동경로를 입력해 주세요. 입력한 경로로 같은 방향 이웃을 찾아 드려요.")}
           </p>
+        )}
+        {kind === "commute" && (
+          <div data-block-id="C324" data-block-name="운전·탑승 선택" className="space-y-2">
+            <p className="text-sm text-sub">{t("카풀에서 나는")}</p>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("운전·탑승 선택")}>
+              <button type="button" role="radio" aria-checked={role === "driver"} data-block-id="B323" data-block-name="운전해요" className={chip(role === "driver")} onClick={() => setRole("driver")}>{t("운전해요")}</button>
+              <button type="button" role="radio" aria-checked={role === "rider"} data-block-id="B324" data-block-name="타고 가요" className={chip(role === "rider")} onClick={() => setRole("rider")}>{t("타고 가요")}</button>
+            </div>
+            {role === "rider" && <p className="text-[13px] leading-relaxed text-sub">{t("탑승자는 차량 등록 없이 바로 올라가요.")}</p>}
+          </div>
         )}
         {kind !== "" && (
           <>

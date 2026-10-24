@@ -183,6 +183,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table pending_signups add column if not exists loc_lng double precision`;
   // 가입하게 된 경로(기존 회원 소개·검색·지인 추천·기타). 기존 회원은 비어 있다.
   await sql`alter table pending_signups add column if not exists join_source text not null default ''`;
+  // 관리자 '인증 메일 다시 보내기'가 같은 사람에게 하루 한 번만 보내도록
+  await sql`alter table pending_signups add column if not exists resent_at timestamptz`;
   await sql`alter table users add column if not exists join_source text not null default ''`;
   // 워프(풀럭) 기존 회원 확인에 쓴 값(고유번호 또는 워프 이메일). 인증이 끝나면 대조해 이전 크레딧을 준다.
   await sql`alter table pending_signups add column if not exists legacy_key text not null default ''`;

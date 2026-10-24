@@ -1,7 +1,7 @@
 import { notifyRouteAlerts } from "@/lib/alerts";
 import { CAR_REQUIRED, carReady } from "@/lib/car";
 import { grant } from "@/lib/credits";
-import { PHOTO_REQUIRED, hasPhoto, isVerified } from "@/lib/verify";
+import { isVerified } from "@/lib/verify";
 import { body, currentUserId, db, ensureSchema, fail, json, needLogin, text } from "@/lib/server";
 import { MAX_PRICE, nextOccurrence, priceAllowedRegular, toMinutes } from "@/lib/time";
 
@@ -21,6 +21,8 @@ function coord(lat: unknown, lng: unknown): [number | null, number | null] {
  *   요일과 복귀 시간은 나중에 내 정보에서 보완한다(기본값: 평일 매일).
  * - other: 출퇴근이 아니면 주요 이동경로만 프로필에 저장한다(게시하지 않는다).
  * 금액은 정기카풀 시간대 규칙(평일 출근 시간대)에 맞을 때만 받는다. 아니면 무료 카풀로 올린다.
+ * 역할(운전해요/타고 가요)을 이 화면에서 고르고 users.role_pref에 저장한다. 탑승자는 차량 등록을 묻지 않는다.
+ * 첫 글은 프로필 사진 없이도 올린다(신청·채팅·CALL 때 사진을 요구한다). 가입 직후 이탈을 줄이기 위해서다.
  */
 export async function POST(req: Request) {
   const me = await currentUserId();
@@ -42,6 +44,7 @@ export async function POST(req: Request) {
     if (allowed && !(price >= 500 && price <= MAX_PRICE)) return json({ error: `희망 금액은 500원에서 ${MAX_PRICE.toLocaleString("ko-KR")}원 사이로 입력해 주세요.` }, 400);
   }
   const cost = allowed ? "fixed" : "free";
+  const pickedRole = b.role === "driver" || b.role === "rider" ? b.role : "";
   try {
     await ensureSchema();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 등록할 수 있어요. 메일함을 확인해 주세요." }, 403);
@@ -49,10 +52,10 @@ export async function POST(req: Request) {
     await sql`update users set commute_kind = ${kind}, commute_origin = ${origin}, commute_dest = ${dest},
       commute_olat = ${oLat}, commute_olng = ${oLng}, commute_dlat = ${dLat}, commute_dlng = ${dLng},
       commute_time = ${timeGo}, commute_price = ${price} where id = ${me}`;
+    if (pickedRole) await sql`update users set role_pref = ${pickedRole} where id = ${me}`;
     if (kind === "other") return json({ ok: true, posted: false });
 
-    // 정기카풀 자동 게시: 사진·차량 조건을 먼저 본다. 조건이 안 맞으면 프로필만 저장하고 이유를 알려 준다.
-    if (!(await hasPhoto(me))) return json({ ok: true, posted: false, reason: PHOTO_REQUIRED });
+    // 정기카풀 자동 게시: 운전자는 차량 조건만 본다(사진은 신청·채팅 때 요구). 안 맞으면 프로필만 저장하고 이유를 알려 준다.
     const u = await sql`select role_pref from users where id = ${me}`;
     const role = u[0]?.role_pref === "rider" ? "rider" : "driver";
     if (role === "driver" && !(await carReady(me))) return json({ ok: true, posted: false, reason: CAR_REQUIRED });
@@ -76,6 +79,35 @@ export async function POST(req: Request) {
     const credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
     await notifyRouteAlerts(String(rows[0].id)).catch(() => {});
     return json({ ok: true, posted: true, updated: false, free: !allowed, id: rows[0].id, credit });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * 홈의 '글이 아직 안 올라갔어요' 카드용. 진행 중인 글이 없으면 저장된 출퇴근 정보와 빠진 항목을 돌려준다.
+ * 글이 있으면 { show: false }만 돌려준다(가벼운 조회 하나).
+ */
+export async function GET() {
+  const me = await currentUserId();
+  if (!me) return json({ show: false });
+  try {
+    await ensureSchema();
+    const r = await db()`select u.test, u.email_verified, u.role_pref, (u.car_no <> '' and u.car_v > 0) as car_ok,
+        u.commute_kind, u.commute_origin, u.commute_dest, u.commute_olat, u.commute_olng, u.commute_dlat, u.commute_dlng, u.commute_time, u.commute_price,
+        exists (select 1 from posts p where p.user_id = u.id and p.status = 'open' and (p.regular or p.depart_at > now())) as has_post
+      from users u where u.id = ${me}`;
+    const x = r[0];
+    if (!x || x.test || x.has_post) return json({ show: false });
+    return json({
+      show: true,
+      verified: !!x.email_verified,
+      role: x.role_pref === "driver" || x.role_pref === "rider" ? x.role_pref : "",
+      carOk: !!x.car_ok,
+      commute: x.commute_kind === "commute" && String(x.commute_origin ?? "").length >= 2 && String(x.commute_time ?? "") !== ""
+        ? { origin: x.commute_origin, dest: x.commute_dest, originLat: x.commute_olat, originLng: x.commute_olng, destLat: x.commute_dlat, destLng: x.commute_dlng, timeGo: x.commute_time, price: Number(x.commute_price) || 0 }
+        : null,
+    });
   } catch (e) {
     return fail(e);
   }
