@@ -5,7 +5,7 @@ import { priceAllowedRegular } from "@/lib/time";
 import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
 import PlaceField from "./PlaceField";
-import { Segment, Sheet, api, btnGhost, btnPrimary, field, useLang, useT } from "./ui";
+import { Segment, Sheet, api, btnGhost, btnPrimary, btnRole, field, useLang, useT } from "./ui";
 import dynamic from "next/dynamic";
 import { EMPTY_PLAN, planProblem, type SubwayPlan } from "@/lib/subway";
 
@@ -259,7 +259,7 @@ export default function CommuteSheet({
               )}
             </>
           ) : (
-            <button data-block-id="B060" data-block-name="정기카풀 게시" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : initial ? t("저장") : t("정기카풀로 게시하기")}</button>
+            <button data-block-id="B060" data-block-name="정기카풀 게시" className={btnRole(mode)} disabled={busy}>{busy ? t("처리 중…") : initial ? t("저장") : t("정기카풀로 게시하기")}</button>
           )}
         </div>
       </form>

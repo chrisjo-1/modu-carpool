@@ -5,7 +5,7 @@ import type { Place, User } from "@/lib/types";
 import { MAX_PRICE, priceAllowedRegular, toMinutes } from "@/lib/time";
 import CarInput from "./CarInput";
 import PlaceField from "./PlaceField";
-import { Sheet, api, btnPrimary, field, useT } from "./ui";
+import { Sheet, api, btnPrimary, btnRole, field, useT } from "./ui";
 
 type Kind = "commute" | "other";
 
@@ -93,6 +93,7 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
   };
 
   const pick = (k: Kind) => setKind(k);
+  const roleChip = (on: boolean, r: "driver" | "rider") => `min-h-0 rounded-xl border px-4 py-3 text-left text-[15px] font-semibold ${on ? (r === "rider" ? "border-mint bg-mintSoft text-mint" : "border-accent bg-accentSoft text-accent") : "border-line bg-white text-ink"}`;
   const chip = (on: boolean) => `min-h-0 rounded-xl border px-4 py-3 text-left text-[15px] font-semibold ${on ? "border-accent bg-accentSoft text-accent" : "border-line bg-white text-ink"}`;
 
   return (
@@ -115,8 +116,8 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
           <div data-block-id="C324" data-block-name="운전·탑승 선택" className="space-y-2">
             <p className="text-sm text-sub">{t("카풀에서 나는")}</p>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("운전·탑승 선택")}>
-              <button type="button" role="radio" aria-checked={role === "driver"} data-block-id="B323" data-block-name="운전해요" className={chip(role === "driver")} onClick={() => setRole("driver")}>{t("운전해요")}</button>
-              <button type="button" role="radio" aria-checked={role === "rider"} data-block-id="B324" data-block-name="타고 가요" className={chip(role === "rider")} onClick={() => setRole("rider")}>{t("타고 가요")}</button>
+              <button type="button" role="radio" aria-checked={role === "driver"} data-block-id="B323" data-block-name="운전해요" className={roleChip(role === "driver", "driver")} onClick={() => setRole("driver")}>{t("운전해요")}</button>
+              <button type="button" role="radio" aria-checked={role === "rider"} data-block-id="B324" data-block-name="타고 가요" className={roleChip(role === "rider", "rider")} onClick={() => setRole("rider")}>{t("타고 가요")}</button>
             </div>
             {role === "rider" && <p className="text-[13px] leading-relaxed text-sub">{t("탑승자는 차량 등록 없이 바로 올라가요.")}</p>}
           </div>
@@ -161,7 +162,7 @@ export default function CommuteOnboard({ user, onDone, toast }: { user: User | n
           </>
         )}
         {!ready && missing.length > 0 && <p data-block-id="C323" className="text-[14px] font-medium text-accent">{t("아직 필요한 항목")}: {missing.join(", ")}</p>}
-        <button type="button" data-block-id="B322" data-block-name="출퇴근 정보 저장" className={btnPrimary} disabled={!ready || busy} onClick={save}>
+        <button type="button" data-block-id="B322" data-block-name="출퇴근 정보 저장" className={kind === "commute" ? btnRole(role) : btnPrimary} disabled={!ready || busy} onClick={save}>
           {busy ? t("처리 중…") : t("저장하고 시작하기")}
         </button>
       </div>

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { type Place, type Post } from "@/lib/types";
 import PlaceField from "./PlaceField";
 import { ALL_LINES, lineColor } from "@/lib/lineMeta";
-import { Bubble, useHintTap, Card, Sheet, api, btnGhost, btnPrimary, currentHere, useLang, useT, when } from "./ui";
+import { Bubble, useHintTap, Card, Sheet, api, btnGhost, btnPrimary, btnRider, currentHere, useLang, useT, when } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
 function toLocalInput(ms: number) {
@@ -61,7 +61,7 @@ export function FloatingCall({ toast, onGoProfile, onSubway, onSubwaySetup }: { 
       <div className="fixed bottom-[calc(9rem+env(safe-area-inset-bottom))] left-1/2 z-30 w-max max-w-[260px] -translate-x-1/2">
         <Bubble blockId="C933" pointer="bottom" align="center">{t("주변 운전자에게 바로 호출을 보내요. 하루 횟수가 정해져 있어요.")}</Bubble>
       </div>
-      <button type="button" data-block-id="B217" data-block-name="CALL" aria-label="CALL" className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-30 -translate-x-1/2 rounded-full bg-accent px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => { if (hintTap("C933")) return; setOpen(true); }}>
+      <button type="button" data-block-id="B217" data-block-name="CALL" aria-label="CALL" className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-30 -translate-x-1/2 rounded-full bg-mint px-8 py-3.5 text-[16px] font-bold tracking-wide text-white shadow-card active:opacity-80" onClick={() => { if (hintTap("C933")) return; setOpen(true); }}>
         CALL
       </button>
       {open && <CallSheet onClose={() => setOpen(false)} toast={toast} onGoProfile={onGoProfile} onSubway={onSubway} onSubwaySetup={onSubwaySetup} />}
@@ -235,7 +235,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
           ) : (
             callsLeft !== null && callsLimit !== null && <p className="px-1 text-[14px] text-sub">{t("오늘 남은 CALL")} {callsLeft}/{callsLimit}</p>
           )}
-          <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnPrimary} disabled={ready === false || callsLeft === 0 || band === "0"} onClick={pickStep}>{t("주변 운전자 호출")}</button>
+          <button type="button" data-block-id="B219" data-block-name="주변 호출" className={btnRider} disabled={ready === false || callsLeft === 0 || band === "0"} onClick={pickStep}>{t("주변 운전자 호출")}</button>
         </div>
       )}
       {step === "pick" && (
@@ -296,7 +296,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
             <p className="text-sm text-sub">{t("수락한 운전자에게 내 연락 방법과 아이디가 보여요.")} ({contactType})</p>
           </Card>
           {err && <p role="alert" className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{err}</p>}
-          <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnPrimary} disabled={busy || callsLeft === 0} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost.toLocaleString("ko-KR")} ${t("크레딧")})`}</button>
+          <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnRider} disabled={busy || callsLeft === 0} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost.toLocaleString("ko-KR")} ${t("크레딧")})`}</button>
           <button type="button" className={btnGhost} onClick={() => setStep("pick")}>{t("뒤로")}</button>
         </div>
       )}

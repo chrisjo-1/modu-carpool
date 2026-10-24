@@ -7,7 +7,7 @@ import CarInput from "./CarInput";
 import { areaLabel } from "@/lib/areaLabel";
 import { HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
-import { Bubble, useHintTap, RoleTag, Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
+import { Bubble, useHintTap, RoleTag, Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, btnRole, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
@@ -101,7 +101,7 @@ export function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?
       aria-label={`${t("현재 역할")}: ${isDriver ? t("운전자 모드") : t("탑승자 모드")}`}
       onClick={toggle}
       disabled={busy}
-      className={`min-h-[44px] shrink-0 rounded-full px-4 py-2 text-[15px] motion-safe:transition-colors ${isDriver ? "border border-accent/30 bg-accentSoft font-bold text-accent" : "border border-mint/30 bg-mintSoft font-bold text-mint"}`}
+      className={`min-h-[44px] shrink-0 rounded-full px-4 py-2 text-[15px] motion-safe:transition-colors ${isDriver ? "bg-accent font-bold text-white" : "bg-mint font-bold text-white"}`}
     >
       {isDriver ? t("운전자 모드") : t("탑승자 모드")}
     </button>
@@ -417,14 +417,14 @@ export function PostDetail({
                 {th.status === "pending" && (
                   <div className="flex gap-2">
                     <button disabled={busy} className={`${btnGhost} py-3 text-[15px]`} onClick={() => run("/api/requests", "PATCH", { id: th.id, status: "declined" })}>{t("거절")}</button>
-                    <button data-block-id="B011" data-block-name="신청 수락" disabled={busy} className={`${btnPrimary} py-3 text-[15px]`} onClick={() => run("/api/requests", "PATCH", { id: th.id, status: "accepted" }, "수락했어요. 이제 대화할 수 있습니다.")}>{t("수락")}</button>
+                    <button data-block-id="B011" data-block-name="신청 수락" disabled={busy} className={`${btnRole(post.role)} py-3 text-[15px]`} onClick={() => run("/api/requests", "PATCH", { id: th.id, status: "accepted" }, "수락했어요. 이제 대화할 수 있습니다.")}>{t("수락")}</button>
                   </div>
                 )}
                 {th.status === "accepted" && <button className={`${btnGhost} py-3 text-[15px]`} onClick={() => openChat(th)}>{t("대화하기")}</button>}
               </div>
             ))}
             {post.hidden && <p data-block-id="C014" data-block-name="노출 안 됨 안내" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] text-warn">{t(HIDDEN_TEXT[post.hidden])}</p>}
-            <button data-block-id="B015" data-block-name="글 수정" className={`${btnPrimary} py-3 text-[15px]`} onClick={() => (post.regular ? onEditCommute(post) : onEdit(post))}>{post.regular ? t("출퇴근 정보 수정") : t("글 수정")}</button>
+            <button data-block-id="B015" data-block-name="글 수정" className={`${btnRole(post.role)} py-3 text-[15px]`} onClick={() => (post.regular ? onEditCommute(post) : onEdit(post))}>{post.regular ? t("출퇴근 정보 수정") : t("글 수정")}</button>
             <div className="flex gap-2 pt-1">
               {post.role === "rider" ? (
                 <button
@@ -462,7 +462,7 @@ export function PostDetail({
           <div className="space-y-2 rounded-2xl bg-accentSoft p-4">
             <p className="font-semibold">{t("내 신청")}: {statusText[mineThread.status]}</p>
             {mineThread.status === "accepted" ? (
-              <button className={`${btnPrimary} py-3 text-[15px]`} onClick={() => openChat(mineThread)}>{t("대화하기")}</button>
+              <button className={`${btnRole(post.role)} py-3 text-[15px]`} onClick={() => openChat(mineThread)}>{t("대화하기")}</button>
             ) : (
               mineThread.status === "pending" && (
                 <button
@@ -499,7 +499,7 @@ export function PostDetail({
               data-block-id="B012"
               data-block-name="카풀 신청"
               disabled={busy}
-              className={btnPrimary}
+              className={btnRole(post.role)}
               onClick={() => {
                 if (sample) return toast(t("예시 글에는 신청할 수 없어요."));
                 if (!user) return goLogin();

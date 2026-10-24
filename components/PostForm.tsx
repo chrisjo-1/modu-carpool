@@ -6,7 +6,7 @@ import CarGateSheet from "./CarGate";
 import { CostField } from "./Commute";
 import { TagPicker } from "./Keywords";
 import PlaceField from "./PlaceField";
-import { Card, Segment, api, btnPrimary, currentHere, field, useT } from "./ui";
+import { Card, Segment, api, btnPrimary, btnRole, currentHere, field, useT } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
 function toLocalInput(ms: number) {
@@ -157,7 +157,7 @@ export default function PostForm({
         </label>
       </Card>
 
-      <button data-block-id={initial ? "B022" : "B021"} data-block-name={initial ? "수정 저장" : "등록"} className={btnPrimary} disabled={busy}>
+      <button data-block-id={initial ? "B022" : "B021"} data-block-name={initial ? "수정 저장" : "등록"} className={btnRole(role)} disabled={busy}>
         {busy ? t("처리 중…") : initial ? t("저장") : t(role === "driver" ? "탑승자 구해요 등록" : "운전자 구해요 등록")}
       </button>
     </form>
