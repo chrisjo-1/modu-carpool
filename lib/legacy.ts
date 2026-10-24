@@ -72,14 +72,6 @@ export async function runMatch() {
   return { total: rows.length, joined };
 }
 
-/** 새로 가입한 회원이 구 워프 회원이면 바로 '가입됨'으로 바꾼다. */
-export async function matchNewUser(userId: string, email: string) {
-  const e = normEmail(email);
-  if (!e) return;
-  await db()`update legacy_members set match_status = '가입됨', matched_user = ${userId}, matched_by = '이메일'
-             where email_norm = ${e} or email_h = ${keyedHash(e)}`;
-}
-
 /**
  * 가입 때 쓰는 워프 확인: 워프 고유번호(8자리) 또는 워프에 등록된 이메일로 아직 연결되지 않은 구 워프 회원을 찾는다.
  * 탈퇴 회원과 이미 다른 계정에 연결된 회원은 찾지 않는다.

@@ -18,4 +18,3 @@ export async function saveBubbleTexts(texts: Record<string, string>) {
   return clean;
 }
 
-export const BUBBLE_IDS = BUBBLES.map((b) => b.id);

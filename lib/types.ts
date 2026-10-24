@@ -149,7 +149,6 @@ export type DriverTier = "bronze" | "silver" | "gold";
 export const driverTier = (u: { carNo?: string; carPhoto?: string; photo?: string; tierSet?: string | null } | null | undefined): DriverTier | "" =>
   u?.tierSet === "silver" || u?.tierSet === "gold" ? u.tierSet : u?.carNo && u?.carPhoto && u?.photo ? "bronze" : "";
 
-export const TIER_LABEL: Record<DriverTier, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
 /**
  * 기본 역할: 프로필의 희망 역할을 먼저 따른다(탑승자면 탑승자, 운전자면 차량 등록이 있을 때만 운전자).

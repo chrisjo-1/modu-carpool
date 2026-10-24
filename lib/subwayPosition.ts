@@ -9,7 +9,6 @@
  */
 
 export const DOOR_COUNT = 4;
-export const DOOR_NUMBERS = Array.from({ length: DOOR_COUNT }, (_, i) => String(i + 1));
 
 export function isDoor(v: string): boolean {
   return /^[1-4]$/.test(v);

@@ -84,16 +84,6 @@ async function blockCheck(m: Mail): Promise<{ code: "log" | "off" | "quiet" | "c
   return null;
 }
 
-/**
- * 오늘(한국 시각) 나간 대량(캠페인) 메일 수. 하루 한도는 캠페인 메일에만 걸고,
- * 탈퇴 확인·이메일 인증·비밀번호 재설정 같은 꼭 필요한 메일은 막지 않는다.
- */
-export async function campaignSentToday(): Promise<number> {
-  const n = await db()`select count(*)::int as n from mail_log
-    where campaign_id is not null and status = 'sent' and created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
-  return Number(n[0].n);
-}
-
 const DAY = 86_400_000;
 
 /** 오늘(KST) 대량 메일 발송 몫. 하루 한도를 정했으면 그 값, 0이면 월 한도에 맞춰 자동으로 나눈다. */
