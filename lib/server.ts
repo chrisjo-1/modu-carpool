@@ -497,6 +497,29 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`create index if not exists requests_user_idx on requests (user_id)`;
   await sql`create index if not exists posts_user_idx on posts (user_id)`;
   await sql`create index if not exists chat_reads_req_idx on chat_reads (request_id, user_id)`;
+  // 마음 상담 예약. 응답 원문은 저장하지 않고 지수·단계만. 상담 시각이 지나고 180일 뒤 지운다(maintainData).
+  await sql`create table if not exists counsel_bookings (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references users(id) on delete cascade,
+    topic text not null,
+    scale text not null,
+    score integer not null,
+    max_score integer not null,
+    mind_index integer not null,
+    level text not null,
+    crisis boolean not null default false,
+    slot_at timestamptz not null,
+    method text not null,
+    contact text not null default '',
+    note text not null default '',
+    status text not null default 'pending',
+    admin_memo text not null default '',
+    consent_at timestamptz not null,
+    created_at timestamptz not null default now())`;
+  // 한 시각에 여러 명 예약할 수 있다(시각당 1명 제한 없음)
+  await sql`drop index if exists counsel_slot_uniq`;
+  await sql`create index if not exists counsel_user_idx on counsel_bookings (user_id)`;
+  await sql`create index if not exists counsel_slot_idx on counsel_bookings (slot_at)`;
 }
 
 /** 매번 가볍게 확인하는 자료 정리(고유코드 없는 회원 채우기, 표시 이름을 고유코드로). 할 일이 없으면 쿼리 2번. */
@@ -515,6 +538,8 @@ async function maintainData(sql: ReturnType<typeof db>) {
   // 하루 한도를 '자동(월 한도 기준)'(0)으로 한 번 바꾼다(관리자가 나중에 다시 정하면 그 값 유지).
   await sql`with flag as (insert into settings (key, value) values ('mail_cap_unlimited', '1') on conflict (key) do nothing returning 1)
     update mail_policy set daily_cap = 0, updated_at = now() where id = 1 and daily_cap in (100, 500) and exists (select 1 from flag)`;
+  // 마음 상담 기록(민감정보)은 상담 시각이 지나고 180일 뒤 지운다
+  await sql`delete from counsel_bookings where slot_at < now() - interval '180 days'`;
 }
 
 function textHash(s: string) {

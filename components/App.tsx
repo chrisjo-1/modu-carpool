@@ -34,6 +34,7 @@ const MemberSheet = dynamic(() => import("./Member").then((m) => m.MemberSheet),
 const ReasonSheet = dynamic(() => import("./Member").then((m) => m.ReasonSheet), { ssr: false });
 const ResetSheet = dynamic(() => import("./Reset"), { ssr: false });
 const Withdraw = dynamic(() => import("./Withdraw"), { ssr: false });
+const Counsel = dynamic(() => import("./Counsel"), { ssr: false });
 const Interests = dynamic(() => import("./Interests"), { ssr: false });
 const CommuteStart = dynamic(() => import("./CommuteStart"), { ssr: false });
 const CommuteOnboard = dynamic(() => import("./CommuteOnboard"), { ssr: false });
@@ -139,6 +140,8 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const [withdrawToken, setWithdrawToken] = useState("");
   // 메일의 '개인정보 삭제 신청' 링크(?leave=1): 로그인 없이 탈퇴 여부 확인 창을 연다.
   const [leaveOpen, setLeaveOpen] = useState(false);
+  // 마음 상담 창: 내 정보 버튼 또는 앱 접속 팝업 링크(?counsel=1)로 연다.
+  const [counselOpen, setCounselOpen] = useState(false);
   const [bubbleTexts, setBubbleTexts] = useState<Record<string, string>>({});
   useEffect(() => {
     fetch("/api/bubbles").then((r) => r.json()).then((j) => setBubbleTexts(j.texts ?? {})).catch(() => {});
@@ -258,6 +261,10 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       if (q.get("leave")) {
         history.replaceState(null, "", location.pathname);
         setLeaveOpen(true);
+      }
+      if (q.get("counsel")) {
+        history.replaceState(null, "", location.pathname);
+        setCounselOpen(true);
       }
       const withdraw = q.get("withdraw");
       if (withdraw) {
@@ -567,7 +574,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
             if (hit) setOpen(hit);
             else setToastMsg(t("글을 찾을 수 없어요."));
           }} push={push} toast={setToastMsg} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} push={push} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} push={push} onCounsel={() => setCounselOpen(true)} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
@@ -634,6 +641,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {withdrawToken && <Withdraw token={withdrawToken} onClose={() => setWithdrawToken("")} />}
         {leaveOpen && !withdrawToken && <Withdraw initialEmail={user?.email ?? ""} onClose={() => setLeaveOpen(false)} />}
+        {counselOpen && <Counsel toast={setToastMsg} onClose={() => setCounselOpen(false)} onLogin={() => { setCounselOpen(false); setTab("me"); setToastMsg(translate(langNow(), "로그인하면 상담을 예약할 수 있어요.")); }} />}
         {resetToken && (
           <ResetSheet
             token={resetToken}

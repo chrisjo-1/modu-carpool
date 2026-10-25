@@ -38,6 +38,7 @@ const AdminRequests = dynamic(() => import("@/components/admin/Requests"), { ssr
 // 출퇴근 지도(leaflet)는 탭을 열 때만 불러온다.
 const AdminFlowMap = dynamic(() => import("@/components/admin/FlowMap"), { ssr: false });
 const AdminSeatSim = dynamic(() => import("@/components/admin/SeatSim"), { ssr: false });
+const AdminCounsel = dynamic(() => import("@/components/admin/Counsel"), { ssr: false });
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
@@ -62,7 +63,7 @@ type Info = { db: boolean; stats: Stats | null; userTotal: number; posts: PostRo
 /** 회원 필터(모두 서버에서 전체 회원 대상) */
 type UserFilter = { gen: string; role: string; status: string; origin: string; from: string; to: string; seen: string; has: string; withTest: boolean };
 const NO_FILTER: UserFilter = { gen: "", role: "", status: "", origin: "", from: "", to: "", seen: "", has: "", withTest: false };
-type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate";
+type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate" | "counsel";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
@@ -231,6 +232,7 @@ export default function Admin() {
         {tabBtn("requests", "신청·매칭")}
         {tabBtn("flags", `신고·차단${s?.reports ? ` (${s.reports})` : ""}`)}
         {tabBtn("feedback", "의견")}
+        {tabBtn("counsel", "상담")}
         {tabBtn("notices", "공지")}
         {tabBtn("keywords", "키워드")}
         {tabBtn("credits", "크레딧")}
@@ -487,6 +489,7 @@ export default function Admin() {
       {tab === "notices" && <AdminNotices />}
       {tab === "keywords" && <AdminKeywords />}
       {tab === "feedback" && <AdminFeedback />}
+      {tab === "counsel" && <AdminCounsel />}
       {tab === "help" && <AdminHelp />}
       {tab === "stats" && <AdminStats />}
       {tab === "calls" && <AdminCallHistory />}

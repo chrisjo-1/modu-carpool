@@ -51,6 +51,7 @@ export default function Me({
   push,
   onProfile,
   feedbackFirst = false,
+  onCounsel,
 }: {
   user: User | null;
   enabled: boolean;
@@ -68,6 +69,8 @@ export default function Me({
   onProfile: (id: string) => void;
   /** 답변 알림을 눌러 들어온 경우 의견 창을 바로 연다 */
   feedbackFirst?: boolean;
+  /** 마음 상담 창 열기 */
+  onCounsel?: () => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -280,6 +283,12 @@ export default function Me({
         </button>
       )}
       {user && <CreditCard toast={toast} version={version} />}
+      {onCounsel && (
+        <button type="button" data-block-id="B376" data-block-name="마음 상담 열기" onClick={onCounsel} className="flex w-full items-center justify-between rounded-2xl border border-line bg-white px-5 py-4 text-left shadow-card">
+          <span><b className="text-[16px]">{t("마음 상담")}</b><span className="block text-[13px] text-sub">{t("간단한 질문으로 마음 지수를 보고, 무료 상담을 예약해요")}</span></span>
+          <span className="text-sub">{Icon.arrow()}</span>
+        </button>
+      )}
       <div>
         <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("카풀 정보")}</h2>
       </div>
