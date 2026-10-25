@@ -7,13 +7,13 @@ import {
 import { Sheet, api, btnGhost, btnPrimary, field, useT } from "./ui";
 
 /** 마음 상담 주 버튼: 로즈 핑크(운전자 파랑·탑승자 초록·지하철 보라와 구분) */
-const btnMind = btnPrimary.replace("bg-accent", "bg-mind");
+const btnMind = btnPrimary.replace("bg-accent", "bg-mind").replace("text-[17px] font-semibold", "text-[18px] font-bold");
 
 type Mine = { id: string; topic: Topic; slotAt: number; method: Method; status: CounselStatus };
 type Info = { on: boolean; slots: number[]; mine: Mine | null; loggedIn: boolean };
 type Step = "intro" | "topic" | "quiz" | "result" | "book" | "done";
 
-const chip = (on: boolean) => `min-h-0 rounded-xl border px-4 py-3 text-left text-[15px] ${on ? "border-mind bg-mindSoft font-semibold text-mind" : "border-line bg-white text-ink"}`;
+const chip = (on: boolean) => `min-h-0 rounded-xl border px-4 py-3 text-left text-[15px] ${on ? "border-mind bg-mindSoft font-semibold text-mindInk" : "border-line bg-white text-ink"}`;
 
 /**
  * 마음 상담: 유형 고르기 → 간단 질문(지난 2주) → 나의 스트레스 지수 → 상담 시간 예약.
@@ -100,7 +100,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
           <>
             {info?.mine && (
               <div data-block-id="C372" data-block-name="내 상담 예약" className="space-y-2 rounded-2xl bg-mindSoft px-4 py-4">
-                <p className="text-[14px] font-semibold text-mind">{t("내 상담 예약")} · {t(STATUS_LABEL[info.mine.status])}</p>
+                <p className="text-[14px] font-semibold text-mindInk">{t("내 상담 예약")} · {t(STATUS_LABEL[info.mine.status])}</p>
                 <p className="text-[16px] font-semibold text-ink">{slotLabel(info.mine.slotAt)}</p>
                 <p className="text-[14px] text-sub">{t(TOPIC_LABEL[info.mine.topic])}</p>
                 <button type="button" data-block-id="B375" disabled={busy} className="min-h-0 text-[14px] text-sub underline" onClick={() => cancel(info.mine!.id)}>{t("예약 취소")}</button>
@@ -109,7 +109,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             <div className="space-y-2">
               <p className="text-[18px] font-bold text-ink">{t("요즘 마음은 어떠세요?")}</p>
               <p className="text-[15px] leading-relaxed text-sub">{t("몇 가지 질문으로 나의 스트레스 지수를 체크하고, 원하면 상담 시간을 예약할 수 있어요. 상담은 무료예요.")}</p>
-              <p data-block-id="C374" data-block-name="상담 약속" className="rounded-xl bg-mindSoft px-4 py-3 text-[15px] font-semibold leading-relaxed text-mind">{t(CARE_TEXT)}</p>
+              <p data-block-id="C374" data-block-name="상담 약속" className="rounded-xl bg-mindSoft px-4 py-3 text-[15px] font-semibold leading-relaxed text-mindInk">{t(CARE_TEXT)}</p>
               <ul className="space-y-1 text-[14px] leading-relaxed text-sub">
                 <li>· {t("1~2분이면 끝나요. 답한 내용은 저장하지 않아요.")}</li>
                 <li>· {t("결과는 진단이 아니라 참고용이에요.")}</li>
@@ -164,12 +164,12 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             <div data-block-id="C370" data-block-name="스트레스 지수" className="space-y-1 rounded-2xl bg-bg px-4 py-5 text-center">
               <p className="text-[14px] text-sub">{t(INDEX_NAME)}</p>
               <p className="num text-[44px] font-bold leading-none text-ink">{result.index}<span className="text-[18px] font-semibold text-sub"> / 100</span></p>
-              <p className={`text-[16px] font-semibold ${result.level === "good" ? "text-mint" : result.level === "mild" ? "text-mind" : "text-warn"}`}>{t(LEVEL_LABEL[result.level])}</p>
+              <p className={`text-[16px] font-semibold ${result.level === "good" ? "text-mint" : result.level === "mild" ? "text-mindInk" : "text-warn"}`}>{t(LEVEL_LABEL[result.level])}</p>
             </div>
             <p className="text-[15px] leading-relaxed text-ink">{t(LEVEL_TEXT[result.level])} {t(CARE_TEXT)}</p>
             <p className="text-[12px] leading-relaxed text-sub">{t("점수가 높을수록 스트레스가 큰 상태예요. 표준 자가 점검 문항을 바탕으로 한 참고용이며 의학적 진단이 아니에요.")}</p>
             {info?.mine ? (
-              <p className="rounded-xl bg-mindSoft px-4 py-3 text-[14px] text-mind">{t("이미 예약한 상담이 있어요")}: {slotLabel(info.mine.slotAt)}</p>
+              <p className="rounded-xl bg-mindSoft px-4 py-3 text-[14px] text-mindInk">{t("이미 예약한 상담이 있어요")}: {slotLabel(info.mine.slotAt)}</p>
             ) : !info?.on || !info.slots.length ? (
               <p className="rounded-xl bg-bg px-4 py-3 text-[14px] text-sub">{t("지금은 예약할 수 있는 상담 시간이 없어요. 조금 뒤에 다시 확인해 주세요.")}</p>
             ) : (
@@ -187,7 +187,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
               <p className="text-[15px] font-semibold text-ink">{t("상담 날짜")}</p>
               <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
                 {days.map(([d]) => (
-                  <button key={d} type="button" aria-pressed={shownDay === d} className={`min-h-[44px] shrink-0 rounded-full border px-3.5 text-[14px] ${shownDay === d ? "border-mind bg-mindSoft font-semibold text-mind" : "border-line bg-white text-sub"}`} onClick={() => setDay(d)}>{d}</button>
+                  <button key={d} type="button" aria-pressed={shownDay === d} className={`min-h-[44px] shrink-0 rounded-full border px-3.5 text-[14px] ${shownDay === d ? "border-mind bg-mindSoft font-semibold text-mindInk" : "border-line bg-white text-sub"}`} onClick={() => setDay(d)}>{d}</button>
                 ))}
               </div>
               <div role="radiogroup" aria-label={t("상담 시각")} className="grid grid-cols-3 gap-2">
@@ -210,7 +210,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
                 <p className="text-[13px] text-sub">{t("가입한 메일 주소로 연락드려요.")}</p>
               )}
               {method !== "email" && looksLikePhone(contact) && <p role="alert" className="text-[13px] text-warn">{t("전화번호는 받지 않아요. SNS 아이디를 적어 주세요.")}</p>}
-              <p data-block-id="C375" data-block-name="비밀 보장" className="rounded-xl bg-mindSoft px-4 py-2.5 text-[14px] font-semibold text-mind">{t(PRIVACY_TEXT)}</p>
+              <p data-block-id="C375" data-block-name="비밀 보장" className="rounded-xl bg-mindSoft px-4 py-2.5 text-[14px] font-semibold text-mindInk">{t(PRIVACY_TEXT)}</p>
             </div>
             <label className="block text-[15px] font-semibold text-ink">
               {t("남기고 싶은 말 (선택)")}
@@ -235,9 +235,9 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
           <>
             <div className="space-y-2 py-2 text-center">
               <p className="text-[18px] font-bold text-ink">{t("예약이 접수됐어요")}</p>
-              {booked != null && <p className="text-[16px] font-semibold text-mind">{slotLabel(booked)}</p>}
+              {booked != null && <p className="text-[16px] font-semibold text-mindInk">{slotLabel(booked)}</p>}
               <p className="text-[14px] leading-relaxed text-sub">{t("담당자가 확인한 뒤 남겨 주신 SNS로 연락드릴게요. 접수 확인 메일도 보내 드렸어요. 예약은 내 정보 › 마음 상담에서 확인하거나 취소할 수 있어요.")}</p>
-              <p className="text-[15px] font-semibold text-mind">{t(CARE_TEXT)}</p>
+              <p className="text-[15px] font-semibold text-mindInk">{t(CARE_TEXT)}</p>
             </div>
             <button type="button" className={btnMind} onClick={onClose}>{t("확인")}</button>
           </>
