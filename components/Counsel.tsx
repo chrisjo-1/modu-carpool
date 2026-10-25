@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  CARE_TEXT, CHECK_NAME, CHOICES, INDEX_NAME, LEVEL_LABEL, LEVEL_TEXT, METHODS, METHOD_HINT, PRIVACY_TEXT, STATUS_LABEL, TOPICS, TOPIC_LABEL,
+  CARE_TEXT, CHECK_NAME, CHOICES, QUIZ_GUIDE, INDEX_NAME, LEVEL_LABEL, LEVEL_TEXT, METHODS, METHOD_HINT, PRIVACY_TEXT, STATUS_LABEL, TOPICS, TOPIC_LABEL,
   looksLikePhone, questionsFor, scoreAnswers, slotLabel, type CounselStatus, type Method, type Result, type Topic,
 } from "@/lib/counsel";
 import { Sheet, api, btnGhost, btnPrimary, field, useT } from "./ui";
@@ -143,7 +143,7 @@ export default function Counsel({ onClose, toast }: { onClose: () => void; toast
           <>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-[13px] text-sub">
-                <span>{t("지난 2주 동안")}</span>
+                <span className="font-semibold text-ink">{t(QUIZ_GUIDE)}</span>
                 <span className="num">{qi + 1} / {qs.length}</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg" aria-hidden>
