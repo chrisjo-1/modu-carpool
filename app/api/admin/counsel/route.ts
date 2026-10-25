@@ -18,8 +18,8 @@ export async function GET(req: Request) {
     const [config, items, counts] = await Promise.all([
       getCounselConfig(),
       sql`select b.id, b.topic, b.mind_index, b.level, b.crisis, extract(epoch from b.slot_at)::bigint * 1000 as slot_at, b.method, b.contact, b.note, b.status, b.admin_memo,
-          extract(epoch from b.created_at)::bigint * 1000 as created_at, u.email, coalesce(u.member_code, '') as member_code
-        from counsel_bookings b join users u on u.id = b.user_id
+          extract(epoch from b.created_at)::bigint * 1000 as created_at, coalesce(u.email, b.guest_email, '') as email, coalesce(u.member_code, '비회원') as member_code
+        from counsel_bookings b left join users u on u.id = b.user_id
         where (${filter} = '' or b.status = ${filter})
         order by (b.status in ('pending', 'confirmed') and b.slot_at > now() - interval '2 hours') desc, b.slot_at asc
         limit 200`,

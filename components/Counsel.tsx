@@ -20,7 +20,7 @@ const chip = (on: boolean) => `min-h-0 rounded-xl border px-4 py-3 text-left tex
  * 가볍게 들어올 수 있게 위기 전화번호 안내는 두지 않는다(위기 문항 해당은 관리자 메일에만 [긴급]).
  * 응답 원문은 서버에 보내기만 하고 저장하지 않는다(지수·단계만 저장). 연락처는 SNS 아이디만(전화번호 받지 않음).
  */
-export default function Counsel({ onClose, onLogin, toast }: { onClose: () => void; onLogin: () => void; toast: (m: string) => void }) {
+export default function Counsel({ onClose, toast }: { onClose: () => void; toast: (m: string) => void }) {
   const t = useT();
   const [info, setInfo] = useState<Info | null>(null);
   const [step, setStep] = useState<Step>("intro");
@@ -29,6 +29,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
   const [slot, setSlot] = useState<number | null>(null);
   const [method, setMethod] = useState<Method>("kakao");
   const [contact, setContact] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -72,7 +73,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
     if (!topic || slot == null) return;
     setErr("");
     setBusy(true);
-    const r = await api<{ slotAt: number }>("/api/counsel", "POST", { action: "book", topic, answers, slot, method, contact, note, consent });
+    const r = await api<{ slotAt: number }>("/api/counsel", "POST", { action: "book", topic, answers, slot, method, contact, email: guestEmail, note, consent });
     setBusy(false);
     if (!r.ok) {
       setErr(t(r.error));
@@ -173,8 +174,8 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             ) : !info?.on || !info.slots.length ? (
               <p className="rounded-xl bg-bg px-4 py-3 text-[14px] text-sub">{t("지금은 예약할 수 있는 상담 시간이 없어요. 조금 뒤에 다시 확인해 주세요.")}</p>
             ) : (
-              <button type="button" data-block-id="B373" data-block-name="상담 예약하기" className={btnMind} onClick={() => (info.loggedIn ? setStep("book") : onLogin())}>
-                {info.loggedIn ? t("상담 시간 예약하기") : t("로그인하고 예약하기")}
+              <button type="button" data-block-id="B373" data-block-name="상담 예약하기" className={btnMind} onClick={() => setStep("book")}>
+                {t("상담 시간 예약하기")}
               </button>
             )}
             <button type="button" className={btnGhost} onClick={onClose}>{t("닫기")}</button>
@@ -207,7 +208,11 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
                 <input data-block-id="F370" aria-label={t("SNS 아이디")} className={field} maxLength={60} value={contact} onChange={(e) => setContact(e.target.value)}
                   placeholder={t(METHOD_HINT[method])} autoCapitalize="off" autoCorrect="off" />
               ) : (
-                <p className="text-[13px] text-sub">{t("가입한 메일 주소로 연락드려요.")}</p>
+                info?.loggedIn ? (
+                  <p className="text-[13px] text-sub">{t("가입한 메일 주소로 연락드려요.")}</p>
+                ) : (
+                  <input data-block-id="F372" aria-label={t("메일 주소")} type="email" inputMode="email" autoCapitalize="off" className={field} maxLength={120} value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} placeholder={t("연락받을 메일 주소")} />
+                )
               )}
               {method !== "email" && looksLikePhone(contact) && <p role="alert" className="text-[13px] text-warn">{t("전화번호는 받지 않아요. SNS 아이디를 적어 주세요.")}</p>}
               <p data-block-id="C375" data-block-name="비밀 보장" className="rounded-xl bg-mindSoft px-4 py-2.5 text-[14px] font-semibold text-mindInk">{t(PRIVACY_TEXT)}</p>
@@ -224,7 +229,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
               </span>
             </label>
             {err && <p role="alert" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] text-warn">{err}</p>}
-            <button type="button" data-block-id="B374" data-block-name="상담 예약 확정" className={btnMind} disabled={busy || slot == null || !consent || (method !== "email" && (!contact.trim() || looksLikePhone(contact)))} onClick={book}>
+            <button type="button" data-block-id="B374" data-block-name="상담 예약 확정" className={btnMind} disabled={busy || slot == null || !consent || (method !== "email" && (!contact.trim() || looksLikePhone(contact))) || (method === "email" && !info?.loggedIn && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim()))} onClick={book}>
               {busy ? t("처리 중…") : slot != null ? `${slotLabel(slot)} ${t("예약하기")}` : t("시간을 골라 주세요")}
             </button>
             <button type="button" className="min-h-0 text-[14px] text-sub underline" onClick={() => setStep("result")}>{t("이전")}</button>
@@ -236,7 +241,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             <div className="space-y-2 py-2 text-center">
               <p className="text-[18px] font-bold text-ink">{t("예약이 접수됐어요")}</p>
               {booked != null && <p className="text-[16px] font-semibold text-mindInk">{slotLabel(booked)}</p>}
-              <p className="text-[14px] leading-relaxed text-sub">{t("담당자가 확인한 뒤 남겨 주신 SNS로 연락드릴게요. 접수 확인 메일도 보내 드렸어요. 예약은 내 정보 › 마음 상담에서 확인하거나 취소할 수 있어요.")}</p>
+              <p className="text-[14px] leading-relaxed text-sub">{info?.loggedIn ? t("담당자가 확인한 뒤 남겨 주신 연락처로 연락드릴게요. 접수 확인 메일도 보내 드렸어요. 예약은 내 정보 › 설정 › 마음 상담에서 확인하거나 취소할 수 있어요.") : t("담당자가 확인한 뒤 남겨 주신 연락처로 연락드릴게요. 회원가입 없이 예약됐어요.")}</p>
               <p className="text-[15px] font-semibold text-mindInk">{t(CARE_TEXT)}</p>
             </div>
             <button type="button" className={btnMind} onClick={onClose}>{t("확인")}</button>

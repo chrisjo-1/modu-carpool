@@ -516,6 +516,9 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     admin_memo text not null default '',
     consent_at timestamptz not null,
     created_at timestamptz not null default now())`;
+  // 회원가입 없이도 예약할 수 있다(user_id 없음 = 비회원, 메일로 연락받을 때만 guest_email)
+  await sql`alter table counsel_bookings alter column user_id drop not null`;
+  await sql`alter table counsel_bookings add column if not exists guest_email text not null default ''`;
   // 한 시각에 여러 명 예약할 수 있다(시각당 1명 제한 없음)
   await sql`drop index if exists counsel_slot_uniq`;
   await sql`create index if not exists counsel_user_idx on counsel_bookings (user_id)`;

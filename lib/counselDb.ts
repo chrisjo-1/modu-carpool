@@ -63,7 +63,7 @@ export async function notifyAdminsOfBooking(b: Booking) {
 }
 
 /** 예약한 회원에게 접수 확인 메일 */
-export async function sendBookingReceipt(to: string, userId: string, b: Booking) {
+export async function sendBookingReceipt(to: string, userId: string | null, b: Booking) {
   const when = slotLabel(b.slotAt);
   const subject = `[모두의카풀] 마음 상담 예약이 접수됐어요 · ${when}`;
   const rows: [string, string][] = [
@@ -71,7 +71,8 @@ export async function sendBookingReceipt(to: string, userId: string, b: Booking)
     ["상담 유형", TOPIC_LABEL[b.topic]],
     ["연락 방법", METHOD_LABEL[b.method]],
   ];
-  const lead = `예약을 접수했어요. 담당자가 확인한 뒤 남겨 주신 연락처로 연락드릴게요. ${CARE_TEXT} ${PRIVACY_TEXT} 예약은 내 정보 › 마음 상담에서 확인하거나 취소할 수 있어요.`;
+  const manage = userId ? "예약은 내 정보 › 설정 › 마음 상담에서 확인하거나 취소할 수 있어요." : "시간을 바꾸거나 취소하고 싶으면 담당자가 연락드릴 때 편하게 말씀해 주세요.";
+  const lead = `예약을 접수했어요. 담당자가 확인한 뒤 남겨 주신 연락처로 연락드릴게요. ${CARE_TEXT} ${PRIVACY_TEXT} ${manage}`;
   const html = card("마음 상담", rows, lead, "모두의카풀 바로가기", siteUrl());
   const text = `${lead}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n${siteUrl()}`;
   await deliver({ kind: "counsel-receipt", category: "transactional", to, userId, subject, html, text }).catch(() => false);

@@ -620,7 +620,8 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
         {commute && <CommuteSheet user={user} initial={commute.post} prefill={commute.prefill} startMode={commute.startMode} onboarding={commute.onboarding} onClose={() => setCommute(null)} toast={setToastMsg} onDone={() => { setCommute(null); setJoinFlow(false); refresh(); setTab("home"); }} />}
         {room && <ChatRoom thread={room} onClose={() => { setRoom(null); loadThreads(); }} toast={setToastMsg} onChanged={refresh} onProfile={setMember} onReport={(userId, name, requestId) => setWhy({ mode: "report", userId, name, requestId })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {member && <MemberSheet userId={member} onClose={() => setMember(null)} toast={setToastMsg} onReport={(userId, name) => setWhy({ mode: "report", userId, name })} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
-        {enabled && checked && !user && !preview && !resetToken && !withdrawToken && (
+        {/* 상담 창·탈퇴 확인 창을 링크로 연 비회원에게는 첫 화면(로그인 안내)을 그 창이 닫힐 때까지 띄우지 않는다(위에 덮이지 않게) */}
+        {enabled && checked && !user && !preview && !resetToken && !withdrawToken && !counselOpen && !leaveOpen && (
           <Gate
             setUser={(u) => {
               setUser(u);
@@ -641,7 +642,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {withdrawToken && <Withdraw token={withdrawToken} onClose={() => setWithdrawToken("")} />}
         {leaveOpen && !withdrawToken && <Withdraw initialEmail={user?.email ?? ""} onClose={() => setLeaveOpen(false)} />}
-        {counselOpen && <Counsel toast={setToastMsg} onClose={() => setCounselOpen(false)} onLogin={() => { setCounselOpen(false); setTab("me"); setToastMsg(translate(langNow(), "로그인하면 상담을 예약할 수 있어요.")); }} />}
+        {counselOpen && <Counsel toast={setToastMsg} onClose={() => setCounselOpen(false)} />}
         {resetToken && (
           <ResetSheet
             token={resetToken}
