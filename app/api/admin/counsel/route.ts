@@ -25,7 +25,9 @@ export async function GET(req: Request) {
         limit 200`,
       sql`select status, count(*)::int as n from counsel_bookings group by status`,
     ]);
-    return json({ config, items, counts: Object.fromEntries(counts.map((c) => [c.status, c.n])) });
+    // 운영 DB(Neon)는 bigint를 글자로 돌려주므로 시각은 숫자로 바꿔 보낸다(안 바꾸면 화면에 NaN)
+    const list = items.map((r) => ({ ...r, slot_at: Number(r.slot_at), created_at: Number(r.created_at), mind_index: Number(r.mind_index) }));
+    return json({ config, items: list, counts: Object.fromEntries(counts.map((c) => [c.status, Number(c.n)])) });
   } catch (e) {
     return fail(e);
   }
