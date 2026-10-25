@@ -42,7 +42,7 @@ const AdminCounsel = dynamic(() => import("@/components/admin/Counsel"), { ssr: 
 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
-  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; lastPost: number | null; posts: number; tier: string; tier_set: string; legacy_stars: number; legacy_reviews: number; legacy_rides: number; is_warp: boolean;
+  id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; lastPost: number | null; posts: number; tier: string; tier_set: string; legacy_stars: number; legacy_reviews: number; legacy_rides: number; is_warp: boolean; is_new_warp: boolean;
   bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
   withdrawn: boolean; pw_reset_required: boolean;
@@ -56,12 +56,20 @@ type ReportRow = Flag & { reporter_name: string; reporter_email: string };
 type BlockRow = Flag & { blocker_name: string; blocker_email: string };
 type Stats = {
   users: number; blocked: number; users_normal: number; users_pwreset: number; users_withdrawn: number; users_test: number;
+  type_nw: number; type_nwt: number; type_ow: number; type_new: number; data_ow: number; data_nw: number;
   posts: number; posts_open: number; posts_progress: number; posts_closed: number;
   requests: number; requests_pending: number; requests_declined: number; accepted: number; reports: number;
 };
 type Info = { db: boolean; stats: Stats | null; userTotal: number; posts: PostRow[]; users: UserRow[]; reports: ReportRow[]; blocks: BlockRow[] };
 /** 회원 필터(모두 서버에서 전체 회원 대상) */
 type UserFilter = { gen: string; role: string; status: string; origin: string; from: string; to: string; seen: string; has: string; withTest: boolean };
+/** 회원 타입: 신워프 명단 연결(비번 설정 전이면 임시가입) · 구워프 명단 연결 · 직접 가입 */
+function memberType(u: { is_warp: boolean; is_new_warp: boolean; pw_reset_required: boolean }) {
+  if (u.is_new_warp) return u.pw_reset_required ? <span className="text-sub">신워프 임시가입</span> : <span className="font-semibold text-accent">신워프 가입</span>;
+  if (u.is_warp) return <span className="font-semibold">구워프 가입</span>;
+  return <span>직접 가입</span>;
+}
+
 const NO_FILTER: UserFilter = { gen: "", role: "", status: "", origin: "", from: "", to: "", seen: "", has: "", withTest: false };
 type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate" | "counsel";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
@@ -222,6 +230,26 @@ export default function Admin() {
           </button>
         ))}
       </section>
+
+      {s && (
+        <section data-block-id="S401" data-block-name="회원 타입별 인원" className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white p-3 text-sm shadow-card">
+          <span className="mr-1 text-xs font-semibold text-sub">회원 타입</span>
+          {([
+            ["nw", "신워프 가입", s.type_nw],
+            ["nwt", "신워프 임시가입", s.type_nwt],
+            ["ow", "구워프 가입", s.type_ow],
+            ["new", "직접 가입", s.type_new],
+          ] as [string, string, number][]).map(([k, label, v]) => (
+            <button key={k} type="button" data-block-id="B401" data-block-name={`회원 타입 ${label}`} onClick={() => { setQ(""); setTab("users"); setFilter({ ...NO_FILTER, origin: k }, ""); }} className="min-h-0 rounded-full border border-line px-3 py-1 hover:border-accent">
+              {label} <b className="num">{(v ?? 0).toLocaleString()}</b>
+            </button>
+          ))}
+          <button type="button" data-block-id="B402" data-block-name="워프 데이터 보기" onClick={() => setTab("legacy")} className="min-h-0 rounded-full border border-dashed border-line px-3 py-1 text-sub hover:border-accent">
+            계정 없는 데이터 · 구워프 <b className="num">{(s.data_ow ?? 0).toLocaleString()}</b> · 신워프 <b className="num">{(s.data_nw ?? 0).toLocaleString()}</b>
+          </button>
+          <span className="w-full text-xs text-sub">임시가입은 신워프 명단으로 만든 계정이에요. 회원이 접속해 비밀번호를 새로 정하면 자동으로 &lsquo;신워프 가입&rsquo;으로 바뀝니다. 탈퇴·테스트 제외.</span>
+        </section>
+      )}
       {info?.db && <Funnel />}
       {!info?.db && <p className="rounded-xl bg-warnSoft px-4 py-3 text-sm text-warn">DB가 아직 연결되지 않았습니다. 연결 전에는 현황과 관리 기능이 동작하지 않습니다.</p>}
 
@@ -332,9 +360,12 @@ export default function Admin() {
               <option value="test">테스트</option>
             </select>
             <select data-block-id="F096" aria-label="회원 구분 필터" className={fieldBase} value={uf.origin} onChange={(e) => setFilter({ origin: e.target.value })}>
-              <option value="">구분: 전체</option>
-              <option value="new">새로 가입</option>
-              <option value="warp">워프에서 이전</option>
+              <option value="">회원 타입: 전체</option>
+              <option value="nw">신워프 가입</option>
+              <option value="nwt">신워프 임시가입</option>
+              <option value="ow">구워프 가입</option>
+              <option value="new">모두의카풀 직접 가입</option>
+              <option value="warp">워프 전체(신·구)</option>
             </select>
             <select data-block-id="F097" aria-label="최근 접속 필터" className={fieldBase} value={uf.seen} onChange={(e) => setFilter({ seen: e.target.value })}>
               <option value="">최근 접속: 전체</option>
@@ -423,7 +454,7 @@ export default function Admin() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="text-sub">
-                <tr>{["가입일", "프로필 사진", "최근 접속", "고유코드", "차량", "차량 사진", "이메일", "역할", "성별", "운전자 등급", "글", "크레딧", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                <tr>{["가입일", "프로필 사진", "최근 접속", "고유코드", "차량", "차량 사진", "이메일", "역할", "성별", "운전자 등급", "글", "크레딧", "회원 타입", "상태", ""].map((h) => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {rows.map((u) => (
@@ -460,7 +491,8 @@ export default function Admin() {
                     </td>
                     <td className="num whitespace-nowrap px-2 py-2">{u.posts}{u.lastPost && <span className="block text-xs text-sub">{lastSeenText(u.lastPost)}</span>}</td>
                     <td className="num px-2 py-2">{(u.credits ?? 0).toLocaleString("ko-KR")}</td>
-                    <td className="whitespace-nowrap px-2 py-2">{u.withdrawn ? <span className="text-sub">탈퇴</span> : u.blocked ? <span className="font-semibold text-warn">차단됨</span> : u.pw_reset_required ? <span className="text-sub">비번 미설정</span> : "정상"}</td>
+                    <td className="whitespace-nowrap px-2 py-2">{memberType(u)}</td>
+                    <td className="whitespace-nowrap px-2 py-2">{u.withdrawn ? <span className="text-sub">탈퇴</span> : u.blocked ? <span className="font-semibold text-warn">차단됨</span> : u.pw_reset_required ? <span className="text-sub">{u.is_new_warp ? "임시가입" : "비번 미설정"}</span> : "정상"}</td>
                     <td className="whitespace-nowrap px-2 py-2">
                       <button data-block-id="B241" data-block-name="회원 상세 보기" className="mr-3 min-h-0 font-semibold text-accent underline" onClick={() => setMember(u)}>상세</button>
                       {u.test && <button data-block-id="B097" data-block-name="이 회원으로 들어가기" className="mr-3 min-h-0 font-semibold text-accent underline" onClick={() => enter(u)}>이 회원으로 들어가기</button>}

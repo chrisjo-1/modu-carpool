@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   // 추가 필터: 상태 · 회원 구분 · 가입일 · 최근 접속 · 등록 정보 · 테스트 포함
   const pick = (k: string, ok: string[]) => (ok.includes(sp.get(k) ?? "") ? (sp.get(k) as string) : "");
   const status = pick("status", ["normal", "pwreset", "blocked", "withdrawn", "test"]);
-  const origin = pick("origin", ["new", "warp"]);
+  const origin = pick("origin", ["new", "warp", "nw", "nwt", "ow"]);
   const seen = pick("seen", ["7", "30", "90", "old", "never"]);
   const has = pick("has", ["photo", "car", "commute"]);
   const ymd = (k: string) => (/^\d{4}-\d{2}-\d{2}$/.test(sp.get(k) ?? "") ? (sp.get(k) as string) : "");
@@ -53,6 +53,12 @@ export async function GET(req: Request) {
       (select count(*)::int from users where not test and not blocked and withdrawn_at is null and pw_reset_required) as users_pwreset,
       (select count(*)::int from users where not test and withdrawn_at is not null) as users_withdrawn,
       (select count(*)::int from users where test) as users_test,
+      (select count(*)::int from users u where not u.test and u.withdrawn_at is null and not u.pw_reset_required and exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%')) as type_nw,
+      (select count(*)::int from users u where not u.test and u.withdrawn_at is null and u.pw_reset_required and exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%')) as type_nwt,
+      (select count(*)::int from users u where not u.test and u.withdrawn_at is null and exists (select 1 from legacy_members l where l.matched_user = u.id) and not exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%')) as type_ow,
+      (select count(*)::int from users u where not u.test and u.withdrawn_at is null and not exists (select 1 from legacy_members l where l.matched_user = u.id)) as type_new,
+      (select count(*)::int from legacy_members where src_no not like '신워프%' and matched_user is null and not withdrawn) as data_ow,
+      (select count(*)::int from legacy_members where src_no like '신워프%' and matched_user is null and not withdrawn) as data_nw,
       (select count(*)::int from posts) as posts,
       (select count(*)::int from posts where status = 'open') as posts_open,
       (select count(*)::int from posts where status = 'progress') as posts_progress,
@@ -69,6 +75,7 @@ export async function GET(req: Request) {
       select u.id, u.email, u.name, u.member_code, u.blocked, u.test, u.credits, u.created_at, u.last_seen, u.bio, u.contact, u.contact_type,
              u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.tier_set, u.interests, u.legacy_stars, u.legacy_reviews, u.legacy_rides,
              exists (select 1 from legacy_members l where l.matched_user = u.id) as is_warp,
+             exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%') as is_new_warp,
              u.commute_kind, u.commute_origin, u.commute_dest, u.commute_time, u.commute_price,
              (select count(*)::int from posts where user_id = u.id) as posts,
              (select count(*)::int from posts where user_id = u.id and role = 'driver') as driver_posts,
@@ -87,7 +94,9 @@ export async function GET(req: Request) {
           or (${status} = 'test' and u.test))
         and (${origin} = ''
           or (${origin} = 'warp' and exists (select 1 from legacy_members l where l.matched_user = u.id))
-          or (${origin} = 'new' and not exists (select 1 from legacy_members l where l.matched_user = u.id)))
+          or (${origin} = 'new' and not exists (select 1 from legacy_members l where l.matched_user = u.id))
+          or (${origin} in ('nw', 'nwt') and u.pw_reset_required = (${origin} = 'nwt') and exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%'))
+          or (${origin} = 'ow' and exists (select 1 from legacy_members l where l.matched_user = u.id) and not exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%')))
         and (${from} = '' or u.created_at >= (nullif(${from}, '')::date::timestamp at time zone 'Asia/Seoul'))
         and (${to} = '' or u.created_at < ((nullif(${to}, '')::date + 1)::timestamp at time zone 'Asia/Seoul'))
         and (${seen} = ''
