@@ -5,7 +5,7 @@ export default {
     extend: {
       colors: {
         bg: "#F5F7FA", surface: "#FFFFFF", line: "#E5E8EE", ink: "#10141C", sub: "#6B7482",
-        accent: "#2F6BFF", accentSoft: "#EAF1FF", warn: "#C2410C", warnSoft: "#FFF4EC", mint: "#0F8553", mintSoft: "#E7F7EE",
+        accent: "#2F6BFF", accentSoft: "#EAF1FF", warn: "#C2410C", warnSoft: "#FFF4EC", mint: "#00754A", mintSoft: "#E7F7EE",
         violet: "#7C3AED", violetSoft: "#F3EEFF",
       },
       fontFamily: { sans: ["Pretendard Variable", "Pretendard", "system-ui", "sans-serif"] },
