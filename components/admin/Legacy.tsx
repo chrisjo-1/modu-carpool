@@ -111,7 +111,7 @@ export default function Legacy() {
         setProgress("");
         return;
       }
-      let saved = 0, skipped = 0, created = 0;
+      let saved = 0, skipped = 0, created = 0, dup = 0;
       for (let i = 0; i < data.length; i += 500) {
         setProgress(`올리는 중… ${n(Math.min(i + 500, data.length))} / ${n(data.length)}`);
         const res = await call("POST", "/api/admin/legacy", { action: "import", source: isNewWarp ? "신워프" : undefined, rows: data.slice(i, i + 500) });
@@ -120,10 +120,11 @@ export default function Legacy() {
         saved += j.saved;
         skipped += j.skipped;
         created += j.created ?? 0;
+        dup += j.oldDupRemoved ?? 0;
       }
       setProgress("현재 회원과 대조하는 중…");
       const m = await call("POST", "/api/admin/legacy", { action: "match" }).then((x) => x.json());
-      setProgress(`완료: ${n(saved)}명 저장${isNewWarp ? `, 새 계정 ${n(created)}명 생성(비밀번호는 '비밀번호 찾기'로 설정)` : ""}${skipped ? `, ${n(skipped)}행 건너뜀(회원ID 형식 오류)` : ""} · 대조 결과 가입됨 ${n(m.joined)}명`);
+      setProgress(`완료: ${n(saved)}명 저장${isNewWarp ? `, 새 계정 ${n(created)}명 생성(비밀번호는 '비밀번호 찾기'로 설정)` : ""}${skipped ? `, ${n(skipped)}행 건너뜀(회원ID 형식 오류)` : ""} · 대조 결과 가입됨 ${n(m.joined)}명${dup + (m.oldDupRemoved ?? 0) ? ` · 신워프와 메일이 같은 구워프 데이터 ${n(dup + (m.oldDupRemoved ?? 0))}건 정리` : ""}`);
       load(0);
     } catch (e) {
       setProgress(e instanceof Error ? e.message : "업로드하지 못했습니다.");

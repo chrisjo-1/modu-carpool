@@ -104,6 +104,23 @@ export async function GET(req: Request) {
   }
 }
 
+/**
+ * 구워프와 신워프에 같은 메일이 있으면 구워프 행을 지우고 신워프(고유코드·임시가입) 쪽만 남긴다(사용자 지시 2026-10-25).
+ * 구워프 행에만 계정이 연결돼 있으면 먼저 그 연결을 신워프 행으로 옮긴다. 신워프 행이 탈퇴면 건드리지 않는다.
+ */
+async function dropOldWarpDuplicates(): Promise<number> {
+  const sql = db();
+  await sql`update legacy_members n set matched_user = o.matched_user, matched_by = coalesce(o.matched_by, '구워프 연결 이관'), match_status = o.match_status
+    from legacy_members o
+    where n.src_no like '신워프%' and not n.withdrawn and n.matched_user is null and o.src_no not like '신워프%' and o.matched_user is not null
+      and ((coalesce(n.email_norm, '') <> '' and n.email_norm = o.email_norm) or (n.email_h is not null and n.email_h = o.email_h))`;
+  const r = await sql`delete from legacy_members o
+    where o.src_no not like '신워프%' and exists (select 1 from legacy_members n where n.src_no like '신워프%' and not n.withdrawn
+      and ((coalesce(n.email_norm, '') <> '' and n.email_norm = o.email_norm) or (n.email_h is not null and n.email_h = o.email_h)))
+    returning o.warp_id`;
+  return r.length;
+}
+
 /** {action:"import", rows:[...]}: 엑셀 '회원통합' 시트를 500행씩 받아 넣는다. {action:"match"}: 전체 대조 */
 export async function POST(req: Request) {
   if (!(await isAdmin())) return denied();
@@ -112,7 +129,10 @@ export async function POST(req: Request) {
   try {
     await ensureSchema();
     const sql = db();
-    if (b.action === "match") return json({ ok: true, ...(await runMatch()) });
+    if (b.action === "match") {
+      const m = await runMatch();
+      return json({ ok: true, ...m, oldDupRemoved: await dropOldWarpDuplicates() });
+    }
     if (b.action !== "import" || !Array.isArray(b.rows) || b.rows.length === 0 || b.rows.length > 1000)
       return json({ error: "잘못된 요청입니다." }, 400);
     const cols: Record<string, (string | number | boolean | null)[]> = {
@@ -203,7 +223,8 @@ export async function POST(req: Request) {
       for (const row of r) await performWithdraw(String(row.email));
       withdrawnAccounts = r.length;
     }
-    return json({ ok: true, saved: cols.id.length, skipped, created, withdrawnAccounts });
+    const oldDupRemoved = await dropOldWarpDuplicates();
+    return json({ ok: true, saved: cols.id.length, skipped, created, withdrawnAccounts, oldDupRemoved });
   } catch (e) {
     return fail(e);
   }
