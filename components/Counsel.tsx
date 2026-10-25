@@ -11,7 +11,10 @@ const btnMind = btnPrimary.replace("bg-accent", "bg-mind").replace("text-[17px] 
 
 type Mine = { id: string; topic: Topic; slotAt: number; method: Method; status: CounselStatus };
 type Info = { on: boolean; slots: number[]; mine: Mine | null; loggedIn: boolean };
-type Step = "intro" | "topic" | "quiz" | "result" | "book" | "done";
+type Step = "intro" | "topic" | "quiz" | "write" | "result" | "book" | "done";
+
+/** 글 속 휴대폰 번호(010-1234-5678 등) */
+const hasPhone = (s: string) => /01[016789][\s-]?\d{3,4}[\s-]?\d{4}/.test(s);
 
 const chip = (on: boolean) => `min-h-0 rounded-xl border px-4 py-3 text-left text-[15px] ${on ? "border-mind bg-mindSoft font-semibold text-mindInk" : "border-line bg-white text-ink"}`;
 
@@ -30,7 +33,8 @@ export default function Counsel({ onClose, toast }: { onClose: () => void; toast
   const [method, setMethod] = useState<Method>("kakao");
   const [contact, setContact] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
-  const [note, setNote] = useState("");
+  const [hard, setHard] = useState("");
+  const [thoughts, setThoughts] = useState("");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -66,14 +70,15 @@ export default function Counsel({ onClose, toast }: { onClose: () => void; toast
   const answer = (v: number) => {
     const next = [...answers, v];
     setAnswers(next);
-    if (next.length === qs.length) setStep("result");
+    // 마지막 질문 다음: 직접 적는 칸(선택) → 결과
+    if (next.length === qs.length) setStep("write");
   };
 
   const book = async () => {
     if (!topic || slot == null) return;
     setErr("");
     setBusy(true);
-    const r = await api<{ slotAt: number }>("/api/counsel", "POST", { action: "book", topic, answers, slot, method, contact, email: guestEmail, note, consent });
+    const r = await api<{ slotAt: number }>("/api/counsel", "POST", { action: "book", topic, answers, slot, method, contact, email: guestEmail, hard, thoughts, consent });
     setBusy(false);
     if (!r.ok) {
       setErr(t(r.error));
@@ -160,6 +165,27 @@ export default function Counsel({ onClose, toast }: { onClose: () => void; toast
           </>
         )}
 
+        {step === "write" && (
+          <>
+            <div className="space-y-1">
+              <p className="text-[18px] font-bold text-ink">{t("조금 더 들려주세요")}</p>
+              <p className="text-[14px] leading-relaxed text-sub">{t("적고 싶은 만큼만 편하게 적어 주세요. 비워 두고 넘어가도 괜찮아요.")}</p>
+            </div>
+            <label className="block text-[15px] font-semibold text-ink">
+              {t("요즘 가장 힘들었던 일이나, 나를 힘들게 하는 사람")}
+              <textarea data-block-id="F373" className={`${field} mt-1 min-h-[110px]`} maxLength={500} value={hard} onChange={(e) => setHard(e.target.value)} placeholder={t("예: 회사에서 맡은 일이 너무 많아요 / 가족과 자주 다퉈요")} />
+            </label>
+            <label className="block text-[15px] font-semibold text-ink">
+              {t("그 일을 떠올리면 어떤 생각이 드나요?")}
+              <textarea data-block-id="F374" className={`${field} mt-1 min-h-[110px]`} maxLength={500} value={thoughts} onChange={(e) => setThoughts(e.target.value)} placeholder={t("예: 내가 부족한 것 같아요 / 다 그만두고 싶어요")} />
+            </label>
+            {hasPhone(hard + " " + thoughts) && <p role="alert" className="text-[13px] text-warn">{t("전화번호는 적지 말아 주세요. 비밀을 지키기 위해 받지 않아요.")}</p>}
+            <p className="rounded-xl bg-mindSoft px-4 py-2.5 text-[13px] leading-relaxed text-mindInk">{t("적은 글은 상담을 예약할 때만 상담 준비에 쓰이고, 상담을 마치면 바로 지워져요.")}</p>
+            <button type="button" data-block-id="B377" data-block-name="다 적었어요" className={btnMind} disabled={hasPhone(hard + " " + thoughts)} onClick={() => setStep("result")}>{hard.trim() || thoughts.trim() ? t("다 적었어요") : t("건너뛰고 결과 보기")}</button>
+            <button type="button" className="min-h-0 text-[14px] text-sub underline" onClick={() => { setAnswers(answers.slice(0, -1)); setStep("quiz"); }}>{t("이전")}</button>
+          </>
+        )}
+
         {step === "result" && result && (
           <>
             <div data-block-id="C370" data-block-name="스트레스 지수" className="space-y-1 rounded-2xl bg-bg px-4 py-5 text-center">
@@ -217,15 +243,11 @@ export default function Counsel({ onClose, toast }: { onClose: () => void; toast
               {method !== "email" && looksLikePhone(contact) && <p role="alert" className="text-[13px] text-warn">{t("전화번호는 받지 않아요. SNS 아이디를 적어 주세요.")}</p>}
               <p data-block-id="C375" data-block-name="비밀 보장" className="rounded-xl bg-mindSoft px-4 py-2.5 text-[14px] font-semibold text-mindInk">{t(PRIVACY_TEXT)}</p>
             </div>
-            <label className="block text-[15px] font-semibold text-ink">
-              {t("남기고 싶은 말 (선택)")}
-              <textarea data-block-id="F371" className={`${field} mt-1 min-h-[88px]`} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("상담 전에 알려 주고 싶은 것이 있으면 적어 주세요.")} />
-            </label>
             <label data-block-id="C373" data-block-name="민감정보 동의" className="flex items-start gap-2.5 rounded-xl bg-bg px-4 py-3 text-[13px] leading-relaxed text-sub">
               <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
               <span>
                 <b className="text-ink">{t("[필수] 민감정보 수집·이용 동의")}</b><br />
-                {t("상담 예약을 위해 상담 유형, 스트레스 지수·단계, 희망 시간, 연락 방법·SNS 아이디, 남긴 말을 수집해요. 질문에 답한 내용 자체는 저장하지 않아요. 상담 시간이 지나고 180일 뒤 지워지며, 동의하지 않으면 예약할 수 없어요.")}
+                {t("상담 예약을 위해 상담 유형, 스트레스 지수·단계, 희망 시간, 연락 방법·SNS 아이디, 직접 적은 글을 수집해요. 질문에 고른 답은 저장하지 않아요. 직접 적은 글은 상담을 마치면 바로, 나머지는 상담 시간이 지나고 180일 뒤 지워지며, 동의하지 않으면 예약할 수 없어요.")}
               </span>
             </label>
             {err && <p role="alert" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] text-warn">{err}</p>}

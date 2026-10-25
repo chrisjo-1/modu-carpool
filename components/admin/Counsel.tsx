@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { LEVEL_LABEL, METHOD_LABEL, STATUS_LABEL, TOPIC_LABEL, slotLabel, type CounselConfig, type CounselStatus, type Level, type Method, type Topic } from "@/lib/counsel";
 
 type Item = {
-  id: string; topic: Topic; mind_index: number; level: Level; crisis: boolean; slot_at: number; method: Method; contact: string; note: string;
+  id: string; topic: Topic; mind_index: number; level: Level; crisis: boolean; slot_at: number; method: Method; contact: string; note: string; hard: string; thoughts: string;
   status: CounselStatus; admin_memo: string; created_at: number; email: string; member_code: string;
 };
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -127,6 +127,8 @@ export default function AdminCounsel() {
                 <dt className="text-sub">스트레스 지수</dt><dd>{b.mind_index}점 · {LEVEL_LABEL[b.level]}</dd>
                 <dt className="text-sub">연락</dt><dd className="break-all">{METHOD_LABEL[b.method]} · {b.method === "email" ? b.email : b.contact}</dd>
                 <dt className="text-sub">회원</dt><dd className="break-all">{b.member_code || "-"} · {b.email}</dd>
+                {b.hard && (<><dt className="text-sub">힘든 일·사람</dt><dd className="whitespace-pre-wrap">{b.hard}</dd></>)}
+                {b.thoughts && (<><dt className="text-sub">떠오르는 생각</dt><dd className="whitespace-pre-wrap">{b.thoughts}</dd></>)}
                 {b.note && (<><dt className="text-sub">남긴 말</dt><dd className="whitespace-pre-wrap">{b.note}</dd></>)}
                 <dt className="text-sub">접수</dt><dd>{new Date(b.created_at).toLocaleString("ko-KR")}</dd>
               </dl>

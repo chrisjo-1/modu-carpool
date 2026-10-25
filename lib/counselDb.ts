@@ -23,7 +23,7 @@ export async function saveCounselConfig(c: CounselConfig) {
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 const adminEmails = () => (process.env.ADMIN_EMAILS ?? "").split(",").map((v) => v.trim()).filter(Boolean);
 
-type Booking = { topic: Topic; index: number; level: Level; crisis: boolean; slotAt: number; method: Method; contact: string; note: string; memberCode: string };
+type Booking = { topic: Topic; index: number; level: Level; crisis: boolean; slotAt: number; method: Method; contact: string; note: string; hard?: string; thoughts?: string; memberCode: string };
 
 function card(title: string, rows: [string, string][], lead: string, button: string, link: string, warn = "") {
   return `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
@@ -54,7 +54,9 @@ export async function notifyAdminsOfBooking(b: Booking) {
     ["스트레스 지수", `${b.index}점 · ${LEVEL_LABEL[b.level]}`],
     ["연락 방법", `${METHOD_LABEL[b.method]}${b.contact ? ` · ${b.contact}` : ""}`],
     ["회원번호", b.memberCode || "-"],
-    ["남긴 말", b.note || "-"],
+    ["가장 힘든 일·사람", b.hard || "-"],
+    ["떠오르는 생각", b.thoughts || "-"],
+    ...(b.note ? [["남긴 말", b.note] as [string, string]] : []),
   ];
   const link = `${siteUrl()}/admin`;
   const html = card("상담 예약", rows, "새 마음 상담 예약이 들어왔어요. 관리자 화면 '상담' 탭에서 확정하거나 연락해 주세요.", "관리자 화면 열기", link, warn);

@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const filter = STATUSES.includes(status) ? status : "";
     const [config, items, counts] = await Promise.all([
       getCounselConfig(),
-      sql`select b.id, b.topic, b.mind_index, b.level, b.crisis, extract(epoch from b.slot_at)::bigint * 1000 as slot_at, b.method, b.contact, b.note, b.status, b.admin_memo,
+      sql`select b.id, b.topic, b.mind_index, b.level, b.crisis, extract(epoch from b.slot_at)::bigint * 1000 as slot_at, b.method, b.contact, b.note, b.hard, b.thoughts, b.status, b.admin_memo,
           extract(epoch from b.created_at)::bigint * 1000 as created_at, coalesce(u.email, b.guest_email, '') as email, coalesce(u.member_code, '비회원') as member_code
         from counsel_bookings b left join users u on u.id = b.user_id
         where (${filter} = '' or b.status = ${filter})
@@ -56,7 +56,9 @@ export async function PATCH(req: Request) {
   const memo = typeof b.memo === "string" ? text(b.memo, 500) : null;
   try {
     await ensureSchema();
-    const r = await db()`update counsel_bookings set status = coalesce(${status}, status), admin_memo = coalesce(${memo}, admin_memo)
+    // '완료'로 바꾸면 회원이 직접 적은 글은 바로 지운다(상담 내용은 기록으로 남기지 않는다는 약속)
+    const r = await db()`update counsel_bookings set status = coalesce(${status}, status), admin_memo = coalesce(${memo}, admin_memo),
+        hard = case when ${status} = 'done' then '' else hard end, thoughts = case when ${status} = 'done' then '' else thoughts end
       where id = ${b.id} returning id`;
     if (!r.length) return json({ error: "예약을 찾지 못했어요." }, 404);
     return json({ ok: true });

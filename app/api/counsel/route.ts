@@ -55,7 +55,9 @@ async function book(uid: string | null, b: Record<string, unknown>, ip: string) 
   // 전화번호는 받지 않는다(비밀 보장)
   if (looksLikePhone(contact)) return json({ error: "전화번호는 받지 않아요. 카카오톡·인스타그램 등 SNS 아이디를 적어 주세요." }, 400);
   const note = text(b.note, 300);
-  if (/01[016789][\s-]?\d{3,4}[\s-]?\d{4}/.test(note)) return json({ error: "남긴 말에 전화번호는 적지 말아 주세요. 비밀을 지키기 위해 받지 않아요." }, 400);
+  const hard = text(b.hard, 500);
+  const thoughts = text(b.thoughts, 500);
+  if (/01[016789][\s-]?\d{3,4}[\s-]?\d{4}/.test(`${note} ${hard} ${thoughts}`)) return json({ error: "적은 글에 전화번호는 적지 말아 주세요. 비밀을 지키기 위해 받지 않아요." }, 400);
   // 비회원이 메일로 연락받겠다면 메일 주소를 받는다
   const guestEmail = !uid && method === "email" ? text(b.email, 120).toLowerCase() : "";
   if (!uid && method === "email" && !EMAIL.test(guestEmail)) return json({ error: "연락받을 메일 주소를 적어 주세요." }, 400);
@@ -73,12 +75,12 @@ async function book(uid: string | null, b: Record<string, unknown>, ip: string) 
   if (!openSlots(config).includes(slotAt)) return json({ error: "고른 시간은 지금 예약할 수 없어요. 다른 시간을 골라 주세요." }, 409);
 
   await recordAttempt(limitKey[0], limitKey[1]);
-  const inserted = await sql`insert into counsel_bookings (user_id, topic, scale, score, max_score, mind_index, level, crisis, slot_at, method, contact, note, consent_at, guest_email)
-    values (${uid}, ${topic}, ${res.scale}, ${res.score}, ${res.max}, ${res.index}, ${res.level}, ${res.crisis}, to_timestamp(${slotAt / 1000}), ${method}, ${method === "email" ? "" : contact}, ${note}, now(), ${guestEmail})
+  const inserted = await sql`insert into counsel_bookings (user_id, topic, scale, score, max_score, mind_index, level, crisis, slot_at, method, contact, note, consent_at, guest_email, hard, thoughts)
+    values (${uid}, ${topic}, ${res.scale}, ${res.score}, ${res.max}, ${res.index}, ${res.level}, ${res.crisis}, to_timestamp(${slotAt / 1000}), ${method}, ${method === "email" ? "" : contact}, ${note}, now(), ${guestEmail}, ${hard}, ${thoughts})
     returning id`;
   const u = uid ? await sql`select email, coalesce(member_code, '') as member_code from users where id = ${uid}` : [];
   const mailTo = uid ? String(u[0]?.email ?? "") : guestEmail;
-  const info = { topic, index: res.index, level: res.level, crisis: res.crisis, slotAt, method, contact: method === "email" ? mailTo : contact, note, memberCode: uid ? String(u[0]?.member_code ?? "") : "비회원" };
+  const info = { topic, index: res.index, level: res.level, crisis: res.crisis, slotAt, method, contact: method === "email" ? mailTo : contact, note, hard, thoughts, memberCode: uid ? String(u[0]?.member_code ?? "") : "비회원" };
   after(async () => {
     await notifyAdminsOfBooking(info);
     // 접수 확인 메일: 회원은 가입 메일, 비회원은 메일 주소를 남긴 경우만
