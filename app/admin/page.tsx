@@ -245,9 +245,9 @@ export default function Admin() {
             </button>
           ))}
           <button type="button" data-block-id="B402" data-block-name="워프 데이터 보기" onClick={() => setTab("legacy")} className="min-h-0 rounded-full border border-dashed border-line px-3 py-1 text-sub hover:border-accent">
-            계정 없는 데이터 · 구워프 <b className="num">{(s.data_ow ?? 0).toLocaleString()}</b> · 신워프 <b className="num">{(s.data_nw ?? 0).toLocaleString()}</b>
+            계정 없는 데이터 · 구워프 <b className="num">{(s.data_ow ?? 0).toLocaleString()}</b> · 신워프(메일 없음) <b className="num">{(s.data_nw ?? 0).toLocaleString()}</b>
           </button>
-          <span className="w-full text-xs text-sub">임시가입은 신워프 명단으로 만든 계정이에요. 회원이 접속해 비밀번호를 새로 정하면 자동으로 &lsquo;신워프 가입&rsquo;으로 바뀝니다. 탈퇴·테스트 제외.</span>
+          <span className="w-full text-xs text-sub">임시가입은 신워프 명단(고유코드 있는 회원)을 올릴 때 자동으로 만든 계정이에요. 메일이 없는 회원은 계정을 못 만들어, 가입할 때 고유코드로 연결돼요. 회원이 접속해 비밀번호를 새로 정하면 자동으로 &lsquo;신워프 가입&rsquo;으로 바뀝니다. 탈퇴·테스트 제외.</span>
         </section>
       )}
       {info?.db && <Funnel />}
