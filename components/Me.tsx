@@ -283,12 +283,6 @@ export default function Me({
         </button>
       )}
       {user && <CreditCard toast={toast} version={version} />}
-      {onCounsel && (
-        <button type="button" data-block-id="B376" data-block-name="마음 상담 열기" onClick={onCounsel} className="flex w-full items-center justify-between rounded-2xl border border-line bg-white px-5 py-4 text-left shadow-card">
-          <span><b className="text-[16px]">{t("마음 상담")}</b><span className="block text-[13px] text-sub">{t("나의 스트레스 지수 체크 · 무료 상담 예약")}</span></span>
-          <span className="text-sub">{Icon.arrow()}</span>
-        </button>
-      )}
       <div>
         <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("카풀 정보")}</h2>
       </div>
@@ -498,6 +492,13 @@ export default function Me({
       </p>
       <DocLinks />
             </div>
+            {/* 마음 상담: 설정 화면 맨 아래(사용자 지시). 앱 접속 팝업 링크 /?counsel=1 로도 열린다. */}
+            {onCounsel && (
+              <button type="button" data-block-id="B376" data-block-name="마음 상담 열기" onClick={() => { setSettingsOpen(false); onCounsel(); }} className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card">
+                <span><b>{t("마음 상담")}</b><span className="block text-[13px] text-sub">{t("나의 스트레스 지수 체크 · 무료 상담 예약")}</span></span>
+                <span className="text-sub">{Icon.arrow()}</span>
+              </button>
+            )}
           </div>
         </Sheet>
       )}
