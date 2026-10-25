@@ -6,11 +6,14 @@ import {
 } from "@/lib/counsel";
 import { Sheet, api, btnGhost, btnPrimary, field, useT } from "./ui";
 
+/** 마음 상담 주 버튼: 로즈 핑크(운전자 파랑·탑승자 초록·지하철 보라와 구분) */
+const btnMind = btnPrimary.replace("bg-accent", "bg-mind");
+
 type Mine = { id: string; topic: Topic; slotAt: number; method: Method; status: CounselStatus };
 type Info = { on: boolean; slots: number[]; mine: Mine | null; loggedIn: boolean };
 type Step = "intro" | "topic" | "quiz" | "result" | "book" | "done";
 
-const chip = (on: boolean) => `min-h-0 rounded-xl border px-4 py-3 text-left text-[15px] ${on ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-ink"}`;
+const chip = (on: boolean) => `min-h-0 rounded-xl border px-4 py-3 text-left text-[15px] ${on ? "border-mind bg-mindSoft font-semibold text-mind" : "border-line bg-white text-ink"}`;
 
 /**
  * 마음 상담: 유형 고르기 → 간단 질문(지난 2주) → 나의 스트레스 지수 → 상담 시간 예약.
@@ -96,8 +99,8 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
         {step === "intro" && (
           <>
             {info?.mine && (
-              <div data-block-id="C372" data-block-name="내 상담 예약" className="space-y-2 rounded-2xl bg-accentSoft px-4 py-4">
-                <p className="text-[14px] font-semibold text-accent">{t("내 상담 예약")} · {t(STATUS_LABEL[info.mine.status])}</p>
+              <div data-block-id="C372" data-block-name="내 상담 예약" className="space-y-2 rounded-2xl bg-mindSoft px-4 py-4">
+                <p className="text-[14px] font-semibold text-mind">{t("내 상담 예약")} · {t(STATUS_LABEL[info.mine.status])}</p>
                 <p className="text-[16px] font-semibold text-ink">{slotLabel(info.mine.slotAt)}</p>
                 <p className="text-[14px] text-sub">{t(TOPIC_LABEL[info.mine.topic])}</p>
                 <button type="button" data-block-id="B375" disabled={busy} className="min-h-0 text-[14px] text-sub underline" onClick={() => cancel(info.mine!.id)}>{t("예약 취소")}</button>
@@ -106,7 +109,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             <div className="space-y-2">
               <p className="text-[18px] font-bold text-ink">{t("요즘 마음은 어떠세요?")}</p>
               <p className="text-[15px] leading-relaxed text-sub">{t("몇 가지 질문으로 나의 스트레스 지수를 체크하고, 원하면 상담 시간을 예약할 수 있어요. 상담은 무료예요.")}</p>
-              <p data-block-id="C374" data-block-name="상담 약속" className="rounded-xl bg-mintSoft px-4 py-3 text-[15px] font-semibold leading-relaxed text-mint">{t(CARE_TEXT)}</p>
+              <p data-block-id="C374" data-block-name="상담 약속" className="rounded-xl bg-mindSoft px-4 py-3 text-[15px] font-semibold leading-relaxed text-mind">{t(CARE_TEXT)}</p>
               <ul className="space-y-1 text-[14px] leading-relaxed text-sub">
                 <li>· {t("1~2분이면 끝나요. 답한 내용은 저장하지 않아요.")}</li>
                 <li>· {t("결과는 진단이 아니라 참고용이에요.")}</li>
@@ -115,7 +118,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             {!info ? (
               <p className="text-[15px] text-sub">{err || t("불러오는 중…")}</p>
             ) : (
-              <button type="button" data-block-id="B370" data-block-name="상담 시작" className={btnPrimary} onClick={() => setStep("topic")}>{t(CHECK_NAME)}</button>
+              <button type="button" data-block-id="B370" data-block-name="상담 시작" className={btnMind} onClick={() => setStep("topic")}>{t(CHECK_NAME)}</button>
             )}
           </>
         )}
@@ -131,7 +134,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
                 </button>
               ))}
             </div>
-            <button type="button" data-block-id="B371" className={btnPrimary} disabled={!topic} onClick={() => { setAnswers([]); setStep("quiz"); }}>{t("다음")}</button>
+            <button type="button" data-block-id="B371" className={btnMind} disabled={!topic} onClick={() => { setAnswers([]); setStep("quiz"); }}>{t("다음")}</button>
           </>
         )}
 
@@ -143,13 +146,13 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
                 <span className="num">{qi + 1} / {qs.length}</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg" aria-hidden>
-                <div className="h-full rounded-full bg-accent motion-safe:transition-all" style={{ width: `${(qi / qs.length) * 100}%` }} />
+                <div className="h-full rounded-full bg-mind motion-safe:transition-all" style={{ width: `${(qi / qs.length) * 100}%` }} />
               </div>
             </div>
             <p className="min-h-[3.5em] text-[18px] font-semibold leading-relaxed text-ink">{t(qs[qi])}</p>
             <div className="grid gap-2">
               {CHOICES.map((c, v) => (
-                <button key={c} type="button" data-block-id="B372" className="min-h-[52px] rounded-xl border border-line bg-white px-4 text-left text-[16px] text-ink active:bg-accentSoft" onClick={() => answer(v)}>{t(c)}</button>
+                <button key={c} type="button" data-block-id="B372" className="min-h-[52px] rounded-xl border border-line bg-white px-4 text-left text-[16px] text-ink active:bg-mindSoft" onClick={() => answer(v)}>{t(c)}</button>
               ))}
             </div>
             <button type="button" className="min-h-0 text-[14px] text-sub underline" onClick={() => (qi === 0 ? setStep("topic") : setAnswers(answers.slice(0, -1)))}>{t("이전")}</button>
@@ -161,16 +164,16 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             <div data-block-id="C370" data-block-name="스트레스 지수" className="space-y-1 rounded-2xl bg-bg px-4 py-5 text-center">
               <p className="text-[14px] text-sub">{t(INDEX_NAME)}</p>
               <p className="num text-[44px] font-bold leading-none text-ink">{result.index}<span className="text-[18px] font-semibold text-sub"> / 100</span></p>
-              <p className={`text-[16px] font-semibold ${result.level === "good" ? "text-mint" : result.level === "mild" ? "text-accent" : "text-warn"}`}>{t(LEVEL_LABEL[result.level])}</p>
+              <p className={`text-[16px] font-semibold ${result.level === "good" ? "text-mint" : result.level === "mild" ? "text-mind" : "text-warn"}`}>{t(LEVEL_LABEL[result.level])}</p>
             </div>
             <p className="text-[15px] leading-relaxed text-ink">{t(LEVEL_TEXT[result.level])} {t(CARE_TEXT)}</p>
             <p className="text-[12px] leading-relaxed text-sub">{t("점수가 높을수록 스트레스가 큰 상태예요. 표준 자가 점검 문항을 바탕으로 한 참고용이며 의학적 진단이 아니에요.")}</p>
             {info?.mine ? (
-              <p className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] text-accent">{t("이미 예약한 상담이 있어요")}: {slotLabel(info.mine.slotAt)}</p>
+              <p className="rounded-xl bg-mindSoft px-4 py-3 text-[14px] text-mind">{t("이미 예약한 상담이 있어요")}: {slotLabel(info.mine.slotAt)}</p>
             ) : !info?.on || !info.slots.length ? (
               <p className="rounded-xl bg-bg px-4 py-3 text-[14px] text-sub">{t("지금은 예약할 수 있는 상담 시간이 없어요. 조금 뒤에 다시 확인해 주세요.")}</p>
             ) : (
-              <button type="button" data-block-id="B373" data-block-name="상담 예약하기" className={btnPrimary} onClick={() => (info.loggedIn ? setStep("book") : onLogin())}>
+              <button type="button" data-block-id="B373" data-block-name="상담 예약하기" className={btnMind} onClick={() => (info.loggedIn ? setStep("book") : onLogin())}>
                 {info.loggedIn ? t("상담 시간 예약하기") : t("로그인하고 예약하기")}
               </button>
             )}
@@ -184,12 +187,12 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
               <p className="text-[15px] font-semibold text-ink">{t("상담 날짜")}</p>
               <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
                 {days.map(([d]) => (
-                  <button key={d} type="button" aria-pressed={shownDay === d} className={`min-h-[44px] shrink-0 rounded-full border px-3.5 text-[14px] ${shownDay === d ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`} onClick={() => setDay(d)}>{d}</button>
+                  <button key={d} type="button" aria-pressed={shownDay === d} className={`min-h-[44px] shrink-0 rounded-full border px-3.5 text-[14px] ${shownDay === d ? "border-mind bg-mindSoft font-semibold text-mind" : "border-line bg-white text-sub"}`} onClick={() => setDay(d)}>{d}</button>
                 ))}
               </div>
               <div role="radiogroup" aria-label={t("상담 시각")} className="grid grid-cols-3 gap-2">
                 {(days.find(([d]) => d === shownDay)?.[1] ?? []).map((s) => (
-                  <button key={s} type="button" role="radio" aria-checked={slot === s} className={`min-h-[44px] rounded-xl border text-[15px] ${slot === s ? "border-accent bg-accent font-semibold text-white" : "border-line bg-white text-ink"}`} onClick={() => setSlot(s)}>{slotLabel(s).slice(-5)}</button>
+                  <button key={s} type="button" role="radio" aria-checked={slot === s} className={`min-h-[44px] rounded-xl border text-[15px] ${slot === s ? "border-mind bg-mind font-semibold text-white" : "border-line bg-white text-ink"}`} onClick={() => setSlot(s)}>{slotLabel(s).slice(-5)}</button>
                 ))}
               </div>
             </div>
@@ -207,7 +210,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
                 <p className="text-[13px] text-sub">{t("가입한 메일 주소로 연락드려요.")}</p>
               )}
               {method !== "email" && looksLikePhone(contact) && <p role="alert" className="text-[13px] text-warn">{t("전화번호는 받지 않아요. SNS 아이디를 적어 주세요.")}</p>}
-              <p data-block-id="C375" data-block-name="비밀 보장" className="rounded-xl bg-mintSoft px-4 py-2.5 text-[14px] font-semibold text-mint">{t(PRIVACY_TEXT)}</p>
+              <p data-block-id="C375" data-block-name="비밀 보장" className="rounded-xl bg-mindSoft px-4 py-2.5 text-[14px] font-semibold text-mind">{t(PRIVACY_TEXT)}</p>
             </div>
             <label className="block text-[15px] font-semibold text-ink">
               {t("남기고 싶은 말 (선택)")}
@@ -221,7 +224,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
               </span>
             </label>
             {err && <p role="alert" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] text-warn">{err}</p>}
-            <button type="button" data-block-id="B374" data-block-name="상담 예약 확정" className={btnPrimary} disabled={busy || slot == null || !consent || (method !== "email" && (!contact.trim() || looksLikePhone(contact)))} onClick={book}>
+            <button type="button" data-block-id="B374" data-block-name="상담 예약 확정" className={btnMind} disabled={busy || slot == null || !consent || (method !== "email" && (!contact.trim() || looksLikePhone(contact)))} onClick={book}>
               {busy ? t("처리 중…") : slot != null ? `${slotLabel(slot)} ${t("예약하기")}` : t("시간을 골라 주세요")}
             </button>
             <button type="button" className="min-h-0 text-[14px] text-sub underline" onClick={() => setStep("result")}>{t("이전")}</button>
@@ -232,11 +235,11 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
           <>
             <div className="space-y-2 py-2 text-center">
               <p className="text-[18px] font-bold text-ink">{t("예약이 접수됐어요")}</p>
-              {booked != null && <p className="text-[16px] font-semibold text-accent">{slotLabel(booked)}</p>}
+              {booked != null && <p className="text-[16px] font-semibold text-mind">{slotLabel(booked)}</p>}
               <p className="text-[14px] leading-relaxed text-sub">{t("담당자가 확인한 뒤 남겨 주신 SNS로 연락드릴게요. 접수 확인 메일도 보내 드렸어요. 예약은 내 정보 › 마음 상담에서 확인하거나 취소할 수 있어요.")}</p>
-              <p className="text-[15px] font-semibold text-mint">{t(CARE_TEXT)}</p>
+              <p className="text-[15px] font-semibold text-mind">{t(CARE_TEXT)}</p>
             </div>
-            <button type="button" className={btnPrimary} onClick={onClose}>{t("확인")}</button>
+            <button type="button" className={btnMind} onClick={onClose}>{t("확인")}</button>
           </>
         )}
       </div>
