@@ -1,6 +1,7 @@
 import { db } from "./server";
 import { siteLinkBlock, type MailCategory } from "./mail";
 import { SITE_URL as SITE } from "./site";
+import { APPLE_MAIL_DOMAINS } from "./appleMail";
 
 export type Segment = "members" | "new_warp" | "legacy_joined" | "legacy_unjoined";
 export const SEGMENTS: [Segment, string][] = [
@@ -42,7 +43,7 @@ export const TEMPLATES: { key: string; label: string; category: MailCategory; su
   { key: "custom", label: "직접 작성", category: "transactional", subject: "", body: "" },
 ];
 
-/** 대상자 목록. 캠페인 생성 시각 이전에 가입한 회원만 포함하고, 이미 이 캠페인으로 처리한 주소는 뺀다.
+/** 대상자 목록. 아이폰 메일(APPLE_MAIL_DOMAINS)은 메일이 닿지 않아 빼고 문자 전용 명단으로 돌린다. 캠페인 생성 시각 이전에 가입한 회원만 포함하고, 이미 이 캠페인으로 처리한 주소는 뺀다.
  * 단, 발송 한도(429)로 실패한 주소는 다시 대상이 된다(실패분 재발송). */
 export async function audienceRows(a: Audience, opt: { campaignId?: string | null; before?: string | null; limit?: number } = {}): Promise<{ user_id: string | null; email: string }[]> {
   const sql = db();
@@ -56,6 +57,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
     if (a.onlyConsent || a.onlyDriver) return [];
     return (await sql`select null::uuid as user_id, lower(l.email_norm) as email from legacy_members l
       where l.matched_user is null and not l.withdrawn and coalesce(l.email_norm, '') <> ''
+        and split_part(lower(l.email_norm), '@', 2) <> all(${APPLE_MAIL_DOMAINS}::text[])
         and (${before}::timestamptz is null or l.imported_at <= ${before}::timestamptz)
         and not exists (select 1 from users u where lower(u.email) = lower(l.email_norm))
         and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(l.email_norm) and not (g.status = 'failed' and g.error like '429%')))
@@ -64,6 +66,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
   }
   return (await sql`select u.id as user_id, lower(u.email) as email from users u
     where not u.test and not u.blocked and u.withdrawn_at is null and coalesce(u.email, '') <> ''
+      and split_part(lower(u.email), '@', 2) <> all(${APPLE_MAIL_DOMAINS}::text[])
       and (${before}::timestamptz is null or u.created_at <= ${before}::timestamptz)
       and (${a.segment} = 'members'
         or (${a.segment} = 'new_warp' and exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%'))

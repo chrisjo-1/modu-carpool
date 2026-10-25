@@ -1,3 +1,4 @@
+import { APPLE_MAIL_DOMAINS } from "@/lib/appleMail";
 import { DEFAULT_POLICY, campaignAllowance, getPolicy, reconcileFailed, type MailPolicy } from "@/lib/mail";
 import { body, db, ensureSchema, fail, hasDb, isAdmin, json, text } from "@/lib/server";
 
@@ -46,6 +47,15 @@ export async function GET(req: Request) {
         (select count(distinct email_norm)::int from withdraw_claims where not used and expires_at > now()) as waiting,
         (select count(*)::int from legacy_members where not withdrawn and withdrawn_at is null and coalesce(phone_norm, '') <> '') as legacy_phone,
         (select count(*)::int from users where not test and withdrawn_at is null and contact_type = 'phone' and contact <> '') as user_phone`;
+    // 아이폰 메일(문자로만 안내): 신워프 임시가입 · 그 밖의 가입 회원 · 계정 없는 구워프. 괄호 안은 전화번호 있는 인원
+    const ap = await sql`with u as (
+        select u.pw_reset_required and exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%') as nwt,
+               coalesce(u.contact, '') <> '' as ph
+        from users u where not u.test and not u.blocked and u.withdrawn_at is null and split_part(lower(u.email), '@', 2) = any(${APPLE_MAIL_DOMAINS}::text[]))
+      select (select count(*)::int from u where nwt) as nwt, (select count(*)::int from u where nwt and ph) as nwt_ph,
+             (select count(*)::int from u where not nwt) as members, (select count(*)::int from u where not nwt and ph) as members_ph,
+             (select count(*)::int from legacy_members l where l.matched_user is null and not l.withdrawn and split_part(lower(l.email_norm), '@', 2) = any(${APPLE_MAIL_DOMAINS}::text[])) as old,
+             (select count(*)::int from legacy_members l where l.matched_user is null and not l.withdrawn and coalesce(l.phone_norm, '') <> '' and split_part(lower(l.email_norm), '@', 2) = any(${APPLE_MAIL_DOMAINS}::text[])) as old_ph`;
     const policy = await getPolicy();
     const allowance = await campaignAllowance(policy);
     return json({
@@ -55,7 +65,7 @@ export async function GET(req: Request) {
       kinds: KINDS,
       today: today[0],
       suppressed: sup[0].n,
-      received: { unsub: rec[0].unsub, withdrawn: rec[0].withdrawn, purged: rec[0].purged, waiting: rec[0].waiting, legacyPhone: rec[0].legacy_phone, userPhone: rec[0].user_phone },
+      received: { unsub: rec[0].unsub, withdrawn: rec[0].withdrawn, purged: rec[0].purged, waiting: rec[0].waiting, legacyPhone: rec[0].legacy_phone, userPhone: rec[0].user_phone, apple: ap[0] },
       logs: rows.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
     });
   } catch (e) {

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 
 type Policy = { dailyCap: number; monthlyCap: number; cycleDay: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
 type Log = { id: string; created_at: number; kind: string; category: string; to_email: string; subject: string; status: string; error: string; provider_id: string; user_name: string | null };
-type Received = { unsub: number; withdrawn: number; purged: number; waiting: number; legacyPhone?: number; userPhone?: number };
+type Received = { unsub: number; withdrawn: number; purged: number; waiting: number; legacyPhone?: number; userPhone?: number;
+  apple?: { nwt: number; nwt_ph: number; members: number; members_ph: number; old: number; old_ph: number } };
 type Allowance = { auto: boolean; cap: number; left: number; sentToday: number; monthSent: number; monthlyCap: number; daysLeft: number };
 type Data = { policy: Policy; allowance?: Allowance; defaults: Policy; kinds: string[]; suppressed: number; received: Received; today: { sent: number; marketing_sent: number; campaign_sent?: number; blocked: number; failed: number }; logs: Log[] };
 
@@ -87,6 +88,27 @@ export default function AdminMail() {
               {d.received.legacyPhone !== undefined && tile("휴대폰 번호 보관 중", `${((d.received.legacyPhone ?? 0) + (d.received.userPhone ?? 0)).toLocaleString("ko-KR")}명`, `워프 ${(d.received.legacyPhone ?? 0).toLocaleString("ko-KR")} · 가입 회원 ${(d.received.userPhone ?? 0).toLocaleString("ko-KR")} (삭제 동의 전)`)}
             </div>
           </section>
+
+          {d.received.apple && (() => {
+            const a = d.received.apple;
+            const f = (v: number) => v.toLocaleString("ko-KR");
+            return (
+              <section data-block-id="S402" data-block-name="문자 전용(아이폰 메일)" className="space-y-3 rounded-2xl bg-white p-5 shadow-card">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-[17px] font-bold">문자 전용 · 아이폰 메일 {f(a.nwt + a.members + a.old)}명</h2>
+                    <p className="text-[13px] text-sub">icloud.com·me.com·mac.com·애플 이메일 가리기(privaterelay) 주소는 메일이 닿지 않아 모든 대량 메일 대상에서 자동으로 빠집니다. 문자로만 안내해요. 괄호는 전화번호 있는 인원.</p>
+                  </div>
+                  <a href="/api/admin/mail/lists?list=apple" data-block-id="B403" className="rounded-xl border border-line bg-white px-4 py-2.5 text-[15px] font-semibold text-ink">문자 전용 명단 받기 (CSV)</a>
+                </div>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {tile("신워프 임시가입", `${f(a.nwt)}명`, `전화 ${f(a.nwt_ph)}`)}
+                  {tile("그 밖의 가입 회원", `${f(a.members)}명`, `전화 ${f(a.members_ph)}`)}
+                  {tile("구워프 (계정 없음)", `${f(a.old)}명`, `전화 ${f(a.old_ph)}`)}
+                </div>
+              </section>
+            );
+          })()}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {tile("오늘 발송", `${d.today.sent.toLocaleString("ko-KR")}통`)}
