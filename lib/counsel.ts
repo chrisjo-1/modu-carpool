@@ -7,7 +7,8 @@
 export const CARE_TEXT = "정성스럽게 상담해 드리고, 상담 내용은 기록으로 남기지 않아요.";
 
 export type Topic ="work" | "mood" | "anxiety" | "relation" | "other";
-export type Scale = "phq9" | "gad7" | "phq4";
+/** 문항 묶음: phq9(우울)·gad7(불안)·phq4(기타 간이) = 표준 척도, stress·relation = 자체 참고 문항 */
+export type Scale = "phq9" | "gad7" | "phq4" | "stress" | "relation";
 export type Level = "good" | "mild" | "moderate" | "high";
 
 export const TOPICS: { id: Topic; label: string; desc: string }[] = [
@@ -45,20 +46,38 @@ const GAD = [
   "평소보다 쉽게 짜증이 나거나 화가 난 날",
   "곧 나쁜 일이 생길 것 같아 두려운 날",
 ];
+// 스트레스·관계는 표준 척도가 아니라 모두의카풀이 만든 참고용 문항(같은 "~한 날"·날수 4단계 틀)
+const STRESS = [
+  "할 일이 너무 많아 감당하기 벅차다고 느낀 날",
+  "예상하지 못한 일 때문에 마음이 크게 흔들린 날",
+  "일이나 생활이 뜻대로 되지 않아 답답했던 날",
+  "사소한 일에도 신경이 곤두서고 예민해진 날",
+  "머리가 아프거나 어깨가 뭉치는 등 몸이 긴장한 날",
+  "쉬는 시간에도 일이나 걱정거리가 머릿속을 떠나지 않은 날",
+];
+const RELATION = [
+  "가족이나 가까운 사람과 말다툼하거나 부딪힌 날",
+  "내 마음을 털어놓을 사람이 없다고 느낀 날",
+  "주변 사람에게 서운하거나 섭섭한 마음이 든 날",
+  "누군가의 눈치를 보느라 마음이 지친 날",
+  "사람들과 함께 있어도 외롭다고 느낀 날",
+  "관계 때문에 잠들기 어렵거나 그 일이 계속 떠오른 날",
+];
 /** 위기 문항. 모든 유형에서 마지막에 묻는다(점수와 별도로 1 이상이면 관리자 메일에 [긴급]). PHQ-9에서는 9번 문항으로 점수에도 들어간다. */
 export const CRISIS_Q = "'차라리 사라지고 싶다'거나 스스로를 해치고 싶은 생각이 든 날";
 
-export const scaleOf = (t: Topic): Scale => (t === "mood" ? "phq9" : t === "anxiety" ? "gad7" : "phq4");
+export const scaleOf = (t: Topic): Scale =>
+  t === "mood" ? "phq9" : t === "anxiety" ? "gad7" : t === "work" ? "stress" : t === "relation" ? "relation" : "phq4";
+const ITEMS: Record<Scale, string[]> = { phq9: PHQ, gad7: GAD, phq4: [PHQ[1], GAD[0], PHQ[0], GAD[1]], stress: STRESS, relation: RELATION };
 
 /** 유형별 질문(마지막은 항상 위기 문항) */
 export function questionsFor(t: Topic): string[] {
-  const s = scaleOf(t);
-  const base = s === "phq9" ? PHQ : s === "gad7" ? GAD : [PHQ[0], PHQ[1], GAD[0], GAD[1]];
-  return [...base, CRISIS_Q];
+  return [...ITEMS[scaleOf(t)], CRISIS_Q];
 }
 
-const CUTS: Record<Scale, [number, number, number]> = { phq9: [5, 10, 15], gad7: [5, 10, 15], phq4: [3, 6, 9] };
-const MAX: Record<Scale, number> = { phq9: 27, gad7: 21, phq4: 12 };
+// 표준 척도는 표준 기준점, 자체 문항(6문항·18점 만점)은 같은 비율(약 20%·40%·60%)로 나눈다
+const CUTS: Record<Scale, [number, number, number]> = { phq9: [5, 10, 15], gad7: [5, 10, 15], phq4: [3, 6, 9], stress: [4, 8, 11], relation: [4, 8, 11] };
+const MAX: Record<Scale, number> = { phq9: 27, gad7: 21, phq4: 12, stress: 18, relation: 18 };
 
 export const LEVEL_LABEL: Record<Level, string> = { good: "양호", mild: "가벼운 주의", moderate: "주의", high: "관심 필요" };
 export const LEVEL_TEXT: Record<Level, string> = {

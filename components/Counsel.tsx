@@ -168,7 +168,7 @@ export default function Counsel({ onClose, toast }: { onClose: () => void; toast
               <p className={`text-[16px] font-semibold ${result.level === "good" ? "text-mint" : result.level === "mild" ? "text-mindInk" : "text-warn"}`}>{t(LEVEL_LABEL[result.level])}</p>
             </div>
             <p className="text-[15px] leading-relaxed text-ink">{t(LEVEL_TEXT[result.level])} {t(CARE_TEXT)}</p>
-            <p className="text-[12px] leading-relaxed text-sub">{t("점수가 높을수록 스트레스가 큰 상태예요. 표준 자가 점검 문항을 바탕으로 한 참고용이며 의학적 진단이 아니에요.")}</p>
+            <p className="text-[12px] leading-relaxed text-sub">{t("점수가 높을수록 스트레스가 큰 상태예요. 자가 점검 문항을 바탕으로 한 참고용이며 의학적 진단이 아니에요.")}</p>
             {info?.mine ? (
               <p className="rounded-xl bg-mindSoft px-4 py-3 text-[14px] text-mindInk">{t("이미 예약한 상담이 있어요")}: {slotLabel(info.mine.slotAt)}</p>
             ) : !info?.on || !info.slots.length ? (
