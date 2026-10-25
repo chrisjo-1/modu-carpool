@@ -1,11 +1,11 @@
 import { after } from "next/server";
-import { TOPICS, openSlots, scoreAnswers, type Method, type Topic } from "@/lib/counsel";
+import { TOPICS, looksLikePhone, openSlots, scoreAnswers, type Method, type Topic } from "@/lib/counsel";
 import { getCounselConfig, notifyAdminsOfBooking, sendBookingReceipt } from "@/lib/counselDb";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, overLimit, recordAttempt, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
-const METHODS: Method[] = ["email", "phone", "kakao", "video"];
+const METHODS: Method[] = ["kakao", "instagram", "sns", "email"];
 
 /** 마음 상담: 열린 시각과 내 예약(로그인 시) */
 export async function GET() {
@@ -49,8 +49,11 @@ async function book(uid: string, b: Record<string, unknown>) {
   const method = METHODS.includes(b.method as Method) ? (b.method as Method) : null;
   if (!method) return json({ error: "연락 방법을 골라 주세요." }, 400);
   const contact = text(b.contact, 60);
-  if (method !== "email" && !contact) return json({ error: "연락받을 번호나 아이디를 적어 주세요." }, 400);
+  if (method !== "email" && !contact) return json({ error: "연락받을 SNS 아이디를 적어 주세요." }, 400);
+  // 전화번호는 받지 않는다(비밀 보장)
+  if (looksLikePhone(contact)) return json({ error: "전화번호는 받지 않아요. 카카오톡·인스타그램 등 SNS 아이디를 적어 주세요." }, 400);
   const note = text(b.note, 300);
+  if (/01[016789][\s-]?\d{3,4}[\s-]?\d{4}/.test(note)) return json({ error: "남긴 말에 전화번호는 적지 말아 주세요. 비밀을 지키기 위해 받지 않아요." }, 400);
   const slotAt = Number(b.slot);
   if (await overLimit("counsel-book", uid, 5, 60 * 24)) return json({ error: "오늘은 예약을 더 할 수 없어요. 내일 다시 시도해 주세요." }, 429);
 

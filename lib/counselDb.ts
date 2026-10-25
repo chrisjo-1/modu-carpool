@@ -1,4 +1,4 @@
-import { CARE_TEXT, DEFAULT_CONFIG, LEVEL_LABEL, METHOD_LABEL, TOPIC_LABEL, cleanConfig, slotLabel, type CounselConfig, type Level, type Method, type Topic } from "./counsel";
+import { CARE_TEXT, PRIVACY_TEXT, DEFAULT_CONFIG, LEVEL_LABEL, METHOD_LABEL, TOPIC_LABEL, cleanConfig, slotLabel, type CounselConfig, type Level, type Method, type Topic } from "./counsel";
 import { deliver, siteUrl } from "./mail";
 import { db } from "./server";
 
@@ -47,11 +47,11 @@ export async function notifyAdminsOfBooking(b: Booking) {
   }
   const when = slotLabel(b.slotAt);
   const subject = `[모두의카풀] ${b.crisis ? "[긴급] " : ""}마음 상담 예약 · ${when}`;
-  const warn = b.crisis ? "위기 문항(스스로를 해치고 싶은 생각)에 '있음'으로 답했어요. 가능한 한 빨리 연락해 주세요." : "";
+  const warn = b.crisis ? "위기 문항(스스로를 해치고 싶은 생각)에 '있음'으로 답했어요. 회원 화면에는 따로 안내하지 않으니 가능한 한 빨리 먼저 연락해 주세요." : "";
   const rows: [string, string][] = [
     ["희망 시간", when],
     ["상담 유형", TOPIC_LABEL[b.topic]],
-    ["마음 지수", `${b.index}점 · ${LEVEL_LABEL[b.level]}`],
+    ["스트레스 지수", `${b.index}점 · ${LEVEL_LABEL[b.level]}`],
     ["연락 방법", `${METHOD_LABEL[b.method]}${b.contact ? ` · ${b.contact}` : ""}`],
     ["회원번호", b.memberCode || "-"],
     ["남긴 말", b.note || "-"],
@@ -71,8 +71,8 @@ export async function sendBookingReceipt(to: string, userId: string, b: Booking)
     ["상담 유형", TOPIC_LABEL[b.topic]],
     ["연락 방법", METHOD_LABEL[b.method]],
   ];
-  const lead = `예약을 접수했어요. 담당자가 확인한 뒤 연락드릴게요. ${CARE_TEXT} 예약은 내 정보 › 마음 상담에서 확인하거나 취소할 수 있어요.`;
+  const lead = `예약을 접수했어요. 담당자가 확인한 뒤 남겨 주신 연락처로 연락드릴게요. ${CARE_TEXT} ${PRIVACY_TEXT} 예약은 내 정보 › 마음 상담에서 확인하거나 취소할 수 있어요.`;
   const html = card("마음 상담", rows, lead, "모두의카풀 바로가기", siteUrl());
-  const text = `${lead}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n${siteUrl()}\n\n지금 많이 힘드시면 자살예방 상담전화 109, 정신건강 위기상담 1577-0199 (24시간)`;
+  const text = `${lead}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n${siteUrl()}`;
   await deliver({ kind: "counsel-receipt", category: "transactional", to, userId, subject, html, text }).catch(() => false);
 }

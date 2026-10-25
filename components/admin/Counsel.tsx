@@ -121,10 +121,10 @@ export default function AdminCounsel() {
                 <p className="text-[15px] font-semibold">{slotLabel(b.slot_at)}</p>
                 <span className="rounded-full bg-bg px-2.5 py-1 text-[12px] text-sub">{STATUS_LABEL[b.status]}</span>
               </div>
-              {b.crisis && <p className="text-[13px] font-bold text-warn">긴급: 위기 문항에 해당 — 빨리 연락해 주세요</p>}
+              {b.crisis && <p className="text-[13px] font-bold text-warn">긴급: 위기 문항에 해당 — 회원 화면엔 안내가 없으니 먼저 빨리 연락해 주세요</p>}
               <dl className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1 text-[13px]">
                 <dt className="text-sub">유형</dt><dd>{TOPIC_LABEL[b.topic]}</dd>
-                <dt className="text-sub">마음 지수</dt><dd>{b.mind_index}점 · {LEVEL_LABEL[b.level]}</dd>
+                <dt className="text-sub">스트레스 지수</dt><dd>{b.mind_index}점 · {LEVEL_LABEL[b.level]}</dd>
                 <dt className="text-sub">연락</dt><dd className="break-all">{METHOD_LABEL[b.method]} · {b.method === "email" ? b.email : b.contact}</dd>
                 <dt className="text-sub">회원</dt><dd className="break-all">{b.member_code || "-"} · {b.email}</dd>
                 {b.note && (<><dt className="text-sub">남긴 말</dt><dd className="whitespace-pre-wrap">{b.note}</dd></>)}

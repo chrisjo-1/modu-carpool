@@ -285,7 +285,7 @@ export default function Me({
       {user && <CreditCard toast={toast} version={version} />}
       {onCounsel && (
         <button type="button" data-block-id="B376" data-block-name="마음 상담 열기" onClick={onCounsel} className="flex w-full items-center justify-between rounded-2xl border border-line bg-white px-5 py-4 text-left shadow-card">
-          <span><b className="text-[16px]">{t("마음 상담")}</b><span className="block text-[13px] text-sub">{t("간단한 질문으로 마음 지수를 보고, 무료 상담을 예약해요")}</span></span>
+          <span><b className="text-[16px]">{t("마음 상담")}</b><span className="block text-[13px] text-sub">{t("나의 스트레스 지수 체크 · 무료 상담 예약")}</span></span>
           <span className="text-sub">{Icon.arrow()}</span>
         </button>
       )}

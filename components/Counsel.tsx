@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  CARE_TEXT, CHOICES, CRISIS_LINES, LEVEL_LABEL, LEVEL_TEXT, METHODS, STATUS_LABEL, TOPICS, TOPIC_LABEL,
-  questionsFor, scoreAnswers, slotLabel, type CounselStatus, type Method, type Result, type Topic,
+  CARE_TEXT, CHECK_NAME, CHOICES, INDEX_NAME, LEVEL_LABEL, LEVEL_TEXT, METHODS, METHOD_HINT, PRIVACY_TEXT, STATUS_LABEL, TOPICS, TOPIC_LABEL,
+  looksLikePhone, questionsFor, scoreAnswers, slotLabel, type CounselStatus, type Method, type Result, type Topic,
 } from "@/lib/counsel";
 import { Sheet, api, btnGhost, btnPrimary, field, useT } from "./ui";
 
@@ -12,28 +12,10 @@ type Step = "intro" | "topic" | "quiz" | "result" | "book" | "done";
 
 const chip = (on: boolean) => `min-h-0 rounded-xl border px-4 py-3 text-left text-[15px] ${on ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-ink"}`;
 
-/** 위기 안내(위기 문항에 해당하면 결과·완료 화면 맨 위) */
-function CrisisBox() {
-  const t = useT();
-  return (
-    <div role="alert" data-block-id="C371" data-block-name="위기 안내" className="space-y-2 rounded-2xl border border-warn/30 bg-warnSoft px-4 py-4">
-      <p className="text-[16px] font-bold text-warn">{t("지금 많이 힘드시다면 바로 이야기해 주세요")}</p>
-      <p className="text-[14px] leading-relaxed text-ink">{t("혼자 견디지 않아도 돼요. 아래 번호는 24시간 무료로 연결돼요.")}</p>
-      <div className="grid gap-2">
-        {CRISIS_LINES.map(([name, num]) => (
-          <a key={num} href={`tel:${num.replace(/-/g, "")}`} className="flex min-h-[44px] items-center justify-between rounded-xl bg-white px-4 text-[15px]">
-            <span>{t(name)}</span>
-            <b className="text-warn">{num}</b>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /**
- * 마음 상담: 유형 고르기 → 간단 질문(지난 2주) → 마음 지수 → 상담 시간 예약.
- * 응답 원문은 서버에 보내기만 하고 저장하지 않는다(지수·단계만 저장). 예약하면 관리자 메일로 알린다.
+ * 마음 상담: 유형 고르기 → 간단 질문(지난 2주) → 나의 스트레스 지수 → 상담 시간 예약.
+ * 가볍게 들어올 수 있게 위기 전화번호 안내는 두지 않는다(위기 문항 해당은 관리자 메일에만 [긴급]).
+ * 응답 원문은 서버에 보내기만 하고 저장하지 않는다(지수·단계만 저장). 연락처는 SNS 아이디만(전화번호 받지 않음).
  */
 export default function Counsel({ onClose, onLogin, toast }: { onClose: () => void; onLogin: () => void; toast: (m: string) => void }) {
   const t = useT();
@@ -42,7 +24,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
   const [topic, setTopic] = useState<Topic | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
   const [slot, setSlot] = useState<number | null>(null);
-  const [method, setMethod] = useState<Method>("email");
+  const [method, setMethod] = useState<Method>("kakao");
   const [contact, setContact] = useState("");
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
@@ -123,7 +105,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             )}
             <div className="space-y-2">
               <p className="text-[18px] font-bold text-ink">{t("요즘 마음은 어떠세요?")}</p>
-              <p className="text-[15px] leading-relaxed text-sub">{t("몇 가지 질문으로 지금 마음 상태를 살펴보고, 원하면 상담 시간을 예약할 수 있어요. 상담은 무료예요.")}</p>
+              <p className="text-[15px] leading-relaxed text-sub">{t("몇 가지 질문으로 나의 스트레스 지수를 체크하고, 원하면 상담 시간을 예약할 수 있어요. 상담은 무료예요.")}</p>
               <p data-block-id="C374" data-block-name="상담 약속" className="rounded-xl bg-mintSoft px-4 py-3 text-[15px] font-semibold leading-relaxed text-mint">{t(CARE_TEXT)}</p>
               <ul className="space-y-1 text-[14px] leading-relaxed text-sub">
                 <li>· {t("1~2분이면 끝나요. 답한 내용은 저장하지 않아요.")}</li>
@@ -133,7 +115,7 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
             {!info ? (
               <p className="text-[15px] text-sub">{err || t("불러오는 중…")}</p>
             ) : (
-              <button type="button" data-block-id="B370" data-block-name="상담 시작" className={btnPrimary} onClick={() => setStep("topic")}>{t("마음 살펴보기")}</button>
+              <button type="button" data-block-id="B370" data-block-name="상담 시작" className={btnPrimary} onClick={() => setStep("topic")}>{t(CHECK_NAME)}</button>
             )}
           </>
         )}
@@ -176,14 +158,13 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
 
         {step === "result" && result && (
           <>
-            {result.crisis && <CrisisBox />}
-            <div data-block-id="C370" data-block-name="마음 지수" className="space-y-1 rounded-2xl bg-bg px-4 py-5 text-center">
-              <p className="text-[14px] text-sub">{t("나의 마음 지수")}</p>
+            <div data-block-id="C370" data-block-name="스트레스 지수" className="space-y-1 rounded-2xl bg-bg px-4 py-5 text-center">
+              <p className="text-[14px] text-sub">{t(INDEX_NAME)}</p>
               <p className="num text-[44px] font-bold leading-none text-ink">{result.index}<span className="text-[18px] font-semibold text-sub"> / 100</span></p>
               <p className={`text-[16px] font-semibold ${result.level === "good" ? "text-mint" : result.level === "mild" ? "text-accent" : "text-warn"}`}>{t(LEVEL_LABEL[result.level])}</p>
             </div>
             <p className="text-[15px] leading-relaxed text-ink">{t(LEVEL_TEXT[result.level])} {t(CARE_TEXT)}</p>
-            <p className="text-[12px] leading-relaxed text-sub">{t("점수가 높을수록 마음이 편안한 상태예요. 표준 자가 점검 문항을 바탕으로 한 참고용이며 의학적 진단이 아니에요.")}</p>
+            <p className="text-[12px] leading-relaxed text-sub">{t("점수가 높을수록 스트레스가 큰 상태예요. 표준 자가 점검 문항을 바탕으로 한 참고용이며 의학적 진단이 아니에요.")}</p>
             {info?.mine ? (
               <p className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] text-accent">{t("이미 예약한 상담이 있어요")}: {slotLabel(info.mine.slotAt)}</p>
             ) : !info?.on || !info.slots.length ? (
@@ -220,11 +201,13 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
                 ))}
               </div>
               {method !== "email" ? (
-                <input data-block-id="F370" aria-label={t("연락처")} className={field} maxLength={60} value={contact} onChange={(e) => setContact(e.target.value)}
-                  placeholder={method === "kakao" ? t("카카오톡 아이디") : t("휴대폰 번호")} inputMode={method === "kakao" ? "text" : "tel"} />
+                <input data-block-id="F370" aria-label={t("SNS 아이디")} className={field} maxLength={60} value={contact} onChange={(e) => setContact(e.target.value)}
+                  placeholder={t(METHOD_HINT[method])} autoCapitalize="off" autoCorrect="off" />
               ) : (
                 <p className="text-[13px] text-sub">{t("가입한 메일 주소로 연락드려요.")}</p>
               )}
+              {method !== "email" && looksLikePhone(contact) && <p role="alert" className="text-[13px] text-warn">{t("전화번호는 받지 않아요. SNS 아이디를 적어 주세요.")}</p>}
+              <p data-block-id="C375" data-block-name="비밀 보장" className="rounded-xl bg-mintSoft px-4 py-2.5 text-[14px] font-semibold text-mint">{t(PRIVACY_TEXT)}</p>
             </div>
             <label className="block text-[15px] font-semibold text-ink">
               {t("남기고 싶은 말 (선택)")}
@@ -234,11 +217,11 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
               <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
               <span>
                 <b className="text-ink">{t("[필수] 민감정보 수집·이용 동의")}</b><br />
-                {t("상담 예약을 위해 상담 유형, 마음 지수·단계, 희망 시간, 연락 방법·연락처, 남긴 말을 수집해요. 질문에 답한 내용 자체는 저장하지 않아요. 상담 시간이 지나고 180일 뒤 지워지며, 동의하지 않으면 예약할 수 없어요.")}
+                {t("상담 예약을 위해 상담 유형, 스트레스 지수·단계, 희망 시간, 연락 방법·SNS 아이디, 남긴 말을 수집해요. 질문에 답한 내용 자체는 저장하지 않아요. 상담 시간이 지나고 180일 뒤 지워지며, 동의하지 않으면 예약할 수 없어요.")}
               </span>
             </label>
             {err && <p role="alert" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] text-warn">{err}</p>}
-            <button type="button" data-block-id="B374" data-block-name="상담 예약 확정" className={btnPrimary} disabled={busy || slot == null || !consent || (method !== "email" && !contact.trim())} onClick={book}>
+            <button type="button" data-block-id="B374" data-block-name="상담 예약 확정" className={btnPrimary} disabled={busy || slot == null || !consent || (method !== "email" && (!contact.trim() || looksLikePhone(contact)))} onClick={book}>
               {busy ? t("처리 중…") : slot != null ? `${slotLabel(slot)} ${t("예약하기")}` : t("시간을 골라 주세요")}
             </button>
             <button type="button" className="min-h-0 text-[14px] text-sub underline" onClick={() => setStep("result")}>{t("이전")}</button>
@@ -247,11 +230,10 @@ export default function Counsel({ onClose, onLogin, toast }: { onClose: () => vo
 
         {step === "done" && (
           <>
-            {result?.crisis && <CrisisBox />}
             <div className="space-y-2 py-2 text-center">
               <p className="text-[18px] font-bold text-ink">{t("예약이 접수됐어요")}</p>
               {booked != null && <p className="text-[16px] font-semibold text-accent">{slotLabel(booked)}</p>}
-              <p className="text-[14px] leading-relaxed text-sub">{t("담당자가 확인한 뒤 연락드릴게요. 접수 확인 메일도 보내 드렸어요. 예약은 내 정보 › 마음 상담에서 확인하거나 취소할 수 있어요.")}</p>
+              <p className="text-[14px] leading-relaxed text-sub">{t("담당자가 확인한 뒤 남겨 주신 SNS로 연락드릴게요. 접수 확인 메일도 보내 드렸어요. 예약은 내 정보 › 마음 상담에서 확인하거나 취소할 수 있어요.")}</p>
               <p className="text-[15px] font-semibold text-mint">{t(CARE_TEXT)}</p>
             </div>
             <button type="button" className={btnPrimary} onClick={onClose}>{t("확인")}</button>

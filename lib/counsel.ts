@@ -62,12 +62,18 @@ export const LEVEL_TEXT: Record<Level, string> = {
   good: "요즘 마음 상태는 비교적 안정적이에요. 그래도 이야기하고 싶은 일이 있다면 편하게 예약해 주세요.",
   mild: "조금 지쳐 있는 것 같아요. 혼자 버티기보다 한 번 털어놓으면 한결 가벼워질 수 있어요.",
   moderate: "마음이 꽤 힘든 상태로 보여요. 상담으로 이야기를 나눠 보시길 권해요.",
-  high: "많이 힘드신 것 같아요. 꼭 상담을 받아 보시고, 필요하면 전문 기관의 도움도 함께 받아 주세요.",
+  high: "많이 힘드신 것 같아요. 혼자 견디지 말고 편하게 이야기 나눠요.",
 };
+
+/** 화면 이름 */
+export const INDEX_NAME = "나의 스트레스 지수";
+export const CHECK_NAME = "나의 스트레스 지수 체크";
+/** 연락처 안내(전화번호는 받지 않음) */
+export const PRIVACY_TEXT = "전화번호는 받지 않아요. 비밀은 철저히 지켜요.";
 
 export type Result = { scale: Scale; score: number; max: number; index: number; level: Level; crisis: boolean };
 
-/** 답(0~3)으로 점수를 낸다. 답 개수가 맞지 않으면 null. index는 0~100(높을수록 마음이 건강). */
+/** 답(0~3)으로 점수를 낸다. 답 개수가 맞지 않으면 null. index는 스트레스 지수 0~100(높을수록 스트레스가 큼). */
 export function scoreAnswers(t: Topic, answers: unknown): Result | null {
   const qs = questionsFor(t);
   if (!Array.isArray(answers) || answers.length !== qs.length) return null;
@@ -81,12 +87,20 @@ export function scoreAnswers(t: Topic, answers: unknown): Result | null {
   const max = MAX[scale];
   const [c1, c2, c3] = CUTS[scale];
   const level: Level = score < c1 ? "good" : score < c2 ? "mild" : score < c3 ? "moderate" : "high";
-  return { scale, score, max, index: Math.round(100 - (score / max) * 100), level, crisis: crisisAnswer > 0 };
+  return { scale, score, max, index: Math.round((score / max) * 100), level, crisis: crisisAnswer > 0 };
 }
 
-export type Method = "email" | "phone" | "kakao" | "video";
-export const METHODS: [Method, string][] = [["email", "메일로 연락"], ["phone", "전화"], ["kakao", "카카오톡"], ["video", "화상"]];
+/** 연락 방법: SNS 또는 메일(전화번호는 받지 않는다) */
+export type Method = "kakao" | "instagram" | "sns" | "email";
+export const METHODS: [Method, string][] = [["kakao", "카카오톡"], ["instagram", "인스타그램"], ["sns", "기타 SNS"], ["email", "메일로 연락"]];
 export const METHOD_LABEL: Record<Method, string> = Object.fromEntries(METHODS) as Record<Method, string>;
+export const METHOD_HINT: Record<Method, string> = { kakao: "카카오톡 아이디", instagram: "인스타그램 아이디 (@없이)", sns: "어떤 SNS인지와 아이디 (예: 텔레그램 abc123)", email: "" };
+
+/** 휴대폰·전화번호처럼 보이는지(숫자 9자리 이상이 주를 이루면 거절) */
+export const looksLikePhone = (s: string) => {
+  const digits = s.replace(/\D/g, "");
+  return digits.length >= 9 && digits.length >= s.replace(/[\s\-+().]/g, "").length - 2;
+};
 
 /** 상담 가능 시간 설정(관리자). weekly: 요일(0=일)별 시작 시각 "HH:MM" 목록 */
 export type CounselConfig = { on: boolean; days: number; leadHours: number; weekly: Record<string, string[]>; closed: string[] };
@@ -142,10 +156,3 @@ export function slotLabel(ms: number): string {
 
 export type CounselStatus = "pending" | "confirmed" | "done" | "canceled";
 export const STATUS_LABEL: Record<CounselStatus, string> = { pending: "접수됨", confirmed: "확정", done: "완료", canceled: "취소" };
-
-/** 위기 시 바로 연락할 곳 */
-export const CRISIS_LINES: [string, string][] = [
-  ["자살예방 상담전화", "109"],
-  ["정신건강 위기상담", "1577-0199"],
-  ["긴급 상황", "119"],
-];
