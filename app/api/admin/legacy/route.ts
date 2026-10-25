@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { keyedHash, maskEmail, maskPhone, normEmail, normPhone, runMatch } from "@/lib/legacy";
 import { body, clientIp, db, ensureSchema, fail, hasDb, isAdmin, json } from "@/lib/server";
+import { performWithdraw } from "@/lib/withdraw";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -192,7 +193,17 @@ export async function POST(req: Request) {
         created = rows.length;
       }
     }
-    return json({ ok: true, saved: cols.id.length, skipped, created });
+    // 명단에 탈퇴로 표시된 회원: 예전 명단으로 자동으로 만들어 두고 한 번도 쓰지 않은 계정(비밀번호 미설정·접속 기록 없음)도 함께 탈퇴 처리한다.
+    // 이렇게 해야 '계정이 준비되었어요' 같은 안내 메일이 탈퇴한 분에게 가지 않는다. 실제로 쓰기 시작한 계정은 건드리지 않는다.
+    let withdrawnAccounts = 0;
+    const outIds = cols.id.filter((_, i) => cols.withdrawn[i]).map(String);
+    if (outIds.length) {
+      const r = await sql`select u.email from users u join legacy_members l on (l.matched_user = u.id or u.member_code = l.warp_id)
+        where l.warp_id = any(${outIds}::text[]) and l.withdrawn and u.withdrawn_at is null and u.pw_reset_required and u.last_seen is null`;
+      for (const row of r) await performWithdraw(String(row.email));
+      withdrawnAccounts = r.length;
+    }
+    return json({ ok: true, saved: cols.id.length, skipped, created, withdrawnAccounts });
   } catch (e) {
     return fail(e);
   }

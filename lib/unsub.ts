@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { keyedHash } from "./legacy";
 import { db, ensureSchema } from "./server";
 import { SITE_URL as SITE } from "./site";
 
@@ -45,5 +46,8 @@ export async function suppressedNow(email: string): Promise<string> {
   if (s.length) return "발송 제외 주소(수신거부·반송·스팸 신고)";
   const u = await db()`select blocked, test, withdrawn_at from users where lower(email) = ${e}`;
   if (u[0] && (u[0].blocked === true || u[0].test === true || u[0].withdrawn_at)) return "정지·테스트·탈퇴 회원";
+  // 구 워프에서 탈퇴한 회원(옮겨 온 명단에 탈퇴로 표시된 메일 주소)
+  const l = await db()`select 1 from legacy_members where withdrawn and (email_norm = ${e} or email_h = ${keyedHash(e)}) limit 1`;
+  if (l.length) return "워프 탈퇴 회원";
   return "";
 }

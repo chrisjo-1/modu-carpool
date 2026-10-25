@@ -128,6 +128,16 @@ type Prepared = { held: Status } | { payload: { from: string; to: string[]; subj
 
 /** 정책 확인(광고성)과 본문 꾸미기. 차단은 여기서 이력을 남기고, 보류는 이력 없이 돌려준다. */
 async function prepare(m: Mail): Promise<Prepared> {
+  // 대량·자동 발송(캠페인)은 '안내' 메일이어도 수신거부·탈퇴(가입 계정·구 워프)·정지·테스트 주소에는 보내지 않는다.
+  // (비밀번호 재설정·인증·탈퇴 확인 같은 1:1 메일은 본인이 요청한 것이라 그대로 보낸다)
+  if (m.campaignId && !m.testOnly && m.category !== "marketing") {
+    const sup = await suppressedNow(m.to);
+    if (sup) {
+      console.log(`[mail] blocked campaign ${m.kind} to=${m.to}: ${sup}`);
+      await record(m, "blocked", sup);
+      return { held: "blocked" };
+    }
+  }
   if (m.category === "marketing" && !m.testOnly) {
     const b = await blockCheck(m);
     if (b) {
@@ -441,7 +451,7 @@ export async function sendLegacyConfirmMail(to: string, link: string) {
 
 /** 메일로 알리기: 읽지 않은 메시지 수와 마지막 메시지를 보낸다. 받는 사람이 알림을 껐으면 보내지 않는다. */
 export async function nudgeMail(toUserId: string, fromName: string, route: string, count: number, last: string, path: string) {
-  const rows = await db()`select email from users where id = ${toUserId} and notify and not test and not blocked`;
+  const rows = await db()`select email from users where id = ${toUserId} and notify and not test and not blocked and withdrawn_at is null`;
   if (!rows.length) return false;
   const to = String(rows[0].email);
   const from = fromName || "회원";
@@ -461,7 +471,7 @@ export async function nudgeMail(toUserId: string, fromName: string, route: strin
 
 export async function notify(toUserId: string, kind: Kind, fromName: string, route: string, quote = "") {
   try {
-    const rows = await db()`select email, name from users where id = ${toUserId} and notify and not test and not blocked`;
+    const rows = await db()`select email, name from users where id = ${toUserId} and notify and not test and not blocked and withdrawn_at is null`;
     if (!rows.length) return;
     const to = String(rows[0].email);
     const c = copy[kind](fromName || "회원", route);
