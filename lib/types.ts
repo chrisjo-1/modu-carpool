@@ -25,6 +25,8 @@ export type Post = {
   /** 키워드: 표시용 이름과 묶음(gift·driver·rider), 수정용 id */
   tags?: { label: string; group: string }[];
   tagIds?: string[];
+  /** 다시 올리기 하루 전 알림(1회 카풀, 내 글에서만 의미) */
+  remind?: boolean;
   /** 운전자 글이면 작성자의 차량 사진 */
   carPhoto?: string;
   /** 내 글이 다른 회원에게 보이지 않는 이유 */

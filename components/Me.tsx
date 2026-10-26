@@ -48,6 +48,7 @@ export default function Me({
   onCommute,
   onChanged,
   onEdit,
+  onRepost,
   push,
   onProfile,
   feedbackFirst = false,
@@ -65,6 +66,8 @@ export default function Me({
   /** 차단을 풀어 글 목록을 다시 받아야 할 때 */
   onChanged: () => void;
   onEdit: (p: Post) => void;
+  /** 같은 요일·시간으로 다시 올리기 */
+  onRepost?: (p: Post) => void;
   push: ReturnType<typeof usePush>;
   onProfile: (id: string) => void;
   /** 답변 알림을 눌러 들어온 경우 의견 창을 바로 연다 */
@@ -367,6 +370,7 @@ export default function Me({
                 {p.hidden && <p data-block-id="C051" data-block-name="노출 안 됨 안내" className="mx-5 mb-2 rounded-lg bg-warnSoft px-3 py-2 text-[13px] text-warn">{t(HIDDEN_TEXT[p.hidden])}</p>}
                 <div className="flex gap-4 px-5 pb-3 text-[14px]">
                   <button data-block-id="B051" data-block-name="글 수정" className="min-h-0 py-1 font-semibold text-accent underline" onClick={() => onEdit(p)}>{t("수정")}</button>
+                  {!p.regular && onRepost && <button data-block-id="B402" data-block-name="내 글 다시 올리기" className={`min-h-0 py-1 font-semibold underline ${p.role === "driver" ? "text-accent" : "text-mint"}`} onClick={() => onRepost(p)}>{t("다시 올리기")}</button>}
                   <button data-block-id="B052" data-block-name="글 삭제" className="min-h-0 py-1 text-warn underline" onClick={async () => {
                     if (!window.confirm(t("이 글을 삭제할까요?"))) return;
                     const r = await api(`/api/posts?id=${p.id}`, "DELETE");

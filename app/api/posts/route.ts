@@ -10,6 +10,7 @@ import { samplePosts } from "@/lib/sample";
 import { after } from "next/server";
 import { fillPostAreas } from "@/lib/area";
 import { pingIndexNow } from "@/lib/indexnow";
+import { maybeRunRepostReminders } from "@/lib/repostRemind";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular, toMinutes, validDays } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -98,12 +99,14 @@ export async function GET(req: Request) {
       demo: r.demo === true,
       ownerTest: r.owner_test === true,
       createdAt: new Date(r.created_at as string).getTime(),
+      remind: r.remind !== false,
       // 내 글 목록에서만: 다른 회원 목록에 보이지 않는 이유
       hidden: me && r.user_id === me ? (r.owner_blocked ? "blocked" : r.owner_test ? "test" : r.expired ? "expired" : "") : undefined,
     }));
     // 출발 임박순, 종료된 글은 맨 아래(최근에 끝난 순)
     // 지역 이름이 빠진 글은 응답을 보낸 뒤에 조금씩 채운다(첫 화면을 막지 않음).
     after(() => fillPostAreas().catch(() => {}));
+    after(() => maybeRunRepostReminders().catch((e) => console.error("[repost-remind]", e)));
     if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });
   } catch (e) {
@@ -235,6 +238,11 @@ export async function PATCH(req: Request) {
           origin_lat = ${v.oLat}, origin_lng = ${v.oLng}, dest_lat = ${v.dLat}, dest_lng = ${v.dLng}
         where id = ${b.id} and user_id = ${me} and not regular returning id`;
       if (!rows.length) return json({ error: "권한이 없습니다." }, 403);
+      return json({ ok: true });
+    }
+    // 다시 올리기 하루 전 알림 켜기·끄기 {id, remind}
+    if (typeof b.remind === "boolean") {
+      await sql`update posts set remind = ${b.remind} where id = ${b.id} and user_id = ${me} and not regular`;
       return json({ ok: true });
     }
     // 'progress'(카풀 진행 중)는 탑승자 글에만 쓴다: 목록에는 남지만 새 신청은 받지 않는다.

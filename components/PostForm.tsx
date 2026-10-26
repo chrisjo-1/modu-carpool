@@ -1,4 +1,5 @@
 "use client";
+import { nextSameSlot, slotLabel } from "@/lib/repost";
 import { useState } from "react";
 import { priceAllowedAt } from "@/lib/time";
 import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
@@ -35,6 +36,7 @@ export default function PostForm({
   toast,
   onRegular,
   initial,
+  copy,
 }: {
   user: User | null;
   enabled: boolean;
@@ -44,19 +46,22 @@ export default function PostForm({
   /** 정기카풀(출퇴근) 입력 창을 연다. */
   onRegular: () => void;
   initial?: Post;
+  /** 다시 올리기: 이 글 내용을 채우고 날짜만 다음 같은 요일·같은 시각으로 바꾼 새 글 */
+  copy?: Post;
 }) {
   const t = useT();
   const empty: Place = { name: "", lat: null, lng: null };
+  const src = initial ?? copy;
   // 새 글의 역할은 오른쪽 위 모드 알약(희망 역할)을 그대로 따른다. 이미 올린 글을 고칠 때만 여기서 고른다.
   const [roleEdit, setRoleEdit] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
-  const role: "driver" | "rider" = initial ? roleEdit : defaultRoleFor(user);
-  const [kind, setKind] = useState<"commute" | "trip">(initial?.kind ?? "commute");
-  const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
-  const [origin, setOrigin] = useState<Place>(initial ? { name: initial.origin, lat: initial.originLat ?? null, lng: initial.originLng ?? null } : empty);
-  const [dest, setDest] = useState<Place>(initial ? { name: initial.dest, lat: initial.destLat ?? null, lng: initial.destLng ?? null } : empty);
-  const [at, setAt] = useState(() => (initial ? toLocalInput(initial.departAt) : defaultWhen()));
-  const [note, setNote] = useState(initial?.note ?? "");
-  const [tags, setTags] = useState<string[]>(initial?.tagIds ?? []);
+  const role: "driver" | "rider" = initial ? roleEdit : copy ? copy.role : defaultRoleFor(user);
+  const [kind, setKind] = useState<"commute" | "trip">(src?.kind === "trip" ? "trip" : "commute");
+  const [price, setPrice] = useState(src?.price ? String(src.price) : "");
+  const [origin, setOrigin] = useState<Place>(src ? { name: src.origin, lat: src.originLat ?? null, lng: src.originLng ?? null } : empty);
+  const [dest, setDest] = useState<Place>(src ? { name: src.dest, lat: src.destLat ?? null, lng: src.destLng ?? null } : empty);
+  const [at, setAt] = useState(() => (initial ? toLocalInput(initial.departAt) : copy ? toLocalInput(nextSameSlot(copy.departAt)) : defaultWhen()));
+  const [note, setNote] = useState(src?.note ?? "");
+  const [tags, setTags] = useState<string[]>(src?.tagIds ?? []);
   const [busy, setBusy] = useState(false);
   // 운전자 글은 차량번호와 차량 사진이 있어야 올릴 수 있다.
   const [carGate, setCarGate] = useState(false);
@@ -110,12 +115,17 @@ export default function PostForm({
     <form onSubmit={submit} className="space-y-4">
       {carGate && <CarGateSheet onClose={() => setCarGate(false)} user={user} toast={toast} />}
       <Card className="space-y-4 p-5">
+        {copy && !initial && (
+          <p data-block-id="C401" data-block-name="다시 올리기 안내" className={`rounded-xl px-4 py-3 text-[14px] leading-relaxed ${copy.role === "driver" ? "bg-accentSoft text-accent" : "bg-mintSoft text-mint"}`}>
+            <b>{t("지난 글을 그대로 채웠어요.")}</b> {t("출발 일시가 다음")} {slotLabel(nextSameSlot(copy.departAt))}{t("(으)로 맞춰져 있어요. 확인하고 등록만 누르세요.")}
+          </p>
+        )}
         {initial ? (
           <div className="space-y-1.5">
             <p className="text-sm text-sub">{t("나는")}</p>
             <Segment label={t("역할")} value={roleEdit} onChange={setRoleEdit} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
           </div>
-        ) : (
+        ) : copy ? null : (
           <p data-block-id="C023" data-block-name="등록 역할 안내" className="text-[13px] leading-relaxed text-sub">
             <b className={role === "driver" ? "text-accent" : "text-mint"}>{role === "driver" ? t("운전자 모드") : t("탑승자 모드")}</b>
             {role === "driver" ? t("로 올려요 · 태워 주는 글") : t("로 올려요 · 같이 탈 차를 찾는 글")}

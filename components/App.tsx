@@ -142,6 +142,21 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const [leaveOpen, setLeaveOpen] = useState(false);
   // 마음 상담 창: 내 정보 버튼 또는 앱 접속 팝업 링크(?counsel=1)로 연다.
   const [counselOpen, setCounselOpen] = useState(false);
+  // 다시 올리기: 지난 1회 카풀을 채운 등록 화면. 알림 링크(?repost=글ID)는 로그인 확인 뒤 연다.
+  const [repostFrom, setRepostFrom] = useState<Post | null>(null);
+  const [repostId, setRepostId] = useState<string | null>(null);
+  const startRepost = (p: Post) => { setOpen(null); setRepostFrom(p); setTab("post"); };
+  useEffect(() => {
+    if (!repostId || !user) return;
+    setRepostId(null);
+    api<{ posts: Post[] }>("/api/posts?mine=1").then((r) => {
+      const p = r.ok && r.data.posts.find((x) => x.id === repostId && !x.regular);
+      if (p) startRepost(p);
+    });
+  }, [repostId, user]);
+  useEffect(() => {
+    if (tab !== "post") setRepostFrom(null);
+  }, [tab]);
   const [bubbleTexts, setBubbleTexts] = useState<Record<string, string>>({});
   useEffect(() => {
     fetch("/api/bubbles").then((r) => r.json()).then((j) => setBubbleTexts(j.texts ?? {})).catch(() => {});
@@ -261,6 +276,11 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       if (q.get("leave")) {
         history.replaceState(null, "", location.pathname);
         setLeaveOpen(true);
+      }
+      const rp = q.get("repost");
+      if (rp) {
+        history.replaceState(null, "", location.pathname);
+        setRepostId(rp);
       }
       if (q.get("counsel")) {
         history.replaceState(null, "", location.pathname);
@@ -565,7 +585,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
           {tab === "home" &&
             (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} onSubway={(v) => { setSubwayStart({ view: v, n: Date.now() }); setTab("subway"); }} onSubwaySetup={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "home" && seo}
-          {tab === "post" && <PostForm user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
+          {tab === "post" && <PostForm key={repostFrom?.id ?? "new"} copy={repostFrom ?? undefined} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { setRepostFrom(null); await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} start={subwayStart} onSettings={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} onChanged={loadThreads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {
             // 받은 신청: 내 글 목록에서 찾아 글 상세(수락·거절 버튼)를 연다.
@@ -574,7 +594,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
             if (hit) setOpen(hit);
             else setToastMsg(t("글을 찾을 수 없어요."));
           }} push={push} toast={setToastMsg} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} push={push} onCounsel={() => setCounselOpen(true)} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} onRepost={startRepost} push={push} onCounsel={() => setCounselOpen(true)} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
@@ -598,7 +618,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
           </ul>
         </nav>
 
-        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} onEdit={(p) => { setOpen(null); setEditing(p); }} onProfile={setMember} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
+        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} onEdit={(p) => { setOpen(null); setEditing(p); }} onRepost={startRepost} onProfile={setMember} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {editing && (
           <Sheet title={t("글 수정")} blockId="S070" onClose={() => setEditing(null)}>
             <PostForm initial={editing} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { setEditing(null); refresh(); }} />

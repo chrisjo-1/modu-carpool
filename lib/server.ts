@@ -487,6 +487,15 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table posts add column if not exists dest_area text`;
   await sql`alter table posts add column if not exists origin_area_key text`;
   await sql`alter table posts add column if not exists dest_area_key text`;
+  // 다시 올리기 알림: 1회 카풀 글마다 켜고 끈다(기본 켬). 같은 회원에게 하루 한 번만 보낸 기록.
+  await sql`alter table posts add column if not exists remind boolean not null default true`;
+  await sql`create table if not exists repost_reminds (
+    user_id uuid not null references users(id) on delete cascade,
+    day date not null,
+    post_id uuid,
+    sent int not null default 0,
+    created_at timestamptz not null default now(),
+    primary key (user_id, day))`;
   // 공지 대상 계산: 회원마다 구 워프 회원을 찾는 데 쓰는 색인(없으면 회원 수 × 전체 검색이 돼 매우 느리다)
   await sql`create index if not exists legacy_matched_user_idx on legacy_members (matched_user)`;
   await sql`create index if not exists posts_user_role_idx on posts (user_id, role)`;
@@ -530,6 +539,7 @@ async function buildSchema(sql: ReturnType<typeof db>) {
 
 /** 매번 가볍게 확인하는 자료 정리(고유코드 없는 회원 채우기, 표시 이름을 고유코드로). 할 일이 없으면 쿼리 2번. */
 async function maintainData(sql: ReturnType<typeof db>) {
+  await sql`delete from repost_reminds where day < current_date - 30`;
   await backfillMemberCodes(sql);
   await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
   // Resend 유료 전환(2026-10-23): 대량 메일 하루 한도를 100 → 500으로 한 번만 올린다(관리자가 바꾼 값은 건드리지 않음).

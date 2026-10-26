@@ -311,6 +311,7 @@ export function PostDetail({
   toast,
   onEditCommute,
   onEdit,
+  onRepost,
   onProfile,
   onBlock,
 }: {
@@ -325,6 +326,8 @@ export function PostDetail({
   toast: (m: string) => void;
   onEditCommute: (p: Post) => void;
   onEdit: (p: Post) => void;
+  /** 같은 요일·시간으로 다시 올리기(1회 카풀) */
+  onRepost?: (p: Post) => void;
   /** 회원 프로필 열기, 사유를 받아 차단하기 */
   onProfile: (id: string) => void;
   onBlock: (id: string, name: string) => void;
@@ -333,6 +336,7 @@ export function PostDetail({
   const lang = useLang();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [remind, setRemind] = useState(post.remind !== false);
   const mineThread = threads.find((th) => th.postId === post.id && !th.iAmOwner);
   const incoming = threads.filter((th) => th.postId === post.id && th.iAmOwner);
 
@@ -424,7 +428,16 @@ export function PostDetail({
               </div>
             ))}
             {post.hidden && <p data-block-id="C014" data-block-name="노출 안 됨 안내" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] text-warn">{t(HIDDEN_TEXT[post.hidden])}</p>}
-            <button data-block-id="B015" data-block-name="글 수정" className={`${btnRole(post.role)} py-3 text-[15px]`} onClick={() => (post.regular ? onEditCommute(post) : onEdit(post))}>{post.regular ? t("출퇴근 정보 수정") : t("글 수정")}</button>
+            {!post.regular && onRepost && (
+              <button data-block-id="B401" data-block-name="다시 올리기" className={`${post.ended || post.status === "closed" ? btnRole(post.role) : btnGhost} py-3 text-[15px]`} onClick={() => onRepost(post)}>{t("같은 요일·시간으로 다시 올리기")}</button>
+            )}
+            <button data-block-id="B015" data-block-name="글 수정" className={`${post.regular || !(post.ended || post.status === "closed") ? btnRole(post.role) : btnGhost} py-3 text-[15px]`} onClick={() => (post.regular ? onEditCommute(post) : onEdit(post))}>{post.regular ? t("출퇴근 정보 수정") : t("글 수정")}</button>
+            {!post.regular && (
+              <label data-block-id="F401" data-block-name="다시 올리기 알림" className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 text-[14px]">
+                <span>{t("매주 하루 전 다시 올리기 알림")}<span className="block text-[12px] text-sub">{t("전날 저녁 8시에 푸시로 알려 드려요")}</span></span>
+                <input type="checkbox" className="h-5 w-5 shrink-0 accent-accent" checked={remind} onChange={(e) => { const v = e.target.checked; setRemind(v); void api("/api/posts", "PATCH", { id: post.id, remind: v }).then((r) => { if (!r.ok) { setRemind(!v); toast(t(r.error)); } else toast(t(v ? "하루 전 알림을 켰어요." : "하루 전 알림을 껐어요.")); }); }} />
+              </label>
+            )}
             <div className="flex gap-2 pt-1">
               {post.role === "rider" ? (
                 <button
