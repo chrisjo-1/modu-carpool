@@ -6,6 +6,8 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 export function middleware(req: NextRequest) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return NextResponse.next();
+  // Resend 웹훅은 다른 서버가 보내므로 Origin이 없다. 대신 그 안에서 서명(svix)을 확인한다.
+  if (req.nextUrl.pathname === "/api/mail/webhook") return NextResponse.next();
   const from = req.headers.get("origin") ?? req.headers.get("referer");
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
   let ok = false;

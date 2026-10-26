@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       if (!ok) {
         await recordAttempt("login-email", email);
         await recordAttempt("login-ip", ip);
-        if (rows.length && rows[0].pw_reset_required) return json({ error: "개인정보를 삭제한 계정이에요. 비밀번호 찾기로 새 비밀번호를 정해 주세요." }, 403);
+        if (rows.length && rows[0].pw_reset_required) return json({ error: "아직 비밀번호가 정해지지 않은 계정이에요. 비밀번호 찾기로 새 비밀번호를 정해 주세요." }, 403);
         return json({ error: "이메일 또는 비밀번호가 맞지 않습니다." }, 401);
       }
       if (rows[0].blocked) return json({ error: "이용이 정지된 계정입니다. 문의가 필요하면 운영자에게 연락해 주세요." }, 403);
