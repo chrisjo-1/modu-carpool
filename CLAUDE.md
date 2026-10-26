@@ -74,7 +74,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **지하철 메뉴**: `components/subway/SubwayTab.tsx` — 오늘 출근 요약 카드 + 위쪽 탭 [내 자리 알리기(`SeatSpotCard`, 좌석 미선택이면 그림을 바로 펼침) | 매칭(`SubwayMatches`) | 앉을 칸 찾기(`SubwayCarGuide`)], 마지막 탭은 sessionStorage `modu.subwayView`. 오른쪽 위 "위치 찾는 법"(`LocationHelp`, 사진은 열 때만 로드). CALL을 보내면 매칭 탭으로 이동.
   탭 노출은 `/api/seat/config`의 `visible`(기능 켜짐 또는 관리자). 폴더와 `components/App.tsx`의 탭 연결을 지우면 기능 전체가 빠진다.
 - **저장소**: 별도 Neon DB(modu-seat), `SEAT_DATABASE_URL`. `lib/seatDb.ts`의 `ensureSeatSchema()`가 `seat_plans`, `seat_requests`, `seat_feedback`, `seat_car_confirm`을 만든다.
-- **혼잡도**: 서울교통공사 시간대별 혼잡도(2026년 6월, 평일·토·일, 역·방향·30분). `scripts/build-congestion.py`로 엑셀을 `lib/data/congestion-2026-06.json`으로 변환, `lib/congestion.ts`가 서버에서만 조회(`/api/seat/car` 응답의 `congestion`).
+- **혼잡도**: 서울교통공사 시간대별 혼잡도(2026년 6월, 평일·토·일, 역·방향·30분). `scripts/build-congestion.py`로 엑셀 또는 CSV(공공데이터포털 15071311, cp949, 시간 칸 '5시30분')를 `lib/data/congestion-YYYY-MM.json`으로 변환(10/26 받은 20260630 CSV는 지금 자료와 같은 2026년 6월분, 반올림 ±1 차이뿐이라 교체 안 함), `lib/congestion.ts`가 서버에서만 조회(`/api/seat/car` 응답의 `congestion`).
   2호선 내선=상행, 외선=하행. 자료 별칭: 신촌=신촌(지하), 강동=강동(마천)/(하남검단산). 공공 API 연동은 서비스명 확인 전까지 보류.
 - **칸 추천**: `lib/seatCar.ts`. 기록 30건 이상이면 기록 순위(평활), 그 전에는 `estimateCars` 현재 기준 추정(혼잡도 로지스틱 + 끝 칸 가산 + 칸별 기록 가중 W=8)을 적중확률(%)로 보여 준다. 기록에는 회원 번호를 넣지 않는다.
 - **오늘 탑승 정보 변경**: 지하철 메뉴 '오늘 출근' 카드 [변경] → 탑승역·방향·시간을 오늘 하루 이 기기(localStorage `modu.subwayToday`)에서만 바꿔 내 자리 알리기·앉을 칸 찾기에 적용. 매칭용 등록은 그대로.
