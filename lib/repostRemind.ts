@@ -1,6 +1,7 @@
 import { db } from "./server";
 import { sendPush } from "./push";
 import { slotLabel } from "./repost";
+import { repostOn } from "./features";
 
 /**
  * 다시 올리기 하루 전 알림(매일 저녁 8시 무렵, 한국 시간).
@@ -8,6 +9,7 @@ import { slotLabel } from "./repost";
  * 내일 출발하는 글을 이미 올렸거나, 오늘 이미 보냈으면 건너뛴다. 정기카풀·임시글·테스트·차단·탈퇴 회원은 빼고 보낸다.
  */
 export async function runRepostReminders(limit = 400): Promise<{ targets: number; pushed: number }> {
+  if (!(await repostOn())) return { targets: 0, pushed: 0 };
   const sql = db();
   const rows = await sql`
     with t as (select (now() at time zone 'Asia/Seoul')::date as today, ((now() at time zone 'Asia/Seoul')::date + 1) as tomorrow)
@@ -58,6 +60,7 @@ export async function maybeRunRepostReminders() {
   const day = k.toISOString().slice(0, 10);
   if (checkedDay === day) return;
   checkedDay = day;
+  if (!(await repostOn())) return;
   const sql = db();
   const claim = await sql`insert into settings (key, value) values ('repost_remind_day', ${day})
     on conflict (key) do update set value = excluded.value where settings.value < excluded.value returning value`;

@@ -145,15 +145,17 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   // 다시 올리기: 지난 1회 카풀을 채운 등록 화면. 알림 링크(?repost=글ID)는 로그인 확인 뒤 연다.
   const [repostFrom, setRepostFrom] = useState<Post | null>(null);
   const [repostId, setRepostId] = useState<string | null>(null);
+  // 관리자가 '정책 적용'을 눌러야 다시 올리기 버튼·알림 링크가 보인다.
+  const [repostOn, setRepostOn] = useState(false);
   const startRepost = (p: Post) => { setOpen(null); setRepostFrom(p); setTab("post"); };
   useEffect(() => {
-    if (!repostId || !user) return;
+    if (!repostId || !user || !repostOn) return;
     setRepostId(null);
     api<{ posts: Post[] }>("/api/posts?mine=1").then((r) => {
       const p = r.ok && r.data.posts.find((x) => x.id === repostId && !x.regular);
       if (p) startRepost(p);
     });
-  }, [repostId, user]);
+  }, [repostId, user, repostOn]);
   useEffect(() => {
     if (tab !== "post") setRepostFrom(null);
   }, [tab]);
@@ -357,8 +359,9 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       /* 무시 */
     }
     setSharedPost(new URLSearchParams(location.search).get("p") ?? "");
-    api<{ enabled: boolean; user: User | null }>("/api/auth").then((r) => {
+    api<{ enabled: boolean; user: User | null; repostOn?: boolean }>("/api/auth").then((r) => {
       setEnabled(!!r.data.enabled);
+      setRepostOn(r.data.repostOn === true);
       setUser(r.data.user ?? null);
       setChecked(true);
     });
@@ -594,7 +597,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
             if (hit) setOpen(hit);
             else setToastMsg(t("글을 찾을 수 없어요."));
           }} push={push} toast={setToastMsg} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} onRepost={startRepost} push={push} onCounsel={() => setCounselOpen(true)} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} onRepost={repostOn ? startRepost : undefined} push={push} onCounsel={() => setCounselOpen(true)} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
@@ -618,7 +621,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
           </ul>
         </nav>
 
-        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} onEdit={(p) => { setOpen(null); setEditing(p); }} onRepost={startRepost} onProfile={setMember} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
+        {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} onEdit={(p) => { setOpen(null); setEditing(p); }} onRepost={repostOn ? startRepost : undefined} onProfile={setMember} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {editing && (
           <Sheet title={t("글 수정")} blockId="S070" onClose={() => setEditing(null)}>
             <PostForm initial={editing} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { setEditing(null); refresh(); }} />

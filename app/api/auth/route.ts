@@ -1,3 +1,4 @@
+import { repostOn } from "@/lib/features";
 import { grantCarIfReady } from "@/lib/car";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
@@ -28,9 +29,10 @@ export async function GET() {
   if (!authEnabled()) return json({ enabled: false, user: null });
   try {
     const id = await currentUserId();
-    if (!id) return json({ enabled: true, user: null });
+    if (!id) return json({ enabled: true, user: null, repostOn: await repostOn() });
     await ensureSchema();
-    return json({ enabled: true, user: await profile(id) });
+    const [user, repost] = await Promise.all([profile(id), repostOn()]);
+    return json({ enabled: true, user, repostOn: repost });
   } catch {
     return json({ enabled: true, user: null });
   }
