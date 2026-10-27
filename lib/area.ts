@@ -11,6 +11,9 @@ const SHORT: Record<string, string> = {
 const cache = new Map<string, string>();
 // 카카오 키가 거절되면(지도 서비스 미사용 설정 등) 이 서버가 떠 있는 동안은 무료 지도(OSM)로 대신한다.
 let kakaoDown = false;
+// OSM이 '요청이 너무 많다(429)'고 하면 그날(한국 날짜)은 더 묻지 않고 다음 날 이어서 채운다.
+let osmPausedDay = "";
+const kstDay = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 const UA = "modu-carpool/1.0 (https://moducarpool.com)";
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -20,6 +23,10 @@ async function osmRegion(lat: number, lng: number): Promise<string> {
     headers: { "User-Agent": UA, "Accept-Language": "ko" },
     signal: AbortSignal.timeout(5000),
   });
+  if (res.status === 429) {
+    osmPausedDay = kstDay();
+    console.warn("[area] osm 429 → 오늘은 지역 이름 채우기를 멈춥니다");
+  }
   if (!res.ok) throw new Error(`osm ${res.status}`);
   const a = ((await res.json()) as { address?: Record<string, string> }).address ?? {};
   const dong = a.quarter || a.suburb || a.neighbourhood || a.village || a.town || "";
@@ -71,7 +78,10 @@ async function regionName(lat: number, lng: number, key: string | undefined): Pr
 export async function fillPostAreas(limit = 15) {
   const key = process.env.KAKAO_REST_KEY;
   // OSM은 1초에 1번이라 한 번에 조금만 채운다.
-  if (!key || kakaoDown) limit = Math.min(limit, 4);
+  if (!key || kakaoDown) {
+    if (osmPausedDay === kstDay()) return;
+    limit = Math.min(limit, 4);
+  }
   const sql = db();
   const rows = await sql`
     select id, origin_lat, origin_lng, dest_lat, dest_lng, origin_area_key, dest_area_key from posts
@@ -81,7 +91,7 @@ export async function fillPostAreas(limit = 15) {
   let done = 0;
   for (const r of rows) {
     // 도중에 OSM으로 바뀌었으면 몇 개만 하고 다음 요청 때 이어서 한다.
-    if (kakaoDown && done >= 4) return;
+    if ((kakaoDown && done >= 4) || osmPausedDay === kstDay()) return;
     done += 1;
     try {
       const oLat = r.origin_lat == null ? null : Number(r.origin_lat);

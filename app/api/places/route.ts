@@ -28,9 +28,19 @@ function limited(req: Request): boolean {
   return h.n > 40;
 }
 
+// 카카오가 키를 거절하면(401·403, 카카오맵 사용 설정 꺼짐 등) 1시간 동안은 묻지 않고 바로 무료 지도로 간다.
+let kakaoOffUntil = 0;
+const kakaoOn = () => Date.now() > kakaoOffUntil;
+
 async function get(url: string, headers: Record<string, string>) {
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
-  if (!res.ok) throw new Error(`upstream ${res.status}`);
+  if (!res.ok) {
+    if ((res.status === 401 || res.status === 403) && url.includes("dapi.kakao.com")) {
+      if (kakaoOn()) console.warn(`[places] kakao ${res.status} → 1시간 동안 무료 지도로 대신합니다`);
+      kakaoOffUntil = Date.now() + 3600_000;
+    }
+    throw new Error(`upstream ${res.status}`);
+  }
   return res.json();
 }
 
@@ -225,14 +235,14 @@ export async function GET(req: Request) {
   const key = process.env.KAKAO_REST_KEY;
   try {
     if (q.length >= 2) {
-      const items = (key ? await kakaoSearch(q, key).catch((e) => (console.error("[places] kakao", e), freeSearch(q, lang))) : await freeSearch(q, lang)).filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lng));
+      const items = (key && kakaoOn() ? await kakaoSearch(q, key).catch(() => freeSearch(q, lang)) : await freeSearch(q, lang)).filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lng));
       return out({ items }, 3600);
     }
     const lat = Number(p.get("lat"));
     const lng = Number(p.get("lng"));
     if (p.get("lat") && p.get("lng") && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
       // 카카오 키가 거절되면(권한 미설정 등) 무료 지도 검색으로 대신한다.
-      const name = key ? await kakaoReverse(lat, lng, key).catch((e) => (console.error("[places] kakao", e), osmReverse(lat, lng, lang))) : await osmReverse(lat, lng, lang);
+      const name = key && kakaoOn() ? await kakaoReverse(lat, lng, key).catch(() => osmReverse(lat, lng, lang)) : await osmReverse(lat, lng, lang);
       return out({ name }, 3600);
     }
     return out({ items: [], name: "" }, 0);

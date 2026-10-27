@@ -260,6 +260,11 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`create index if not exists legacy_email_idx on legacy_members (email_norm)`;
   await sql`create index if not exists legacy_phone_idx on legacy_members (phone_norm)`;
   await sql`create index if not exists legacy_email_h_idx on legacy_members (email_h)`;
+  // 워프 명단 전체 훑기를 줄이는 색인: 고유번호(가입 때 대문자로 찾음), 메일 도메인(아이폰 메일 집계).
+  // 신워프 구분(src_no)은 전체의 4분의 1이라 색인을 써도 빨라지지 않아 두지 않는다.
+  await sql`create index if not exists legacy_warp_upper_idx on legacy_members (upper(warp_id))`;
+  await sql`create index if not exists legacy_email_domain_idx on legacy_members (split_part(lower(email_norm), '@', 2))`;
+  await sql`create index if not exists users_email_domain_idx on users (split_part(lower(email), '@', 2))`;
   await sql`create index if not exists legacy_match_idx on legacy_members (match_status)`;
   await sql`create table if not exists report_chat_access (
     id bigserial primary key,

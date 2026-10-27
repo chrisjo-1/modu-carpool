@@ -32,6 +32,8 @@ export async function GET(req: Request) {
     const j = await r.json();
     const route = j?.routes?.[0];
     if (r.ok && route && route.distance > 0) return Response.json({ meters: Math.round(route.distance), seconds: Math.round(route.duration * 1.25), source: "road" }, { headers: cache });
+    // 출발지와 도착지가 거의 같으면 OSRM이 거리 0을 준다 — 오류가 아니므로 기록 없이 직선거리 추정으로 넘어간다.
+    if (r.ok && route) return Response.json({ meters: Math.round(distanceKm(olat, olng, dlat, dlng) * 1350), seconds: 0, source: "estimate" }, { headers: cache });
     throw new Error(`osrm ${r.status} ${j?.code}`);
   } catch (e) {
     console.error("[route]", e);

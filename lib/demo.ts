@@ -150,12 +150,16 @@ export async function createDemo(count: number): Promise<{ created: number; erro
   owners = owners.map((u) => ({ id: String(u.id), name: u.name }));
 
   const kw = await getKeywords();
+  let created = 0;
   for (let i = 0; i < count; i++) {
     const p = makeOne(kw, pick(owners));
-    await sql`insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, status,
+    // 정기카풀은 회원당 1개(posts_regular_uniq) — 이미 있는 임시 회원이면 건너뛴다.
+    const made = await sql`insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, status,
                 origin_lat, origin_lng, dest_lat, dest_lng, regular, days, time_go, time_back, tags, taxi_share, demo, demo_shown, created_at)
       values (${p.userId}, ${p.role}, ${p.kind}, ${p.cost}, ${p.price}, ${p.origin}, ${p.dest}, ${p.departAt}, ${p.seats}, ${p.note}, ${p.status},
-              ${p.oLat}, ${p.oLng}, ${p.dLat}, ${p.dLng}, ${p.regular}, ${p.days}, ${p.timeGo}, ${p.timeBack}, ${p.tags}::text[], ${p.taxi}, true, true, ${p.createdAt})`;
+              ${p.oLat}, ${p.oLng}, ${p.dLat}, ${p.dLng}, ${p.regular}, ${p.days}, ${p.timeGo}, ${p.timeBack}, ${p.tags}::text[], ${p.taxi}, true, true, ${p.createdAt})
+      on conflict do nothing returning id`;
+    created += made.length;
   }
-  return { created: count };
+  return { created };
 }
