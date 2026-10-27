@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { clearNotifications } from "@/lib/notifyClear";
 import dynamic from "next/dynamic";
 import { loadDict, translate, type Lang } from "@/lib/i18n";
 import type { Post, Thread, User } from "@/lib/types";
@@ -219,10 +220,13 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
     return r.ok ? r.data.posts : [];
   }, []);
 
+  // 서버에서 채팅 목록을 한 번이라도 받았는지(저장해 둔 목록만으로는 알림을 지우지 않는다)
+  const [threadsFresh, setThreadsFresh] = useState(false);
   const loadThreads = useCallback(async () => {
     const r = await api<{ threads: Thread[] }>("/api/requests");
     if (r.ok) {
       setThreads(r.data.threads);
+      setThreadsFresh(true);
       // 채팅 목록을 이 창(sessionStorage)에 두었다가 새로고침 때 바로 보여 준다. 창을 닫으면 지워진다.
       try {
         sessionStorage.setItem(THREADS_CACHE, JSON.stringify(r.data.threads));
@@ -540,6 +544,14 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
 
   // 채팅 아이콘 뱃지: 안 읽은 메시지 + 아직 답하지 않은 받은 신청
   const pending = threads.reduce((n, th) => n + (th.unread ?? 0) + (th.iAmOwner && th.status === "pending" ? 1 : 0), 0);
+  // 휴대폰 알림창에 남은 채팅 알림 정리(앱 아이콘 숫자): 대화방을 열면 그 방 알림, 읽을 것이 없으면 채팅·신청 알림 모두.
+  const roomId = room?.id;
+  useEffect(() => {
+    if (roomId) void clearNotifications((tag) => tag === `chat-${roomId}`);
+  }, [roomId]);
+  useEffect(() => {
+    if (user && threadsFresh && pending === 0) void clearNotifications((tag) => tag.startsWith("chat-") || tag.startsWith("req-"));
+  }, [pending, user, threadsFresh]);
   const tabs: { id: Tab; label: string; icon: (w?: number) => React.ReactNode; block: string }[] = [
     { id: "home", label: t("찾기"), icon: Icon.home, block: "N001" },
     { id: "post", label: t("등록"), icon: Icon.plus, block: "N002" },
