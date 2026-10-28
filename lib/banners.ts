@@ -35,7 +35,8 @@ export function cleanBanners(input: unknown): { ok: true; banners: Banner[] } | 
     const start = s("start", 10);
     const end = s("end", 10);
     if (!title) return { ok: false, error: "배너 제목을 적어 주세요." };
-    if (image && !/^https:\/\/[^\s]+$/i.test(image)) return { ok: false, error: `"${title}" 이미지는 https 주소로 적어 주세요.` };
+    // 관리자 화면에서 올린 이미지(/api/mail/image/<uuid>). 예전에 적어 둔 https 주소도 그대로 받는다.
+    if (image && !/^\/api\/mail\/image\/[0-9a-f-]{36}$/i.test(image) && !/^https:\/\/[^\s]+$/i.test(image)) return { ok: false, error: `"${title}" 이미지를 다시 올려 주세요.` };
     if (!safeLink(link)) return { ok: false, error: `"${title}" 링크는 https 주소나 / 로 시작하는 사이트 안 경로로 적어 주세요.` };
     if ((start && !DATE.test(start)) || (end && !DATE.test(end))) return { ok: false, error: `"${title}" 기간은 날짜로 적어 주세요.` };
     if (start && end && start > end) return { ok: false, error: `"${title}" 종료일이 시작일보다 빨라요.` };
