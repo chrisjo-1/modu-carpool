@@ -10,7 +10,6 @@ import { NoticePopup } from "./Notices";
 import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
 import TopLoading from "./TopLoading";
-import Banners from "./Banners";
 import NoticeTicker from "./NoticeTicker";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
@@ -593,7 +592,6 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
           </div>
         )}
         {tab === "home" && user && !user.test && !commuteStart && !commute && <PostNudge user={user} toast={setToastMsg} onCommute={() => setCommute({ post: null, onboarding: false })} onGoMe={() => { setOpen(null); setTab("me"); }} onPosted={refresh} />}
-        {tab === "home" && <div className="px-4"><Banners /></div>}
         {tab === "home" && <div className="flex justify-end px-5 pb-1 empty:hidden"><Bubble blockId="C930" align="right">{t("지금 내 기본 역할이에요. 누르면 운전자와 탑승자가 바뀌고, 카풀을 올릴 때 기본값이 돼요.")}</Bubble></div>}
 
         <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-2">

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "./ui";
 
-type Item = { id: string; title: string; image: string; link: string };
+type Item = { id: string; title: string; body?: string; image: string; link: string; ad?: boolean };
 
 const HIDE = "modu.popup.hide"; // 오늘 하루 보지 않기(날짜)
 const SEEN = "modu.popup.seen"; // 이번 접속에 이미 보여 줌
@@ -113,14 +113,27 @@ export default function LaunchPopup() {
           onMouseLeave={() => setPaused(false)}
         >
           <button type="button" data-block-id="B340" data-block-name="팝업 이미지" onClick={go} className={`block w-full ${cur.link ? "cursor-pointer" : "cursor-default"}`} aria-label={cur.link ? `${cur.title} · ${t("자세히 보기")}` : cur.title}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img key={cur.id} src={cur.image} alt={cur.title} className="fade-in block h-auto max-h-[62vh] w-full bg-white object-contain" />
+            {cur.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={cur.id} src={cur.image} alt={cur.title} className="fade-in block h-auto max-h-[62vh] w-full bg-white object-contain" />
+            ) : null}
+            {(!cur.image || cur.body || cur.ad) && (
+              // 홈 배너(이미지 없는 글 배너·설명·광고 표시)
+              <div key={`${cur.id}-t`} className={`fade-in space-y-1.5 px-5 text-left ${cur.image ? "py-3" : "pb-9 pt-7"}`}>
+                <p className="flex items-center gap-2">
+                  {cur.ad && <span className="shrink-0 rounded bg-bg px-1.5 py-px text-[11px] text-sub">{t("광고")}</span>}
+                  {!cur.image && <span className="text-[18px] font-bold leading-snug text-ink">{cur.title}</span>}
+                </p>
+                {cur.body && <p className="text-[15px] leading-relaxed text-sub">{cur.body}</p>}
+                {cur.link && !cur.image && <p className="pt-1 text-[14px] font-semibold text-accent">{t("자세히 보기")} →</p>}
+              </div>
+            )}
           </button>
           {items.length > 1 && (
             <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-0.5">
               {items.map((p, k) => (
                 <button key={p.id} type="button" aria-label={`${k + 1}/${items.length}`} aria-current={k === i % items.length} onClick={() => setI(k)} className="min-h-0 p-1">
-                  <span className={`block h-2 rounded-full shadow transition-all ${k === i % items.length ? "w-5 bg-white" : "w-2 bg-white/60"}`} />
+                  <span className={`block h-2 rounded-full shadow transition-all ${k === i % items.length ? (cur.image ? "w-5 bg-white" : "w-5 bg-accent") : cur.image ? "w-2 bg-white/60" : "w-2 bg-line"}`} />
                 </button>
               ))}
             </div>

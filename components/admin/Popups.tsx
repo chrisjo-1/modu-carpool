@@ -18,6 +18,15 @@ export default function AdminPopups() {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(-1);
+  // [수정]을 누른 항목만 입력칸을 펼친다
+  const [editing, setEditing] = useState<Set<string>>(new Set());
+  const toggle = (id: string, on?: boolean) =>
+    setEditing((cur) => {
+      const n = new Set(cur);
+      if (on ?? !n.has(id)) n.add(id);
+      else n.delete(id);
+      return n;
+    });
   const fileRef = useRef<HTMLInputElement>(null);
   const target = useRef(-1);
 
@@ -95,14 +104,26 @@ export default function AdminPopups() {
 
       {list.map((p, i) => (
         <div key={p.id} data-block-id="C236" data-block-name="팝업 항목" className="space-y-2.5 rounded-xl border border-line bg-bg p-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold">팝업 {i + 1}</p>
-            <div className="flex gap-3 text-sm">
-              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="text-sub underline disabled:opacity-40">위로</button>
-              <button type="button" onClick={() => move(i, 1)} disabled={i === list.length - 1} className="text-sub underline disabled:opacity-40">아래로</button>
-              <button type="button" onClick={() => setList((l) => l.filter((_, k) => k !== i))} className="text-warn underline">삭제</button>
+          <div className="flex items-center gap-3">
+            {p.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.image} alt="" className="h-14 w-12 shrink-0 rounded-md border border-line bg-white object-cover" />
+            ) : (
+              <div className="grid h-14 w-12 shrink-0 place-items-center rounded-md border border-dashed border-line bg-white text-[10px] text-sub">없음</div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{i + 1}. {p.title || "(이름 없음)"}</p>
+              <p className="text-[12px] text-sub">{p.active ? "켜짐" : "꺼짐"}{p.start || p.end ? ` · ${p.start || "지금"} ~ ${p.end || "계속"}` : ""}</p>
             </div>
           </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="text-sub underline disabled:opacity-40">위로</button>
+            <button type="button" onClick={() => move(i, 1)} disabled={i === list.length - 1} className="text-sub underline disabled:opacity-40">아래로</button>
+            <button type="button" data-block-id="B407" data-block-name="팝업 수정" onClick={() => toggle(p.id)} className="font-semibold text-accent underline">{editing.has(p.id) ? "접기" : "수정"}</button>
+            <button type="button" onClick={() => { if (window.confirm("이 팝업을 지울까요? [팝업 저장]을 눌러야 반영돼요.")) setList((l) => l.filter((_, k) => k !== i)); }} className="text-warn underline">삭제</button>
+          </div>
+          {editing.has(p.id) && (
+            <div className="space-y-2.5 border-t border-line pt-2.5">
           <div className="flex items-start gap-3">
             {p.image ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -124,6 +145,8 @@ export default function AdminPopups() {
             <label className="block">종료일 (비우면 계속)<input type="date" className={`${input} mt-1`} value={p.end} onChange={(e) => patch(i, { end: e.target.value })} /></label>
           </div>
           <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={p.active} onChange={(e) => patch(i, { active: e.target.checked })} />켜기</label>
+            </div>
+          )}
         </div>
       ))}
 
@@ -135,7 +158,7 @@ export default function AdminPopups() {
       </label>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" data-block-id="B296" onClick={() => setList((l) => [...l, newPopup()])} disabled={list.length >= MAX} className="rounded-xl bg-bg px-4 py-2.5 text-[15px] disabled:opacity-50">팝업 추가</button>
+        <button type="button" data-block-id="B296" onClick={() => { const n = newPopup(); setList((l) => [...l, n]); toggle(n.id, true); }} disabled={list.length >= MAX} className="rounded-xl bg-bg px-4 py-2.5 text-[15px] disabled:opacity-50">팝업 추가</button>
         <button type="button" data-block-id="B297" data-block-name="팝업 저장" onClick={save} disabled={busy || !dirty} className="rounded-xl bg-accent px-5 py-2.5 text-[15px] font-semibold text-white disabled:opacity-50">{busy ? "저장 중…" : "팝업 저장"}</button>
         {msg && <p className="text-[14px] text-sub">{msg}</p>}
       </div>
