@@ -271,6 +271,13 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     report_id uuid not null,
     ip text not null default '',
     at timestamptz not null default now())`;
+  await sql`create table if not exists chat_access_log (
+    id bigserial primary key,
+    request_id uuid not null,
+    reason text not null,
+    ip text not null default '',
+    at timestamptz not null default now())`;
+  await sql`create index if not exists chat_access_log_at_idx on chat_access_log (at desc)`;
   await sql`create table if not exists legacy_access (
     id bigserial primary key, warp_id text not null, ip text not null default '', at timestamptz not null default now())`;
   await sql`create table if not exists password_resets (

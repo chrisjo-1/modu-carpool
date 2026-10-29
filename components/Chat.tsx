@@ -319,6 +319,7 @@ export function ChatRoom({
             <a href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-0 items-center gap-1 font-semibold text-accent">{t("모카 미터기로 비용 나누기")} {Icon.arrow()}</a>
           )}
         </div>
+        <p data-block-id="C410" data-block-name="대화 확인 안내" className="text-center text-[12px] leading-relaxed text-sub">{t("분쟁·안전 문제가 생기면 운영팀이 대화를 확인할 수 있어요.")}</p>
         <div className="min-h-[30vh] space-y-2 supports-[height:1dvh]:min-h-[30dvh]" aria-live="polite">
           {msgs.length === 0 && <p className="py-8 text-center text-[15px] text-sub">{t("첫 인사를 건네 보세요.")}</p>}
           {msgs.map((m, i) => {

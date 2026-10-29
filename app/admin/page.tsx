@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReportChat from "@/components/admin/ReportChat";
+import AdminChats from "@/components/admin/Chats";
 import MemberCode from "@/components/admin/MemberCode";
 import AdminMail from "@/components/admin/Mail";
 import AdminSend from "@/components/admin/Send";
@@ -73,7 +74,7 @@ function memberType(u: { is_warp: boolean; is_new_warp: boolean; pw_reset_requir
 }
 
 const NO_FILTER: UserFilter = { gen: "", role: "", status: "", origin: "", from: "", to: "", seen: "", has: "", withTest: false };
-type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate" | "counsel";
+type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate" | "counsel" | "chats";
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
@@ -260,6 +261,7 @@ export default function Admin() {
         {tabBtn("posts", "카풀 글")}
         {tabBtn("users", "회원")}
         {tabBtn("requests", "신청·매칭")}
+        {tabBtn("chats", "채팅")}
         {tabBtn("flags", `신고·차단${s?.reports ? ` (${s.reports})` : ""}`)}
         {tabBtn("feedback", "의견")}
         {tabBtn("counsel", "상담")}
@@ -527,6 +529,7 @@ export default function Admin() {
       {tab === "help" && <AdminHelp />}
       {tab === "stats" && <AdminStats />}
       {tab === "calls" && <AdminCallHistory />}
+      {tab === "chats" && <AdminChats />}
       {tab === "site" && <><AdminSite /><AdminInstall /><AdminRepost /><AdminPopups /><AdminBanners /><AdminBubbles /></>}
       {tab === "docs" && <AdminDocs />}
       {tab === "radius" && <AdminRadius />}
