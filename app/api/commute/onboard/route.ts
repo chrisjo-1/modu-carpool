@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     const next = new Date(nextOccurrence(days, timeGo)).toISOString();
     const updated = await sql`
       update posts set role = ${role}, cost = ${cost}, price = ${price}, origin = ${origin}, dest = ${dest},
-        origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng},
+        origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng}, geo_tried_at = null,
         days = ${days}, time_go = ${timeGo}, time_back = '', depart_at = ${next}, seats = 1, status = 'open', tags = '{}'::text[]
       where user_id = ${me} and regular returning id`;
     if (updated.length) return json({ ok: true, posted: true, updated: true, free: !allowed, id: updated[0].id });

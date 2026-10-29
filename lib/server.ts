@@ -501,6 +501,7 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table posts add column if not exists origin_area text`;
   await sql`alter table posts add column if not exists dest_area text`;
   await sql`alter table posts add column if not exists origin_area_key text`;
+  await sql`alter table posts add column if not exists geo_tried_at timestamptz`;
   await sql`alter table posts add column if not exists dest_area_key text`;
   // 다시 올리기 알림: 1회 카풀 글마다 켜고 끈다(기본 켬). 같은 회원에게 하루 한 번만 보낸 기록.
   await sql`alter table posts add column if not exists remind boolean not null default true`;

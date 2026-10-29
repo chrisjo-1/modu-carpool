@@ -8,7 +8,7 @@ type Item = { name: string; address: string; lat: number; lng: number };
 const round = (n: number) => Math.round(n * 1e5) / 1e5;
 
 /** 끌어서 옮길 수 있는 핀이 있는 지도. 지도를 눌러도 핀이 그 자리로 간다. */
-function PinMap({ lat, lng, onMove }: { lat: number; lng: number; onMove: (lat: number, lng: number) => void }) {
+function PinMap({ lat, lng, onMove, zoom = 16 }: { lat: number; lng: number; onMove: (lat: number, lng: number) => void; zoom?: number }) {
   const box = useRef<HTMLDivElement>(null);
   const refs = useRef<{ map: import("leaflet").Map; marker: import("leaflet").Marker } | null>(null);
   const moved = useRef(onMove);
@@ -18,7 +18,7 @@ function PinMap({ lat, lng, onMove }: { lat: number; lng: number; onMove: (lat: 
     let alive = true;
     import("leaflet").then((L) => {
       if (!alive || !box.current || refs.current) return;
-      const map = L.map(box.current, { zoomControl: true, attributionControl: true }).setView([lat, lng], 16);
+      const map = L.map(box.current, { zoomControl: true, attributionControl: true }).setView([lat, lng], zoom);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
       const icon = L.divIcon({
         className: "",
@@ -85,6 +85,8 @@ export default function PlaceField({
   const [searched, setSearched] = useState(false);
   const typed = useRef(false);
   const seq = useRef(0);
+  // 목록에서 못 고른 경우 지도에서 직접 위치를 찍는다. center는 처음 보여 줄 자리(아직 위치로 저장하지 않음).
+  const [pinAt, setPinAt] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
 
   // 입력이 멈추면 검색한다.
   useEffect(() => {
@@ -110,6 +112,7 @@ export default function PlaceField({
     typed.current = false;
     seq.current++;
     setOpen(false);
+    setPinAt(null);
     onChange({ name: i.name, lat: i.lat, lng: i.lng });
   };
 
@@ -139,6 +142,24 @@ export default function PlaceField({
   };
 
   const hasPin = value.lat != null && value.lng != null;
+  const noPlace = !hasPin && value.name.trim().length >= 2 && !open;
+
+  /** 지도에서 위치 찍기: 내 위치(허용 시) 또는 첫 검색 결과, 없으면 서울시청 근처에서 시작한다. */
+  const openPin = () => {
+    const fallback = items[0] ? { lat: items[0].lat, lng: items[0].lng, zoom: 15 } : { lat: 37.5665, lng: 126.978, zoom: 11 };
+    if (!("geolocation" in navigator)) return setPinAt(fallback);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setPinAt({ lat: round(pos.coords.latitude), lng: round(pos.coords.longitude), zoom: 14 }),
+      () => setPinAt(fallback),
+      { enableHighAccuracy: false, timeout: 4000, maximumAge: 120000 },
+    );
+  };
+  /** 찍은 자리를 위치로 저장한다. 이름은 적은 그대로 둔다(기관·회사 이름을 주소로 바꾸지 않게). */
+  const pinMoved = (lat: number, lng: number) => {
+    typed.current = false;
+    seq.current++;
+    onChange({ name: value.name.trim() || t("지도에서 고른 위치"), lat, lng });
+  };
 
   return (
     <div className="space-y-2">
@@ -173,7 +194,7 @@ export default function PlaceField({
         />
         {open && (
           <ul id={`${blockId}-list`} role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-white shadow-card">
-            {items.length === 0 && searched && <li className="px-4 py-3 text-[14px] text-sub">{t("검색 결과가 없어요. 직접 입력해도 됩니다.")}</li>}
+            {items.length === 0 && searched && <li className="px-4 py-3 text-[14px] text-sub">{t("검색 결과가 없어요. 아래에서 지도로 위치를 찍어 주세요.")}</li>}
             {items.map((i, n) => (
               <li key={`${i.lat},${i.lng},${n}`} role="option" aria-selected={false}>
                 <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(i)} className="block w-full px-4 py-2.5 text-left">
@@ -185,9 +206,25 @@ export default function PlaceField({
           </ul>
         )}
       </div>
+      {noPlace && !pinAt && (
+        <div data-block-id={`${blockId}-warn`} data-block-name="위치 미선택 안내" className="space-y-2 rounded-xl bg-warnSoft px-4 py-3">
+          <p className="text-[14px] leading-relaxed text-warn">{t("목록에서 장소를 고르거나 지도에서 위치를 찍어 주세요. 이름만 적으면 지역 표시·가까운 순·지도에 나오지 않을 수 있어요.")}</p>
+          <button type="button" data-block-id="B409" data-block-name="지도에서 위치 찍기" onClick={openPin} className="w-full rounded-xl bg-white py-2.5 text-[15px] font-semibold text-accent">
+            {t("지도에서 위치 찍기")}
+          </button>
+        </div>
+      )}
+      {pinAt && !(locate && hasPin) && (
+        <>
+          <PinMap lat={hasPin ? (value.lat as number) : pinAt.lat} lng={hasPin ? (value.lng as number) : pinAt.lng} zoom={pinAt.zoom} onMove={pinMoved} />
+          <p className={`text-[13px] ${hasPin ? "text-sub" : "font-semibold text-warn"}`}>
+            {hasPin ? t("위치를 저장했어요. 핀을 끌어 더 정확히 맞출 수 있어요.") : t("지도를 움직여 그 장소를 찾은 뒤, 그 자리를 눌러 주세요.")}
+          </p>
+        </>
+      )}
       {locate && hasPin && (
         <>
-          <PinMap lat={value.lat as number} lng={value.lng as number} onMove={(lat, lng) => setByCoord(lat, lng, value.name)} />
+          <PinMap lat={value.lat as number} lng={value.lng as number} onMove={(lat, lng) => (pinAt ? pinMoved(lat, lng) : setByCoord(lat, lng, value.name))} />
           <p className="text-[13px] text-sub">{t("핀을 끌거나 지도를 눌러 타는 위치를 정확히 맞출 수 있어요.")}</p>
         </>
       )}

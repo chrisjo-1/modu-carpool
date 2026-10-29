@@ -9,6 +9,7 @@ import { body, currentUserId, db, ensureSchema, fail, hasDb, isUuid, json, needL
 import { samplePosts } from "@/lib/sample";
 import { after } from "next/server";
 import { fillPostAreas } from "@/lib/area";
+import { fillPostCoords } from "@/lib/geofill";
 import { pingIndexNow } from "@/lib/indexnow";
 import { maybeRunRepostReminders } from "@/lib/repostRemind";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular, toMinutes, validDays } from "@/lib/time";
@@ -105,7 +106,8 @@ export async function GET(req: Request) {
     }));
     // 출발 임박순, 종료된 글은 맨 아래(최근에 끝난 순)
     // 지역 이름이 빠진 글은 응답을 보낸 뒤에 조금씩 채운다(첫 화면을 막지 않음).
-    after(() => fillPostAreas().catch(() => {}));
+    // 위치 없이 이름만 있는 글을 먼저 채우고, 이어서 지역 글씨를 채운다.
+    after(() => fillPostCoords().catch((e) => console.error("[geofill]", e)).then(() => fillPostAreas()).catch(() => {}));
     after(() => maybeRunRepostReminders().catch((e) => console.error("[repost-remind]", e)));
     if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });
@@ -197,7 +199,7 @@ export async function PUT(req: Request) {
     if (role === "driver" && !(await carReady(me))) return json({ error: CAR_REQUIRED }, 403);
     const updated = await sql`
       update posts set role = ${role}, cost = ${c.cost}, price = ${c.price}, origin = ${origin}, dest = ${dest},
-        origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng},
+        origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng}, geo_tried_at = null,
         days = ${sorted}, time_go = ${timeGo}, time_back = ${timeBack}, depart_at = ${next},
         seats = ${seats}, note = ${text(b.note, 300)}, status = 'open', tags = ${allowedTags(await getKeywords(), b.tags, role, c.cost)}::text[]
       where user_id = ${me} and regular returning id`;
@@ -235,7 +237,7 @@ export async function PATCH(req: Request) {
       const rows = await sql`
         update posts set role = ${v.role}, kind = ${v.kind}, cost = ${v.cost}, price = ${v.price}, origin = ${v.origin}, dest = ${v.dest},
           depart_at = ${v.at}, seats = ${v.seats}, note = ${v.note}, tags = ${allowedTags(await getKeywords(), b.tags, v.role, v.cost)}::text[],
-          origin_lat = ${v.oLat}, origin_lng = ${v.oLng}, dest_lat = ${v.dLat}, dest_lng = ${v.dLng}
+          origin_lat = ${v.oLat}, origin_lng = ${v.oLng}, dest_lat = ${v.dLat}, dest_lng = ${v.dLng}, geo_tried_at = null
         where id = ${b.id} and user_id = ${me} and not regular returning id`;
       if (!rows.length) return json({ error: "권한이 없습니다." }, 403);
       return json({ ok: true });
