@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { after } from "next/server";
+import { findNewWarp, notifyNewWarpLeave } from "@/lib/withdrawNotify";
 import { maskEmail, normEmail } from "@/lib/legacy";
 import { sendWithdrawConfirmMail, siteUrl } from "@/lib/mail";
 import { body, clientIp, db, ensureSchema, fail, json, overLimit, recordAttempt } from "@/lib/server";
@@ -72,10 +74,11 @@ async function confirm(b: Record<string, unknown>) {
     where token_hash = ${hashWithdrawToken(token)} and not used and expires_at > now() returning email_norm, kind`;
   if (!c.length) return json({ error: "링크가 만료되었거나 이미 사용되었어요. 다시 확인해 주세요." }, 400);
   const email = String(c[0].email_norm);
-  if (c[0].kind === "purge") {
-    await performPurgeInfo(email);
-    return json({ ok: true, kind: "purge" });
-  }
-  await performWithdraw(email);
-  return json({ ok: true, kind: "withdraw" });
+  const kind = c[0].kind === "purge" ? "purge" : "withdraw";
+  // 신워프 회원이면 관리자에게 알린다. 개인정보를 지우기 전에 고유번호를 찾아 두고, 메일은 응답 뒤에 보낸다.
+  const warp = await findNewWarp(email).catch(() => null);
+  if (kind === "purge") await performPurgeInfo(email);
+  else await performWithdraw(email);
+  if (warp) after(() => notifyNewWarpLeave(warp, kind).catch((e) => console.warn("[withdraw] 신워프 알림 실패", e)));
+  return json({ ok: true, kind });
 }
