@@ -44,3 +44,8 @@ html[data-seen="1"]:not([data-ready]) #app-shell { visibility: hidden; }
 @supports (-webkit-touch-callout: none) {
   input, select, textarea { font-size: 16px !important; }
 }
+
+/* 내 정보 접는 칸(Me.tsx Fold): 안쪽 부품의 자기 제목은 제목 줄과 겹치므로 숨긴다. */
+.fold-body > div > h2:first-child,
+.fold-body > div > div:first-child > h2 { display: none; }
+.fold-body > div > div:first-child:has(> h2) { justify-content: flex-end; }

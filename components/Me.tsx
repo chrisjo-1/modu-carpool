@@ -37,6 +37,50 @@ async function shrink(file: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
+const FOLD_KEY = "modu.me.open"; // 내 정보에서 펼쳐 둔 칸(이 기기)
+
+/** 내 정보 묶음 제목 */
+function GroupTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="px-1 pt-2 text-[13px] font-semibold tracking-wide text-sub">{children}</h2>;
+}
+
+/**
+ * 접는 칸. 제목 줄에 요약을 보여 주고, 누르면 내용을 펼친다. 펼친 칸은 이 기기에 기억한다.
+ * 안쪽 부품(경로 알림·CALL 이력·당근함)의 자기 제목은 .fold-body 규칙으로 숨긴다(제목 줄과 겹치지 않게).
+ */
+function Fold({ id, title, summary, warn, blockId, children }: { id: string; title: string; summary?: string; warn?: boolean; blockId?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    try {
+      setOpen((JSON.parse(localStorage.getItem(FOLD_KEY) ?? "[]") as string[]).includes(id));
+    } catch {
+      /* 무시 */
+    }
+  }, [id]);
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    try {
+      const cur = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) ?? "[]") as string[]);
+      if (next) cur.add(id);
+      else cur.delete(id);
+      localStorage.setItem(FOLD_KEY, JSON.stringify([...cur]));
+    } catch {
+      /* 무시 */
+    }
+  };
+  return (
+    <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-card">
+      <button type="button" data-block-id={blockId} data-block-name={title} aria-expanded={open} aria-controls={`fold-${id}`} onClick={toggle} className="flex min-h-[56px] w-full items-center gap-3 px-5 py-3 text-left">
+        <span className="shrink-0 text-[16px] font-semibold text-ink">{title}</span>
+        <span className={`min-w-0 flex-1 truncate text-right text-[14px] ${warn ? "font-semibold text-warn" : "text-sub"}`}>{summary}</span>
+        <span className={`shrink-0 text-sub motion-safe:transition-transform ${open ? "rotate-90" : ""}`}>{Icon.arrow()}</span>
+      </button>
+      {open && <div id={`fold-${id}`} className="fold-body border-t border-line bg-bg p-3">{children}</div>}
+    </div>
+  );
+}
+
 export default function Me({
   user,
   enabled,
@@ -89,7 +133,7 @@ export default function Me({
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
-  const [mineOpen, setMineOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [zoom, setZoom] = useState(false);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -172,6 +216,13 @@ export default function Me({
     onChanged();
   };
 
+  const needProfile = !!user && (!user.photo || !user.contact || !user.contactType || !user.gender);
+  useEffect(() => {
+    // 필수 칸(연락 방법·성별)이 비어 있으면 프로필 수정 칸을 펼쳐 둔다.
+    if (user && (!user.contact || !user.contactType || !user.gender)) setEditOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -198,206 +249,207 @@ export default function Me({
           <button type="button" data-block-id="B293" className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-[14px] font-semibold text-ink" onClick={() => setZoom(false)}>{t("닫기")}</button>
         </div>
       )}
-      <div>
-        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t(user ? "마이 프로필" : "계정")}</h2>
-        <Card data-block-id="C040" data-block-name="계정" className="p-5">
-          {user ? (
-            <form onSubmit={saveProfile} className="space-y-3">
-              <div data-block-id="C042" data-block-name="프로필 사진" className="space-y-3">
-                {!user.photo && (
-                  <p data-block-id="C096" data-block-name="사진 등록 안내" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-[#7C2D12]">
-                    {t("카풀을 올리거나 신청·호출하려면 프로필 사진이 필요해요. 본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.")}
-                  </p>
-                )}
-                <div className="flex items-center gap-4">
-                <button type="button" data-block-id="B294" data-block-name="프로필 사진 크게 보기" disabled={!user.photo} onClick={() => setZoom(true)} className="min-h-0 shrink-0 rounded-full disabled:cursor-default">
-                  <Avatar src={user.photo} name={user.name} size={72} />
-                </button>
-                <div className="min-w-0 space-y-1">
-                  <p className="break-all text-sm text-sub">{user.email}</p>
+      {user ? (
+        <>
+          {/* 프로필 요약: 사진·이름·등급·고유코드를 한눈에. 고치는 칸은 [프로필 수정]을 눌러야 펼친다. */}
+          <Card data-block-id="C040" data-block-name="계정" className="space-y-4 p-5">
+            <div className="flex items-center gap-4">
+              <button type="button" data-block-id="B294" data-block-name="프로필 사진 크게 보기" disabled={!user.photo} onClick={() => setZoom(true)} className="min-h-0 shrink-0 rounded-full disabled:cursor-default">
+                <Avatar src={user.photo} name={user.name} size={64} />
+              </button>
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="flex items-center gap-1.5 text-[18px] font-bold text-ink"><span className="truncate">{user.name}</span>{user.tier && <TierBadge tier={user.tier} />}</p>
+                <p className="truncate text-[13px] text-sub">{user.email}</p>
+                <p className="text-[13px] text-sub">{t("고유코드")} <b className="font-mono font-semibold tracking-wider text-ink">{user.memberCode || "-"}</b></p>
+              </div>
+            </div>
+            {needProfile && (
+              <p data-block-id="C096" data-block-name="사진 등록 안내" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-[#7C2D12]">
+                {!user.photo ? t("카풀을 올리거나 신청·호출하려면 프로필 사진이 필요해요. 본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.") : t("연락 방법과 성별을 입력해 주세요.")}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" data-block-id="B403" data-block-name="프로필 수정 펼치기" aria-expanded={editOpen} aria-controls="profile-edit" onClick={() => setEditOpen((v) => !v)} className={`rounded-xl border px-3 py-3 text-[15px] font-semibold ${editOpen ? "border-accent bg-accentSoft text-accent" : "border-line bg-white text-ink"}`}>
+                {editOpen ? t("수정 닫기") : t("프로필 수정")}
+              </button>
+              <button type="button" data-block-id="B050" data-block-name="내 프로필" onClick={() => onProfile(user.id)} className="rounded-xl border border-line bg-white px-3 py-3 text-[15px] font-semibold text-ink">
+                {t("별점 · 지난 카풀")}
+              </button>
+            </div>
+            {editOpen && (
+              <form id="profile-edit" onSubmit={saveProfile} className="space-y-3 border-t border-line pt-4">
+                <div data-block-id="C042" data-block-name="프로필 사진" className="space-y-1">
                   <div className="flex flex-wrap gap-x-4">
                     <button type="button" data-block-id="B044" data-block-name="사진 등록" disabled={busy} className="min-h-0 py-1 text-[15px] font-semibold text-accent" onClick={() => file.current?.click()}>{user.photo ? t("사진 변경") : t("사진 등록")}</button>
                     {user.photo && <button type="button" data-block-id="B045" data-block-name="사진 삭제" disabled={busy} className="min-h-0 py-1 text-[15px] text-sub underline" onClick={() => savePhoto("")}>{t("사진 삭제")}</button>}
                   </div>
                   <p data-block-id="C058" data-block-name="사진 안내" className="text-[13px] leading-relaxed text-sub">{t("본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.")}</p>
-                  <input ref={file} data-block-id="F046" type="file" accept="image/*" className="hidden" aria-label={t("프로필 사진")} onChange={pickPhoto} />
                 </div>
+                <label className="block text-sm text-sub">
+                  {t("자기소개")}
+                  <textarea data-block-id="F041" className={`${field} mt-1`} rows={2} maxLength={200} placeholder={t("예: 판교로 출퇴근해요. 영어 조금 합니다.")} value={bio} onChange={(e) => setBio(e.target.value)} />
+                </label>
+                <div className="space-y-1">
+                  <label htmlFor="F045" className="block text-sm text-sub">{t("연락 방법 (필수)")}</label>
+                  <select id="F045" data-block-id="F045" required className={field} value={contactType} onChange={(e) => setContactType(e.target.value)}>
+                    <option value="">{t("선택")}</option>
+                    {CONTACT_TYPES.map(([k, label]) => (
+                      <option key={k} value={k}>{t(label)}</option>
+                    ))}
+                  </select>
+                  <input data-block-id="F042" className={`${field} mt-2`} maxLength={60} required disabled={!contactType} aria-label={t("아이디 입력")} placeholder={t(contactType ? "아이디를 입력하세요" : "연락 방법을 먼저 선택하세요")} autoCapitalize="none" autoCorrect="off" value={contact} onChange={(e) => setContact(e.target.value)} />
+                  <p className="text-[13px] text-sub">{t("연락 수단은 신청이 수락된 상대에게만 보입니다.")}</p>
                 </div>
-              </div>
-              <div data-block-id="C057" data-block-name="운전자 등급" className="space-y-2 rounded-xl bg-bg px-4 py-3 text-[14px] leading-relaxed text-sub">
-                <p className="flex items-center gap-2 font-semibold text-ink">
-                  {t("운전자 등급")}: {user.tier ? <TierBadge tier={user.tier} size="md" /> : t("미부여")}
-                </p>
-                {!user.tier && <p>{t("차량 번호와 차량 사진, 프로필 사진을 모두 등록하면 브론즈 등급이 자동으로 부여돼요.")}</p>}
-                {user.tier && <p>{t("운전자로 글을 올리거나 신청하면 상대방에게 등급 배지가 보여요. 실버·골드는 운영팀이 지정해요.")}</p>}
-                <p>{t("타인의 사진으로 신고되면 확인 후 이용이 정지될 수 있어요.")}</p>
-              </div>
-              <div data-block-id="C055" data-block-name="내 고유코드" className="space-y-1 text-sm text-sub">
-                <span>{t("고유코드")}</span>
-                <p className="rounded-xl bg-bg px-4 py-3 font-mono text-[16px] font-semibold tracking-wider text-ink">{user.memberCode || "-"}</p>
-              </div>
-              <label className="block text-sm text-sub">
-                {t("자기소개")}
-                <textarea data-block-id="F041" className={`${field} mt-1`} rows={2} maxLength={200} placeholder={t("예: 판교로 출퇴근해요. 영어 조금 합니다.")} value={bio} onChange={(e) => setBio(e.target.value)} />
-              </label>
-              <div className="space-y-1">
-                <label htmlFor="F045" className="block text-sm text-sub">{t("연락 방법 (필수)")}</label>
-                <select id="F045" data-block-id="F045" required className={field} value={contactType} onChange={(e) => setContactType(e.target.value)}>
-                  <option value="">{t("선택")}</option>
-                  {CONTACT_TYPES.map(([k, label]) => (
-                    <option key={k} value={k}>{t(label)}</option>
-                  ))}
-                </select>
-                <input data-block-id="F042" className={`${field} mt-2`} maxLength={60} required disabled={!contactType} aria-label={t("아이디 입력")} placeholder={t(contactType ? "아이디를 입력하세요" : "연락 방법을 먼저 선택하세요")} autoCapitalize="none" autoCorrect="off" value={contact} onChange={(e) => setContact(e.target.value)} />
-              </div>
-              <p className="text-[13px] text-sub">{t("연락 수단은 신청이 수락된 상대에게만 보입니다.")}</p>
-              <div className="flex gap-2">
-                <label className="block w-1/2 text-sm text-sub">
-                  {t("성별 (필수)")}
-                  <select data-block-id="F053" required className={`${field} mt-1`} value={gender} onChange={(e) => setGender(e.target.value)}>
-                    <option value="" disabled>{t("선택해 주세요")}</option>
-                    <option value="female">{t("여성")}</option>
-                    <option value="male">{t("남성")}</option>
-                  </select>
-                </label>
-                <label className="block w-1/2 text-sm text-sub">
-                  {t("역할 (필수)")}
-                  <select data-block-id="F054" required className={`${field} mt-1`} value={rolePref} onChange={(e) => setRolePref(e.target.value)}>
-                    <option value="" disabled>{t("선택해 주세요")}</option>
-                    <option value="driver">{t("운전자")}</option>
-                    <option value="rider">{t("탑승자")}</option>
-                  </select>
-                </label>
-              </div>
-              <p className="text-[13px] text-sub">{t("운전과 탑승을 모두 하신다면 운전자를 선택해 주세요.")}</p>
-              <p className="text-[13px] text-sub">{t("성별과 이용 역할은 공개되지 않고, 맞춤 공지를 보낼 때만 써요.")}</p>
-              <button data-block-id="B040" data-block-name="프로필 저장" className={btnPrimary} disabled={busy}>{t("저장")}</button>
-            </form>
-          ) : !enabled ? (
-            <p className="text-[15px] leading-relaxed text-sub">{t("회원 기능은 준비 중입니다. 곧 열립니다.")}</p>
-          ) : (
-            <AuthForm setUser={setUser} toast={toast} onCommute={() => onCommute(null, true)} push={push} />
-          )}
-        </Card>
-      </div>
-      {user && (
-        <button data-block-id="B050" data-block-name="내 프로필" onClick={() => onProfile(user.id)} className="flex w-full items-center justify-between rounded-2xl border border-line bg-white px-5 text-left text-[16px] font-semibold shadow-card">
-          {t("내 별점 · 지난 카풀 보기")} <span className="text-sub">{Icon.arrow()}</span>
-        </button>
-      )}
-      {user && <CreditCard toast={toast} version={version} />}
-      <div>
-        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("카풀 정보")}</h2>
-      </div>
-      {user && (
-        <div>
-          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 출퇴근 정보")}</h2>
-          <Card data-block-id="C043" data-block-name="내 출퇴근 정보" className="space-y-3 p-5">
-            {regular ? (
-              <div>
-                <p className="font-semibold">{regular.origin} → {regular.dest}</p>
-                <p className="num text-[14px] text-sub">{scheduleText(regular, lang)}</p>
-              </div>
-            ) : (
-              <p className="text-[15px] text-sub">{t("아직 출퇴근 정보를 입력하지 않았어요.")}</p>
+                <div className="flex gap-2">
+                  <label className="block w-1/2 text-sm text-sub">
+                    {t("성별 (필수)")}
+                    <select data-block-id="F053" required className={`${field} mt-1`} value={gender} onChange={(e) => setGender(e.target.value)}>
+                      <option value="" disabled>{t("선택해 주세요")}</option>
+                      <option value="female">{t("여성")}</option>
+                      <option value="male">{t("남성")}</option>
+                    </select>
+                  </label>
+                  <label className="block w-1/2 text-sm text-sub">
+                    {t("역할 (필수)")}
+                    <select data-block-id="F054" required className={`${field} mt-1`} value={rolePref} onChange={(e) => setRolePref(e.target.value)}>
+                      <option value="" disabled>{t("선택해 주세요")}</option>
+                      <option value="driver">{t("운전자")}</option>
+                      <option value="rider">{t("탑승자")}</option>
+                    </select>
+                  </label>
+                </div>
+                <p className="text-[13px] leading-relaxed text-sub">{t("운전과 탑승을 모두 하신다면 운전자를 선택해 주세요.")} {t("성별과 이용 역할은 공개되지 않고, 맞춤 공지를 보낼 때만 써요.")}</p>
+                <button data-block-id="B040" data-block-name="프로필 저장" className={btnPrimary} disabled={busy}>{t("저장")}</button>
+              </form>
             )}
-            <button type="button" data-block-id="B046" data-block-name="출퇴근 정보" className={`${btnGhost} py-3 text-[15px]`} onClick={() => onCommute(regular, false)}>{regular ? t("출퇴근 정보 수정") : t("출퇴근 정보 입력")}</button>
+            <input ref={file} data-block-id="F046" type="file" accept="image/*" className="hidden" aria-label={t("프로필 사진")} onChange={pickPhoto} />
           </Card>
-        </div>
-      )}
-      {user && (
-        <div>
-          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 차량 (운전자)")}</h2>
-          <Card data-block-id="C047" data-block-name="내 차량" className="space-y-4 p-5">
-            <div className="flex items-center gap-4">
-              {user.carPhoto ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.carPhoto} alt={t("내 차량 사진")} className="h-20 w-28 shrink-0 rounded-xl border border-line object-cover" />
-              ) : (
-                <span className="grid h-20 w-28 shrink-0 place-items-center rounded-xl border border-dashed border-line text-sub">{Icon.car(1.4)}</span>
-              )}
-              <div className="flex flex-wrap gap-x-4">
-                <button type="button" data-block-id="B055" data-block-name="차량 사진 등록" disabled={busy} className="min-h-0 py-1 text-[15px] font-semibold text-accent" onClick={() => carFile.current?.click()}>{user.carPhoto ? t("사진 변경") : t("차량 사진 등록")}</button>
-                {user.carPhoto && <button type="button" data-block-id="B056" data-block-name="차량 사진 삭제" disabled={busy} className="min-h-0 py-1 text-[15px] text-sub underline" onClick={() => saveCarPhoto("")}>{t("사진 삭제")}</button>}
-                <input ref={carFile} data-block-id="F048" type="file" accept="image/*" className="hidden" aria-label={t("차량 사진")} onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!f) return;
-                  try {
-                    await saveCarPhoto(await shrinkCar(f));
-                  } catch {
-                    toast(t("사진을 읽지 못했어요. 다른 사진으로 시도해 주세요."));
-                  }
-                }} />
-              </div>
-            </div>
-            <form onSubmit={saveCarNo} className="flex gap-2">
-              <input data-block-id="F049" className={field} maxLength={14} placeholder={t("차량번호 (예: 12가3456)")} aria-label={t("차량번호")} value={carNo} onChange={(e) => setCarNo(e.target.value)} />
-              <button data-block-id="B057" data-block-name="차량번호 저장" disabled={busy || carNo.replace(/\s/g, "") === (user.carNo ?? "")} className="shrink-0 rounded-xl bg-accent px-5 font-semibold text-white disabled:opacity-40">{t("저장")}</button>
-            </form>
-            <p className="text-[13px] leading-relaxed text-sub">{t("차량 사진은 내 운전자 글과 프로필에 보이고, 차량번호는 신청을 수락한 상대에게만 보여요. 사진에는 번호판이 보이지 않게 찍어 주세요.")}</p>
-          </Card>
-        </div>
-      )}
-      {user && <KarrotShowcase toast={toast} />}
-      {user && <KarrotRewards toast={toast} />}
-      <div>
-        <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내 카풀")}</h2>
-      </div>
-      {user && (
-        <div>
-          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("내가 올린 카풀")}</h2>
-          {mine.length === 0 ? (
-            <Card className="px-6 py-8 text-center text-sub">{t("아직 올린 글이 없어요.")}</Card>
-          ) : (
-            <div className="space-y-2">
-              {/* 내역은 접어 두고, 버튼을 누르면 펼친다. */}
-              <button type="button" data-block-id="B292" data-block-name="내가 올린 카풀 내역 보기" aria-expanded={mineOpen} aria-controls="my-posts" onClick={() => setMineOpen((v) => !v)} className="flex w-full items-center justify-between rounded-xl border border-line bg-white px-4 py-3 text-[15px]">
-                <span>{mineOpen ? t("내역 접기") : t("내역 보기")} <span className="num text-sub">({mine.length.toLocaleString("ko-KR")})</span></span>
-                <span className={`text-sub transition-transform ${mineOpen ? "rotate-90" : ""}`}>{Icon.arrow()}</span>
-              </button>
-              {mineOpen && (
-            <Card id="my-posts" className="divide-y divide-line">
-              {mine.map((p) => (
-                <div key={p.id} data-block-id="C045" data-block-name="내 글">
-                <button onClick={() => onOpen(p)} className="flex w-full items-center justify-between gap-3 px-5 pb-1 pt-4 text-left">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{p.origin} → {p.dest}</p>
-                    <p className="num text-[13px] text-sub">{p.regular ? `${t("정기카풀")} · ` : ""}{scheduleText(p, lang)}</p>
+
+          <CreditCard toast={toast} version={version} />
+
+          <GroupTitle>{t("카풀 정보")}</GroupTitle>
+          <div className="space-y-2">
+            <Fold id="commute" blockId="C043" title={t("내 출퇴근 정보")} summary={regular ? `${regular.origin} → ${regular.dest}` : t("미입력")} warn={!regular}>
+              <Card className="space-y-3 p-5">
+                {regular ? (
+                  <div>
+                    <p className="font-semibold">{regular.origin} → {regular.dest}</p>
+                    <p className="num text-[14px] text-sub">{scheduleText(regular, lang)}</p>
                   </div>
-                  <Tag tone={p.status === "closed" ? "plain" : "accent"}>{p.status === "open" ? t("모집 중") : p.status === "progress" ? t("카풀 진행 중") : t("마감")}</Tag>
-                </button>
-                {p.hidden && <p data-block-id="C051" data-block-name="노출 안 됨 안내" className="mx-5 mb-2 rounded-lg bg-warnSoft px-3 py-2 text-[13px] text-warn">{t(HIDDEN_TEXT[p.hidden])}</p>}
-                <div className="flex gap-4 px-5 pb-3 text-[14px]">
-                  <button data-block-id="B051" data-block-name="글 수정" className="min-h-0 py-1 font-semibold text-accent underline" onClick={() => onEdit(p)}>{t("수정")}</button>
-                  {!p.regular && onRepost && <button data-block-id="B402" data-block-name="내 글 다시 올리기" className={`min-h-0 py-1 font-semibold underline ${p.role === "driver" ? "text-accent" : "text-mint"}`} onClick={() => onRepost(p)}>{t("다시 올리기")}</button>}
-                  <button data-block-id="B052" data-block-name="글 삭제" className="min-h-0 py-1 text-warn underline" onClick={async () => {
-                    if (!window.confirm(t("이 글을 삭제할까요?"))) return;
-                    const r = await api(`/api/posts?id=${p.id}`, "DELETE");
-                    toast(t(r.ok ? "삭제했어요." : r.error));
-                    onChanged();
-                  }}>{t("삭제")}</button>
+                ) : (
+                  <p className="text-[15px] text-sub">{t("아직 출퇴근 정보를 입력하지 않았어요.")}</p>
+                )}
+                <button type="button" data-block-id="B046" data-block-name="출퇴근 정보" className={`${btnGhost} py-3 text-[15px]`} onClick={() => onCommute(regular, false)}>{regular ? t("출퇴근 정보 수정") : t("출퇴근 정보 입력")}</button>
+              </Card>
+            </Fold>
+            <Fold id="car" blockId="C047" title={t("내 차량")} summary={user.carNo || t("미등록")}>
+              <Card className="space-y-4 p-5">
+                <div className="flex items-center gap-4">
+                  {user.carPhoto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.carPhoto} alt={t("내 차량 사진")} className="h-20 w-28 shrink-0 rounded-xl border border-line object-cover" />
+                  ) : (
+                    <span className="grid h-20 w-28 shrink-0 place-items-center rounded-xl border border-dashed border-line text-sub">{Icon.car(1.4)}</span>
+                  )}
+                  <div className="flex flex-wrap gap-x-4">
+                    <button type="button" data-block-id="B055" data-block-name="차량 사진 등록" disabled={busy} className="min-h-0 py-1 text-[15px] font-semibold text-accent" onClick={() => carFile.current?.click()}>{user.carPhoto ? t("사진 변경") : t("차량 사진 등록")}</button>
+                    {user.carPhoto && <button type="button" data-block-id="B056" data-block-name="차량 사진 삭제" disabled={busy} className="min-h-0 py-1 text-[15px] text-sub underline" onClick={() => saveCarPhoto("")}>{t("사진 삭제")}</button>}
+                    <input ref={carFile} data-block-id="F048" type="file" accept="image/*" className="hidden" aria-label={t("차량 사진")} onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      try {
+                        await saveCarPhoto(await shrinkCar(f));
+                      } catch {
+                        toast(t("사진을 읽지 못했어요. 다른 사진으로 시도해 주세요."));
+                      }
+                    }} />
+                  </div>
                 </div>
+                <form onSubmit={saveCarNo} className="flex gap-2">
+                  <input data-block-id="F049" className={field} maxLength={14} placeholder={t("차량번호 (예: 12가3456)")} aria-label={t("차량번호")} value={carNo} onChange={(e) => setCarNo(e.target.value)} />
+                  <button data-block-id="B057" data-block-name="차량번호 저장" disabled={busy || carNo.replace(/\s/g, "") === (user.carNo ?? "")} className="shrink-0 rounded-xl bg-accent px-5 font-semibold text-white disabled:opacity-40">{t("저장")}</button>
+                </form>
+                <div data-block-id="C057" data-block-name="운전자 등급" className="space-y-1 rounded-xl bg-bg px-4 py-3 text-[13px] leading-relaxed text-sub">
+                  <p className="flex items-center gap-2 text-[14px] font-semibold text-ink">{t("운전자 등급")}: {user.tier ? <TierBadge tier={user.tier} size="md" /> : t("미부여")}</p>
+                  {!user.tier && <p>{t("차량 번호와 차량 사진, 프로필 사진을 모두 등록하면 브론즈 등급이 자동으로 부여돼요.")}</p>}
+                  {user.tier && <p>{t("운전자로 글을 올리거나 신청하면 상대방에게 등급 배지가 보여요. 실버·골드는 운영팀이 지정해요.")}</p>}
+                  <p>{t("타인의 사진으로 신고되면 확인 후 이용이 정지될 수 있어요.")}</p>
                 </div>
-              ))}
-            </Card>
+                <p className="text-[13px] leading-relaxed text-sub">{t("차량 사진은 내 운전자 글과 프로필에 보이고, 차량번호는 신청을 수락한 상대에게만 보여요. 사진에는 번호판이 보이지 않게 찍어 주세요.")}</p>
+              </Card>
+            </Fold>
+            <Fold id="alerts" blockId="C203" title={t("경로 알림")} summary={t("새 글 알림")}>
+              <RouteAlerts regular={regular} toast={toast} push={push} />
+            </Fold>
+          </div>
+
+          <GroupTitle>{t("내 카풀")}</GroupTitle>
+          <div className="space-y-2">
+            <Fold id="mine" blockId="B292" title={t("내가 올린 카풀")} summary={`${mine.length.toLocaleString("ko-KR")}${t("건")}`}>
+              {mine.length === 0 ? (
+                <Card className="px-6 py-8 text-center text-sub">{t("아직 올린 글이 없어요.")}</Card>
+              ) : (
+                <Card id="my-posts" className="divide-y divide-line">
+                  {mine.map((p) => (
+                    <div key={p.id} data-block-id="C045" data-block-name="내 글">
+                      <button onClick={() => onOpen(p)} className="flex w-full items-center justify-between gap-3 px-5 pb-1 pt-4 text-left">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{p.origin} → {p.dest}</p>
+                          <p className="num text-[13px] text-sub">{p.regular ? `${t("정기카풀")} · ` : ""}{scheduleText(p, lang)}</p>
+                        </div>
+                        <Tag tone={p.status === "closed" ? "plain" : "accent"}>{p.status === "open" ? t("모집 중") : p.status === "progress" ? t("카풀 진행 중") : t("마감")}</Tag>
+                      </button>
+                      {p.hidden && <p data-block-id="C051" data-block-name="노출 안 됨 안내" className="mx-5 mb-2 rounded-lg bg-warnSoft px-3 py-2 text-[13px] text-warn">{t(HIDDEN_TEXT[p.hidden])}</p>}
+                      <div className="flex gap-4 px-5 pb-3 text-[14px]">
+                        <button data-block-id="B051" data-block-name="글 수정" className="min-h-0 py-1 font-semibold text-accent underline" onClick={() => onEdit(p)}>{t("수정")}</button>
+                        {!p.regular && onRepost && <button data-block-id="B402" data-block-name="내 글 다시 올리기" className={`min-h-0 py-1 font-semibold underline ${p.role === "driver" ? "text-accent" : "text-mint"}`} onClick={() => onRepost(p)}>{t("다시 올리기")}</button>}
+                        <button data-block-id="B052" data-block-name="글 삭제" className="min-h-0 py-1 text-warn underline" onClick={async () => {
+                          if (!window.confirm(t("이 글을 삭제할까요?"))) return;
+                          const r = await api(`/api/posts?id=${p.id}`, "DELETE");
+                          toast(t(r.ok ? "삭제했어요." : r.error));
+                          onChanged();
+                        }}>{t("삭제")}</button>
+                      </div>
+                    </div>
+                  ))}
+                </Card>
               )}
-            </div>
-          )}
-        </div>
-      )}
-      {user && <RouteAlerts regular={regular} toast={toast} push={push} />}
-      {user && <MyCallHistory />}
-      {user && blocks.length > 0 && (
+            </Fold>
+            <Fold id="calls" blockId="C098" title={t("내 CALL 이력")}>
+              <MyCallHistory />
+            </Fold>
+            {blocks.length > 0 && (
+              <Fold id="blocks" blockId="C044" title={t("차단한 회원")} summary={`${blocks.length}${t("명")}`}>
+                <Card className="divide-y divide-line">
+                  {blocks.map((b) => (
+                    <div key={b.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                      <span className="flex min-w-0 items-center gap-3"><Avatar src={b.photo} name={b.name} size={36} /><span className="truncate font-semibold">{b.name}</span></span>
+                      <button data-block-id="B049" data-block-name="차단 해제" className="shrink-0 text-[14px] text-accent underline" onClick={() => unblock(b.id)}>{t("차단 해제")}</button>
+                    </div>
+                  ))}
+                </Card>
+              </Fold>
+            )}
+          </div>
+
+          <GroupTitle>{t("당근 · 보상")}</GroupTitle>
+          <div className="space-y-2">
+            <Fold id="karrot" blockId="C110" title={t("나의 당근함")}>
+              <KarrotShowcase toast={toast} />
+            </Fold>
+            <KarrotRewards toast={toast} />
+          </div>
+        </>
+      ) : (
         <div>
-          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("차단한 회원")}</h2>
-          <Card data-block-id="C044" data-block-name="차단한 회원" className="divide-y divide-line">
-            {blocks.map((b) => (
-              <div key={b.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                <span className="flex min-w-0 items-center gap-3"><Avatar src={b.photo} name={b.name} size={36} /><span className="truncate font-semibold">{b.name}</span></span>
-                <button data-block-id="B049" data-block-name="차단 해제" className="shrink-0 text-[14px] text-accent underline" onClick={() => unblock(b.id)}>{t("차단 해제")}</button>
-              </div>
-            ))}
+          <h2 className="mb-2 px-1 text-sm font-semibold text-sub">{t("계정")}</h2>
+          <Card data-block-id="C040" data-block-name="계정" className="p-5">
+            {!enabled ? (
+              <p className="text-[15px] leading-relaxed text-sub">{t("회원 기능은 준비 중입니다. 곧 열립니다.")}</p>
+            ) : (
+              <AuthForm setUser={setUser} toast={toast} onCommute={() => onCommute(null, true)} push={push} />
+            )}
           </Card>
         </div>
       )}
