@@ -75,6 +75,16 @@ function memberType(u: { is_warp: boolean; is_new_warp: boolean; pw_reset_requir
 
 const NO_FILTER: UserFilter = { gen: "", role: "", status: "", origin: "", from: "", to: "", seen: "", has: "", withTest: false };
 type TabId = "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate" | "counsel" | "chats";
+
+/** 관리자 탭 묶음(이름표·색). 새 탭을 만들면 알맞은 묶음에 넣는다. */
+const TAB_GROUPS: { label: string; text: string; soft: string; on: string; tabs: [TabId, string][] }[] = [
+  { label: "현황", text: "text-accent", soft: "bg-accentSoft", on: "bg-accent border-accent", tabs: [["stats", "통계"], ["flows", "출퇴근 지도"]] },
+  { label: "회원", text: "text-mint", soft: "bg-mintSoft", on: "bg-mint border-mint", tabs: [["users", "회원"], ["credits", "크레딧"], ["legacy", "구 워프 이전"]] },
+  { label: "카풀", text: "text-sky-700", soft: "bg-sky-50", on: "bg-sky-700 border-sky-700", tabs: [["posts", "카풀 글"], ["requests", "신청·매칭"], ["calls", "CALL"], ["demo", "임시글"], ["keywords", "키워드"], ["radius", "반경"]] },
+  { label: "안전", text: "text-warn", soft: "bg-warnSoft", on: "bg-warn border-warn", tabs: [["chats", "채팅"], ["flags", "신고·차단"], ["feedback", "의견"], ["counsel", "상담"]] },
+  { label: "소통", text: "text-violet", soft: "bg-violetSoft", on: "bg-violet border-violet", tabs: [["notices", "공지"], ["mail", "메일"], ["send", "발송"], ["help", "도움말"]] },
+  { label: "설정", text: "text-sub", soft: "bg-bg", on: "bg-ink border-ink", tabs: [["site", "사이트"], ["docs", "약관"], ["subway", "지하철"], ["simulate", "앉아가기 시뮬레이션"]] },
+];
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
 
@@ -204,9 +214,6 @@ export default function Admin() {
     );
 
   const s = info?.stats;
-  const tabBtn = (id: TabId, label: string) => (
-    <button onClick={() => { setTab(id); refresh(q); }} aria-pressed={tab === id} className={`rounded-xl px-4 text-[15px] ${tab === id ? "bg-accent font-semibold text-white" : "bg-white text-sub shadow-card"}`}>{label}</button>
-  );
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-5 py-8">
@@ -256,32 +263,20 @@ export default function Admin() {
       {info?.db && <Funnel />}
       {!info?.db && <p className="rounded-xl bg-warnSoft px-4 py-3 text-sm text-warn">DB가 아직 연결되지 않았습니다. 연결 전에는 현황과 관리 기능이 동작하지 않습니다.</p>}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {tabBtn("stats", "통계")}
-        {tabBtn("posts", "카풀 글")}
-        {tabBtn("users", "회원")}
-        {tabBtn("requests", "신청·매칭")}
-        {tabBtn("chats", "채팅")}
-        {tabBtn("flags", `신고·차단${s?.reports ? ` (${s.reports})` : ""}`)}
-        {tabBtn("feedback", "의견")}
-        {tabBtn("counsel", "상담")}
-        {tabBtn("notices", "공지")}
-        {tabBtn("keywords", "키워드")}
-        {tabBtn("credits", "크레딧")}
-        {tabBtn("docs", "약관")}
-        {tabBtn("radius", "반경")}
-        {tabBtn("calls", "CALL")}
-        {tabBtn("site", "사이트")}
-        {tabBtn("demo", "임시글")}
-        {tabBtn("help", "도움말")}
-        {tabBtn("mail", "메일")}
-        {tabBtn("send", "발송")}
-        {tabBtn("subway", "지하철")}
-        {tabBtn("flows", "출퇴근 지도")}
-        {tabBtn("simulate", "앉아가기 시뮬레이션")}
-        {tabBtn("legacy", "구 워프 회원 이전")}
-        {msg && <p role="status" className="ml-2 text-sm text-sub">{msg}</p>}
-      </div>
+      {/* 탭 23개를 6묶음으로(2026-10-30 사용자 지시). 묶음마다 이름표와 색. */}
+      <nav data-block-id="S414" data-block-name="관리자 탭 묶음" className="space-y-2 rounded-2xl border border-line bg-white p-3 shadow-card">
+        {TAB_GROUPS.map((g) => (
+          <div key={g.label} className="flex flex-wrap items-center gap-1.5">
+            <span className={`w-12 shrink-0 text-[13px] font-bold ${g.text}`}>{g.label}</span>
+            {g.tabs.map(([id, label]) => (
+              <button key={id} type="button" onClick={() => { setTab(id); refresh(q); }} aria-pressed={tab === id}
+                className={`min-h-0 rounded-lg border px-3 py-1.5 text-[14px] ${tab === id ? `${g.on} font-semibold text-white` : `${g.soft} ${g.text} border-transparent`}`}>
+                {id === "flags" && s?.reports ? `${label} (${s.reports})` : label}
+              </button>
+            ))}
+          </div>
+        ))}
+      </nav>
 
       {tab === "posts" && (
         <section data-block-id="S092" data-block-name="글 관리" className="rounded-2xl border border-line bg-white p-5 shadow-card">

@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * 관리자 채팅 열람(2026-10-29 사용자 지시: 신고가 없어도 문제 확인이 가능해야 함).
- * - GET ?q=검색어: 회원(이메일·닉네임·회원번호)을 찾아 그 회원의 카풀 대화방 목록(내용 없음)
+ * - GET (검색어 없음): 최근 대화가 오간 대화방 60개 / ?q=검색어: 그 회원의 카풀 대화방(둘 다 내용 없음)
  * - GET ?log=1: 최근 열람 기록
  * - POST {requestId, reason}: 사유를 받아 기록(chat_access_log)을 남긴 뒤 대화 내용을 돌려준다
  * 처리방침 '채팅 확인:' 줄과 대화방 안내(C410)로 회원에게 알린다.
@@ -32,21 +32,30 @@ export async function GET(req: Request) {
       });
     }
     const q = text(p.get("q"), 60).trim();
-    if (q.length < 2) return json({ threads: [] });
-    const like = `%${q}%`;
-    const users = await sql`select id from users where email ilike ${like} or name ilike ${like} or member_code ilike ${like} limit 5`;
-    const ids = users.map((u) => String(u.id));
-    if (!ids.length) return json({ threads: [] });
+    // 검색어가 없으면 최근 대화가 오간 대화방(최근 60개), 있으면 그 회원의 대화방
+    let ids: string[] | null = null;
+    if (q.length >= 2) {
+      const like = `%${q}%`;
+      const users = await sql`select id from users where email ilike ${like} or name ilike ${like} or member_code ilike ${like} limit 5`;
+      ids = users.map((u) => String(u.id));
+      if (!ids.length) return json({ threads: [] });
+    }
     const rows = await sql`
-      select q.id, q.status, q.created_at, p.origin, p.dest, p.role,
+      with t as (
+        select q.id, q.status, q.created_at, q.post_id, q.user_id,
+          (select count(*) from messages m where m.request_id = q.id) as n,
+          (select max(m.created_at) from messages m where m.request_id = q.id) as last_at
+        from requests q join posts p on p.id = q.post_id
+        where ${ids === null}::boolean or q.user_id = any(${ids ?? []}::uuid[]) or p.user_id = any(${ids ?? []}::uuid[])
+      )
+      select t.id, t.status, t.created_at, t.n, t.last_at, p.origin, p.dest, p.role,
         ru.name as r_name, ru.email as r_email, ru.member_code as r_code,
         ou.name as o_name, ou.email as o_email, ou.member_code as o_code,
-        (select count(*) from messages m where m.request_id = q.id) as n,
-        (select max(m.created_at) from messages m where m.request_id = q.id) as last_at
-      from requests q join posts p on p.id = q.post_id
-      join users ru on ru.id = q.user_id join users ou on ou.id = p.user_id
-      where q.user_id = any(${ids}::uuid[]) or p.user_id = any(${ids}::uuid[])
-      order by coalesce((select max(m.created_at) from messages m where m.request_id = q.id), q.created_at) desc
+        (select max(l.at) from chat_access_log l where l.request_id = t.id) as seen_at
+      from t join posts p on p.id = t.post_id
+      join users ru on ru.id = t.user_id join users ou on ou.id = p.user_id
+      where ${ids !== null}::boolean or t.n > 0
+      order by coalesce(t.last_at, t.created_at) desc
       limit 60`;
     return json({
       threads: rows.map((r) => ({
@@ -55,6 +64,8 @@ export async function GET(req: Request) {
         owner: { name: String(r.o_name ?? ""), email: String(r.o_email ?? ""), code: String(r.o_code ?? "") },
         count: Number(r.n) || 0,
         lastAt: r.last_at ? new Date(r.last_at as string).getTime() : new Date(r.created_at as string).getTime(),
+        // 마지막으로 열람한 뒤 새 메시지가 있으면 '새 대화'로 표시
+        seenAt: r.seen_at ? new Date(r.seen_at as string).getTime() : null,
       })),
     });
   } catch (e) {

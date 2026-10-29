@@ -21,7 +21,7 @@ const MANNERS = [
 
 /**
  * 대화방 위 '카풀 대화 매너' 안내(2026-10-30 사용자 지시). 이 기기에서 처음 열 때는 펼치고, 다음부터 한 줄로 접어 둔다.
- * 문구는 처리방침 '채팅 확인:'과 맞춘다(필요할 때 열람·기록) — 사실과 다른 '상시 모니터링'은 쓰지 않는다.
+ * 문구는 처리방침 '채팅 확인:'과 맞춘다(운영팀 수시 확인·열람 기록). 관리자 '채팅' 탭에서 최근 대화를 실제로 점검한다.
  */
 function ChatManners() {
   const t = useT();
@@ -39,7 +39,7 @@ function ChatManners() {
   return (
     <div data-block-id="C410" data-block-name="카풀 대화 매너" className="rounded-2xl border border-line bg-bg px-4 py-3 text-[13px] leading-relaxed text-sub">
       <button type="button" data-block-id="B417" data-block-name="대화 매너 펼치기" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex min-h-0 w-full items-center justify-between gap-2 text-left">
-        <span><b className="text-ink">{t("카풀 대화 매너")}</b> · {t("모든 대화는 기록되고, 문제가 생기면 운영팀이 확인해요.")}</span>
+        <span><b className="text-ink">{t("카풀 대화 매너")}</b> · {t("안전과 매너를 위해 운영팀이 대화를 수시로 확인하고 있어요.")}</span>
         <span className={`shrink-0 motion-safe:transition-transform ${open ? "rotate-90" : ""}`}>{Icon.arrow()}</span>
       </button>
       {open && (
@@ -49,7 +49,7 @@ function ChatManners() {
               <li key={m}>· {t(m)}</li>
             ))}
           </ul>
-          <p className="font-semibold text-warn">{t("매너 위반이나 신고가 있으면 운영팀이 대화를 확인해요. 위반하면 이용이 제한될 수 있어요.")}</p>
+          <p className="font-semibold text-warn">{t("모든 대화는 기록돼요. 매너를 지키지 않으면 이용이 제한될 수 있어요.")}</p>
         </div>
       )}
     </div>
