@@ -42,6 +42,7 @@ const CommuteOnboard = dynamic(() => import("./CommuteOnboard"), { ssr: false })
 const PostNudge = dynamic(() => import("./PostNudge"), { ssr: false });
 // 앱 접속 팝업(관리자 > 사이트). 첫 화면이 뜬 뒤에 불러온다.
 const LaunchPopup = dynamic(() => import("./LaunchPopup"), { ssr: false });
+const InstallGate = dynamic(() => import("./InstallGate"), { ssr: false });
 const LANG_KEY = "modu.lang";
 // 마지막으로 받은 카풀 목록(하루 안 것만). 앱을 열면 먼저 보여 주고, 서버 목록이 오면 바꾼다.
 const POSTS_CACHE = "modu.posts";
@@ -147,6 +148,10 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const [repostId, setRepostId] = useState<string | null>(null);
   // 관리자가 '정책 적용'을 눌러야 다시 올리기 버튼·알림 링크가 보인다.
   const [repostOn, setRepostOn] = useState(false);
+  // 앱 설치 안내(관리자 설정): off · nudge(권유) · require(필수)
+  const [installGate, setInstallGate] = useState<"off" | "nudge" | "require">("off");
+  // 메일 링크(비밀번호 재설정·인증 등)로 들어온 창에서는 설치 안내를 띄우지 않는다
+  const [linkVisit, setLinkVisit] = useState(false);
   const startRepost = (p: Post) => { setOpen(null); setRepostFrom(p); setTab("post"); };
   useEffect(() => {
     if (!repostId || !user || !repostOn) return;
@@ -159,6 +164,19 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   useEffect(() => {
     if (tab !== "post") setRepostFrom(null);
   }, [tab]);
+  // 앱(홈 화면 설치)으로 열었는지 인터넷 창인지 창마다 한 번 기록한다(관리자 통계용)
+  useEffect(() => {
+    if (!user) return;
+    try {
+      if (sessionStorage.getItem("modu.appmode")) return;
+      sessionStorage.setItem("modu.appmode", "1");
+    } catch {
+      /* 무시 */
+    }
+    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    void api("/api/appmode", "POST", { mode: standalone ? "app" : "browser", mobile });
+  }, [user]);
   const [bubbleTexts, setBubbleTexts] = useState<Record<string, string>>({});
   useEffect(() => {
     fetch("/api/bubbles").then((r) => r.json()).then((j) => setBubbleTexts(j.texts ?? {})).catch(() => {});
@@ -362,9 +380,11 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       /* 무시 */
     }
     setSharedPost(new URLSearchParams(location.search).get("p") ?? "");
-    api<{ enabled: boolean; user: User | null; repostOn?: boolean }>("/api/auth").then((r) => {
+    if (/[?&](reset|verify|withdraw|leave|legacy|counsel|unsub)=/.test(location.search)) setLinkVisit(true);
+    api<{ enabled: boolean; user: User | null; repostOn?: boolean; installGate?: "off" | "nudge" | "require" }>("/api/auth").then((r) => {
       setEnabled(!!r.data.enabled);
       setRepostOn(r.data.repostOn === true);
+      setInstallGate(r.data.installGate ?? "off");
       setUser(r.data.user ?? null);
       setChecked(true);
     });
@@ -672,6 +692,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
         {!booted && !splashTimedOut && <TopLoading />}
         <NoticePopup userId={user?.id ?? null} focus={noticeFocus} />
         {booted && !preview && <LaunchPopup />}
+        {booted && installGate !== "off" && !linkVisit && !resetToken && !withdrawToken && !counselOpen && !leaveOpen && <InstallGate mode={installGate} />}
         {user && user.consented === false && !user.test && !consentLater && <ConsentSheet setUser={setUser} onClose={() => setConsentLater(true)} toast={setToastMsg} />}
         {withdrawToken && <Withdraw token={withdrawToken} onClose={() => setWithdrawToken("")} />}
         {leaveOpen && !withdrawToken && <Withdraw initialEmail={user?.email ?? ""} onClose={() => setLeaveOpen(false)} />}

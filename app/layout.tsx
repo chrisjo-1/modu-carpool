@@ -41,7 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <head>
-        <script dangerouslySetInnerHTML={{ __html: "try{if(sessionStorage.getItem('modu.seen')==='1')document.documentElement.setAttribute('data-seen','1')}catch(e){}" }} />
+        <script dangerouslySetInnerHTML={{ __html: "try{if(sessionStorage.getItem('modu.seen')==='1')document.documentElement.setAttribute('data-seen','1')}catch(e){}window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__bip=e})" }} />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
       </head>

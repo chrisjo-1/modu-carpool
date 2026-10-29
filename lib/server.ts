@@ -348,6 +348,10 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table mail_log add column if not exists clicked_at timestamptz`;
   await sql`create index if not exists mail_log_provider_idx on mail_log (provider_id) where provider_id <> ''`;
   await sql`alter table mail_campaigns add column if not exists followup_of uuid`;
+  // 앱 설치 여부: 마지막으로 연 방식(app = 홈 화면 앱, browser = 인터넷 창)과 시각, 앱으로 처음 연 시각
+  await sql`alter table users add column if not exists app_mode text not null default ''`;
+  await sql`alter table users add column if not exists app_mode_at timestamptz`;
+  await sql`alter table users add column if not exists app_first_at timestamptz`;
   await sql`alter table mail_campaigns add column if not exists followup_mode text not null default ''`;
   await sql`create table if not exists mail_policy (
     id int primary key,
