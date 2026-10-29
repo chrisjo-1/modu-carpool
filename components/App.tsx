@@ -14,7 +14,7 @@ import NoticeTicker from "./NoticeTicker";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import { Bubble, HintContext, Icon, LangContext, PhotoZoomLayer, Sheet, api, setPhotoZoom } from "./ui";
-import type { Place } from "@/lib/types";
+import { defaultRoleFor, type Place } from "@/lib/types";
 
 type Tab = "home" | "post" | "subway" | "chat" | "me";
 
@@ -616,7 +616,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
 
         <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-2">
           {tab === "home" &&
-            (loaded ? <Home posts={posts} sample={sample} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} onSubway={(v) => { setSubwayStart({ view: v, n: Date.now() }); setTab("subway"); }} onSubwaySetup={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
+            (loaded ? <Home posts={posts} sample={sample} driverMode={!!user && defaultRoleFor(user) === "driver"} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} onSubway={(v) => { setSubwayStart({ view: v, n: Date.now() }); setTab("subway"); }} onSubwaySetup={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "home" && seo}
           {tab === "post" && <PostForm key={repostFrom?.id ?? "new"} copy={repostFrom ?? undefined} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { setRepostFrom(null); await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} start={subwayStart} onSettings={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} />}
