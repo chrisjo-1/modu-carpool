@@ -14,6 +14,9 @@ export async function GET() {
     const sql = db();
     const rows = await sql`
       select c.id, c.created_at, c.title, c.category, c.segment, c.only_consent, c.only_driver, c.subject, c.status, c.started_at, c.finished_at, c.auto,
+        c.followup_of, c.followup_mode,
+        (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent' and (g.opened_at is not null or g.clicked_at is not null)) as opened,
+        (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent' and g.clicked_at is not null) as clicked,
         case when c.status = 'draft' then c.body end as body,
         (select count(*)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent') as sent,
         (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status in ('failed','blocked')
@@ -69,8 +72,8 @@ export async function POST(req: Request) {
   }
   try {
     await ensureSchema();
-    const rows = await db()`insert into mail_campaigns (title, category, segment, only_consent, only_driver, subject, body, status)
-      values (${title}, ${category}, ${a.segment}, ${a.onlyConsent}, ${a.onlyDriver}, ${subject}, ${bodyText}, 'draft')
+    const rows = await db()`insert into mail_campaigns (title, category, segment, only_consent, only_driver, subject, body, status, followup_of, followup_mode)
+      values (${title}, ${category}, ${a.segment}, ${a.onlyConsent}, ${a.onlyDriver}, ${subject}, ${bodyText}, 'draft', ${a.followUpOf ?? null}, ${a.followUpMode ?? ""})
       returning id`;
     return json({ ok: true, id: rows[0].id });
   } catch (e) {

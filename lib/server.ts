@@ -343,6 +343,12 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     finished_at timestamptz)`;
   // 매일 자동으로 이어 보내기(예약 실행이 하루 한도만큼 이어서 보낸다)
   await sql`alter table mail_campaigns add column if not exists auto boolean not null default false`;
+  // 열람·클릭 추적(Resend 웹훅 email.opened·email.clicked → provider_id로 찾아 기록), 안 연 사람에게만 다시 보내기
+  await sql`alter table mail_log add column if not exists opened_at timestamptz`;
+  await sql`alter table mail_log add column if not exists clicked_at timestamptz`;
+  await sql`create index if not exists mail_log_provider_idx on mail_log (provider_id) where provider_id <> ''`;
+  await sql`alter table mail_campaigns add column if not exists followup_of uuid`;
+  await sql`alter table mail_campaigns add column if not exists followup_mode text not null default ''`;
   await sql`create table if not exists mail_policy (
     id int primary key,
     daily_cap int not null default 100,

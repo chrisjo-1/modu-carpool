@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { ensureSchema, hasDb } from "@/lib/server";
+import { db, ensureSchema, hasDb } from "@/lib/server";
 import { suppress } from "@/lib/unsub";
 
 export const dynamic = "force-dynamic";
@@ -27,11 +27,26 @@ export async function POST(req: Request) {
   });
   if (!ok) return new Response("bad signature", { status: 400 });
 
-  let ev: { type?: string; data?: { to?: string[] | string } };
+  let ev: { type?: string; data?: { to?: string[] | string; email_id?: string } };
   try {
     ev = JSON.parse(raw);
   } catch {
     return new Response("bad json", { status: 400 });
+  }
+  // 열람·클릭: 보낸 기록(provider_id = Resend 메일 id)에 처음 시각만 남긴다. 안 연 사람에게 다시 보내기에 쓴다.
+  if ((ev.type === "email.opened" || ev.type === "email.clicked") && hasDb()) {
+    const eid = String(ev.data?.email_id ?? "");
+    if (!eid) return Response.json({ ok: true, ignored: true });
+    try {
+      await ensureSchema();
+      const sql = db();
+      if (ev.type === "email.opened") await sql`update mail_log set opened_at = coalesce(opened_at, now()) where provider_id = ${eid} and provider_id <> ''`;
+      else await sql`update mail_log set clicked_at = coalesce(clicked_at, now()), opened_at = coalesce(opened_at, now()) where provider_id = ${eid} and provider_id <> ''`;
+    } catch (e) {
+      console.error("[mail-webhook]", e);
+      return new Response("error", { status: 500 });
+    }
+    return Response.json({ ok: true });
   }
   const reason = ev.type === "email.bounced" ? "bounce" : ev.type === "email.complained" ? "complaint" : "";
   if (!reason || !hasDb()) return Response.json({ ok: true, ignored: true });

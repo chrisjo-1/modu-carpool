@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Segment = { key: string; label: string };
 type Template = { key: string; label: string; category: string; subject: string; body: string };
-type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean };
+type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean; followup_of?: string | null; followup_mode?: string; opened?: number; clicked?: number };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
 type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[] };
 
@@ -26,6 +26,9 @@ export default function AdminSend() {
   const [segment, setSegment] = useState("members");
   const [onlyConsent, setOnlyConsent] = useState(false);
   const [onlyDriver, setOnlyDriver] = useState(false);
+  // 다시 보내기: 지난 캠페인을 받았지만 열지 않은(open) / 링크를 누르지 않은(click) 사람만
+  const [followOf, setFollowOf] = useState("");
+  const [followMode, setFollowMode] = useState<"open" | "click">("open");
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
@@ -86,7 +89,7 @@ export default function AdminSend() {
     setBodyText(t.body);
     if (!title) setTitle(t.label);
   };
-  const form = () => ({ segment, onlyConsent, onlyDriver, title, subject, body: bodyText, category });
+  const form = () => ({ segment, onlyConsent, onlyDriver, title, subject, body: bodyText, category, followUpOf: followOf || null, followUpMode: followOf ? followMode : "" });
   const segLabel = d?.segments.find((s) => s.key === segment)?.label ?? "";
 
   const doCount = async () => {
@@ -129,6 +132,8 @@ export default function AdminSend() {
     setSegment(c.segment);
     setOnlyConsent(c.only_consent);
     setOnlyDriver(c.only_driver);
+    setFollowOf(c.followup_of ?? "");
+    setFollowMode(c.followup_mode === "click" ? "click" : "open");
     setSubject(c.subject);
     setBodyText(c.body ?? "");
     setTemplateKey("custom");
@@ -139,7 +144,7 @@ export default function AdminSend() {
 
   const newDraft = () => {
     setDraftId("");
-    setTitle(""); setSubject(""); setBodyText(""); setTemplateKey("custom"); setCount(null);
+    setTitle(""); setSubject(""); setBodyText(""); setTemplateKey("custom"); setCount(null); setFollowOf("");
     setMsg("새 글을 시작합니다.");
   };
 
@@ -239,6 +244,23 @@ export default function AdminSend() {
           </div>
         </div>
 
+        <div data-block-id="F409" data-block-name="다시 보내기 대상" className="grid gap-2 rounded-xl border border-line bg-bg p-3 text-[14px]">
+          <span className="font-semibold">다시 보내기 (선택)</span>
+          <select className={input} value={followOf} onChange={(e) => { setFollowOf(e.target.value); setCount(null); }}>
+            <option value="">처음 보내기 — 위 대상 전체</option>
+            {d?.campaigns.filter((c) => c.sent > 0 && c.id !== draftId).map((c) => (
+              <option key={c.id} value={c.id}>{c.title} ({when(c.created_at)} · {c.sent}명 받음 · 열람 {c.opened ?? 0})</option>
+            ))}
+          </select>
+          {followOf && (
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-1.5"><input type="radio" checked={followMode === "open"} onChange={() => { setFollowMode("open"); setCount(null); }} />이 메일을 안 연 사람만</label>
+              <label className="flex items-center gap-1.5"><input type="radio" checked={followMode === "click"} onChange={() => { setFollowMode("click"); setCount(null); }} />링크를 안 누른 사람만</label>
+            </div>
+          )}
+          <span className="text-[12px] leading-relaxed text-sub">고른 캠페인을 받은 사람 중에서 위 대상 조건에도 맞는 사람에게만 보내요. 열람은 메일 앱이 그림을 막으면 기록되지 않아 '안 연 사람'에 조금 더 들어갈 수 있어요. 2026-10-29 열람 추적을 켜기 전에 보낸 메일은 모두 '안 연 것'으로 보입니다.</span>
+        </div>
+
         <label className="grid gap-1 text-[14px]">
           <span className="font-semibold">캠페인 이름 (관리용)</span>
           <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 6월 구워프 안내 1차" maxLength={80} />
@@ -317,18 +339,19 @@ export default function AdminSend() {
         <div className="overflow-x-auto rounded-2xl border border-line bg-white">
           <table className="w-full text-left text-[14px]">
             <thead className="bg-bg text-sub">
-              <tr><th className="p-3">만든 날</th><th className="p-3">캠페인</th><th className="p-3">종류</th><th className="p-3">대상</th><th className="p-3">상태</th><th className="p-3">발송/실패</th><th className="p-3" /></tr>
+              <tr><th className="p-3">만든 날</th><th className="p-3">캠페인</th><th className="p-3">종류</th><th className="p-3">대상</th><th className="p-3">상태</th><th className="p-3">발송/실패</th><th className="p-3">열람·클릭</th><th className="p-3" /></tr>
             </thead>
             <tbody>
-              {d?.campaigns.length === 0 && <tr><td className="p-4 text-sub" colSpan={7}>아직 만든 캠페인이 없습니다.</td></tr>}
+              {d?.campaigns.length === 0 && <tr><td className="p-4 text-sub" colSpan={8}>아직 만든 캠페인이 없습니다.</td></tr>}
               {d?.campaigns.map((c) => (
                 <tr key={c.id} className="border-t border-line">
                   <td className="p-3 whitespace-nowrap">{when(c.created_at)}</td>
                   <td className="p-3"><b>{c.title}</b><span className="block text-xs text-sub">{c.subject}</span></td>
                   <td className="p-3">{c.category === "marketing" ? "광고성" : "안내"}</td>
-                  <td className="p-3">{d.segments.find((s) => s.key === c.segment)?.label ?? c.segment}{c.only_consent ? " · 동의" : ""}{c.only_driver ? " · 운전자" : ""}</td>
+                  <td className="p-3">{d.segments.find((s) => s.key === c.segment)?.label ?? c.segment}{c.only_consent ? " · 동의" : ""}{c.only_driver ? " · 운전자" : ""}{c.followup_of ? <span className="block text-xs text-sub">다시 보내기 · {c.followup_mode === "click" ? "링크 안 누른 사람" : "안 연 사람"}{d.campaigns.find((x) => x.id === c.followup_of) ? ` (${d.campaigns.find((x) => x.id === c.followup_of)?.title})` : ""}</span> : null}</td>
                   <td className="p-3">{STATUS[c.status] ?? c.status}{c.finished_at ? <span className="block text-xs text-sub">{when(c.finished_at)}</span> : null}</td>
                   <td className="p-3">{c.sent} / {c.failed}{c.retry > 0 ? <span className="block text-xs text-sub">한도 초과 {c.retry}명 · 다시 보낼 수 있음</span> : null}</td>
+                  <td className="p-3 whitespace-nowrap">{c.sent > 0 ? <>열람 {c.opened ?? 0} <span className="text-xs text-sub">({Math.round(((c.opened ?? 0) / c.sent) * 100)}%)</span><span className="block">클릭 {c.clicked ?? 0} <span className="text-xs text-sub">({Math.round(((c.clicked ?? 0) / c.sent) * 100)}%)</span></span></> : "—"}</td>
                   <td className="p-3 whitespace-nowrap">
                     {c.status === "done" && c.retry > 0 && (
                       <button className={btnPrimary} disabled={!!running} onClick={() => start(c)}>실패분 다시 보내기 ({c.retry}명)</button>

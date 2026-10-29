@@ -12,7 +12,17 @@ export const SEGMENTS: [Segment, string][] = [
 ];
 
 /** marketing: 광고성 메일이면 true. subject: 같은 제목을 이미 받은 주소는 뺀다. */
-export type Audience = { segment: Segment; onlyConsent: boolean; onlyDriver: boolean; marketing?: boolean; subject?: string };
+export type Audience = {
+  segment: Segment;
+  onlyConsent: boolean;
+  onlyDriver: boolean;
+  marketing?: boolean;
+  subject?: string;
+  /** 다시 보내기: 이 캠페인을 받았지만 열지 않은(open) / 링크를 누르지 않은(click) 사람만 */
+  followUpOf?: string | null;
+  followUpMode?: "open" | "click" | "";
+};
+export const FOLLOWUP_LABEL: Record<string, string> = { open: "안 연 사람만", click: "링크 안 누른 사람만" };
 
 /** 광고성 메일은 같은 회원에게 이 기간(일) 안에 한 번만 보낸다 */
 export const MARKETING_GAP_DAYS = 7;
@@ -50,7 +60,10 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
   const cid = opt.campaignId ?? null;
   const before = opt.before ?? null;
   const lim = Math.min(Math.max(opt.limit ?? 100000, 1), 100000);
-  const subj: string | null = (a.subject ?? "").trim() || null;
+  // 다시 보내기는 같은 제목이어도 보내야 하므로 '같은 제목 이미 받음' 확인을 건너뛴다.
+  const fof: string | null = a.followUpOf && a.followUpMode ? a.followUpOf : null;
+  const fmode = a.followUpMode === "click" ? "click" : "open";
+  const subj: string | null = fof ? null : (a.subject ?? "").trim() || null;
   const mk = a.marketing === true;
   if (a.segment === "legacy_unjoined") {
     // 구워프 미가입자는 동의 정보가 없어 광고성 조건과 맞지 않는다(안내 메일 전용)
@@ -62,6 +75,9 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         and not exists (select 1 from users u where lower(u.email) = lower(l.email_norm))
         and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(l.email_norm) and not (g.status = 'failed' and g.error like '429%')))
         and (${subj}::text is null or not exists (select 1 from mail_log g3 where g3.to_email = lower(l.email_norm) and g3.subject = ${subj}::text and g3.status = 'sent'))
+        and (${fof}::uuid is null or (exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm) and f.status = 'sent')
+          and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm)
+            and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))
       order by email limit ${lim}`) as { user_id: string | null; email: string }[];
   }
   return (await sql`select u.id as user_id, lower(u.email) as email from users u
@@ -75,6 +91,9 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
       and (${a.onlyDriver} = false or (u.car_no <> '' and u.car_v > 0))
       and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(u.email) and not (g.status = 'failed' and g.error like '429%')))
       and (${subj}::text is null or not exists (select 1 from mail_log g2 where g2.to_email = lower(u.email) and g2.subject = ${subj}::text and g2.status = 'sent'))
+      and (${fof}::uuid is null or (exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(u.email) and f.status = 'sent')
+        and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(u.email)
+          and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))
       and (${mk} = false or not exists (select 1 from mail_log g4 where g4.to_email = lower(u.email) and g4.category = 'marketing' and g4.status = 'sent' and g4.created_at > now() - make_interval(days => ${MARKETING_GAP_DAYS}::int)))
     order by email limit ${lim}`) as { user_id: string | null; email: string }[];
 }
@@ -104,5 +123,15 @@ const SEG = new Set<string>(SEGMENTS.map((s) => s[0]));
 export function parseAudience(b: Record<string, unknown>): Audience | null {
   const seg = typeof b.segment === "string" && SEG.has(b.segment) ? (b.segment as Segment) : null;
   if (!seg) return null;
-  return { segment: seg, onlyConsent: b.onlyConsent === true, onlyDriver: b.onlyDriver === true, marketing: b.category === "marketing", subject: typeof b.subject === "string" ? b.subject.trim() : "" };
+  const fof = typeof b.followUpOf === "string" && /^[0-9a-f-]{36}$/i.test(b.followUpOf) ? b.followUpOf : null;
+  const fmode = b.followUpMode === "click" ? "click" : b.followUpMode === "open" ? "open" : "";
+  return {
+    segment: seg,
+    onlyConsent: b.onlyConsent === true,
+    onlyDriver: b.onlyDriver === true,
+    marketing: b.category === "marketing",
+    subject: typeof b.subject === "string" ? b.subject.trim() : "",
+    followUpOf: fof && fmode ? fof : null,
+    followUpMode: fof ? fmode : "",
+  };
 }

@@ -21,7 +21,15 @@ export async function runCampaignBatch(id: string, limit: number): Promise<Batch
   if (c.status === "cancelled") return { ok: false, status: 409, error: "취소된 캠페인입니다." };
   if (c.status === "draft") await sql`update mail_campaigns set status = 'sending', started_at = now() where id = ${id}`;
 
-  const a: Audience = { segment: c.segment as Segment, onlyConsent: !!c.only_consent, onlyDriver: !!c.only_driver, marketing: c.category === "marketing", subject: String(c.subject ?? "") };
+  const a: Audience = {
+    segment: c.segment as Segment,
+    onlyConsent: !!c.only_consent,
+    onlyDriver: !!c.only_driver,
+    marketing: c.category === "marketing",
+    subject: String(c.subject ?? ""),
+    followUpOf: c.followup_of ? String(c.followup_of) : null,
+    followUpMode: c.followup_mode === "click" ? "click" : c.followup_mode === "open" ? "open" : "",
+  };
   const category = c.category as MailCategory;
   const before = new Date(c.created_at as string).toISOString();
   // 오늘 남은 한도만큼만 꺼낸다.
