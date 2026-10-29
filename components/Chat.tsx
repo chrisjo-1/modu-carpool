@@ -9,6 +9,53 @@ import { RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnPrimary, fi
 
 type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
 
+const MANNER_KEY = "modu.chat.manners"; // 매너 안내를 한 번 본 기기(localStorage)
+const MANNERS = [
+  "서로 존중하는 말투로 대화해요. 욕설·비하·성희롱은 금지예요.",
+  "카풀 비용은 기름값·통행료 같은 실비 범위에서 나눠요.",
+  "약속 시간을 지키고, 늦거나 취소할 땐 미리 알려 주세요.",
+  "주소·전화번호 같은 개인정보는 꼭 필요한 만큼만 나눠요.",
+  "돈을 먼저 보내 달라는 요구나 다른 곳 거래 유도는 금지예요.",
+  "불편한 일이 생기면 바로 신고해 주세요.",
+];
+
+/**
+ * 대화방 위 '카풀 대화 매너' 안내(2026-10-30 사용자 지시). 이 기기에서 처음 열 때는 펼치고, 다음부터 한 줄로 접어 둔다.
+ * 문구는 처리방침 '채팅 확인:'과 맞춘다(필요할 때 열람·기록) — 사실과 다른 '상시 모니터링'은 쓰지 않는다.
+ */
+function ChatManners() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(MANNER_KEY)) {
+        setOpen(true);
+        localStorage.setItem(MANNER_KEY, "1");
+      }
+    } catch {
+      /* 무시 */
+    }
+  }, []);
+  return (
+    <div data-block-id="C410" data-block-name="카풀 대화 매너" className="rounded-2xl border border-line bg-bg px-4 py-3 text-[13px] leading-relaxed text-sub">
+      <button type="button" data-block-id="B417" data-block-name="대화 매너 펼치기" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex min-h-0 w-full items-center justify-between gap-2 text-left">
+        <span><b className="text-ink">{t("카풀 대화 매너")}</b> · {t("모든 대화는 기록되고, 문제가 생기면 운영팀이 확인해요.")}</span>
+        <span className={`shrink-0 motion-safe:transition-transform ${open ? "rotate-90" : ""}`}>{Icon.arrow()}</span>
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          <ul className="space-y-1 text-ink">
+            {MANNERS.map((m) => (
+              <li key={m}>· {t(m)}</li>
+            ))}
+          </ul>
+          <p className="font-semibold text-warn">{t("매너 위반이나 신고가 있으면 운영팀이 대화를 확인해요. 위반하면 이용이 제한될 수 있어요.")}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const LOCALE: Record<string, string> = { ko: "ko-KR", en: "en-US", ja: "ja-JP", zh: "zh-CN" };
 const kst = (ms: number) => new Date(ms + 9 * 3600000).toISOString();
 const dayKey = (ms: number) => kst(ms).slice(0, 10);
@@ -319,7 +366,7 @@ export function ChatRoom({
             <a href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-0 items-center gap-1 font-semibold text-accent">{t("모카 미터기로 비용 나누기")} {Icon.arrow()}</a>
           )}
         </div>
-        <p data-block-id="C410" data-block-name="대화 확인 안내" className="text-center text-[12px] leading-relaxed text-sub">{t("분쟁·안전 문제가 생기면 운영팀이 대화를 확인할 수 있어요.")}</p>
+        <ChatManners />
         <div className="min-h-[30vh] space-y-2 supports-[height:1dvh]:min-h-[30dvh]" aria-live="polite">
           {msgs.length === 0 && <p className="py-8 text-center text-[15px] text-sub">{t("첫 인사를 건네 보세요.")}</p>}
           {msgs.map((m, i) => {
