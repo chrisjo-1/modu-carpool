@@ -9,7 +9,7 @@ import { headingFor, headingsAt } from "@/lib/subwayRoute";
 import SubwayCarGuide from "./SubwayCarGuide";
 import SubwayMatches from "./SubwayMatches";
 import SeatSpotCard from "./SeatSpotCard";
-import SubwayCall, { type Posture, type TodayRide } from "./SubwayCall";
+import { type Posture, type TodayRide } from "./SubwayCall";
 import { slotOf } from "@/lib/seatCar";
 import RidePing from "./RidePing";
 
@@ -180,6 +180,18 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
   const dayNow = new Date(Date.now() + 9 * 3600_000).getUTCDay();
   // 오늘 고른 노선·역(서버가 등록 정보 대신 쓴다)
   const ride: TodayRide | undefined = board && alight ? { line: lineNow, board, alight, next: heading?.next ?? "" } : undefined;
+
+  /** 칸 안내의 [앉았어요]: 같은 노선·방향 분께 알리고(하루 첫 번째 적립), 앉은 상태로 바꾼다. 돌려준 문구는 결과 칸에 보인다. */
+  const sitNow = async (car: string): Promise<string> => {
+    setSpotCar(car);
+    if (!plan) return t("설정에서 지하철 정보를 등록하면 같은 방향 분께도 알릴 수 있어요.");
+    const r = await api<{ sent: number; credit: number }>("/api/seat/call", "POST", { trip: kind, today: ride });
+    if (!r.ok) return t(r.error);
+    if (today) setToday({ ...today, posture: "sit" });
+    setReloadKey((k) => k + 1);
+    const who = r.data.sent > 0 ? `${r.data.sent}${t("명에게 알렸어요.")}` : t("지금은 자리를 받을 분이 없어요.");
+    return r.data.credit > 0 ? `${who} +${r.data.credit}${t("크레딧 적립")}` : who;
+  };
   const switchKind = (k: Kind) => {
     if (plan) setToday(freshToday(plan, k, null));
     setEditing(false);
@@ -267,17 +279,8 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
               </button>
               {view === "seat" ? (
                 <>
-                  <CarSection line={lineNow} board={board} alight={alight} next={heading?.next ?? ""} timeNow={timeNow} kind={kind} />
-                  <SubwayCall
-                    hasPlan={!!plan}
-                    posture={posture}
-                    onPosture={(p) => setToday({ ...today, posture: p })}
-                    onSent={() => setReloadKey((k) => k + 1)}
-                    onCar={setSpotCar}
-                    trip={kind}
-                    ride={ride}
-                    seatKey={{ line: lineNow, station: board, dir: heading?.dir ?? "up", dow: String(dayNow), slot: slotOf(timeNow) }}
-                  />
+                  {/* [앉았어요]는 칸 안내 안의 버튼 하나만 둔다(2026-10-30: 중복 제거). 누르면 칸 기록 + 같은 방향 분께 알림·적립. */}
+                  <CarSection line={lineNow} board={board} alight={alight} next={heading?.next ?? ""} timeNow={timeNow} kind={kind} onSeated={sitNow} />
                   {/* 앉은 뒤에만: 자리 위치·힌트(선택), 이동 중 현재역 다시 알리기(선택) */}
                   {posture === "sit" && (
                     <>
@@ -367,7 +370,7 @@ function Step({ n, title, hint, children }: { n: number; title: string; hint?: s
 }
 
 /** 앉을 칸 찾기: 접혀 있다가 펼치면 칸을 추천한다. */
-function CarSection({ line, board, alight, next, timeNow, kind }: { line: LineId; board: string; alight: string; next: string; timeNow: string; kind: Kind }) {
+function CarSection({ line, board, alight, next, timeNow, kind, onSeated }: { line: LineId; board: string; alight: string; next: string; timeNow: string; kind: Kind; onSeated?: (car: string) => Promise<string> }) {
   const t = useT();
   return (
     <details open className="group rounded-2xl border border-line bg-white" data-block-id="S078" data-block-name="앉을 칸 확률">
@@ -377,7 +380,7 @@ function CarSection({ line, board, alight, next, timeNow, kind }: { line: LineId
         <span className="hidden text-[13px] font-normal text-sub group-open:inline">{t("접기")}</span>
       </summary>
       <div className="border-t border-line px-4 py-4">
-        <SubwayCarGuide key={`${kind}|${line}|${board}|${next}`} line={line} station={board} alight={alight} prefer={next} timeGo={timeNow} />
+        <SubwayCarGuide key={`${kind}|${line}|${board}|${next}`} line={line} station={board} alight={alight} prefer={next} timeGo={timeNow} onSeated={onSeated} />
       </div>
     </details>
   );

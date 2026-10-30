@@ -23,7 +23,7 @@ const HINT: Record<CongestionLevel, string> = {
  * 방향은 위 '오늘 탑승' 카드에서 고른 값을 받는다(여기서 다시 묻지 않는다). 요일은 나누지 않는다.
  * 앉은 칸 기록은 '앉았어요' 뒤에 한 번만 묻는다.
  */
-export default function SubwayCarGuide({ line, station, alight = "", timeGo, prefer = "" }: { line: LineId; station: string; alight?: string; timeGo: string; prefer?: string }) {
+export default function SubwayCarGuide({ line, station, alight = "", timeGo, prefer = "", onSeated }: { line: LineId; station: string; alight?: string; timeGo: string; prefer?: string; onSeated?: (car: string) => Promise<string> }) {
   const t = useT();
   const headings = useMemo(() => headingsAt(line, station), [line, station]);
   const preferred = prefer || (alight ? headingFor(line, station, alight)?.next ?? "" : "");
@@ -108,7 +108,7 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
       ) : null}
 
       {data && options.length > 0 && (
-        <SeatResult key={`${line}-${station}-${dir}-${slot}`} seatKey={{ line, station, dir, dow: day, slot }} carCount={carNumbersOf(line).length} chosen={options[Math.min(pick, options.length - 1)]} />
+        <SeatResult key={`${line}-${station}-${dir}-${slot}`} onSeated={onSeated} seatKey={{ line, station, dir, dow: day, slot }} carCount={carNumbersOf(line).length} chosen={options[Math.min(pick, options.length - 1)]} />
       )}
 
       {/* 혼잡도 자료가 없으면 추정 아래 안내 한 줄로 충분하다(같은 말을 두 번 하지 않는다). */}
@@ -202,13 +202,13 @@ function EstimateAnswer({ e, carCount, pick, onPick }: { e: Estimate; carCount: 
  * 탄 결과 기록(2026-10-30 사용자 지시): 위 3개 위치 중 탄 곳을 고르고 [앉았어요](보라)·[앉지 못함](검정 바탕·흰 글자)을 누른다.
  * 목록에 없는 칸에서 탔으면 '다른 칸-문'으로 직접 고른다. 회원 번호 없이 저장되고 다음 추천 확률에 바로 반영된다.
  */
-function SeatResult({ seatKey, carCount, chosen }: { seatKey: { line: LineId; station: string; dir: Dir; dow: string; slot: string }; carCount: number; chosen: { car: string; door: string } }) {
+function SeatResult({ seatKey, carCount, chosen, onSeated }: { seatKey: { line: LineId; station: string; dir: Dir; dow: string; slot: string }; carCount: number; chosen: { car: string; door: string }; onSeated?: (car: string) => Promise<string> }) {
   const t = useT();
   const [other, setOther] = useState(false);
   const [car, setCar] = useState("");
   const [door, setDoor] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ label: string; seated: boolean } | null>(null);
+  const [done, setDone] = useState<{ label: string; seated: boolean; note?: string } | null>(null);
   const [err, setErr] = useState("");
   const pos = other ? { car, door } : chosen;
   const label = positionLabel(pos.car, pos.door);
@@ -217,14 +217,20 @@ function SeatResult({ seatKey, carCount, chosen }: { seatKey: { line: LineId; st
     setBusy(true);
     setErr("");
     const r = await api("/api/seat/car/feedback", "POST", { ...seatKey, car: pos.car, entrance: pos.door, seated });
+    if (!r.ok) {
+      setBusy(false);
+      return setErr(t(r.error));
+    }
+    // 앉았으면 같은 방향 분께 알림·적립까지 한 번에(지하철 메뉴에서 넘겨준 경우)
+    const note = seated && onSeated ? await onSeated(pos.car).catch(() => "") : "";
     setBusy(false);
-    if (!r.ok) return setErr(t(r.error));
-    setDone({ label, seated });
+    setDone({ label, seated, note });
   };
   if (done)
     return (
       <p role="status" className={`rounded-2xl px-4 py-3 text-[14px] ${done.seated ? "bg-mintSoft text-mint" : "bg-bg text-ink"}`}>
         <b className="num">{done.label}</b> · {done.seated ? t("앉은 기록을 남겼어요.") : t("못 앉은 기록을 남겼어요.")} {t("다음 추천에 반영돼요.")}
+        {done.note && <span className="mt-1 block font-semibold">{done.note}</span>}
       </p>
     );
   return (
