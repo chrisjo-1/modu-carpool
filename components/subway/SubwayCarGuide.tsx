@@ -62,6 +62,10 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
   }, [ready, line, station, dir, day, slot]); // t는 렌더마다 새로 만들어지므로 의존성에 넣지 않는다.
 
   const top: CarRank | undefined = data?.status === "ready" ? data.ranked[0] : undefined;
+  // 제시한 3개 위치 중 실제로 탄 곳(기본 1순위). 고른 뒤 [앉았어요]/[앉지 못함]을 누른다.
+  const [pick, setPick] = useState(0);
+  const options: { car: string; door: string }[] = top && data ? data.ranked.map((r) => ({ car: r.car, door: r.entrance })) : data?.estimate ? data.estimate.cars.map((c) => ({ car: c.car, door: c.door })) : [];
+  useEffect(() => setPick(0), [line, station, dir, slot]);
 
   if (!ready) {
     return <p className="text-[13px] leading-relaxed text-sub">{t("탑승역을 고르면 혼잡도와 칸 안내를 바로 보여 드려요.")}</p>;
@@ -82,7 +86,7 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
           <p className="text-sm font-semibold text-ink">{t("앉을 가능성이 높은 위치")}</p>
           <ul className="space-y-2">
             {data.ranked.map((r, i) => (
-              <li key={`${r.car}-${r.entrance}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
+              <li key={`${r.car}-${r.entrance}`} role="radio" aria-checked={pick === i} tabIndex={0} onClick={() => setPick(i)} onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && setPick(i)} className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 ${pick === i ? "border-violet bg-violetSoft" : "border-line"}`}>
                 <div className="min-w-0">
                   <p className="text-[15px] font-semibold text-ink">
                     {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
@@ -100,15 +104,11 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
           <p className="text-[12px] leading-relaxed text-sub">{t("승강장 바닥의 삼각형 표시(칸-문)를 찾아 그 앞에서 기다리세요.")}</p>
         </div>
       ) : data?.estimate ? (
-        <EstimateAnswer e={data.estimate} carCount={carNumbersOf(line).length} />
+        <EstimateAnswer e={data.estimate} carCount={carNumbersOf(line).length} pick={pick} onPick={setPick} />
       ) : null}
 
-      {data && (
-        <NoSeat
-          seatKey={{ line, station, dir, dow: day, slot }}
-          carCount={carNumbersOf(line).length}
-          first={top ? { car: top.car, door: top.entrance } : data.estimate?.cars[0] ? { car: data.estimate.cars[0].car, door: data.estimate.cars[0].door } : null}
-        />
+      {data && options.length > 0 && (
+        <SeatResult key={`${line}-${station}-${dir}-${slot}`} seatKey={{ line, station, dir, dow: day, slot }} carCount={carNumbersOf(line).length} chosen={options[Math.min(pick, options.length - 1)]} />
       )}
 
       {/* 혼잡도 자료가 없으면 추정 아래 안내 한 줄로 충분하다(같은 말을 두 번 하지 않는다). */}
@@ -168,7 +168,7 @@ function Chance({ p }: { p: number }) {
 }
 
 /** 기록이 모자랄 때도 바로 보여 주는 현재 기준 추정(혼잡도 + 칸 위치 + 쌓인 기록). */
-function EstimateAnswer({ e, carCount }: { e: Estimate; carCount: number }) {
+function EstimateAnswer({ e, carCount, pick, onPick }: { e: Estimate; carCount: number; pick: number; onPick: (i: number) => void }) {
   const t = useT();
   return (
     <div className="space-y-3" data-block-id="C133" data-block-name="앉을 칸 추정">
@@ -178,7 +178,7 @@ function EstimateAnswer({ e, carCount }: { e: Estimate; carCount: number }) {
       </div>
       <ul className="space-y-2">
         {e.cars.map((c, i) => (
-          <li key={c.car} className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
+          <li key={c.car} role="radio" aria-checked={pick === i} tabIndex={0} onClick={() => onPick(i)} onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && onPick(i)} className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 ${pick === i ? "border-violet bg-violetSoft" : "border-line"}`}>
             <div className="min-w-0">
               <p className="text-[15px] font-semibold text-ink">
                 {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
@@ -199,60 +199,66 @@ function EstimateAnswer({ e, carCount }: { e: Estimate; carCount: number }) {
 }
 
 /**
- * [앉지 못함] (검정 바탕·흰 글자, 2026-10-30 사용자 지시): 탄 칸-문을 골라 '못 앉음'으로 기록한다.
- * 처음엔 1순위 추천 위치가 골라져 있다. 기록은 회원 번호 없이 저장되고 다음 추천 확률에 바로 반영된다.
+ * 탄 결과 기록(2026-10-30 사용자 지시): 위 3개 위치 중 탄 곳을 고르고 [앉았어요](보라)·[앉지 못함](검정 바탕·흰 글자)을 누른다.
+ * 목록에 없는 칸에서 탔으면 '다른 칸-문'으로 직접 고른다. 회원 번호 없이 저장되고 다음 추천 확률에 바로 반영된다.
  */
-function NoSeat({ seatKey, carCount, first }: { seatKey: { line: LineId; station: string; dir: Dir; dow: string; slot: string }; carCount: number; first: { car: string; door: string } | null }) {
+function SeatResult({ seatKey, carCount, chosen }: { seatKey: { line: LineId; station: string; dir: Dir; dow: string; slot: string }; carCount: number; chosen: { car: string; door: string } }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
-  const [car, setCar] = useState(first?.car ?? "");
-  const [door, setDoor] = useState(first?.door ?? "");
+  const [other, setOther] = useState(false);
+  const [car, setCar] = useState("");
+  const [door, setDoor] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState("");
+  const [done, setDone] = useState<{ label: string; seated: boolean } | null>(null);
   const [err, setErr] = useState("");
-  const save = async () => {
-    if (!car || !door) return setErr(t("탄 칸과 문을 골라 주세요."));
+  const pos = other ? { car, door } : chosen;
+  const label = positionLabel(pos.car, pos.door);
+  const save = async (seated: boolean) => {
+    if (!pos.car || !pos.door) return setErr(t("탄 칸과 문을 골라 주세요."));
     setBusy(true);
     setErr("");
-    const r = await api("/api/seat/car/feedback", "POST", { ...seatKey, car, entrance: door, seated: false });
+    const r = await api("/api/seat/car/feedback", "POST", { ...seatKey, car: pos.car, entrance: pos.door, seated });
     setBusy(false);
     if (!r.ok) return setErr(t(r.error));
-    setDone(positionLabel(car, door));
-    setOpen(false);
+    setDone({ label, seated });
   };
-  if (done) return <p role="status" className="rounded-2xl bg-bg px-4 py-3 text-[14px] text-ink">{done} · {t("못 앉은 기록을 남겼어요. 다음 추천에 반영돼요.")}</p>;
+  if (done)
+    return (
+      <p role="status" className={`rounded-2xl px-4 py-3 text-[14px] ${done.seated ? "bg-mintSoft text-mint" : "bg-bg text-ink"}`}>
+        <b className="num">{done.label}</b> · {done.seated ? t("앉은 기록을 남겼어요.") : t("못 앉은 기록을 남겼어요.")} {t("다음 추천에 반영돼요.")}
+      </p>
+    );
   return (
-    <div data-block-id="C421" data-block-name="앉지 못함" className="space-y-3">
-      {!open ? (
-        <button type="button" data-block-id="B430" data-block-name="앉지 못함" onClick={() => setOpen(true)} className="w-full rounded-2xl bg-ink px-5 py-3.5 text-[16px] font-semibold text-white active:opacity-90">
-          {t("앉지 못함")}
-        </button>
-      ) : (
-        <div className="space-y-3 rounded-2xl border border-line bg-white p-4">
-          <p className="text-[14px] font-semibold text-ink">{t("어느 칸·문에서 탔나요?")}</p>
+    <div data-block-id="C421" data-block-name="탄 결과 기록" className="space-y-3 rounded-2xl border border-line bg-white p-4">
+      <p className="text-[14px] text-ink">
+        {t("탄 위치")} <b className="num text-[18px]">{label || "-"}</b>
+        <span className="ml-1 text-[13px] text-sub">{other ? t("(직접 고름)") : t("(위 목록에서 고르기)")}</span>
+      </p>
+      {other && (
+        <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("탄 칸")}>
             {Array.from({ length: carCount }, (_, i) => String(i + 1)).map((c) => (
-              <button key={c} type="button" role="radio" aria-checked={car === c} onClick={() => setCar(c)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${car === c ? "border-ink bg-ink font-semibold text-white" : "border-line bg-white text-sub"}`}>
+              <button key={c} type="button" role="radio" aria-checked={car === c} onClick={() => setCar(c)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${car === c ? "border-violet bg-violetSoft font-semibold text-violet" : "border-line bg-white text-sub"}`}>
                 {c}{t("칸")}
               </button>
             ))}
           </div>
           <div className="flex gap-1.5" role="radiogroup" aria-label={t("문")}>
             {["1", "2", "3", "4"].map((d) => (
-              <button key={d} type="button" role="radio" aria-checked={door === d} onClick={() => setDoor(d)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${door === d ? "border-ink bg-ink font-semibold text-white" : "border-line bg-white text-sub"}`}>
+              <button key={d} type="button" role="radio" aria-checked={door === d} onClick={() => setDoor(d)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${door === d ? "border-violet bg-violetSoft font-semibold text-violet" : "border-line bg-white text-sub"}`}>
                 {d}{t("번 문")}
               </button>
             ))}
           </div>
-          {err && <p className="text-[13px] text-warn">{err}</p>}
-          <div className="flex gap-2">
-            <button type="button" data-block-id="B431" data-block-name="못 앉음 기록하기" disabled={busy} onClick={save} className="flex-1 rounded-xl bg-ink py-3 text-[15px] font-semibold text-white disabled:opacity-50">
-              {busy ? t("기록하는 중…") : `${positionLabel(car, door) || "-"} ${t("못 앉음 기록하기")}`}
-            </button>
-            <button type="button" onClick={() => setOpen(false)} className="shrink-0 rounded-xl border border-line px-4 py-3 text-[15px] text-sub">{t("닫기")}</button>
-          </div>
         </div>
       )}
+      {err && <p className="text-[13px] text-warn">{err}</p>}
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" data-block-id="B432" data-block-name="앉았어요 기록" disabled={busy} onClick={() => save(true)} className="rounded-2xl bg-violet py-3.5 text-[16px] font-semibold text-white active:opacity-90 disabled:opacity-50">{t("앉았어요")}</button>
+        <button type="button" data-block-id="B430" data-block-name="앉지 못함" disabled={busy} onClick={() => save(false)} className="rounded-2xl bg-ink py-3.5 text-[16px] font-semibold text-white active:opacity-90 disabled:opacity-50">{t("앉지 못함")}</button>
+      </div>
+      <button type="button" data-block-id="B431" data-block-name="다른 칸-문 고르기" onClick={() => setOther((v) => !v)} className="min-h-0 text-[13px] text-sub underline">
+        {other ? t("위 목록에서 고르기") : t("목록에 없는 칸-문에서 탔어요")}
+      </button>
     </div>
   );
 }
