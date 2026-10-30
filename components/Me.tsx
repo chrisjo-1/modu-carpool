@@ -15,6 +15,8 @@ import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
 import ChangePassword from "./ChangePassword";
 const Withdraw = dynamic(() => import("./Withdraw"), { ssr: false });
+const ContractSheet = dynamic(() => import("./Contract"), { ssr: false });
+const MyContracts = dynamic(() => import("./Contract").then((m) => m.MyContracts), { ssr: false });
 import { Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 import { shrinkCar } from "./CarInput";
 
@@ -134,6 +136,7 @@ export default function Me({
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
   const [editOpen, setEditOpen] = useState(false);
+  const [contractReq, setContractReq] = useState<string | null>(null);
   const [zoom, setZoom] = useState(false);
   const [blocks, setBlocks] = useState<{ id: string; name: string; photo: string }[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -416,6 +419,9 @@ export default function Me({
                 </Card>
               )}
             </Fold>
+            <Fold id="contracts" blockId="C417" title={t("내 계약서")} summary={t("정기카풀")}>
+              <MyContracts onOpen={setContractReq} />
+            </Fold>
             <Fold id="calls" blockId="C098" title={t("내 CALL 이력")}>
               <MyCallHistory />
             </Fold>
@@ -453,6 +459,7 @@ export default function Me({
           </Card>
         </div>
       )}
+      {contractReq && <ContractSheet requestId={contractReq} toast={toast} onClose={() => setContractReq(null)} />}
       {noticesOpen && <NoticeList onClose={() => setNoticesOpen(false)} />}
       {withdrawOpen && user && <Withdraw initialEmail={user.email} onClose={() => setWithdrawOpen(false)} />}
       {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} onClose={() => setFeedbackOpen(false)} />}

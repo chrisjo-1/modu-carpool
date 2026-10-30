@@ -405,6 +405,25 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     body text not null,
     created_at timestamptz not null default now())`;
   await sql`create index if not exists messages_req_idx on messages (request_id, id)`;
+  await sql`create table if not exists contracts (
+    id uuid primary key default gen_random_uuid(),
+    request_id uuid not null references requests(id) on delete cascade,
+    version integer not null,
+    status text not null default 'proposed',
+    driver_id uuid not null,
+    rider_id uuid not null,
+    proposed_by uuid not null,
+    terms jsonb not null,
+    driver_signed_at timestamptz,
+    rider_signed_at timestamptz,
+    driver_ip text not null default '',
+    rider_ip text not null default '',
+    ended_by uuid,
+    ended_at timestamptz,
+    created_at timestamptz not null default now(),
+    unique (request_id, version))`;
+  await sql`create index if not exists contracts_driver_idx on contracts (driver_id)`;
+  await sql`create index if not exists contracts_rider_idx on contracts (rider_id)`;
   await sql`alter table messages add column if not exists image text not null default ''`;
   await sql`create table if not exists chat_reads (
     request_id uuid not null references requests(id) on delete cascade,

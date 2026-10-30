@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 type Person = { name: string; email: string; code: string };
 type Thread = { id: string; status: string; route: string; postRole: string; applicant: Person; owner: Person; count: number; lastAt: number; seenAt: number | null };
 type Msg = { id: string; from: "applicant" | "owner" | "other"; name: string; body: string; hasImage: boolean; at: number };
-type Opened = { route: string; first: string; firstAt: number; messages: Msg[] };
+type AdminContract = { version: number; status: string; terms: { startDate: string; endDate: string; pickup: string; dropoff: string; days: string; timeGo: string; timeBack: string; costType: string; amount: number; settle: string; cancelNotice: string; noShow: string; terminateDays: number; extra: string }; driverSignedAt: number | null; riderSignedAt: number | null; endedAt: number | null };
+type Opened = { route: string; first: string; firstAt: number; messages: Msg[]; contracts?: AdminContract[] };
+const CSTATUS: Record<string, string> = { proposed: "동의 대기", signed: "체결", superseded: "이전 판", ended: "해지", cancelled: "취소" };
 type Log = { id: string; requestId: string; reason: string; ip: string; at: number; route: string; people: string };
 
 const input = "w-full rounded-xl border border-line bg-white px-4 py-2.5 text-[15px]";
@@ -167,6 +169,21 @@ export default function AdminChats() {
               </form>
             ) : (
               <div className="flex-1 space-y-2 overflow-y-auto px-5 py-4">
+                {opened.contracts && opened.contracts.length > 0 && (
+                  <details data-block-id="C418" data-block-name="대화 계약서" className="rounded-xl border border-accent bg-accentSoft px-3 py-2 text-[13px]" open>
+                    <summary className="cursor-pointer font-semibold text-accent">정기카풀 계약서 {opened.contracts.length}건 (최신: {opened.contracts[0].version}판 · {CSTATUS[opened.contracts[0].status] ?? opened.contracts[0].status})</summary>
+                    {opened.contracts.map((c) => (
+                      <div key={c.version} className="mt-2 space-y-0.5 border-t border-line pt-2 text-ink">
+                        <p className="font-semibold">{c.version}판 · {CSTATUS[c.status] ?? c.status}</p>
+                        <p>기간 {c.terms.startDate} ~ {c.terms.endDate} · 요일 {c.terms.days} · {c.terms.timeGo}{c.terms.timeBack ? ` / ${c.terms.timeBack}` : ""}</p>
+                        <p>{c.terms.pickup} → {c.terms.dropoff} · {c.terms.costType === "month" ? "월" : "회당"} {c.terms.amount.toLocaleString()}원 · {c.terms.settle}</p>
+                        <p>취소 {c.terms.cancelNotice} · 불참 {c.terms.noShow} · 해지 {c.terms.terminateDays}일 전</p>
+                        {c.terms.extra && <p className="whitespace-pre-wrap">추가: {c.terms.extra}</p>}
+                        <p className="text-sub">운전자 동의 {c.driverSignedAt ? when(c.driverSignedAt) : "대기"} · 탑승자 동의 {c.riderSignedAt ? when(c.riderSignedAt) : "대기"}{c.endedAt ? ` · 종료 ${when(c.endedAt)}` : ""}</p>
+                      </div>
+                    ))}
+                  </details>
+                )}
                 {opened.first && (
                   <div className="rounded-xl bg-accentSoft px-3 py-2 text-[14px]">
                     <p className="text-[12px] text-sub">신청 메시지 · {when(opened.firstAt)}</p>

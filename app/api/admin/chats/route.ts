@@ -89,7 +89,14 @@ export async function POST(req: Request) {
     const r = rq[0];
     const msgs = await sql`select m.id, m.user_id, m.body, (m.image <> '') as has_image, m.created_at, u.name
       from messages m join users u on u.id = m.user_id where m.request_id = ${requestId} order by m.created_at, m.id limit 1000`;
+    const cons = await sql`select version, status, terms, driver_signed_at, rider_signed_at, ended_at, created_at from contracts where request_id = ${requestId} order by version desc limit 10`;
     return json({
+      contracts: cons.map((c) => ({
+        version: Number(c.version), status: String(c.status), terms: c.terms,
+        driverSignedAt: c.driver_signed_at ? new Date(c.driver_signed_at as string).getTime() : null,
+        riderSignedAt: c.rider_signed_at ? new Date(c.rider_signed_at as string).getTime() : null,
+        endedAt: c.ended_at ? new Date(c.ended_at as string).getTime() : null,
+      })),
       route: `${r.origin} → ${r.dest}`,
       first: String(r.message ?? ""),
       firstAt: new Date(r.created_at as string).getTime(),

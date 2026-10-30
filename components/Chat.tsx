@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { METER_URL, SHOW_METER, contactLabel, type Thread, type User } from "@/lib/types";
 import { Stars } from "./Member";
 import { Route } from "./Home";
@@ -8,6 +9,8 @@ import type { usePush } from "./Push";
 import { RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
 type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
+
+const ContractSheet = dynamic(() => import("./Contract"), { ssr: false });
 
 const MANNER_KEY = "modu.chat.manners"; // 매너 안내를 한 번 본 기기(localStorage)
 const MANNERS = [
@@ -272,6 +275,7 @@ export function ChatRoom({
 
   // 별을 누르면 바로 저장하지 않고, 카풀을 마친 뒤 남겨 달라는 안내 창을 먼저 띄운다.
   const [askStars, setAskStars] = useState(0);
+  const [contractOpen, setContractOpen] = useState(false);
   const notYet = !thread.regular && thread.departAt > Date.now();
   const rate = async (n: number) => {
     const before = stars;
@@ -366,6 +370,13 @@ export function ChatRoom({
             <a href={METER_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-0 items-center gap-1 font-semibold text-accent">{t("모카 미터기로 비용 나누기")} {Icon.arrow()}</a>
           )}
         </div>
+        {thread.regular && thread.status === "accepted" && (
+          <button type="button" data-block-id="B428" data-block-name="정기카풀 계약서" onClick={() => setContractOpen(true)} className="flex w-full items-center justify-between gap-2 rounded-2xl border border-accent bg-accentSoft px-4 py-3 text-left text-[15px] font-semibold text-accent">
+            <span>📄 {t("정기카풀 계약서")} <span className="font-normal text-[13px]">· {t("요일·시간·비용·취소 약속을 적어 두기")}</span></span>
+            {Icon.arrow()}
+          </button>
+        )}
+        {contractOpen && <ContractSheet requestId={thread.id} toast={toast} onClose={() => setContractOpen(false)} />}
         <ChatManners />
         <div className="min-h-[30vh] space-y-2 supports-[height:1dvh]:min-h-[30dvh]" aria-live="polite">
           {msgs.length === 0 && <p className="py-8 text-center text-[15px] text-sub">{t("첫 인사를 건네 보세요.")}</p>}
