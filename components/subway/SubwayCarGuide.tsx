@@ -5,7 +5,7 @@ import type { Congestion, CongestionLevel } from "@/lib/congestion";
 import { carNumbersOf, type LineId } from "@/lib/subway";
 import { positionLabel } from "@/lib/subwayPosition";
 import { headingFor, headingsAt } from "@/lib/subwayRoute";
-import { useT } from "../ui";
+import { api, useT } from "../ui";
 
 type Dir = "up" | "down";
 type Guide = GuideResult & { congestion: Congestion | null; estimate?: Estimate };
@@ -86,7 +86,7 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
                 <div className="min-w-0">
                   <p className="text-[15px] font-semibold text-ink">
                     {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
-                    <span className="num">{positionLabel(r.car, r.entrance)}</span>
+                    <span className="num text-[22px] font-bold">{positionLabel(r.car, r.entrance)}</span>
                     <span className="ml-1.5 text-[13px] font-normal text-sub">
                       {r.car}{t("번째 칸")} {r.entrance}{t("번 문")}
                     </span>
@@ -102,6 +102,14 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
       ) : data?.estimate ? (
         <EstimateAnswer e={data.estimate} carCount={carNumbersOf(line).length} />
       ) : null}
+
+      {data && (
+        <NoSeat
+          seatKey={{ line, station, dir, dow: day, slot }}
+          carCount={carNumbersOf(line).length}
+          first={top ? { car: top.car, door: top.entrance } : data.estimate?.cars[0] ? { car: data.estimate.cars[0].car, door: data.estimate.cars[0].door } : null}
+        />
+      )}
 
       {/* 혼잡도 자료가 없으면 추정 아래 안내 한 줄로 충분하다(같은 말을 두 번 하지 않는다). */}
       {data?.congestion && <CongestionAnswer c={data.congestion} />}
@@ -174,8 +182,8 @@ function EstimateAnswer({ e, carCount }: { e: Estimate; carCount: number }) {
             <div className="min-w-0">
               <p className="text-[15px] font-semibold text-ink">
                 {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
-                <span className="num">{c.car}</span>{t("번째 칸")}
-                <span className="ml-1.5 text-[13px] font-normal text-sub">/ {carCount}{t("칸")}</span>
+                <span className="num text-[22px] font-bold">{positionLabel(c.car, c.door)}</span>
+                <span className="ml-1.5 text-[13px] font-normal text-sub">{c.car}{t("번째 칸")} {c.door}{t("번 문")} · {t("또는")} <span className="num">{positionLabel(c.car, c.alt)}</span></span>
               </p>
               <p className="num text-[12px] text-sub">{c.n > 0 ? `${t("착석 기록")} ${c.n}${t("건 반영")}` : Number(c.car) === 1 || Number(c.car) === carCount ? t("맨 끝 칸 · 좌석이 적어요") : Number(c.car) === 2 || Number(c.car) === carCount - 1 ? t("끝에서 두 번째 칸 · 덜 붐비고 좌석이 온전해요") : t("칸 위치 기준")}</p>
             </div>
@@ -184,8 +192,67 @@ function EstimateAnswer({ e, carCount }: { e: Estimate; carCount: number }) {
         ))}
       </ul>
       <p className="text-[12px] leading-relaxed text-sub">
-        {e.basis === "congestion" ? t("서울교통공사 혼잡도와 칸 위치로 계산한 현재 기준 추정이에요.") : t("이 역은 혼잡도 자료가 없어 칸 위치로만 추정했어요.")} {t("착석 기록")} {e.records}{t("건 반영")} · {t("기록이 쌓일수록 정확해져요")}({MIN_SAMPLE}{t("건부터 기록 순위로 바뀌어요")}).
+        {t("칸-문은 승강장 바닥의 삼각형 표시예요(예: 2-3 = 2번째 칸 3번 문).")} {e.basis === "congestion" ? t("서울교통공사 혼잡도와 칸 위치로 계산한 현재 기준 추정이에요.") : t("이 역은 혼잡도 자료가 없어 칸 위치로만 추정했어요.")} {t("착석 기록")} {e.records}{t("건 반영")} · {t("기록이 쌓일수록 정확해져요")}({MIN_SAMPLE}{t("건부터 기록 순위로 바뀌어요")}).
       </p>
+    </div>
+  );
+}
+
+/**
+ * [앉지 못함] (검정 바탕·흰 글자, 2026-10-30 사용자 지시): 탄 칸-문을 골라 '못 앉음'으로 기록한다.
+ * 처음엔 1순위 추천 위치가 골라져 있다. 기록은 회원 번호 없이 저장되고 다음 추천 확률에 바로 반영된다.
+ */
+function NoSeat({ seatKey, carCount, first }: { seatKey: { line: LineId; station: string; dir: Dir; dow: string; slot: string }; carCount: number; first: { car: string; door: string } | null }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [car, setCar] = useState(first?.car ?? "");
+  const [door, setDoor] = useState(first?.door ?? "");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  const [err, setErr] = useState("");
+  const save = async () => {
+    if (!car || !door) return setErr(t("탄 칸과 문을 골라 주세요."));
+    setBusy(true);
+    setErr("");
+    const r = await api("/api/seat/car/feedback", "POST", { ...seatKey, car, entrance: door, seated: false });
+    setBusy(false);
+    if (!r.ok) return setErr(t(r.error));
+    setDone(positionLabel(car, door));
+    setOpen(false);
+  };
+  if (done) return <p role="status" className="rounded-2xl bg-bg px-4 py-3 text-[14px] text-ink">{done} · {t("못 앉은 기록을 남겼어요. 다음 추천에 반영돼요.")}</p>;
+  return (
+    <div data-block-id="C421" data-block-name="앉지 못함" className="space-y-3">
+      {!open ? (
+        <button type="button" data-block-id="B430" data-block-name="앉지 못함" onClick={() => setOpen(true)} className="w-full rounded-2xl bg-ink px-5 py-3.5 text-[16px] font-semibold text-white active:opacity-90">
+          {t("앉지 못함")}
+        </button>
+      ) : (
+        <div className="space-y-3 rounded-2xl border border-line bg-white p-4">
+          <p className="text-[14px] font-semibold text-ink">{t("어느 칸·문에서 탔나요?")}</p>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("탄 칸")}>
+            {Array.from({ length: carCount }, (_, i) => String(i + 1)).map((c) => (
+              <button key={c} type="button" role="radio" aria-checked={car === c} onClick={() => setCar(c)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${car === c ? "border-ink bg-ink font-semibold text-white" : "border-line bg-white text-sub"}`}>
+                {c}{t("칸")}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1.5" role="radiogroup" aria-label={t("문")}>
+            {["1", "2", "3", "4"].map((d) => (
+              <button key={d} type="button" role="radio" aria-checked={door === d} onClick={() => setDoor(d)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${door === d ? "border-ink bg-ink font-semibold text-white" : "border-line bg-white text-sub"}`}>
+                {d}{t("번 문")}
+              </button>
+            ))}
+          </div>
+          {err && <p className="text-[13px] text-warn">{err}</p>}
+          <div className="flex gap-2">
+            <button type="button" data-block-id="B431" data-block-name="못 앉음 기록하기" disabled={busy} onClick={save} className="flex-1 rounded-xl bg-ink py-3 text-[15px] font-semibold text-white disabled:opacity-50">
+              {busy ? t("기록하는 중…") : `${positionLabel(car, door) || "-"} ${t("못 앉음 기록하기")}`}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className="shrink-0 rounded-xl border border-line px-4 py-3 text-[15px] text-sub">{t("닫기")}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -136,7 +136,8 @@ export function parseFeedback(b: Record<string, unknown>): { ok: true; key: Guid
  * - 칸 위치: 맨 앞·맨 뒤 칸 1.2배, 그 옆 칸 1.08배, 나머지 0.95배(끝 칸이 덜 붐비는 경향).
  * - 기록: 칸마다 (착석 + W×추정) / (기록 + W), W = 8. 기록이 쌓일수록 기록 비중이 커진다.
  */
-export type CarEstimate = { car: string; prob: number; n: number };
+/** 칸마다 추천 문(door)과 다음으로 좋은 문(alt). 문은 1~4, "칸-문"으로 보여 준다(예: 2-3). */
+export type CarEstimate = { car: string; prob: number; n: number; door: string; alt: string };
 export type Estimate = { overall: number; cars: CarEstimate[]; records: number; basis: "congestion" | "default" };
 
 const EST_WEIGHT = 8;
@@ -156,6 +157,26 @@ export function carFactor(car: number, count: number): number {
   return d === 0 ? 0.85 : d === 1 ? 1.15 : d === 2 ? 1.05 : 0.95;
 }
 
+/**
+ * 문 위치 가중치. 2·3번 문은 양쪽이 7인석(좌석 14개), 1·4번 문은 7인석 하나와 노약자석이라 일반 좌석이 적다.
+ * 같은 값이면 3번 문을 먼저(하차 동선 가운데라 자리가 자주 남).
+ */
+export function doorFactor(door: number): number {
+  return door === 2 || door === 3 ? 1 : 0.85;
+}
+
+/** 칸 안에서 문 고르기: 문마다 (착석 + W×추정×문 가중) / (기록 + W) — 기록이 쌓이면 기록이 이긴다. */
+function pickDoors(car: string, prior: number, rows: FeedbackRow[]): { door: string; alt: string } {
+  const scored = [3, 2, 1, 4].map((d) => {
+    let n = 0;
+    let s = 0;
+    for (const r of rows) if (r.car === car && r.entrance === String(d)) { n += 1; if (r.seated) s += 1; }
+    return { d: String(d), v: (s + EST_WEIGHT * prior * doorFactor(d)) / (n + EST_WEIGHT) };
+  });
+  scored.sort((a, b) => b.v - a.v);
+  return { door: scored[0].d, alt: scored[1].d };
+}
+
 export function estimateCars(carCount: number, pct: number | null, rows: FeedbackRow[], top = 3): Estimate {
   const base = seatChance(pct);
   const byCar = new Map<string, { n: number; s: number }>();
@@ -170,7 +191,7 @@ export function estimateCars(carCount: number, pct: number | null, rows: Feedbac
     const prior = Math.min(0.95, Math.max(0.03, base * carFactor(i, carCount)));
     const g = byCar.get(String(i)) ?? { n: 0, s: 0 };
     const prob = (g.s + EST_WEIGHT * prior) / (g.n + EST_WEIGHT);
-    cars.push({ car: String(i), prob: Math.round(prob * 100) / 100, n: g.n });
+    cars.push({ car: String(i), prob: Math.round(prob * 100) / 100, n: g.n, ...pickDoors(String(i), prior, rows) });
   }
   cars.sort((a, b) => b.prob - a.prob || b.n - a.n || Number(a.car) - Number(b.car));
   return { overall: Math.round(base * 100) / 100, cars: cars.slice(0, top), records: rows.length, basis: pct == null ? "default" : "congestion" };
