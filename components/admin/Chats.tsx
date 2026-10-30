@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 type Person = { name: string; email: string; code: string };
 type Thread = { id: string; status: string; route: string; postRole: string; applicant: Person; owner: Person; count: number; lastAt: number; seenAt: number | null };
 type Msg = { id: string; from: "applicant" | "owner" | "other"; name: string; body: string; hasImage: boolean; at: number };
-type AdminContract = { version: number; status: string; terms: { startDate: string; endDate: string; pickup: string; dropoff: string; days: string; timeGo: string; timeBack: string; costType: string; amount: number; settle: string; cancelNotice: string; noShow: string; terminateDays: number; extra: string }; driverSignedAt: number | null; riderSignedAt: number | null; endedAt: number | null };
+type AdminContract = { version: number; status: string; terms: { startDate: string; endDate: string; pickup: string; dropoff: string; days: string; timeGo: string; timeBack: string; backOn?: boolean; backPickup?: string; backDropoff?: string; waitMin?: number; costType: string; amount: number; amountBack?: number; settle: string; cancelNotice: string; noShow: string; terminateDays: number; extra: string }; driverSignedAt: number | null; riderSignedAt: number | null; endedAt: number | null };
 type Opened = { route: string; first: string; firstAt: number; messages: Msg[]; contracts?: AdminContract[] };
 const CSTATUS: Record<string, string> = { proposed: "동의 대기", signed: "체결", superseded: "이전 판", ended: "해지", cancelled: "취소" };
 type Log = { id: string; requestId: string; reason: string; ip: string; at: number; route: string; people: string };
@@ -175,8 +175,9 @@ export default function AdminChats() {
                     {opened.contracts.map((c) => (
                       <div key={c.version} className="mt-2 space-y-0.5 border-t border-line pt-2 text-ink">
                         <p className="font-semibold">{c.version}판 · {CSTATUS[c.status] ?? c.status}</p>
-                        <p>기간 {c.terms.startDate} ~ {c.terms.endDate} · 요일 {c.terms.days} · {c.terms.timeGo}{c.terms.timeBack ? ` / ${c.terms.timeBack}` : ""}</p>
-                        <p>{c.terms.pickup} → {c.terms.dropoff} · {c.terms.costType === "month" ? "월" : "회당"} {c.terms.amount.toLocaleString()}원 · {c.terms.settle}</p>
+                        <p>기간 {c.terms.startDate} ~ {c.terms.endDate} · 요일 {c.terms.days} · 출근 {c.terms.timeGo}{c.terms.backOn && c.terms.timeBack ? ` / 퇴근 ${c.terms.timeBack}` : ""}</p>
+                        <p className="font-semibold">비용: {c.terms.costType === "month" ? `월 ${c.terms.amount.toLocaleString()}원` : `출근 1회 ${c.terms.amount.toLocaleString()}원${c.terms.backOn ? ` · 퇴근 1회 ${(c.terms.amountBack ?? 0).toLocaleString()}원` : ""}`} · {c.terms.settle}</p>
+                        <p>출근 {c.terms.pickup} → {c.terms.dropoff}{c.terms.backOn ? ` · 퇴근 ${c.terms.backPickup} → ${c.terms.backDropoff}` : ""} · 대기 {c.terms.waitMin ?? 5}분</p>
                         <p>취소 {c.terms.cancelNotice} · 불참 {c.terms.noShow} · 해지 {c.terms.terminateDays}일 전</p>
                         {c.terms.extra && <p className="whitespace-pre-wrap">추가: {c.terms.extra}</p>}
                         <p className="text-sub">운전자 동의 {c.driverSignedAt ? when(c.driverSignedAt) : "대기"} · 탑승자 동의 {c.riderSignedAt ? when(c.riderSignedAt) : "대기"}{c.endedAt ? ` · 종료 ${when(c.endedAt)}` : ""}</p>

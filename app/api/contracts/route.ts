@@ -18,7 +18,7 @@ type Row = Record<string, unknown>;
 
 async function party(requestId: string, me: string) {
   const r = await db()`
-    select r.id, r.status, r.user_id as applicant, p.user_id as owner, p.role, p.regular, p.origin, p.dest, p.days, p.time_go, p.time_back, p.price,
+    select r.id, r.status, r.user_id as applicant, p.user_id as owner, p.role, p.regular, p.origin, p.dest, p.days, p.time_go, p.time_back, p.price, p.origin_lat, p.origin_lng, p.dest_lat, p.dest_lng,
       ua.name as a_name, ua.member_code as a_code, uo.name as o_name, uo.member_code as o_code, uo.car_no as o_car, ua.car_no as a_car
     from requests r join posts p on p.id = r.post_id join users ua on ua.id = r.user_id join users uo on uo.id = p.user_id
     where r.id = ${requestId} and (r.user_id = ${me} or p.user_id = ${me})`;
@@ -33,7 +33,11 @@ async function party(requestId: string, me: string) {
     riderId: String(ownerDrives ? x.applicant : x.owner),
     driver: { name: String((ownerDrives ? x.o_name : x.a_name) ?? ""), code: String((ownerDrives ? x.o_code : x.a_code) ?? ""), carNo: String((ownerDrives ? x.o_car : x.a_car) ?? "") },
     rider: { name: String((ownerDrives ? x.a_name : x.o_name) ?? ""), code: String((ownerDrives ? x.a_code : x.o_code) ?? "") },
-    post: { origin: String(x.origin), dest: String(x.dest), days: String(x.days ?? ""), timeGo: String(x.time_go ?? ""), timeBack: String(x.time_back ?? ""), price: Number(x.price) || 0 },
+    post: {
+      origin: String(x.origin), dest: String(x.dest), days: String(x.days ?? ""), timeGo: String(x.time_go ?? ""), timeBack: String(x.time_back ?? ""), price: Number(x.price) || 0,
+      originLat: x.origin_lat == null ? null : Number(x.origin_lat), originLng: x.origin_lng == null ? null : Number(x.origin_lng),
+      destLat: x.dest_lat == null ? null : Number(x.dest_lat), destLng: x.dest_lng == null ? null : Number(x.dest_lng),
+    },
   };
 }
 
