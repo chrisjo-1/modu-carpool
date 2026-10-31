@@ -1,5 +1,5 @@
 import { body, clientIp, db, ensureSchema, fail, isAdmin, json, text } from "@/lib/server";
-import { allPoints, candidatesFor, pairGroups, fillWarpGeo, parseWarpPools, publishWarpPools, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
+import { allPoints, candidatesFor, pairGroups, pairList, fillWarpGeo, parseWarpPools, publishWarpPools, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -35,9 +35,10 @@ export async function GET(req: Request) {
     if (p.get("groups")) {
       const r = Math.min(30, Math.max(0.5, Number(p.get("r")) || 3));
       const all = await allPoints();
-      const groups = pairGroups(all, r, Number(p.get("n")) === 1 ? 1 : 2);
+      const groups = p.get("pairs") ? [] : pairGroups(all, r, Number(p.get("n")) === 1 ? 1 : 2);
+      const pairs = p.get("pairs") ? pairList(all, r) : [];
       const geo = all.filter((x) => x.active && x.homeLat != null);
-      return json({ groups, drivers: geo.filter((x) => x.role === "driver").length, riders: geo.filter((x) => x.role === "rider").length });
+      return json({ groups, pairs, drivers: geo.filter((x) => x.role === "driver").length, riders: geo.filter((x) => x.role === "rider").length });
     }
     const match = text(p.get("match"), 60);
     if (match) {
@@ -66,7 +67,7 @@ export async function GET(req: Request) {
           count(*) filter (where exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id)))::int as in_legacy
         from warp_pools w`,
       sql`select w.code, w.active, w.role, w.home, w.work, w.region, w.time_go, w.time_back, w.warp_id, w.reg_date,
-          w.home_lat is not null and (w.work_lat is not null or w.work = '') as geo, w.geo_tried_at is not null as tried, w.post_id,
+          w.home_lat is not null and (w.work_lat is not null or w.work = '') as geo, w.geo_tried_at is not null as tried, w.post_id, w.dup_count,
           l.matched_user, l.withdrawn, l.email is not null and l.email <> '' as has_mail, u.name
         from warp_pools w
         left join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
@@ -91,7 +92,7 @@ export async function GET(req: Request) {
         code: String(r.code), active: r.active === true, role: r.role === "driver" ? "driver" : "rider", home: String(r.home), work: String(r.work),
         region: String(r.region), timeGo: String(r.time_go), timeBack: String(r.time_back), warpId: String(r.warp_id), regDate: String(r.reg_date),
         geo: r.geo === true, tried: r.tried === true, moved: !!r.post_id, short: `${shortPlace(String(r.home))} → ${r.work ? shortPlace(String(r.work)) : ""}`, userId: r.matched_user ? String(r.matched_user) : null,
-        name: String(r.name ?? ""), withdrawn: r.withdrawn === true, hasMail: r.has_mail === true,
+        dup: Number(r.dup_count ?? 0), name: String(r.name ?? ""), withdrawn: r.withdrawn === true, hasMail: r.has_mail === true,
       })),
     });
   } catch (e) {

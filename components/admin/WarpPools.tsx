@@ -3,8 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import NotifyModal, { type NotifyTarget } from "./NotifyModal";
 
 type Stats = { total: number; drivers: number; geo: number; geoWait: number; geoFail: number; moved: number; linked: number; inLegacy: number; modoPosts: number };
-type Row = { code: string; active: boolean; role: "driver" | "rider"; home: string; work: string; region: string; timeGo: string; timeBack: string; warpId: string; regDate: string; geo: boolean; tried: boolean; moved: boolean; short: string; userId: string | null; name: string; withdrawn: boolean; hasMail: boolean };
-type Member = Point & { homeKm: number; workKm: number; chance: number };
+type Row = { code: string; active: boolean; role: "driver" | "rider"; home: string; work: string; region: string; timeGo: string; timeBack: string; warpId: string; regDate: string; geo: boolean; tried: boolean; moved: boolean; short: string; dup: number; userId: string | null; name: string; withdrawn: boolean; hasMail: boolean };
+type Member = Point & { homeKm: number; workKm: number; sumKm: number; chance: number; goDiff: number | null; backDiff: number | null };
+type Pair = { driver: Point; rider: Member };
 type Group = { driver: Point; riders: Member[]; best: number };
 type Point = { kind: "warp" | "post"; ref: string; role: "driver" | "rider"; home: string; work: string; timeGo: string; timeBack: string; warpId: string; userId: string | null; name: string; homeKm?: number; workKm?: number };
 
@@ -31,7 +32,8 @@ export default function WarpPools() {
   const [pubMsg, setPubMsg] = useState("");
   const [pubBusy, setPubBusy] = useState(false);
   const [paste, setPaste] = useState("");
-  const [showPaste, setShowPaste] = useState(false);
+  const [showPaste, setShowPaste] = useState(true);
+  const [dupInfo, setDupInfo] = useState<{ existing: string[]; changed: string[]; dupInPaste: string[] } | null>(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [geoRun, setGeoRun] = useState(false);
@@ -44,20 +46,36 @@ export default function WarpPools() {
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [notify, setNotify] = useState<NotifyTarget | null>(null);
   const [groups, setGroups] = useState<Group[] | null>(null);
+  const [pairs, setPairs] = useState<Pair[] | null>(null);
+  const [view, setView] = useState<"groups" | "pairs">("groups");
   const [gInfo, setGInfo] = useState({ drivers: 0, riders: 0 });
   const [gRadius, setGRadius] = useState(3);
   const [gShow, setGShow] = useState(20);
-  const loadGroups = useCallback(async (r: number) => {
+  const [tolGo, setTolGo] = useState(30);
+  const [tolBack, setTolBack] = useState(60);
+  const [timeOnly, setTimeOnly] = useState(false);
+  const loadGroups = useCallback(async (r: number, v: "groups" | "pairs" = "groups") => {
     setGroups(null);
-    const res = await fetch(`/api/admin/warp-pools?groups=1&r=${r}`);
+    setPairs(null);
+    const res = await fetch(`/api/admin/warp-pools?groups=1&r=${r}${v === "pairs" ? "&pairs=1" : ""}`);
     const j = await res.json().catch(() => ({}));
     setGroups(res.ok ? j.groups ?? [] : []);
+    setPairs(res.ok ? j.pairs ?? [] : []);
     if (res.ok) setGInfo({ drivers: j.drivers ?? 0, riders: j.riders ?? 0 });
     setGShow(20);
   }, []);
   useEffect(() => {
     loadGroups(3);
   }, [loadGroups]);
+  /** 시간 조건(점수와 별개): 출근·퇴근 차가 허용 폭 안이면 맞음. 시간이 비어 있으면 '확인 불가'. */
+  const timeOk = (m: Member) => m.goDiff != null && m.goDiff <= tolGo && (m.backDiff == null || m.backDiff <= tolBack);
+  const TimeBadge = ({ m }: { m: Member }) =>
+    m.goDiff == null ? <span className="rounded bg-bg px-1.5 text-xs text-sub">시간 확인 불가</span>
+    : timeOk(m) ? <span className="rounded bg-mintSoft px-1.5 text-xs font-semibold text-mint">시간 맞음 ✓</span>
+    : <span className="rounded bg-warnSoft px-1.5 text-xs font-semibold text-warn">출근 {m.goDiff}분{m.backDiff != null ? ` · 퇴근 ${m.backDiff}분` : ""} 차</span>;
+  const Dist = ({ m }: { m: Member }) => (
+    <span className="num text-xs text-sub">출발지 {m.homeKm}km + 도착지 {m.workKm >= 0 ? `${m.workKm}km` : "비교 안 함"} = <b className="text-ink">{m.sumKm}km</b></span>
+  );
 
   const load = useCallback(async () => {
     const p = new URLSearchParams({ q, role, pub: pubF, ...(noGeo ? { geo: "none" } : geoOk ? { geo: "ok" } : {}), ...(linkedOnly ? { linked: "1" } : {}) });
@@ -81,7 +99,8 @@ export default function WarpPools() {
     const j = await r.json().catch(() => ({}));
     setBusy(false);
     if (!r.ok) return setMsg(j.error ?? "저장하지 못했어요.");
-    setMsg(`읽음 ${j.read}건 (새로 ${j.added} · 바뀜 ${j.updated}${j.skipped ? ` · 잘려서 뺌 ${j.skipped}` : ""}). 이어서 위치를 채워요. 정기카풀 글은 아래에서 골라서 올려 주세요.`);
+    setMsg(`읽음 ${j.read}건 → 새로 저장 ${j.added}건 · 이미 있던 글 ${(j.existing ?? []).length}건(그중 내용 바뀜 ${j.updated}건)${(j.dupInPaste ?? []).length ? ` · 붙여넣은 글 안에서 겹침 ${j.dupInPaste.length}건` : ""}${j.skipped ? ` · 읽지 못함 ${j.skipped}건` : ""}. 이어서 위치를 채워요.`);
+    setDupInfo({ existing: j.existing ?? [], changed: j.changed ?? [], dupInPaste: j.dupInPaste ?? [] });
     setPaste("");
     setShowPaste(false);
     await load();
@@ -104,7 +123,7 @@ export default function WarpPools() {
       if (!j.left) break;
     }
     setGeoRun(false);
-    loadGroups(gRadius);
+    loadGroups(gRadius, view);
   };
 
   const findCands = async (b: Row | null = base, r = radius, o = opp) => {
@@ -145,7 +164,7 @@ export default function WarpPools() {
     } else setPubMsg(`내림: 삭제 ${j.removed}건${j.closed ? ` · 신청이 있어 마감 ${j.closed}건` : ""}`);
     setSel(new Set());
     load();
-    loadGroups(gRadius);
+    loadGroups(gRadius, view);
   };
 
   const PersonActions = ({ k, warpId, userId, label, canMail }: { k: string; warpId: string; userId: string | null; label: string; canMail: boolean }) => (
@@ -190,6 +209,14 @@ export default function WarpPools() {
           </div>
         )}
         {msg && <p className="mt-2 rounded-xl bg-accentSoft px-3 py-2 text-sm">{msg}</p>}
+        {dupInfo && (dupInfo.existing.length > 0 || dupInfo.dupInPaste.length > 0) && (
+          <details data-block-id="C422" data-block-name="중복 목록" className="mt-2 rounded-xl border border-line px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-semibold">중복 목록 보기</summary>
+            {dupInfo.dupInPaste.length > 0 && <p className="mt-2"><b>붙여넣은 글 안에서 겹침 {dupInfo.dupInPaste.length}건</b> (마지막 것으로 저장): <span className="num break-all text-sub">{dupInfo.dupInPaste.join(", ")}</span></p>}
+            {dupInfo.changed.length > 0 && <p className="mt-2"><b>이미 있던 글 · 내용 바뀜 {dupInfo.changed.length}건</b> (새 내용으로 바꿈): <span className="num break-all text-sub">{dupInfo.changed.join(", ")}</span></p>}
+            {dupInfo.existing.length > dupInfo.changed.length && <p className="mt-2"><b>이미 있던 글 · 내용 같음 {dupInfo.existing.length - dupInfo.changed.length}건</b>: <span className="num break-all text-sub">{dupInfo.existing.filter((c) => !dupInfo.changed.includes(c)).join(", ")}</span></p>}
+          </details>
+        )}
         {stats && (
           <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
             {[
@@ -207,20 +234,30 @@ export default function WarpPools() {
 
       <div data-block-id="S417" data-block-name="매칭 묶음" className="rounded-2xl border border-line bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-bold">매칭 묶음 <span className="text-sm font-normal text-sub">· 가능성 높은 순</span></h3>
+          <h3 className="text-base font-bold">매칭 <span className="text-sm font-normal text-sub">· 출발지 거리 + 도착지 거리 합이 작은 순</span></h3>
           <div className="flex items-center gap-2 text-sm">
+            {(["groups", "pairs"] as const).map((v) => (
+              <button key={v} data-block-id="B451" data-block-name="매칭 보기 바꾸기" className={`min-h-0 rounded-full border px-3 py-1 font-semibold ${view === v ? "border-accent bg-accent text-white" : "border-line bg-white"}`}
+                onClick={() => { setView(v); loadGroups(gRadius, v); }}>{v === "groups" ? "운전자별 묶음" : "전체 쌍"}</button>
+            ))}
             반경
             <select data-block-id="F427" data-block-name="묶음 반경" className="rounded-lg border border-line bg-white px-2 py-1" value={gRadius}
-              onChange={(e) => { const r = Number(e.target.value); setGRadius(r); loadGroups(r); }}>
+              onChange={(e) => { const r = Number(e.target.value); setGRadius(r); loadGroups(r, view); }}>
               {[1, 2, 3, 5, 10].map((r) => <option key={r} value={r}>{r}km</option>)}
             </select>
           </div>
         </div>
-        <p className="mt-1 text-xs text-sub">운전자마다 가장 가까운 탑승자 1~2명을 묶었어요. 가능성은 거리로만 계산해요(자택·회사 거리 합이 0km면 100%, 둘 다 반경 끝이면 0%). 시간은 아직 보지 않으니 출퇴근 시간을 눈으로 확인해 주세요. 위치를 찾은 운전자 {gInfo.drivers}명 · 탑승자 {gInfo.riders}명 기준.</p>
-        {groups === null && <p className="py-6 text-center text-sub">묶는 중…</p>}
-        {groups && groups.length === 0 && <p className="py-6 text-center text-sub">반경 {gRadius}km 안에서 묶을 수 있는 운전자·탑승자가 없어요. 위치 채우기가 끝났는지 확인하거나 반경을 넓혀 보세요.</p>}
-        <ol className="mt-3 space-y-3">
-          {groups?.slice(0, gShow).map((g, i) => {
+        <div data-block-id="F431" data-block-name="시간 조건" className="mt-2 flex flex-wrap items-center gap-3 rounded-xl bg-bg px-3 py-2 text-sm">
+          <b>시간 조건(점수와 별개)</b>
+          <label className="flex items-center gap-1">출근 ±<input type="number" min={0} max={240} step={10} className="w-16 rounded border border-line bg-white px-1.5 py-0.5" value={tolGo} onChange={(e) => setTolGo(Number(e.target.value) || 0)} />분</label>
+          <label className="flex items-center gap-1">퇴근 ±<input type="number" min={0} max={240} step={10} className="w-16 rounded border border-line bg-white px-1.5 py-0.5" value={tolBack} onChange={(e) => setTolBack(Number(e.target.value) || 0)} />분</label>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={timeOnly} onChange={(e) => setTimeOnly(e.target.checked)} />시간 맞는 것만</label>
+        </div>
+        <p className="mt-1 text-xs text-sub">가능성 = 출발지끼리 거리 + 도착지끼리 거리 합으로 계산(합 0km = 100%, 둘 다 반경 끝 = 0%). 도착지가 없는 글은 출발지 거리를 두 번 셈. 위치를 찾은 운전자 {gInfo.drivers}명 · 탑승자 {gInfo.riders}명 기준.</p>
+        {view === "groups" && groups === null && <p className="py-6 text-center text-sub">계산 중…</p>}
+        {view === "groups" && groups && groups.length === 0 && <p className="py-6 text-center text-sub">반경 {gRadius}km 안에서 묶을 수 있는 운전자·탑승자가 없어요. 위치 채우기가 끝났는지 확인하거나 반경을 넓혀 보세요.</p>}
+        {view === "groups" && <ol className="mt-3 space-y-3">
+          {groups?.filter((g) => !timeOnly || g.riders.some(timeOk)).slice(0, gShow).map((g, i) => {
             const d = g.driver;
             const who = (p: Point) => `${p.warpId || (p.kind === "warp" ? "고유번호 없음" : "")}${p.name ? ` · ${p.name}` : ""}`;
             return (
@@ -230,13 +267,13 @@ export default function WarpPools() {
                   {roleChip("driver")}
                   <span className={`rounded px-1.5 text-xs ${d.kind === "warp" ? "bg-bg text-sub" : "bg-mintSoft text-mint"}`}>{d.kind === "warp" ? "워프" : "모두의카풀 글"}</span>
                   <span className="num font-semibold">{who(d)}</span>
-                  <span className="num ml-auto rounded-full bg-accent px-2.5 py-0.5 text-sm font-bold text-white">최고 {g.best}%</span>
+                  <span className="num ml-auto rounded-full bg-accent px-2.5 py-0.5 text-sm font-bold text-white">{g.best}%</span>
                 </div>
                 <p className="mt-1 text-[15px]">{d.home} → {d.work || "(회사 주소 없음)"}</p>
                 <p className="text-xs text-sub">출근 {d.timeGo || "-"} · 퇴근 {d.timeBack || "-"}</p>
                 <div className="mt-1"><PersonActions k={`${d.kind}:${d.ref}`} warpId={d.kind === "warp" ? d.warpId : ""} userId={d.userId} label={who(d)} canMail={d.kind === "warp" && !!d.warpId} /></div>
                 <ul className="mt-2 space-y-2 border-l-2 border-mint pl-3">
-                  {g.riders.map((r) => (
+                  {g.riders.filter((r) => !timeOnly || timeOk(r)).map((r) => (
                     <li key={`${r.kind}:${r.ref}`}>
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         {roleChip("rider")}
@@ -245,7 +282,7 @@ export default function WarpPools() {
                         <span className="num ml-auto font-bold text-mint">{r.chance}%</span>
                       </div>
                       <p className="text-[15px]">{r.home} → {r.work || "(회사 주소 없음)"}</p>
-                      <p className="num text-xs text-sub">자택 {r.homeKm}km · {r.workKm >= 0 ? `회사 ${r.workKm}km` : "회사 비교 안 함"} · 출근 {r.timeGo || "-"} · 퇴근 {r.timeBack || "-"}</p>
+                      <div className="flex flex-wrap items-center gap-2"><Dist m={r} /><TimeBadge m={r} /><span className="text-xs text-sub">출근 {r.timeGo || "-"} · 퇴근 {r.timeBack || "-"}</span></div>
                       <PersonActions k={`${r.kind}:${r.ref}`} warpId={r.kind === "warp" ? r.warpId : ""} userId={r.userId} label={who(r)} canMail={r.kind === "warp" && !!r.warpId} />
                     </li>
                   ))}
@@ -253,8 +290,41 @@ export default function WarpPools() {
               </li>
             );
           })}
-        </ol>
-        {groups && groups.length > gShow && (
+        </ol>}
+        {view === "pairs" && pairs === null && <p className="py-6 text-center text-sub">계산 중…</p>}
+        {view === "pairs" && pairs && (
+          <ol data-block-id="S419" data-block-name="전체 쌍" className="mt-3 divide-y divide-line">
+            {pairs.filter((x) => !timeOnly || timeOk(x.rider)).slice(0, gShow).map((x, i) => {
+              const who = (p: Point) => `${p.warpId || (p.kind === "warp" ? "고유번호 없음" : "")}${p.name ? ` · ${p.name}` : ""}`;
+              const d = x.driver;
+              const r = x.rider;
+              return (
+                <li key={`${d.kind}:${d.ref}-${r.kind}:${r.ref}`} className="py-3">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="num w-6 text-sub">{i + 1}</span>
+                    <Dist m={r} /><TimeBadge m={r} />
+                    <span className="num ml-auto rounded-full bg-accent px-2.5 py-0.5 text-sm font-bold text-white">{r.chance}%</span>
+                  </div>
+                  <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                    {[d, r].map((p) => (
+                      <div key={p.role} className="min-w-0 rounded-lg border border-line p-2">
+                        <div className="flex flex-wrap items-center gap-1.5 text-sm">{roleChip(p.role)}<span className="num font-semibold">{who(p)}</span></div>
+                        <p className="text-sm">{p.home} → {p.work || "(목적지 없음)"}</p>
+                        <p className="text-xs text-sub">출근 {p.timeGo || "-"} · 퇴근 {p.timeBack || "-"}</p>
+                        <PersonActions k={`${p.kind}:${p.ref}`} warpId={p.kind === "warp" ? p.warpId : ""} userId={p.userId} label={who(p)} canMail={p.kind === "warp" && !!p.warpId} />
+                      </div>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+        {view === "pairs" && pairs && pairs.filter((x) => !timeOnly || timeOk(x.rider)).length > gShow && (
+          <button data-block-id="B452" data-block-name="전체 쌍 더 보기" className="mt-3 min-h-0 w-full rounded-xl border border-line bg-white py-2.5 text-sm font-semibold" onClick={() => setGShow((n) => n + 20)}>더 보기</button>
+        )}
+        {view === "pairs" && pairs && pairs.length === 0 && <p className="py-6 text-center text-sub">반경 {gRadius}km 안의 쌍이 없어요.</p>}
+        {view === "groups" && groups && groups.length > gShow && (
           <button data-block-id="B446" data-block-name="매칭 묶음 더 보기" className="mt-3 min-h-0 w-full rounded-xl border border-line bg-white py-2.5 text-sm font-semibold" onClick={() => setGShow((n) => n + 20)}>더 보기 ({groups.length - gShow}개 남음)</button>
         )}
       </div>
@@ -304,6 +374,7 @@ export default function WarpPools() {
                 {r.name && <span className="text-mint">· 모두의카풀 {r.name}</span>}
                 {r.withdrawn && <span className="text-warn">· 워프 탈퇴</span>}
                 {!r.active && <span className="text-sub">· 미사용</span>}
+                {r.dup > 0 && <span className="rounded bg-warnSoft px-1.5 text-xs font-semibold text-warn">중복 {r.dup}회</span>}
                 {r.moved ? <span className="rounded bg-mintSoft px-1.5 text-xs font-semibold text-mint">정기카풀로 올림</span> : !r.userId ? <span className="rounded bg-bg px-1.5 text-xs text-sub">계정 없음</span> : null}
                 <span className="ml-auto text-xs text-sub">{r.regDate} · {r.code}</span>
               </div>

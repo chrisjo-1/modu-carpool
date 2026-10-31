@@ -94,35 +94,51 @@ export function parseWarpPools(text: string): { rows: WarpPoolRow[]; skipped: nu
   return { rows, skipped };
 }
 
-export async function saveWarpPools(input: WarpPoolRow[]): Promise<{ added: number; updated: number }> {
+export type SaveResult = { added: number; updated: number; same: number; changed: string[]; existing: string[]; dupInPaste: string[] };
+
+/** 저장 + 중복 보고: 이미 있던 코드(내용 바뀜/같음)와 붙여넣은 글 안에서 겹친 코드. 이미 있던 코드는 dup_count를 1 올린다. */
+export async function saveWarpPools(input: WarpPoolRow[]): Promise<SaveResult> {
   const sql = db();
+  const seen = new Map<string, number>();
+  for (const r of input) seen.set(r.code, (seen.get(r.code) ?? 0) + 1);
+  const dupInPaste = [...seen].filter(([, n]) => n > 1).map(([c]) => c);
   // 같은 코드가 여러 번 붙어 오면 마지막 것만(한 번에 200개씩 묶어 저장 — 수천 건도 1분 안에)
   const rows = [...new Map(input.map((r) => [r.code, r])).values()];
-  let added = 0;
-  let updated = 0;
+  const res: SaveResult = { added: 0, updated: 0, same: 0, changed: [], existing: [], dupInPaste };
   for (let i = 0; i < rows.length; i += 200) {
     const part = rows.slice(i, i + 200);
     const col = <K extends keyof WarpPoolRow>(k: K) => part.map((r) => r[k]);
-    const x = await sql`
+    const before = await sql`select code, active, role, home, work, time_go, time_back, warp_id from warp_pools where code = any(${col("code")}::text[])`;
+    const old = new Map(before.map((r) => [String(r.code), r]));
+    await sql`
       insert into warp_pools (code, active, role, home, work, region, time_go, time_back, warp_id, reg_date)
       select * from unnest(${col("code")}::text[], ${col("active")}::boolean[], ${col("role")}::text[], ${col("home")}::text[], ${col("work")}::text[],
                            ${col("region")}::text[], ${col("timeGo")}::text[], ${col("timeBack")}::text[], ${col("warpId")}::text[], ${col("regDate")}::text[])
       on conflict (code) do update set active = excluded.active, role = excluded.role,
         home = excluded.home, work = excluded.work, region = excluded.region, time_go = excluded.time_go, time_back = excluded.time_back,
         warp_id = excluded.warp_id, reg_date = case when excluded.reg_date = '' then warp_pools.reg_date else excluded.reg_date end, updated_at = now(),
+        dup_count = warp_pools.dup_count + 1, last_dup_at = now(),
         -- 주소가 바뀌면 위치를 다시 찾는다
         home_lat = case when warp_pools.home = excluded.home then warp_pools.home_lat end,
         home_lng = case when warp_pools.home = excluded.home then warp_pools.home_lng end,
         work_lat = case when warp_pools.work = excluded.work then warp_pools.work_lat end,
         work_lng = case when warp_pools.work = excluded.work then warp_pools.work_lng end,
-        geo_tried_at = case when warp_pools.home = excluded.home and warp_pools.work = excluded.work then warp_pools.geo_tried_at end
-      returning (xmax = 0) as inserted`;
-    for (const r of x) {
-      if (r.inserted) added += 1;
-      else updated += 1;
+        geo_tried_at = case when warp_pools.home = excluded.home and warp_pools.work = excluded.work then warp_pools.geo_tried_at end`;
+    for (const r of part) {
+      const o = old.get(r.code);
+      if (!o) {
+        res.added += 1;
+        continue;
+      }
+      res.existing.push(r.code);
+      const diff = o.active !== r.active || o.role !== r.role || o.home !== r.home || o.work !== r.work || o.time_go !== r.timeGo || o.time_back !== r.timeBack || String(o.warp_id) !== r.warpId;
+      if (diff) {
+        res.updated += 1;
+        res.changed.push(r.code);
+      } else res.same += 1;
     }
   }
-  return { added, updated };
+  return res;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -249,43 +265,73 @@ export function candidatesFor(me: PoolPoint, all: PoolPoint[], radiusKm: number,
   return out.sort((a, b) => score(a) - score(b)).slice(0, 50);
 }
 
-export type PairMember = PoolPoint & { homeKm: number; workKm: number; chance: number };
+export type PairMember = PoolPoint & { homeKm: number; workKm: number; sumKm: number; chance: number; goDiff: number | null; backDiff: number | null };
 export type PairGroup = { driver: PoolPoint; riders: PairMember[]; best: number };
+export type Pair = { driver: PoolPoint; rider: PairMember };
 
-/** 거리로만 본 매칭 가능성(%): 자택+회사 거리 합이 0이면 100, 둘 다 반경 끝이면 0. 회사가 없으면 자택 거리를 두 번 센다. */
-function chanceOf(homeKm: number, workKm: number, radiusKm: number) {
-  const d = homeKm + (workKm < 0 ? homeKm : workKm);
-  return Math.max(1, Math.round(100 * (1 - d / (2 * radiusKm))));
+/** 거리로만 본 매칭 가능성(%): 출발지 거리+도착지 거리 합이 0이면 100, 둘 다 반경 끝이면 0. 도착지가 없으면 출발지 거리를 두 번 센다. */
+function chanceOf(sumKm: number, radiusKm: number) {
+  return Math.max(1, Math.round(100 * (1 - sumKm / (2 * radiusKm))));
+}
+const mins = (t: string) => (/^\d{1,2}:\d{2}$/.test(t) ? Number(t.split(":")[0]) * 60 + Number(t.split(":")[1]) : null);
+/** 두 시각의 차(분). 하나라도 비어 있으면 null. 자정을 넘는 차는 짧은 쪽으로 잰다. */
+function timeDiff(a: string, b: string) {
+  const x = mins(a);
+  const y = mins(b);
+  if (x == null || y == null) return null;
+  const d = Math.abs(x - y);
+  return Math.min(d, 1440 - d);
 }
 
+/** 운전자 한 명과 탑승자 한 명의 거리(출발지끼리·도착지끼리 따로). 반경 밖이면 null. */
+function measure(d: PoolPoint, r: PoolPoint, radiusKm: number): PairMember | null {
+  if (d.userId && r.userId === d.userId) return null;
+  const homeKm = km(d.homeLat as number, d.homeLng as number, r.homeLat as number, r.homeLng as number);
+  if (homeKm > radiusKm) return null;
+  const both = d.workLat != null && d.workLng != null && r.workLat != null && r.workLng != null;
+  const workKm = both ? km(d.workLat as number, d.workLng as number, r.workLat as number, r.workLng as number) : -1;
+  if (workKm > radiusKm) return null;
+  const sum = homeKm + (workKm < 0 ? homeKm : workKm);
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  return {
+    ...r, homeKm: r1(homeKm), workKm: workKm < 0 ? -1 : r1(workKm), sumKm: r1(sum), chance: chanceOf(sum, radiusKm),
+    goDiff: timeDiff(d.timeGo, r.timeGo), backDiff: timeDiff(d.timeBack, r.timeBack),
+  };
+}
+const usable = (p: PoolPoint) => p.active && p.homeLat != null && p.homeLng != null;
+
 /**
- * 매칭 묶음(2026-10-31 사용자 지시): 운전자마다 가능성 높은 탑승자 1~2명, 묶음은 가능성 높은 순.
- * 위치가 있는 사용 중 글만, 같은 계정끼리는 제외. 시간은 아직 보지 않는다.
+ * 매칭 묶음(2026-10-31 사용자 지시): 운전자마다 거리 합이 가장 작은 탑승자 1~2명, 묶음은 가장 가까운 쌍 순.
+ * 위치가 있는 사용 중 글만, 같은 계정끼리는 제외. 시간은 점수에 넣지 않고 차이만 함께 돌려준다.
  */
 export function pairGroups(all: PoolPoint[], radiusKm: number, perDriver = 2, limit = 150): PairGroup[] {
-  const ok = (p: PoolPoint) => p.active && p.homeLat != null && p.homeLng != null;
-  const drivers = all.filter((p) => ok(p) && p.role === "driver");
-  const riders = all.filter((p) => ok(p) && p.role === "rider");
+  const drivers = all.filter((p) => usable(p) && p.role === "driver");
+  const riders = all.filter((p) => usable(p) && p.role === "rider");
   const groups: PairGroup[] = [];
   for (const d of drivers) {
     const list: PairMember[] = [];
     for (const r of riders) {
-      if (d.userId && r.userId === d.userId) continue;
-      const homeKm = km(d.homeLat as number, d.homeLng as number, r.homeLat as number, r.homeLng as number);
-      if (homeKm > radiusKm) continue;
-      const both = d.workLat != null && d.workLng != null && r.workLat != null && r.workLng != null;
-      const workKm = both ? km(d.workLat as number, d.workLng as number, r.workLat as number, r.workLng as number) : -1;
-      if (workKm > radiusKm) continue;
-      const h = Math.round(homeKm * 10) / 10;
-      const w = workKm < 0 ? -1 : Math.round(workKm * 10) / 10;
-      list.push({ ...r, homeKm: h, workKm: w, chance: chanceOf(homeKm, workKm, radiusKm) });
+      const m = measure(d, r, radiusKm);
+      if (m) list.push(m);
     }
     if (!list.length) continue;
-    list.sort((a, b) => b.chance - a.chance);
+    list.sort((a, b) => a.sumKm - b.sumKm);
     const top = list.slice(0, perDriver);
     groups.push({ driver: d, riders: top, best: top[0].chance });
   }
-  return groups.sort((a, b) => b.best - a.best || (b.riders[1]?.chance ?? 0) - (a.riders[1]?.chance ?? 0)).slice(0, limit);
+  return groups.sort((a, b) => a.riders[0].sumKm - b.riders[0].sumKm || (a.riders[1]?.sumKm ?? 99) - (b.riders[1]?.sumKm ?? 99)).slice(0, limit);
+}
+
+/** 전체 쌍(2026-10-31 사용자 지시): 반경 안의 모든 운전자·탑승자 쌍을 출발지 거리+도착지 거리 합이 작은 순으로. */
+export function pairList(all: PoolPoint[], radiusKm: number, limit = 500): Pair[] {
+  const drivers = all.filter((p) => usable(p) && p.role === "driver");
+  const riders = all.filter((p) => usable(p) && p.role === "rider");
+  const out: Pair[] = [];
+  for (const d of drivers) for (const r of riders) {
+    const m = measure(d, r, radiusKm);
+    if (m) out.push({ driver: d, rider: m });
+  }
+  return out.sort((a, b) => a.rider.sumKm - b.rider.sumKm).slice(0, limit);
 }
 
 /** 지금 글 표시 방식에 맞춘 짧은 장소 이름: 시·도와 시·군·구를 빼고 읍·면·도로명만("서울 송파구 송파대로 345" → "송파대로 345"). 지역 글씨는 위치로 따로 붙는다. */
