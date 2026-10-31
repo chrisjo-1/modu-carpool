@@ -246,6 +246,18 @@ export async function kakaoAddress(q: string): Promise<{ lat: number; lng: numbe
   return x ? { lat: Number(x.y), lng: Number(x.x) } : null;
 }
 
+/** 주소 → 좌표(Photon, 초당 제한이 느슨해 먼저 묻는다). 결과의 시·군·구 이름에 확인용 낱말이 있어야 쓴다. */
+export async function photonAddress(q: string, must: string): Promise<{ lat: number; lng: number } | null> {
+  const d = await get(`https://photon.komoot.io/api/?limit=3&bbox=124.5,33,131.9,38.7&q=${encodeURIComponent(q)}`, { "User-Agent": UA }).catch(() => null);
+  for (const f of (d?.features ?? []) as { geometry?: { coordinates?: number[] }; properties?: Record<string, string> }[]) {
+    const pr = f.properties ?? {};
+    const names = [pr.city, pr.district, pr.county, pr.state, pr.locality].filter(Boolean).join(" ");
+    const c = f.geometry?.coordinates;
+    if (c && c.length === 2 && must && names.includes(must)) return { lat: Number(c[1]), lng: Number(c[0]) };
+  }
+  return null;
+}
+
 /** 주소 → 좌표(OpenStreetMap Nominatim, 1초 1번). 결과 주소에 확인용 낱말(시·군·구)이 있어야 쓴다. */
 export async function osmAddress(q: string, must: string): Promise<{ lat: number; lng: number } | null> {
   const d = await get(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=3&countrycodes=kr&q=${encodeURIComponent(q)}`, { "User-Agent": UA, "Accept-Language": "ko" }).catch(() => null);

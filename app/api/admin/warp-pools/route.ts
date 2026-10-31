@@ -1,5 +1,5 @@
 import { body, clientIp, db, ensureSchema, fail, isAdmin, json, text } from "@/lib/server";
-import { allPoints, candidatesFor, pairGroups, pairList, sameAddr, workplaces, fillWarpGeo, parseWarpPools, publishWarpPools, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
+import { allPoints, candidatesFor, pairGroups, pairList, regionCounts, regionOf, sameAddr, workplaces, type PairSort, type RegionFilter, fillWarpGeo, parseWarpPools, publishWarpPools, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -8,7 +8,7 @@ export const maxDuration = 60;
  * 관리자 '정기 매칭' 탭(2026-10-31 사용자 지시: 매칭은 거리로만, 관리자 화면에서만 검색).
  * GET              : 통계 + 목록(?q= 고유번호·코드·주소, ?role=, ?geo=none|ok, ?linked=1, ?pub=0|1) 최대 500
  * GET ?match=코드|post:글ID&r=3&opp=1 : 그 건의 후보(자택끼리·회사끼리 반경 안)
- * GET ?groups=1&r=3[&pairs=1[&mode=detour]] : 매칭 묶음·전체 쌍(돌아가는 거리 순)
+ * GET ?groups=1&r=3[&pairs=1]&sort=score|sum|detour|route|time&from=서울&fromGu=송파구&to=&toGu= : 매칭 묶음·전체 쌍 + 지역별 인원
  * GET ?workplaces=1&min=2 : 같은 회사 묶음
  * GET ?csv=1       : 저장된 워프 정기카풀 전체 CSV(엑셀용)
  * POST {action:"upload", text} : 붙여넣은 워프 목록 저장(글로 옮기지 않음)
@@ -37,10 +37,13 @@ export async function GET(req: Request) {
     if (p.get("groups")) {
       const r = Math.min(30, Math.max(0.5, Number(p.get("r")) || 3));
       const all = await allPoints();
-      const groups = p.get("pairs") ? [] : pairGroups(all, r, Number(p.get("n")) === 1 ? 1 : 2);
-      const pairs = p.get("pairs") ? pairList(all, r, 500, p.get("mode") === "detour" ? "detour" : "sum") : [];
-      const geo = all.filter((x) => x.active && x.homeLat != null);
-      return json({ groups, pairs, drivers: geo.filter((x) => x.role === "driver").length, riders: geo.filter((x) => x.role === "rider").length });
+      const sorts: PairSort[] = ["score", "sum", "detour", "route", "time"];
+      const sort = (sorts.find((x) => x === p.get("sort")) ?? "score") as PairSort;
+      const f: RegionFilter = { from: text(p.get("from"), 10), fromGu: text(p.get("fromGu"), 20), to: text(p.get("to"), 10), toGu: text(p.get("toGu"), 20) };
+      const groups = p.get("pairs") ? [] : pairGroups(all, r, Number(p.get("n")) === 1 ? 1 : 2, sort, f);
+      const pairs = p.get("pairs") ? pairList(all, r, sort, f) : [];
+      const geo = all.filter((x) => x.active && !x.badAddr && x.homeLat != null);
+      return json({ groups, pairs, drivers: geo.filter((x) => x.role === "driver").length, riders: geo.filter((x) => x.role === "rider").length, regions: regionCounts(all) });
     }
     if (p.get("workplaces")) {
       const all = await allPoints();
@@ -64,6 +67,13 @@ export async function GET(req: Request) {
     const linkedOnly = p.get("linked") === "1";
     const pub = p.get("pub") === "0" ? "0" : p.get("pub") === "1" ? "1" : "";
     const badOnly = p.get("bad") === "1";
+    // 지역: 출발(자택)·도착(회사) 주소 글자 앞부분이 시·도로 시작하고 시·군·구를 포함
+    const LONG: Record<string, string> = { 충북: "충청북", 충남: "충청남", 전북: "전라북", 전남: "전라남", 경북: "경상북", 경남: "경상남" };
+    const sidoLike = (v: string) => (v ? [`${v}%`, `${LONG[v] ?? v}%`] : ["", ""]);
+    const from = sidoLike(text(p.get("from"), 10));
+    const to = sidoLike(text(p.get("to"), 10));
+    const fromGu = text(p.get("fromGu"), 20) ? `%${text(p.get("fromGu"), 20)}%` : "";
+    const toGu = text(p.get("toGu"), 20) ? `%${text(p.get("toGu"), 20)}%` : "";
     const liveOnly = p.get("live") === "1";
     const [stats, rows, posts] = await Promise.all([
       sql`select count(*)::int as total,
@@ -89,6 +99,8 @@ export async function GET(req: Request) {
           and (not ${geoOk} or (w.home_lat is not null and w.work_lat is not null and w.work <> ''))
           and (not ${linkedOnly} or l.matched_user is not null)
           and (${pub} = '' or (${pub} = '1') = (w.post_id is not null))
+          and (${from[0]} = '' or w.home like ${from[0]} or w.home like ${from[1]}) and (${fromGu} = '' or w.home like ${fromGu})
+          and (${to[0]} = '' or w.work like ${to[0]} or w.work like ${to[1]}) and (${toGu} = '' or w.work like ${toGu})
           and (not ${badOnly} or (w.work <> '' and regexp_replace(replace(w.home, '지하', ''), '[[:space:],()]', '', 'g') = regexp_replace(replace(w.work, '지하', ''), '[[:space:],()]', '', 'g')))
           and (not ${liveOnly} or (u.id is not null and u.withdrawn_at is null and (not coalesce(u.pw_reset_required, false) or u.last_seen > now() - interval '30 days')))
         order by w.reg_date desc, w.code limit 500`,
@@ -104,7 +116,8 @@ export async function GET(req: Request) {
       list: rows.map((r) => ({
         code: String(r.code), active: r.active === true, role: r.role === "driver" ? "driver" : "rider", home: String(r.home), work: String(r.work),
         region: String(r.region), timeGo: String(r.time_go), timeBack: String(r.time_back), warpId: String(r.warp_id), regDate: String(r.reg_date),
-        geo: r.geo === true, tried: r.tried === true, moved: !!r.post_id, short: `${shortPlace(String(r.home))} → ${r.work ? shortPlace(String(r.work)) : ""}`, userId: r.matched_user ? String(r.matched_user) : null,
+        geo: r.geo === true, tried: r.tried === true, moved: !!r.post_id, short: `${shortPlace(String(r.home))} → ${r.work ? shortPlace(String(r.work)) : ""}`,
+        homeShort: shortPlace(String(r.home)), workShort: r.work ? shortPlace(String(r.work)) : "", homeArea: regionOf(String(r.home)).label, workArea: r.work ? regionOf(String(r.work)).label : "", userId: r.matched_user ? String(r.matched_user) : null,
         dup: Number(r.dup_count ?? 0), bad: sameAddr(String(r.home), String(r.work)), live: r.live === true, name: String(r.name ?? ""), withdrawn: r.withdrawn === true, hasMail: r.has_mail === true,
       })),
     });
@@ -128,7 +141,7 @@ export async function POST(req: Request) {
       return json({ ok: true, read: rows.length, skipped, ...saved });
     }
     if (b.action === "geo") {
-      const r = await fillWarpGeo(40_000);
+      const r = await fillWarpGeo(45_000);
       return json({ ok: true, ...r });
     }
     if (b.action === "publish" || b.action === "unpublish") {
