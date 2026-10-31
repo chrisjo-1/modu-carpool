@@ -1,5 +1,5 @@
 import { body, clientIp, db, ensureSchema, fail, isAdmin, json, text } from "@/lib/server";
-import { allPoints, candidatesFor, pairGroups, pairList, fillWarpGeo, parseWarpPools, publishWarpPools, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
+import { allPoints, candidatesFor, pairGroups, pairList, sameAddr, workplaces, fillWarpGeo, parseWarpPools, publishWarpPools, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -8,6 +8,8 @@ export const maxDuration = 60;
  * 관리자 '정기 매칭' 탭(2026-10-31 사용자 지시: 매칭은 거리로만, 관리자 화면에서만 검색).
  * GET              : 통계 + 목록(?q= 고유번호·코드·주소, ?role=, ?geo=none|ok, ?linked=1, ?pub=0|1) 최대 500
  * GET ?match=코드|post:글ID&r=3&opp=1 : 그 건의 후보(자택끼리·회사끼리 반경 안)
+ * GET ?groups=1&r=3[&pairs=1[&mode=detour]] : 매칭 묶음·전체 쌍(돌아가는 거리 순)
+ * GET ?workplaces=1&min=2 : 같은 회사 묶음
  * GET ?csv=1       : 저장된 워프 정기카풀 전체 CSV(엑셀용)
  * POST {action:"upload", text} : 붙여넣은 워프 목록 저장(글로 옮기지 않음)
  * POST {action:"publish", codes, cost, price} / {action:"unpublish", codes} : 고른 것만 정기카풀 글로 올리기·내리기
@@ -36,9 +38,14 @@ export async function GET(req: Request) {
       const r = Math.min(30, Math.max(0.5, Number(p.get("r")) || 3));
       const all = await allPoints();
       const groups = p.get("pairs") ? [] : pairGroups(all, r, Number(p.get("n")) === 1 ? 1 : 2);
-      const pairs = p.get("pairs") ? pairList(all, r) : [];
+      const pairs = p.get("pairs") ? pairList(all, r, 500, p.get("mode") === "detour" ? "detour" : "sum") : [];
       const geo = all.filter((x) => x.active && x.homeLat != null);
       return json({ groups, pairs, drivers: geo.filter((x) => x.role === "driver").length, riders: geo.filter((x) => x.role === "rider").length });
+    }
+    if (p.get("workplaces")) {
+      const all = await allPoints();
+      const list = workplaces(all, Math.max(2, Math.min(10, Number(p.get("min")) || 2)));
+      return json({ list: list.slice(0, 200), total: list.length, noDriver: list.filter((x) => !x.drivers).length });
     }
     const match = text(p.get("match"), 60);
     if (match) {
@@ -56,6 +63,8 @@ export async function GET(req: Request) {
     const geoOk = p.get("geo") === "ok";
     const linkedOnly = p.get("linked") === "1";
     const pub = p.get("pub") === "0" ? "0" : p.get("pub") === "1" ? "1" : "";
+    const badOnly = p.get("bad") === "1";
+    const liveOnly = p.get("live") === "1";
     const [stats, rows, posts] = await Promise.all([
       sql`select count(*)::int as total,
           count(*) filter (where role = 'driver')::int as drivers,
@@ -63,12 +72,14 @@ export async function GET(req: Request) {
           count(*) filter (where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> '')))::int as geo_wait,
           count(*) filter (where geo_tried_at is not null and (home_lat is null or (work_lat is null and work <> '')))::int as geo_fail,
           count(*) filter (where post_id is not null)::int as moved,
+          count(*) filter (where active and work <> '' and regexp_replace(replace(home, '지하', ''), '[[:space:],()]', '', 'g') = regexp_replace(replace(work, '지하', ''), '[[:space:],()]', '', 'g'))::int as bad,
           count(*) filter (where exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id) and l.matched_user is not null))::int as linked,
           count(*) filter (where exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id)))::int as in_legacy
         from warp_pools w`,
       sql`select w.code, w.active, w.role, w.home, w.work, w.region, w.time_go, w.time_back, w.warp_id, w.reg_date,
           w.home_lat is not null and (w.work_lat is not null or w.work = '') as geo, w.geo_tried_at is not null as tried, w.post_id, w.dup_count,
-          l.matched_user, l.withdrawn, l.email is not null and l.email <> '' as has_mail, u.name
+          l.matched_user, l.withdrawn, l.email is not null and l.email <> '' as has_mail, u.name,
+          (u.id is not null and u.withdrawn_at is null and (not coalesce(u.pw_reset_required, false) or u.last_seen > now() - interval '30 days')) as live
         from warp_pools w
         left join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
         left join users u on u.id = l.matched_user
@@ -78,6 +89,8 @@ export async function GET(req: Request) {
           and (not ${geoOk} or (w.home_lat is not null and w.work_lat is not null and w.work <> ''))
           and (not ${linkedOnly} or l.matched_user is not null)
           and (${pub} = '' or (${pub} = '1') = (w.post_id is not null))
+          and (not ${badOnly} or (w.work <> '' and regexp_replace(replace(w.home, '지하', ''), '[[:space:],()]', '', 'g') = regexp_replace(replace(w.work, '지하', ''), '[[:space:],()]', '', 'g')))
+          and (not ${liveOnly} or (u.id is not null and u.withdrawn_at is null and (not coalesce(u.pw_reset_required, false) or u.last_seen > now() - interval '30 days')))
         order by w.reg_date desc, w.code limit 500`,
       sql`select count(*)::int as n from posts p join users u on u.id = p.user_id
         where p.regular and p.status <> 'closed' and not coalesce(p.demo, false) and not u.test and p.origin_lat is not null and p.dest_lat is not null`,
@@ -85,14 +98,14 @@ export async function GET(req: Request) {
     const s = stats[0];
     return json({
       stats: {
-        total: s.total, drivers: s.drivers, geo: s.geo, geoWait: s.geo_wait, geoFail: s.geo_fail, moved: s.moved, linked: s.linked, inLegacy: s.in_legacy,
+        total: s.total, drivers: s.drivers, geo: s.geo, geoWait: s.geo_wait, geoFail: s.geo_fail, moved: s.moved, bad: s.bad, linked: s.linked, inLegacy: s.in_legacy,
         modoPosts: posts[0].n,
       },
       list: rows.map((r) => ({
         code: String(r.code), active: r.active === true, role: r.role === "driver" ? "driver" : "rider", home: String(r.home), work: String(r.work),
         region: String(r.region), timeGo: String(r.time_go), timeBack: String(r.time_back), warpId: String(r.warp_id), regDate: String(r.reg_date),
         geo: r.geo === true, tried: r.tried === true, moved: !!r.post_id, short: `${shortPlace(String(r.home))} → ${r.work ? shortPlace(String(r.work)) : ""}`, userId: r.matched_user ? String(r.matched_user) : null,
-        dup: Number(r.dup_count ?? 0), name: String(r.name ?? ""), withdrawn: r.withdrawn === true, hasMail: r.has_mail === true,
+        dup: Number(r.dup_count ?? 0), bad: sameAddr(String(r.home), String(r.work)), live: r.live === true, name: String(r.name ?? ""), withdrawn: r.withdrawn === true, hasMail: r.has_mail === true,
       })),
     });
   } catch (e) {

@@ -215,13 +215,22 @@ export type PoolPoint = {
   userId: string | null; // 모두의카풀 계정
   name: string;
   active: boolean;
+  /** 바로 연락 가능: 비밀번호를 정한 회원이거나 최근 30일 안에 접속(모두의카풀 글은 늘 참) */
+  live: boolean;
+  /** 주소 확인 필요: 자택과 회사 주소가 같음(매칭·글 올리기에서 뺀다) */
+  badAddr: boolean;
 };
+
+/** 주소 비교용: 띄어쓰기·'지하'를 뺀 글자 */
+export const addrKey = (a: string) => a.replace(/지하/g, "").replace(/[\s,()]/g, "");
+export const sameAddr = (a: string, b: string) => !!a && !!b && addrKey(a) === addrKey(b);
 
 /** 매칭 대상 전체(워프 정기카풀 + 모두의카풀 진행 중 정기카풀 글) */
 export async function allPoints(): Promise<PoolPoint[]> {
   const sql = db();
   const [w, p] = await Promise.all([
-    sql`select w.*, l.matched_user, u.name from warp_pools w
+    sql`select w.*, l.matched_user, u.name, (u.id is not null and u.withdrawn_at is null and (not coalesce(u.pw_reset_required, false) or u.last_seen > now() - interval '30 days')) as live
+        from warp_pools w
         left join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
         left join users u on u.id = l.matched_user`,
     sql`select p.id, p.role, p.origin, p.dest, p.origin_lat, p.origin_lng, p.dest_lat, p.dest_lng, p.time_go, p.time_back, p.user_id, u.name, u.member_code
@@ -235,13 +244,13 @@ export async function allPoints(): Promise<PoolPoint[]> {
       kind: "warp" as const, ref: String(x.code), role: (x.role === "driver" ? "driver" : "rider") as "driver" | "rider",
       home: String(x.home), work: String(x.work), homeLat: n(x.home_lat), homeLng: n(x.home_lng), workLat: n(x.work_lat), workLng: n(x.work_lng),
       timeGo: String(x.time_go ?? ""), timeBack: String(x.time_back ?? ""), warpId: String(x.warp_id), userId: x.matched_user ? String(x.matched_user) : null,
-      name: String(x.name ?? ""), active: x.active === true,
+      name: String(x.name ?? ""), active: x.active === true, live: x.live === true, badAddr: sameAddr(String(x.home), String(x.work)),
     })),
     ...p.map((x) => ({
       kind: "post" as const, ref: String(x.id), role: (x.role === "driver" ? "driver" : "rider") as "driver" | "rider",
       home: String(x.origin), work: String(x.dest), homeLat: n(x.origin_lat), homeLng: n(x.origin_lng), workLat: n(x.dest_lat), workLng: n(x.dest_lng),
       timeGo: String(x.time_go ?? ""), timeBack: String(x.time_back ?? ""), warpId: String(x.member_code ?? ""), userId: String(x.user_id),
-      name: String(x.name ?? ""), active: true,
+      name: String(x.name ?? ""), active: true, live: true, badAddr: false,
     })),
   ];
 }
@@ -253,7 +262,7 @@ export function candidatesFor(me: PoolPoint, all: PoolPoint[], radiusKm: number,
   for (const o of all) {
     if (o.kind === me.kind && o.ref === me.ref) continue;
     if (me.userId && o.userId === me.userId) continue;
-    if (!o.active || o.homeLat == null || o.homeLng == null) continue;
+    if (!o.active || o.badAddr || o.homeLat == null || o.homeLng == null) continue;
     if (opposite && o.role === me.role) continue;
     const homeKm = km(me.homeLat, me.homeLng, o.homeLat, o.homeLng);
     // 회사 주소가 없는 글(워프에 주소 하나만 적은 글)은 자택만 비교한다
@@ -265,7 +274,7 @@ export function candidatesFor(me: PoolPoint, all: PoolPoint[], radiusKm: number,
   return out.sort((a, b) => score(a) - score(b)).slice(0, 50);
 }
 
-export type PairMember = PoolPoint & { homeKm: number; workKm: number; sumKm: number; chance: number; goDiff: number | null; backDiff: number | null };
+export type PairMember = PoolPoint & { homeKm: number; workKm: number; sumKm: number; chance: number; goDiff: number | null; backDiff: number | null; detourKm: number | null };
 export type PairGroup = { driver: PoolPoint; riders: PairMember[]; best: number };
 export type Pair = { driver: PoolPoint; rider: PairMember };
 
@@ -283,22 +292,44 @@ function timeDiff(a: string, b: string) {
   return Math.min(d, 1440 - d);
 }
 
-/** 운전자 한 명과 탑승자 한 명의 거리(출발지끼리·도착지끼리 따로). 반경 밖이면 null. */
-function measure(d: PoolPoint, r: PoolPoint, radiusKm: number): PairMember | null {
+/**
+ * 돌아가는 거리(km, 직선): 운전자가 탑승자 집 → 탑승자 회사를 들렀다 갈 때 더 가는 길.
+ * d(운전자 집→탑승자 집) + d(탑승자 집→탑승자 회사) + d(탑승자 회사→운전자 회사) − d(운전자 집→운전자 회사). 위치가 하나라도 없으면 null.
+ */
+function detourOf(d: PoolPoint, r: PoolPoint): number | null {
+  if (d.homeLat == null || d.homeLng == null || d.workLat == null || d.workLng == null) return null;
+  if (r.homeLat == null || r.homeLng == null || r.workLat == null || r.workLng == null) return null;
+  const v = km(d.homeLat, d.homeLng, r.homeLat, r.homeLng) + km(r.homeLat, r.homeLng, r.workLat, r.workLng)
+    + km(r.workLat, r.workLng, d.workLat, d.workLng) - km(d.homeLat, d.homeLng, d.workLat, d.workLng);
+  return Math.max(0, Math.round(v * 10) / 10);
+}
+
+/**
+ * 운전자 한 명과 탑승자 한 명의 거리(출발지끼리·도착지끼리 따로). 반경 밖이면 null.
+ * mode 'detour'면 반경 대신 돌아가는 거리가 반경 안인지로 본다(가는 길 위에 있는 상대).
+ */
+function measure(d: PoolPoint, r: PoolPoint, radiusKm: number, mode: "sum" | "detour" = "sum"): PairMember | null {
   if (d.userId && r.userId === d.userId) return null;
   const homeKm = km(d.homeLat as number, d.homeLng as number, r.homeLat as number, r.homeLng as number);
-  if (homeKm > radiusKm) return null;
   const both = d.workLat != null && d.workLng != null && r.workLat != null && r.workLng != null;
   const workKm = both ? km(d.workLat as number, d.workLng as number, r.workLat as number, r.workLng as number) : -1;
-  if (workKm > radiusKm) return null;
+  let detourKm: number | null = null;
+  if (mode === "detour") {
+    detourKm = detourOf(d, r);
+    if (detourKm == null || detourKm > radiusKm) return null;
+  } else {
+    if (homeKm > radiusKm || workKm > radiusKm) return null;
+    detourKm = detourOf(d, r);
+  }
   const sum = homeKm + (workKm < 0 ? homeKm : workKm);
   const r1 = (v: number) => Math.round(v * 10) / 10;
   return {
-    ...r, homeKm: r1(homeKm), workKm: workKm < 0 ? -1 : r1(workKm), sumKm: r1(sum), chance: chanceOf(sum, radiusKm),
-    goDiff: timeDiff(d.timeGo, r.timeGo), backDiff: timeDiff(d.timeBack, r.timeBack),
+    ...r, homeKm: r1(homeKm), workKm: workKm < 0 ? -1 : r1(workKm), sumKm: r1(sum),
+    chance: mode === "detour" ? chanceOf(detourKm as number, radiusKm / 2) : chanceOf(sum, radiusKm),
+    goDiff: timeDiff(d.timeGo, r.timeGo), backDiff: timeDiff(d.timeBack, r.timeBack), detourKm,
   };
 }
-const usable = (p: PoolPoint) => p.active && p.homeLat != null && p.homeLng != null;
+const usable = (p: PoolPoint) => p.active && !p.badAddr && p.homeLat != null && p.homeLng != null;
 
 /**
  * 매칭 묶음(2026-10-31 사용자 지시): 운전자마다 거리 합이 가장 작은 탑승자 1~2명, 묶음은 가장 가까운 쌍 순.
@@ -322,16 +353,42 @@ export function pairGroups(all: PoolPoint[], radiusKm: number, perDriver = 2, li
   return groups.sort((a, b) => a.riders[0].sumKm - b.riders[0].sumKm || (a.riders[1]?.sumKm ?? 99) - (b.riders[1]?.sumKm ?? 99)).slice(0, limit);
 }
 
-/** 전체 쌍(2026-10-31 사용자 지시): 반경 안의 모든 운전자·탑승자 쌍을 출발지 거리+도착지 거리 합이 작은 순으로. */
-export function pairList(all: PoolPoint[], radiusKm: number, limit = 500): Pair[] {
+/**
+ * 전체 쌍(2026-10-31 사용자 지시): 반경 안의 모든 운전자·탑승자 쌍을 출발지 거리+도착지 거리 합이 작은 순으로.
+ * mode 'detour': 돌아가는 거리가 반경 안인 쌍을 돌아가는 거리 순으로(집·회사가 멀어도 가는 길 위면 나온다).
+ */
+export function pairList(all: PoolPoint[], radiusKm: number, limit = 500, mode: "sum" | "detour" = "sum"): Pair[] {
   const drivers = all.filter((p) => usable(p) && p.role === "driver");
   const riders = all.filter((p) => usable(p) && p.role === "rider");
   const out: Pair[] = [];
   for (const d of drivers) for (const r of riders) {
-    const m = measure(d, r, radiusKm);
+    const m = measure(d, r, radiusKm, mode);
     if (m) out.push({ driver: d, rider: m });
   }
-  return out.sort((a, b) => a.rider.sumKm - b.rider.sumKm).slice(0, limit);
+  const key = (p: Pair) => (mode === "detour" ? (p.rider.detourKm ?? 99) * 10 + p.rider.sumKm / 100 : p.rider.sumKm);
+  return out.sort((a, b) => key(a) - key(b)).slice(0, limit);
+}
+
+export type Workplace = { place: string; n: number; drivers: number; riders: number; members: PoolPoint[] };
+
+/** 같은 회사 묶음: 사용 중 워프 글을 회사 주소(띄어쓰기·'지하' 무시)가 같은 것끼리. 많은 순. */
+export function workplaces(all: PoolPoint[], min = 2): Workplace[] {
+  const map = new Map<string, PoolPoint[]>();
+  for (const p of all) {
+    if (p.kind !== "warp" || !p.active || p.badAddr || !p.work) continue;
+    const k = addrKey(p.work);
+    const list = map.get(k);
+    if (list) list.push(p);
+    else map.set(k, [p]);
+  }
+  const out: Workplace[] = [];
+  for (const list of map.values()) {
+    if (list.length < min) continue;
+    const drivers = list.filter((x) => x.role === "driver").length;
+    list.sort((a, b) => (a.role === b.role ? Number(b.live) - Number(a.live) : a.role === "driver" ? -1 : 1));
+    out.push({ place: list[0].work, n: list.length, drivers, riders: list.length - drivers, members: list });
+  }
+  return out.sort((a, b) => b.n - a.n || a.drivers - b.drivers);
 }
 
 /** 지금 글 표시 방식에 맞춘 짧은 장소 이름: 시·도와 시·군·구를 빼고 읍·면·도로명만("서울 송파구 송파대로 345" → "송파대로 345"). 지역 글씨는 위치로 따로 붙는다. */
@@ -361,6 +418,7 @@ export async function publishWarpPools(codes: string[], cost: "free" | "fixed", 
       : w.withdrawn_at || w.blocked ? "탈퇴·정지 회원"
       : !w.active ? "워프에서 미사용"
       : !String(w.work) ? "목적지(회사) 주소 없음"
+      : sameAddr(String(w.home), String(w.work)) ? "출발·도착 주소 같음(주소 확인 필요)"
       : w.home_lat == null || w.work_lat == null ? "위치를 아직 못 찾음" : "";
     if (why) {
       out.skipped.push({ code, why });
