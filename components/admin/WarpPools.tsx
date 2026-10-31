@@ -128,6 +128,18 @@ export default function WarpPools() {
         <p className="mt-1 text-sm text-sub">자택끼리·회사끼리 모두 반경 안이면 후보예요(회사 주소가 없는 글은 자택만)(시간은 아직 보지 않아요). 모두의카풀 진행 중 정기카풀 글도 후보에 들어가요. 이 화면에서만 볼 수 있어요.</p>
         {showPaste && (
           <div className="mt-3">
+            <label data-block-id="B445" data-block-name="워프 정기카풀 파일 올리기" className="mb-2 flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-accent bg-accentSoft px-4 py-3 text-sm font-semibold text-accent">
+              텍스트 파일로 올리기 (.txt · .csv, 여러 개 한 번에)
+              <input type="file" accept=".txt,.csv,.tsv,text/plain,text/csv" multiple className="hidden"
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (!files.length) return;
+                  const texts = await Promise.all(files.map((f) => f.text()));
+                  setPaste((p) => [p, ...texts].filter((x) => x.trim()).join("\n\n"));
+                  setMsg(`파일 ${files.length}개를 읽었어요. 아래 [저장하기]를 눌러 주세요.`);
+                  e.target.value = "";
+                }} />
+            </label>
             <textarea data-block-id="F423" data-block-name="워프 정기카풀 붙여넣기" className={`${input} h-48 font-mono text-xs`} placeholder={"워프 관리자 화면의 정기카풀 목록을 그대로 복사해 붙여 주세요.\n(코드·사용·역할·자택·회사·지역·출근·퇴근·회원 고유번호·등록일, 엑셀에서 복사한 표도 돼요)"} value={paste} onChange={(e) => setPaste(e.target.value)} />
             <button data-block-id="B441" data-block-name="워프 정기카풀 저장" disabled={busy || !paste.trim()} className="mt-2 min-h-0 w-full rounded-xl bg-accent py-3 font-bold text-white disabled:opacity-50" onClick={upload}>{busy ? "저장 중…" : "저장하기 (같은 코드는 새 내용으로)"}</button>
           </div>
