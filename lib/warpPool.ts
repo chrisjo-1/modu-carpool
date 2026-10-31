@@ -11,24 +11,50 @@ import { db } from "./server";
  */
 export type WarpPoolRow = { code: string; active: boolean; role: "driver" | "rider"; home: string; work: string; region: string; timeGo: string; timeBack: string; warpId: string; regDate: string };
 
-const CODE = /^[A-Z0-9]{6,12}$/;
-const WARP_ID = /^[0-9]{7}[A-Z]$/i;
+const CODE = /^[A-Z]{6,12}$/; // 워프 카풀 코드는 영문 대문자만(고유번호 0393686L과 구분)
+const WARP_ID = /^[0-9]{7}[A-Z0-9]$/i;
 const TIME = /^([01]?\d|2[0-3]):[0-5]\d$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const pad = (t: string) => (TIME.test(t) ? t.padStart(5, "0") : "");
+
+/** 한 글: [코드, 사용, 역할, 주소 1~2개, (지역), 출근, 퇴근, 고유번호, 등록일, (쪽 번호…)]. 회사 주소·지역이 빠진 글도 받는다. */
+function readOne(c: string[]): WarpPoolRow | null {
+  if (!CODE.test(c[0] ?? "") || c.length < 7) return null;
+  let t = -1;
+  for (let i = 3; i < c.length; i++) if (TIME.test(c[i])) { t = i; break; }
+  if (t < 4 || t + 2 >= c.length || !WARP_ID.test(c[t + 2])) return null;
+  const mid = c.slice(3, t);
+  let region = "";
+  if (mid.length >= 2 && !/\d/.test(mid[mid.length - 1])) region = mid.pop() as string;
+  else if (mid.length === 1 && !/\d/.test(mid[0])) return null;
+  if (!mid.length) return null;
+  return {
+    code: c[0],
+    active: !/미사용|중지|off/i.test(c[1] ?? ""),
+    role: /운전/.test(c[2] ?? "") ? "driver" : "rider",
+    home: mid[0].slice(0, 120),
+    work: (mid[1] ?? "").slice(0, 120),
+    region: region.slice(0, 30),
+    timeGo: pad(c[t]),
+    timeBack: pad(c[t + 1]),
+    warpId: c[t + 2].toUpperCase(),
+    regDate: DATE.test(c[t + 3] ?? "") ? c[t + 3] : "",
+  };
+}
 
 /**
  * 붙여넣은 글을 읽는다. 두 가지 모양을 받는다.
- * 1) 워프 관리자 화면 복사: 한 줄에 한 칸, 글 사이 빈 줄(코드·사용·역할·자택·회사·지역·출근·퇴근·고유번호·등록일)
+ * 1) 워프 관리자 화면 복사: 한 줄에 한 칸, 글 사이 빈 줄(빈 줄이 없어도 코드가 나오면 새 글)
  * 2) 엑셀·CSV 복사: 한 줄에 한 글, 탭이나 쉼표로 같은 순서
- * 머리줄(카풀 유형·자택…)은 건너뛴다.
+ * 머리줄(카풀 유형·자택…)과 쪽 번호는 건너뛴다.
  */
 export function parseWarpPools(text: string): { rows: WarpPoolRow[]; skipped: number } {
   const lines = text.replace(/\r/g, "").split("\n");
   const records: string[][] = [];
-  const isRow = (cells: string[]) => cells.length >= 9 && CODE.test(cells[0].trim());
-  const tabular = lines.filter((l) => /\t|,/.test(l)).map((l) => l.split(/\t|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map((c) => c.replace(/^"|"$/g, "").trim()));
-  if (tabular.filter(isRow).length >= 1) {
-    for (const c of tabular) if (isRow(c)) records.push(c);
+  const tabular = lines.filter((l) => /\t/.test(l) || l.split(",").length >= 8).map((l) => l.split(/\t|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map((x) => x.replace(/^"|"$/g, "").trim()));
+  if (tabular.some((c) => CODE.test(c[0] ?? ""))) {
+    // 표: 빈 칸(회사·지역 없음)은 빼고 같은 규칙으로 읽는다
+    for (const c of tabular) if (CODE.test(c[0] ?? "")) records.push(c.filter((x) => x !== ""));
   } else {
     let cur: string[] = [];
     const flush = () => {
@@ -41,8 +67,7 @@ export function parseWarpPools(text: string): { rows: WarpPoolRow[]; skipped: nu
         flush();
         continue;
       }
-      // 새 글은 코드로 시작한다. 빈 줄이 없어도 코드가 나오면 새 글로 본다.
-      if (CODE.test(l) && cur.length >= 9) flush();
+      if (CODE.test(l) && cur.some((x) => TIME.test(x))) flush();
       cur.push(l);
     }
     flush();
@@ -50,27 +75,9 @@ export function parseWarpPools(text: string): { rows: WarpPoolRow[]; skipped: nu
   const rows: WarpPoolRow[] = [];
   let skipped = 0;
   for (const c of records) {
-    if (!CODE.test(c[0] ?? "")) {
-      skipped += c.length >= 9 ? 1 : 0;
-      continue;
-    }
-    const [code, use, role, home, work, region, go, back, warpId, regDate] = c;
-    if (!home || !work || !WARP_ID.test(warpId ?? "")) {
-      skipped += 1;
-      continue;
-    }
-    rows.push({
-      code,
-      active: !/미사용|중지|off/i.test(use ?? ""),
-      role: /운전/.test(role ?? "") ? "driver" : "rider",
-      home: home.slice(0, 120),
-      work: work.slice(0, 120),
-      region: (region ?? "").slice(0, 30),
-      timeGo: pad(go ?? ""),
-      timeBack: pad(back ?? ""),
-      warpId: warpId.toUpperCase(),
-      regDate: (regDate ?? "").slice(0, 10),
-    });
+    const r = readOne(c);
+    if (r) rows.push(r);
+    else if (CODE.test(c[0] ?? "")) skipped += 1;
   }
   return { rows, skipped };
 }
@@ -129,18 +136,18 @@ export async function fillWarpGeo(budgetMs = 20_000): Promise<{ done: number; le
   let done = 0;
   while (Date.now() - start < budgetMs) {
     const r = await sql`select code, home, work, home_lat, work_lat from warp_pools
-      where geo_tried_at is null and (home_lat is null or work_lat is null) order by reg_date desc limit 1`;
+      where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> '')) order by reg_date desc limit 1`;
     if (!r.length) break;
     const x = r[0];
     const h = x.home_lat == null ? await geocodeAddress(String(x.home)) : null;
-    const w = x.work_lat == null ? (String(x.work) === String(x.home) && h ? h : await geocodeAddress(String(x.work))) : null;
+    const w = x.work_lat == null && String(x.work) ? (String(x.work) === String(x.home) && h ? h : await geocodeAddress(String(x.work))) : null;
     await sql`update warp_pools set geo_tried_at = now(),
         home_lat = coalesce(home_lat, ${h?.lat ?? null}), home_lng = coalesce(home_lng, ${h?.lng ?? null}),
         work_lat = coalesce(work_lat, ${w?.lat ?? null}), work_lng = coalesce(work_lng, ${w?.lng ?? null})
       where code = ${x.code}`;
     done += 1;
   }
-  const left = await sql`select count(*)::int as n from warp_pools where geo_tried_at is null and (home_lat is null or work_lat is null)`;
+  const left = await sql`select count(*)::int as n from warp_pools where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> ''))`;
   return { done, left: Number(left[0].n) };
 }
 
@@ -197,18 +204,21 @@ export async function allPoints(): Promise<PoolPoint[]> {
 
 /** 기준 한 건의 후보: 자택끼리·회사끼리 모두 반경 안. 가까운 순(두 거리 합). 시간은 보지 않는다. */
 export function candidatesFor(me: PoolPoint, all: PoolPoint[], radiusKm: number, opposite: boolean) {
-  if (me.homeLat == null || me.homeLng == null || me.workLat == null || me.workLng == null) return [];
+  if (me.homeLat == null || me.homeLng == null) return [];
   const out: (PoolPoint & { homeKm: number; workKm: number })[] = [];
   for (const o of all) {
     if (o.kind === me.kind && o.ref === me.ref) continue;
     if (me.userId && o.userId === me.userId) continue;
-    if (!o.active || o.homeLat == null || o.homeLng == null || o.workLat == null || o.workLng == null) continue;
+    if (!o.active || o.homeLat == null || o.homeLng == null) continue;
     if (opposite && o.role === me.role) continue;
     const homeKm = km(me.homeLat, me.homeLng, o.homeLat, o.homeLng);
-    const workKm = km(me.workLat, me.workLng, o.workLat, o.workLng);
-    if (homeKm <= radiusKm && workKm <= radiusKm) out.push({ ...o, homeKm: Math.round(homeKm * 10) / 10, workKm: Math.round(workKm * 10) / 10 });
+    // 회사 주소가 없는 글(워프에 주소 하나만 적은 글)은 자택만 비교한다
+    const both = me.workLat != null && me.workLng != null && o.workLat != null && o.workLng != null;
+    const workKm = both ? km(me.workLat as number, me.workLng as number, o.workLat as number, o.workLng as number) : -1;
+    if (homeKm <= radiusKm && workKm <= radiusKm) out.push({ ...o, homeKm: Math.round(homeKm * 10) / 10, workKm: workKm < 0 ? -1 : Math.round(workKm * 10) / 10 });
   }
-  return out.sort((a, b) => a.homeKm + a.workKm - (b.homeKm + b.workKm)).slice(0, 50);
+  const score = (x: { homeKm: number; workKm: number }) => x.homeKm + (x.workKm < 0 ? radiusKm : x.workKm);
+  return out.sort((a, b) => score(a) - score(b)).slice(0, 50);
 }
 
 /**
@@ -219,10 +229,10 @@ export async function migrateWarpPools(userId?: string): Promise<number> {
   const sql = db();
   const rows = userId
     ? await sql`select w.*, l.matched_user from warp_pools w join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
-        where l.matched_user = ${userId} and w.migrated_post_id is null and w.active limit 5`
+        where l.matched_user = ${userId} and w.migrated_post_id is null and w.active and w.work <> '' limit 5`
     : await sql`select w.*, l.matched_user from warp_pools w join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
         join users u on u.id = l.matched_user
-        where l.matched_user is not null and w.migrated_post_id is null and w.active and u.withdrawn_at is null limit 300`;
+        where l.matched_user is not null and w.migrated_post_id is null and w.active and w.work <> '' and u.withdrawn_at is null limit 300`;
   let moved = 0;
   for (const w of rows) {
     const uid = String(w.matched_user);

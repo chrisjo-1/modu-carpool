@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     const p = new URL(req.url).searchParams;
     if (p.get("csv")) {
       const rows = await sql`select code, active, role, home, work, region, time_go, time_back, warp_id, reg_date,
-          home_lat is not null and work_lat is not null as geo, migrated_post_id is not null as moved
+          home_lat is not null and (work_lat is not null or work = '') as geo, migrated_post_id is not null as moved
         from warp_pools order by reg_date desc, code`;
       const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
       const lines = [["코드", "사용", "역할", "자택", "회사", "지역", "출근", "퇴근", "회원 고유번호", "등록일", "위치", "모두의카풀 글"].map(q).join(",")];
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       const all = await allPoints();
       const me = match.startsWith("post:") ? all.find((x) => x.kind === "post" && x.ref === match.slice(5)) : all.find((x) => x.kind === "warp" && x.ref === match);
       if (!me) return json({ error: "기준 글을 찾지 못했어요." }, 404);
-      if (me.homeLat == null || me.workLat == null) return json({ me, list: [], noGeo: true });
+      if (me.homeLat == null) return json({ me, list: [], noGeo: true });
       return json({ me, list: candidatesFor(me, all, r, p.get("opp") === "1") });
     }
     const q = text(p.get("q"), 60).trim();
@@ -47,22 +47,22 @@ export async function GET(req: Request) {
     const [stats, rows, posts] = await Promise.all([
       sql`select count(*)::int as total,
           count(*) filter (where role = 'driver')::int as drivers,
-          count(*) filter (where home_lat is not null and work_lat is not null)::int as geo,
-          count(*) filter (where geo_tried_at is null and (home_lat is null or work_lat is null))::int as geo_wait,
-          count(*) filter (where geo_tried_at is not null and (home_lat is null or work_lat is null))::int as geo_fail,
+          count(*) filter (where home_lat is not null and (work_lat is not null or work = ''))::int as geo,
+          count(*) filter (where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> '')))::int as geo_wait,
+          count(*) filter (where geo_tried_at is not null and (home_lat is null or (work_lat is null and work <> '')))::int as geo_fail,
           count(*) filter (where migrated_post_id is not null)::int as moved,
           count(*) filter (where exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id) and l.matched_user is not null))::int as linked,
           count(*) filter (where exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id)))::int as in_legacy
         from warp_pools w`,
       sql`select w.code, w.active, w.role, w.home, w.work, w.region, w.time_go, w.time_back, w.warp_id, w.reg_date,
-          w.home_lat is not null and w.work_lat is not null as geo, w.geo_tried_at is not null as tried, w.migrated_post_id,
+          w.home_lat is not null and (w.work_lat is not null or w.work = '') as geo, w.geo_tried_at is not null as tried, w.migrated_post_id,
           l.matched_user, l.withdrawn, l.email is not null and l.email <> '' as has_mail, u.name
         from warp_pools w
         left join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
         left join users u on u.id = l.matched_user
         where (${q} = '' or w.code ilike ${like} or w.warp_id ilike ${like} or w.home ilike ${like} or w.work ilike ${like} or coalesce(u.name, '') ilike ${like})
           and (${role} = '' or w.role = ${role})
-          and (not ${noGeo} or w.home_lat is null or w.work_lat is null)
+          and (not ${noGeo} or w.home_lat is null or (w.work_lat is null and w.work <> ''))
         order by w.reg_date desc, w.code limit 200`,
       sql`select count(*)::int as n from posts p join users u on u.id = p.user_id
         where p.regular and p.status <> 'closed' and not coalesce(p.demo, false) and not u.test and p.origin_lat is not null and p.dest_lat is not null`,

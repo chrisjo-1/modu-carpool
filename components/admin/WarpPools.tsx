@@ -125,7 +125,7 @@ export default function WarpPools() {
             <a data-block-id="B440" data-block-name="엑셀 내려받기" href="/api/admin/warp-pools?csv=1" className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold">엑셀(CSV) 내려받기</a>
           </div>
         </div>
-        <p className="mt-1 text-sm text-sub">자택끼리·회사끼리 모두 반경 안이면 후보예요(시간은 아직 보지 않아요). 모두의카풀 진행 중 정기카풀 글도 후보에 들어가요. 이 화면에서만 볼 수 있어요.</p>
+        <p className="mt-1 text-sm text-sub">자택끼리·회사끼리 모두 반경 안이면 후보예요(회사 주소가 없는 글은 자택만)(시간은 아직 보지 않아요). 모두의카풀 진행 중 정기카풀 글도 후보에 들어가요. 이 화면에서만 볼 수 있어요.</p>
         {showPaste && (
           <div className="mt-3">
             <textarea data-block-id="F423" data-block-name="워프 정기카풀 붙여넣기" className={`${input} h-48 font-mono text-xs`} placeholder={"워프 관리자 화면의 정기카풀 목록을 그대로 복사해 붙여 주세요.\n(코드·사용·역할·자택·회사·지역·출근·퇴근·회원 고유번호·등록일, 엑셀에서 복사한 표도 돼요)"} value={paste} onChange={(e) => setPaste(e.target.value)} />
@@ -168,7 +168,7 @@ export default function WarpPools() {
                 {r.moved && <span className="rounded bg-mintSoft px-1.5 text-xs text-mint">글로 옮김</span>}
                 <span className="ml-auto text-xs text-sub">{r.regDate} · {r.code}</span>
               </div>
-              <p className="mt-1 text-[15px]">{r.home} → {r.work}</p>
+              <p className="mt-1 text-[15px]">{r.home} → {r.work || "(회사 주소 없음)"}</p>
               <p className="text-xs text-sub">출근 {r.timeGo || "-"} · 퇴근 {r.timeBack || "-"}{!r.geo && (r.tried ? " · 위치 못 찾음" : " · 위치 찾는 중")}</p>
               <div className="mt-1 flex flex-wrap items-center gap-4">
                 <button data-block-id="B442" data-block-name="매칭 후보 찾기" disabled={!r.geo} className="min-h-0 text-sm font-bold text-accent underline disabled:text-sub disabled:no-underline" onClick={() => pickBase(r)}>매칭 후보 찾기</button>
@@ -183,7 +183,7 @@ export default function WarpPools() {
       {base && (
         <div id="pool-cands" data-block-id="S414" data-block-name="매칭 후보" className="rounded-2xl border-2 border-accent bg-white p-4">
           <p className="text-sm text-sub">기준</p>
-          <p className="font-semibold">{roleChip(base.role)} {base.warpId} · {base.home} → {base.work}</p>
+          <p className="font-semibold">{roleChip(base.role)} {base.warpId} · {base.home} → {base.work || "(회사 주소 없음 · 자택만 비교)"}</p>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-1">반경
               <input data-block-id="F426" data-block-name="매칭 반경" type="number" min={0.5} max={30} step={0.5} className="w-20 rounded-lg border border-line px-2 py-1" value={radius} onChange={(e) => setRadius(Number(e.target.value) || 3)} />km
@@ -202,9 +202,9 @@ export default function WarpPools() {
                     <span className={`rounded px-1.5 text-xs ${c.kind === "warp" ? "bg-bg text-sub" : "bg-mintSoft text-mint"}`}>{c.kind === "warp" ? "워프" : "모두의카풀 글"}</span>
                     <span className="num font-semibold">{c.warpId}</span>
                     {c.name && <span>{c.name}</span>}
-                    <span className="num ml-auto font-bold text-accent">자택 {c.homeKm}km · 회사 {c.workKm}km</span>
+                    <span className="num ml-auto font-bold text-accent">자택 {c.homeKm}km · {c.workKm != null && c.workKm >= 0 ? `회사 ${c.workKm}km` : "회사 비교 안 함"}</span>
                   </div>
-                  <p className="mt-1 text-[15px]">{c.home} → {c.work}</p>
+                  <p className="mt-1 text-[15px]">{c.home} → {c.work || "(회사 주소 없음)"}</p>
                   <p className="text-xs text-sub">출근 {c.timeGo || "-"} · 퇴근 {c.timeBack || "-"}</p>
                   <div className="mt-1">
                     <PersonActions k={`${c.kind}:${c.ref}`} warpId={c.kind === "warp" ? c.warpId : ""} userId={c.userId} label={`${c.warpId}${c.name ? ` · ${c.name}` : ""}`} canMail={c.kind === "warp"} />
