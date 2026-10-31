@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { features } from "@/lib/features";
+import { migrateWarpPools } from "@/lib/warpPool";
 import { grantCarIfReady } from "@/lib/car";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
@@ -32,6 +34,8 @@ export async function GET() {
     if (!id) return json({ enabled: true, user: null, ...(await features()) });
     await ensureSchema();
     const [user, f] = await Promise.all([profile(id), features()]);
+    // 워프 정기카풀이 이 계정 고유번호로 저장돼 있으면 정기카풀 글로 옮긴다(응답 뒤, 한 번만)
+    after(() => migrateWarpPools(id).catch(() => 0));
     return json({ enabled: true, user, ...f });
   } catch {
     return json({ enabled: true, user: null });

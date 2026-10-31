@@ -236,3 +236,21 @@ export async function reversePlace(lat: number, lng: number, lang = "ko"): Promi
   const key = process.env.KAKAO_REST_KEY;
   return key && kakaoOn() ? kakaoReverse(lat, lng, key).catch(() => osmReverse(lat, lng, lang)) : osmReverse(lat, lng, lang);
 }
+
+/** 주소 → 좌표(카카오 주소 검색). 카카오가 꺼져 있으면 null. */
+export async function kakaoAddress(q: string): Promise<{ lat: number; lng: number } | null> {
+  const key = process.env.KAKAO_REST_KEY;
+  if (!key || !kakaoOn()) return null;
+  const d = await get(`https://dapi.kakao.com/v2/local/search/address.json?size=1&query=${encodeURIComponent(q)}`, { Authorization: `KakaoAK ${key}` }).catch(() => null);
+  const x = d?.documents?.[0];
+  return x ? { lat: Number(x.y), lng: Number(x.x) } : null;
+}
+
+/** 주소 → 좌표(OpenStreetMap Nominatim, 1초 1번). 결과 주소에 확인용 낱말(시·군·구)이 있어야 쓴다. */
+export async function osmAddress(q: string, must: string): Promise<{ lat: number; lng: number } | null> {
+  const d = await get(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=3&countrycodes=kr&q=${encodeURIComponent(q)}`, { "User-Agent": UA, "Accept-Language": "ko" }).catch(() => null);
+  for (const x of (d ?? []) as Record<string, string>[]) {
+    if (!must || String(x.display_name ?? "").includes(must)) return { lat: Number(x.lat), lng: Number(x.lon) };
+  }
+  return null;
+}

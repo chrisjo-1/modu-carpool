@@ -271,6 +271,29 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     report_id uuid not null,
     ip text not null default '',
     at timestamptz not null default now())`;
+  // 워프에서 관리하던 정기카풀(관리자가 붙여넣어 올림). 매칭 검색과 가입 뒤 자동 옮기기에 쓴다.
+  await sql`create table if not exists warp_pools (
+    code text primary key,
+    active boolean not null default true,
+    role text not null default 'rider',
+    home text not null default '',
+    work text not null default '',
+    region text not null default '',
+    time_go text not null default '',
+    time_back text not null default '',
+    warp_id text not null default '',
+    reg_date text not null default '',
+    home_lat double precision, home_lng double precision,
+    work_lat double precision, work_lng double precision,
+    geo_tried_at timestamptz,
+    migrated_post_id uuid,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now())`;
+  await sql`create index if not exists warp_pools_warp_idx on warp_pools (upper(warp_id))`;
+  await sql`create table if not exists phone_view_log (
+    id bigserial primary key, kind text not null, ref text not null, ip text not null default '', at timestamptz not null default now())`;
+  await sql`create table if not exists admin_notify_log (
+    id bigserial primary key, target text not null, channel text not null, title text not null, result text not null default '', at timestamptz not null default now())`;
   await sql`create table if not exists chat_access_log (
     id bigserial primary key,
     request_id uuid not null,
