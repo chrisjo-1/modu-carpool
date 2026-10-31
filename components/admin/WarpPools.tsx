@@ -161,7 +161,7 @@ export default function WarpPools() {
             <li key={r.code} className={`py-3 ${base?.code === r.code ? "bg-accentSoft/60" : ""}`}>
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 {roleChip(r.role)}
-                <span className="num font-semibold">{r.warpId}</span>
+                <span className="num font-semibold">{r.warpId || "고유번호 없음"}</span>
                 {r.name && <span className="text-mint">· 모두의카풀 {r.name}</span>}
                 {r.withdrawn && <span className="text-warn">· 워프 탈퇴</span>}
                 {!r.active && <span className="text-sub">· 미사용</span>}
@@ -200,7 +200,7 @@ export default function WarpPools() {
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     {roleChip(c.role)}
                     <span className={`rounded px-1.5 text-xs ${c.kind === "warp" ? "bg-bg text-sub" : "bg-mintSoft text-mint"}`}>{c.kind === "warp" ? "워프" : "모두의카풀 글"}</span>
-                    <span className="num font-semibold">{c.warpId}</span>
+                    <span className="num font-semibold">{c.warpId || (c.kind === "warp" ? "고유번호 없음" : "")}</span>
                     {c.name && <span>{c.name}</span>}
                     <span className="num ml-auto font-bold text-accent">자택 {c.homeKm}km · {c.workKm != null && c.workKm >= 0 ? `회사 ${c.workKm}km` : "회사 비교 안 함"}</span>
                   </div>

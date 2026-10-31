@@ -18,11 +18,15 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const pad = (t: string) => (TIME.test(t) ? t.padStart(5, "0") : "");
 
 /** 한 글: [코드, 사용, 역할, 주소 1~2개, (지역), 출근, 퇴근, 고유번호, 등록일, (쪽 번호…)]. 회사 주소·지역이 빠진 글도 받는다. */
-function readOne(c: string[]): WarpPoolRow | null {
+function readOne(row: string[]): WarpPoolRow | null {
+  let c = row;
   if (!CODE.test(c[0] ?? "") || c.length < 7) return null;
   let t = -1;
   for (let i = 3; i < c.length; i++) if (TIME.test(c[i])) { t = i; break; }
-  if (t < 4 || t + 2 >= c.length || !WARP_ID.test(c[t + 2])) return null;
+  if (t < 4 || t + 2 >= c.length) return null;
+  // 고유번호가 빠지고 바로 등록일이 오는 글(워프 탈퇴 회원 등)도 받는다 — 위치 매칭에는 쓰고 연락은 못 함
+  if (DATE.test(c[t + 2])) c = [...c.slice(0, t + 2), "", ...c.slice(t + 2)];
+  else if (!WARP_ID.test(c[t + 2])) return null;
   const mid = c.slice(3, t);
   let region = "";
   if (mid.length >= 2 && !/\d/.test(mid[mid.length - 1])) region = mid.pop() as string;
@@ -82,17 +86,22 @@ export function parseWarpPools(text: string): { rows: WarpPoolRow[]; skipped: nu
   return { rows, skipped };
 }
 
-export async function saveWarpPools(rows: WarpPoolRow[]): Promise<{ added: number; updated: number }> {
+export async function saveWarpPools(input: WarpPoolRow[]): Promise<{ added: number; updated: number }> {
   const sql = db();
+  // 같은 코드가 여러 번 붙어 오면 마지막 것만(한 번에 200개씩 묶어 저장 — 수천 건도 1분 안에)
+  const rows = [...new Map(input.map((r) => [r.code, r])).values()];
   let added = 0;
   let updated = 0;
-  for (const r of rows) {
+  for (let i = 0; i < rows.length; i += 200) {
+    const part = rows.slice(i, i + 200);
+    const col = <K extends keyof WarpPoolRow>(k: K) => part.map((r) => r[k]);
     const x = await sql`
       insert into warp_pools (code, active, role, home, work, region, time_go, time_back, warp_id, reg_date)
-      values (${r.code}, ${r.active}, ${r.role}, ${r.home}, ${r.work}, ${r.region}, ${r.timeGo}, ${r.timeBack}, ${r.warpId}, ${r.regDate})
+      select * from unnest(${col("code")}::text[], ${col("active")}::boolean[], ${col("role")}::text[], ${col("home")}::text[], ${col("work")}::text[],
+                           ${col("region")}::text[], ${col("timeGo")}::text[], ${col("timeBack")}::text[], ${col("warpId")}::text[], ${col("regDate")}::text[])
       on conflict (code) do update set active = excluded.active, role = excluded.role,
         home = excluded.home, work = excluded.work, region = excluded.region, time_go = excluded.time_go, time_back = excluded.time_back,
-        warp_id = excluded.warp_id, reg_date = excluded.reg_date, updated_at = now(),
+        warp_id = excluded.warp_id, reg_date = case when excluded.reg_date = '' then warp_pools.reg_date else excluded.reg_date end, updated_at = now(),
         -- 주소가 바뀌면 위치를 다시 찾는다
         home_lat = case when warp_pools.home = excluded.home then warp_pools.home_lat end,
         home_lng = case when warp_pools.home = excluded.home then warp_pools.home_lng end,
@@ -100,8 +109,10 @@ export async function saveWarpPools(rows: WarpPoolRow[]): Promise<{ added: numbe
         work_lng = case when warp_pools.work = excluded.work then warp_pools.work_lng end,
         geo_tried_at = case when warp_pools.home = excluded.home and warp_pools.work = excluded.work then warp_pools.geo_tried_at end
       returning (xmax = 0) as inserted`;
-    if (x[0]?.inserted) added += 1;
-    else updated += 1;
+    for (const r of x) {
+      if (r.inserted) added += 1;
+      else updated += 1;
+    }
   }
   return { added, updated };
 }
@@ -139,8 +150,16 @@ export async function fillWarpGeo(budgetMs = 20_000): Promise<{ done: number; le
       where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> '')) order by reg_date desc limit 1`;
     if (!r.length) break;
     const x = r[0];
-    const h = x.home_lat == null ? await geocodeAddress(String(x.home)) : null;
-    const w = x.work_lat == null && String(x.work) ? (String(x.work) === String(x.home) && h ? h : await geocodeAddress(String(x.work))) : null;
+    // 같은 주소를 이미 찾은 글이 있으면 그 위치를 쓴다(지도 요청 줄이기)
+    const known = async (addr: string) => {
+      if (!addr) return null;
+      const k = await sql`select lat, lng from (
+          select home_lat as lat, home_lng as lng from warp_pools where home = ${addr} and home_lat is not null
+          union all select work_lat, work_lng from warp_pools where work = ${addr} and work_lat is not null) t limit 1`;
+      return k.length ? { lat: Number(k[0].lat), lng: Number(k[0].lng) } : geocodeAddress(addr);
+    };
+    const h = x.home_lat == null ? await known(String(x.home)) : null;
+    const w = x.work_lat == null && String(x.work) ? (String(x.work) === String(x.home) && h ? h : await known(String(x.work))) : null;
     await sql`update warp_pools set geo_tried_at = now(),
         home_lat = coalesce(home_lat, ${h?.lat ?? null}), home_lng = coalesce(home_lng, ${h?.lng ?? null}),
         work_lat = coalesce(work_lat, ${w?.lat ?? null}), work_lng = coalesce(work_lng, ${w?.lng ?? null})
