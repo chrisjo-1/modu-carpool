@@ -231,7 +231,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
           </div>
           {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 글의 출발지 위치를 볼 수 있어요.")}</Bubble></div>}
         </div>
-        <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자입니다")], ["rider", t("탑승자입니다")]]} />
+        <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자만 보기")], ["rider", t("탑승자만 보기")]]} />
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
         <div className={`flex flex-wrap items-center gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
           <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex flex-wrap gap-1.5">
