@@ -23,6 +23,14 @@ function readOne(row: string[]): WarpPoolRow | null {
   if (!CODE.test(c[0] ?? "") || c.length < 7) return null;
   let t = -1;
   for (let i = 3; i < c.length; i++) if (TIME.test(c[i])) { t = i; break; }
+  // 출근·퇴근 시간이 비어 바로 고유번호가 오는 글도 받는다(시간은 빈칸)
+  if (t < 0) {
+    const w = c.findIndex((x, i) => i >= 4 && WARP_ID.test(x));
+    if (w >= 4) {
+      c = [...c.slice(0, w), "", "", ...c.slice(w)];
+      t = w;
+    }
+  }
   if (t < 4 || t + 2 >= c.length) return null;
   // 고유번호가 빠지고 바로 등록일이 오는 글(워프 탈퇴 회원 등)도 받는다 — 위치 매칭에는 쓰고 연락은 못 함
   if (DATE.test(c[t + 2])) c = [...c.slice(0, t + 2), "", ...c.slice(t + 2)];

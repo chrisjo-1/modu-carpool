@@ -26,6 +26,9 @@ def one(c):
     """[코드, 사용, 역할, 주소 1~2개, (지역), 출근, 퇴근, 고유번호, 등록일, (쪽 번호…)] → 10칸. 회사 주소·지역이 빠진 글도 받는다."""
     if not CODE.match(c[0]) or len(c) < 7: return None
     t = next((i for i in range(3, len(c)) if TIME.match(c[i])), -1)
+    if t < 0:  # 출근·퇴근 시간이 빈 글: 바로 고유번호가 온다
+        w = next((i for i in range(4, len(c)) if WID2.match(c[i])), -1)
+        if w >= 4: c = c[:w] + ["", ""] + c[w:]; t = w
     if t < 4 or t + 2 >= len(c): return None
     # 고유번호가 빠지고 바로 등록일이 오는 글(워프 탈퇴 회원 등)도 받는다
     if re.match(r"^\d{4}-\d{2}-\d{2}$", c[t + 2]): c = c[:t + 2] + [""] + c[t + 2:]
