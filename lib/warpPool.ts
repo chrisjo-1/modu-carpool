@@ -240,6 +240,45 @@ export function candidatesFor(me: PoolPoint, all: PoolPoint[], radiusKm: number,
   return out.sort((a, b) => score(a) - score(b)).slice(0, 50);
 }
 
+export type PairMember = PoolPoint & { homeKm: number; workKm: number; chance: number };
+export type PairGroup = { driver: PoolPoint; riders: PairMember[]; best: number };
+
+/** 거리로만 본 매칭 가능성(%): 자택+회사 거리 합이 0이면 100, 둘 다 반경 끝이면 0. 회사가 없으면 자택 거리를 두 번 센다. */
+function chanceOf(homeKm: number, workKm: number, radiusKm: number) {
+  const d = homeKm + (workKm < 0 ? homeKm : workKm);
+  return Math.max(1, Math.round(100 * (1 - d / (2 * radiusKm))));
+}
+
+/**
+ * 매칭 묶음(2026-10-31 사용자 지시): 운전자마다 가능성 높은 탑승자 1~2명, 묶음은 가능성 높은 순.
+ * 위치가 있는 사용 중 글만, 같은 계정끼리는 제외. 시간은 아직 보지 않는다.
+ */
+export function pairGroups(all: PoolPoint[], radiusKm: number, perDriver = 2, limit = 150): PairGroup[] {
+  const ok = (p: PoolPoint) => p.active && p.homeLat != null && p.homeLng != null;
+  const drivers = all.filter((p) => ok(p) && p.role === "driver");
+  const riders = all.filter((p) => ok(p) && p.role === "rider");
+  const groups: PairGroup[] = [];
+  for (const d of drivers) {
+    const list: PairMember[] = [];
+    for (const r of riders) {
+      if (d.userId && r.userId === d.userId) continue;
+      const homeKm = km(d.homeLat as number, d.homeLng as number, r.homeLat as number, r.homeLng as number);
+      if (homeKm > radiusKm) continue;
+      const both = d.workLat != null && d.workLng != null && r.workLat != null && r.workLng != null;
+      const workKm = both ? km(d.workLat as number, d.workLng as number, r.workLat as number, r.workLng as number) : -1;
+      if (workKm > radiusKm) continue;
+      const h = Math.round(homeKm * 10) / 10;
+      const w = workKm < 0 ? -1 : Math.round(workKm * 10) / 10;
+      list.push({ ...r, homeKm: h, workKm: w, chance: chanceOf(homeKm, workKm, radiusKm) });
+    }
+    if (!list.length) continue;
+    list.sort((a, b) => b.chance - a.chance);
+    const top = list.slice(0, perDriver);
+    groups.push({ driver: d, riders: top, best: top[0].chance });
+  }
+  return groups.sort((a, b) => b.best - a.best || (b.riders[1]?.chance ?? 0) - (a.riders[1]?.chance ?? 0)).slice(0, limit);
+}
+
 /**
  * 계정과 이어진 워프 정기카풀을 그 회원의 정기카풀 글로 옮긴다(한 번만). 이미 진행 중인 정기카풀 글이 있으면 새로 만들지 않고 그 글로 표시만 한다.
  * userId를 주면 그 회원만, 없으면 이어진 모든 회원.

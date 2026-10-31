@@ -4,6 +4,8 @@ import NotifyModal, { type NotifyTarget } from "./NotifyModal";
 
 type Stats = { total: number; drivers: number; geo: number; geoWait: number; geoFail: number; moved: number; linked: number; inLegacy: number; modoPosts: number };
 type Row = { code: string; active: boolean; role: "driver" | "rider"; home: string; work: string; region: string; timeGo: string; timeBack: string; warpId: string; regDate: string; geo: boolean; tried: boolean; moved: boolean; userId: string | null; name: string; withdrawn: boolean; hasMail: boolean };
+type Member = Point & { homeKm: number; workKm: number; chance: number };
+type Group = { driver: Point; riders: Member[]; best: number };
 type Point = { kind: "warp" | "post"; ref: string; role: "driver" | "rider"; home: string; work: string; timeGo: string; timeBack: string; warpId: string; userId: string | null; name: string; homeKm?: number; workKm?: number };
 
 const input = "w-full rounded-xl border border-line bg-white px-4 py-2.5 text-[15px]";
@@ -33,6 +35,21 @@ export default function WarpPools() {
   const [candMsg, setCandMsg] = useState("");
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [notify, setNotify] = useState<NotifyTarget | null>(null);
+  const [groups, setGroups] = useState<Group[] | null>(null);
+  const [gInfo, setGInfo] = useState({ drivers: 0, riders: 0 });
+  const [gRadius, setGRadius] = useState(3);
+  const [gShow, setGShow] = useState(20);
+  const loadGroups = useCallback(async (r: number) => {
+    setGroups(null);
+    const res = await fetch(`/api/admin/warp-pools?groups=1&r=${r}`);
+    const j = await res.json().catch(() => ({}));
+    setGroups(res.ok ? j.groups ?? [] : []);
+    if (res.ok) setGInfo({ drivers: j.drivers ?? 0, riders: j.riders ?? 0 });
+    setGShow(20);
+  }, []);
+  useEffect(() => {
+    loadGroups(3);
+  }, [loadGroups]);
 
   const load = useCallback(async () => {
     const p = new URLSearchParams({ q, role, ...(noGeo ? { geo: "none" } : {}) });
@@ -79,6 +96,7 @@ export default function WarpPools() {
       if (!j.left) break;
     }
     setGeoRun(false);
+    loadGroups(gRadius);
   };
 
   const findCands = async (b: Row | null = base, r = radius, o = opp) => {
@@ -158,6 +176,60 @@ export default function WarpPools() {
           </div>
         )}
         {stats && stats.total > stats.inLegacy && <p className="mt-2 text-xs text-sub">워프 회원 명단에 없는 고유번호 {stats.total - stats.inLegacy}건은 번호·메일을 알 수 없어요(구 워프 이전 탭에 명단을 올리면 연결돼요).</p>}
+      </div>
+
+      <div data-block-id="S417" data-block-name="매칭 묶음" className="rounded-2xl border border-line bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-bold">매칭 묶음 <span className="text-sm font-normal text-sub">· 가능성 높은 순</span></h3>
+          <div className="flex items-center gap-2 text-sm">
+            반경
+            <select data-block-id="F427" data-block-name="묶음 반경" className="rounded-lg border border-line bg-white px-2 py-1" value={gRadius}
+              onChange={(e) => { const r = Number(e.target.value); setGRadius(r); loadGroups(r); }}>
+              {[1, 2, 3, 5, 10].map((r) => <option key={r} value={r}>{r}km</option>)}
+            </select>
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-sub">운전자마다 가장 가까운 탑승자 1~2명을 묶었어요. 가능성은 거리로만 계산해요(자택·회사 거리 합이 0km면 100%, 둘 다 반경 끝이면 0%). 시간은 아직 보지 않으니 출퇴근 시간을 눈으로 확인해 주세요. 위치를 찾은 운전자 {gInfo.drivers}명 · 탑승자 {gInfo.riders}명 기준.</p>
+        {groups === null && <p className="py-6 text-center text-sub">묶는 중…</p>}
+        {groups && groups.length === 0 && <p className="py-6 text-center text-sub">반경 {gRadius}km 안에서 묶을 수 있는 운전자·탑승자가 없어요. 위치 채우기가 끝났는지 확인하거나 반경을 넓혀 보세요.</p>}
+        <ol className="mt-3 space-y-3">
+          {groups?.slice(0, gShow).map((g, i) => {
+            const d = g.driver;
+            const who = (p: Point) => `${p.warpId || (p.kind === "warp" ? "고유번호 없음" : "")}${p.name ? ` · ${p.name}` : ""}`;
+            return (
+              <li key={`${d.kind}:${d.ref}`} className="rounded-xl border border-line p-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="num w-6 text-sub">{i + 1}</span>
+                  {roleChip("driver")}
+                  <span className={`rounded px-1.5 text-xs ${d.kind === "warp" ? "bg-bg text-sub" : "bg-mintSoft text-mint"}`}>{d.kind === "warp" ? "워프" : "모두의카풀 글"}</span>
+                  <span className="num font-semibold">{who(d)}</span>
+                  <span className="num ml-auto rounded-full bg-accent px-2.5 py-0.5 text-sm font-bold text-white">최고 {g.best}%</span>
+                </div>
+                <p className="mt-1 text-[15px]">{d.home} → {d.work || "(회사 주소 없음)"}</p>
+                <p className="text-xs text-sub">출근 {d.timeGo || "-"} · 퇴근 {d.timeBack || "-"}</p>
+                <div className="mt-1"><PersonActions k={`${d.kind}:${d.ref}`} warpId={d.kind === "warp" ? d.warpId : ""} userId={d.userId} label={who(d)} canMail={d.kind === "warp" && !!d.warpId} /></div>
+                <ul className="mt-2 space-y-2 border-l-2 border-mint pl-3">
+                  {g.riders.map((r) => (
+                    <li key={`${r.kind}:${r.ref}`}>
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        {roleChip("rider")}
+                        <span className={`rounded px-1.5 text-xs ${r.kind === "warp" ? "bg-bg text-sub" : "bg-mintSoft text-mint"}`}>{r.kind === "warp" ? "워프" : "모두의카풀 글"}</span>
+                        <span className="num font-semibold">{who(r)}</span>
+                        <span className="num ml-auto font-bold text-mint">{r.chance}%</span>
+                      </div>
+                      <p className="text-[15px]">{r.home} → {r.work || "(회사 주소 없음)"}</p>
+                      <p className="num text-xs text-sub">자택 {r.homeKm}km · {r.workKm >= 0 ? `회사 ${r.workKm}km` : "회사 비교 안 함"} · 출근 {r.timeGo || "-"} · 퇴근 {r.timeBack || "-"}</p>
+                      <PersonActions k={`${r.kind}:${r.ref}`} warpId={r.kind === "warp" ? r.warpId : ""} userId={r.userId} label={who(r)} canMail={r.kind === "warp" && !!r.warpId} />
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
+        </ol>
+        {groups && groups.length > gShow && (
+          <button data-block-id="B446" data-block-name="매칭 묶음 더 보기" className="mt-3 min-h-0 w-full rounded-xl border border-line bg-white py-2.5 text-sm font-semibold" onClick={() => setGShow((n) => n + 20)}>더 보기 ({groups.length - gShow}개 남음)</button>
+        )}
       </div>
 
       <div className="rounded-2xl border border-line bg-white p-4">

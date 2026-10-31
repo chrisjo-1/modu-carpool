@@ -1,5 +1,5 @@
 import { body, clientIp, db, ensureSchema, fail, isAdmin, json, text } from "@/lib/server";
-import { allPoints, candidatesFor, fillWarpGeo, migrateWarpPools, parseWarpPools, saveWarpPools } from "@/lib/warpPool";
+import { allPoints, candidatesFor, pairGroups, fillWarpGeo, migrateWarpPools, parseWarpPools, saveWarpPools } from "@/lib/warpPool";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -30,6 +30,13 @@ export async function GET(req: Request) {
       return new Response("﻿" + lines.join("\r\n"), {
         headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent("워프_정기카풀.csv")}` },
       });
+    }
+    if (p.get("groups")) {
+      const r = Math.min(30, Math.max(0.5, Number(p.get("r")) || 3));
+      const all = await allPoints();
+      const groups = pairGroups(all, r, Number(p.get("n")) === 1 ? 1 : 2);
+      const geo = all.filter((x) => x.active && x.homeLat != null);
+      return json({ groups, drivers: geo.filter((x) => x.role === "driver").length, riders: geo.filter((x) => x.role === "rider").length });
     }
     const match = text(p.get("match"), 60);
     if (match) {
