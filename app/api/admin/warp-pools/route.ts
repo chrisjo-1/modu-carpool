@@ -1,15 +1,16 @@
 import { body, clientIp, db, ensureSchema, fail, isAdmin, json, text } from "@/lib/server";
-import { allPoints, candidatesFor, pairGroups, fillWarpGeo, migrateWarpPools, parseWarpPools, saveWarpPools } from "@/lib/warpPool";
+import { allPoints, candidatesFor, pairGroups, fillWarpGeo, parseWarpPools, publishWarpPools, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
  * 관리자 '정기 매칭' 탭(2026-10-31 사용자 지시: 매칭은 거리로만, 관리자 화면에서만 검색).
- * GET              : 통계 + 목록(?q= 고유번호·코드·주소, ?role=, ?geo=none) 최대 200
+ * GET              : 통계 + 목록(?q= 고유번호·코드·주소, ?role=, ?geo=none|ok, ?linked=1, ?pub=0|1) 최대 500
  * GET ?match=코드|post:글ID&r=3&opp=1 : 그 건의 후보(자택끼리·회사끼리 반경 안)
  * GET ?csv=1       : 저장된 워프 정기카풀 전체 CSV(엑셀용)
- * POST {action:"upload", text} : 붙여넣은 워프 목록 저장 → 계정이 이어진 회원은 바로 정기카풀 글로 옮김
+ * POST {action:"upload", text} : 붙여넣은 워프 목록 저장(글로 옮기지 않음)
+ * POST {action:"publish", codes, cost, price} / {action:"unpublish", codes} : 고른 것만 정기카풀 글로 올리기·내리기
  * POST {action:"geo"}          : 위치 못 찾은 글 채우기(한 번에 약 40초)
  * POST {action:"phone", warpId|userId} : 전화번호 보기(관리자 화면에서만, phone_view_log 기록)
  */
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
     const p = new URL(req.url).searchParams;
     if (p.get("csv")) {
       const rows = await sql`select code, active, role, home, work, region, time_go, time_back, warp_id, reg_date,
-          home_lat is not null and (work_lat is not null or work = '') as geo, migrated_post_id is not null as moved
+          home_lat is not null and (work_lat is not null or work = '') as geo, post_id is not null as moved
         from warp_pools order by reg_date desc, code`;
       const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
       const lines = [["코드", "사용", "역할", "자택", "회사", "지역", "출근", "퇴근", "회원 고유번호", "등록일", "위치", "모두의카풀 글"].map(q).join(",")];
@@ -51,18 +52,21 @@ export async function GET(req: Request) {
     const like = `%${q}%`;
     const role = p.get("role") === "driver" || p.get("role") === "rider" ? p.get("role") : "";
     const noGeo = p.get("geo") === "none";
+    const geoOk = p.get("geo") === "ok";
+    const linkedOnly = p.get("linked") === "1";
+    const pub = p.get("pub") === "0" ? "0" : p.get("pub") === "1" ? "1" : "";
     const [stats, rows, posts] = await Promise.all([
       sql`select count(*)::int as total,
           count(*) filter (where role = 'driver')::int as drivers,
           count(*) filter (where home_lat is not null and (work_lat is not null or work = ''))::int as geo,
           count(*) filter (where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> '')))::int as geo_wait,
           count(*) filter (where geo_tried_at is not null and (home_lat is null or (work_lat is null and work <> '')))::int as geo_fail,
-          count(*) filter (where migrated_post_id is not null)::int as moved,
+          count(*) filter (where post_id is not null)::int as moved,
           count(*) filter (where exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id) and l.matched_user is not null))::int as linked,
           count(*) filter (where exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id)))::int as in_legacy
         from warp_pools w`,
       sql`select w.code, w.active, w.role, w.home, w.work, w.region, w.time_go, w.time_back, w.warp_id, w.reg_date,
-          w.home_lat is not null and (w.work_lat is not null or w.work = '') as geo, w.geo_tried_at is not null as tried, w.migrated_post_id,
+          w.home_lat is not null and (w.work_lat is not null or w.work = '') as geo, w.geo_tried_at is not null as tried, w.post_id,
           l.matched_user, l.withdrawn, l.email is not null and l.email <> '' as has_mail, u.name
         from warp_pools w
         left join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
@@ -70,7 +74,10 @@ export async function GET(req: Request) {
         where (${q} = '' or w.code ilike ${like} or w.warp_id ilike ${like} or w.home ilike ${like} or w.work ilike ${like} or coalesce(u.name, '') ilike ${like})
           and (${role} = '' or w.role = ${role})
           and (not ${noGeo} or w.home_lat is null or (w.work_lat is null and w.work <> ''))
-        order by w.reg_date desc, w.code limit 200`,
+          and (not ${geoOk} or (w.home_lat is not null and w.work_lat is not null and w.work <> ''))
+          and (not ${linkedOnly} or l.matched_user is not null)
+          and (${pub} = '' or (${pub} = '1') = (w.post_id is not null))
+        order by w.reg_date desc, w.code limit 500`,
       sql`select count(*)::int as n from posts p join users u on u.id = p.user_id
         where p.regular and p.status <> 'closed' and not coalesce(p.demo, false) and not u.test and p.origin_lat is not null and p.dest_lat is not null`,
     ]);
@@ -83,7 +90,7 @@ export async function GET(req: Request) {
       list: rows.map((r) => ({
         code: String(r.code), active: r.active === true, role: r.role === "driver" ? "driver" : "rider", home: String(r.home), work: String(r.work),
         region: String(r.region), timeGo: String(r.time_go), timeBack: String(r.time_back), warpId: String(r.warp_id), regDate: String(r.reg_date),
-        geo: r.geo === true, tried: r.tried === true, moved: !!r.migrated_post_id, userId: r.matched_user ? String(r.matched_user) : null,
+        geo: r.geo === true, tried: r.tried === true, moved: !!r.post_id, short: `${shortPlace(String(r.home))} → ${r.work ? shortPlace(String(r.work)) : ""}`, userId: r.matched_user ? String(r.matched_user) : null,
         name: String(r.name ?? ""), withdrawn: r.withdrawn === true, hasMail: r.has_mail === true,
       })),
     });
@@ -104,15 +111,20 @@ export async function POST(req: Request) {
       if (!rows.length) return json({ error: "읽을 수 있는 정기카풀 글이 없어요. 워프 목록을 그대로 복사해 붙여 주세요." }, 400);
       const saved = await saveWarpPools(rows);
       // 이미 모두의카풀 계정과 이어진 회원은 바로 옮긴다(위치는 나중에 채워져도 글은 주소 이름으로 먼저 보인다)
-      const moved = await migrateWarpPools().catch(() => 0);
-      return json({ ok: true, read: rows.length, skipped, ...saved, moved });
+      return json({ ok: true, read: rows.length, skipped, ...saved });
     }
     if (b.action === "geo") {
       const r = await fillWarpGeo(40_000);
-      // 위치가 생긴 글을 옮긴 글에도 채운다(옮길 때 위치가 없던 글)
-      await sql`update posts p set origin_lat = w.home_lat, origin_lng = w.home_lng, dest_lat = w.work_lat, dest_lng = w.work_lng, geo_tried_at = null
-        from warp_pools w where w.migrated_post_id = p.id and p.origin_lat is null and w.home_lat is not null and w.work_lat is not null`.catch(() => {});
       return json({ ok: true, ...r });
+    }
+    if (b.action === "publish" || b.action === "unpublish") {
+      const codes = Array.isArray(b.codes) ? b.codes.filter((c): c is string => typeof c === "string").slice(0, 500) : [];
+      if (!codes.length) return json({ error: "올릴 글을 골라 주세요." }, 400);
+      if (b.action === "unpublish") return json({ ok: true, ...(await unpublishWarpPools(codes)) });
+      const cost = b.cost === "fixed" ? "fixed" : "free";
+      const price = Math.max(0, Math.min(100000, Math.round(Number(b.price) || 0)));
+      if (cost === "fixed" && !price) return json({ error: "희망 금액을 적어 주세요." }, 400);
+      return json({ ok: true, ...(await publishWarpPools(codes, cost, price)) });
     }
     if (b.action === "phone") {
       const warpId = text(b.warpId, 12).toUpperCase();

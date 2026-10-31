@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import NotifyModal, { type NotifyTarget } from "./NotifyModal";
 
 type Stats = { total: number; drivers: number; geo: number; geoWait: number; geoFail: number; moved: number; linked: number; inLegacy: number; modoPosts: number };
-type Row = { code: string; active: boolean; role: "driver" | "rider"; home: string; work: string; region: string; timeGo: string; timeBack: string; warpId: string; regDate: string; geo: boolean; tried: boolean; moved: boolean; userId: string | null; name: string; withdrawn: boolean; hasMail: boolean };
+type Row = { code: string; active: boolean; role: "driver" | "rider"; home: string; work: string; region: string; timeGo: string; timeBack: string; warpId: string; regDate: string; geo: boolean; tried: boolean; moved: boolean; short: string; userId: string | null; name: string; withdrawn: boolean; hasMail: boolean };
 type Member = Point & { homeKm: number; workKm: number; chance: number };
 type Group = { driver: Point; riders: Member[]; best: number };
 type Point = { kind: "warp" | "post"; ref: string; role: "driver" | "rider"; home: string; work: string; timeGo: string; timeBack: string; warpId: string; userId: string | null; name: string; homeKm?: number; workKm?: number };
@@ -22,6 +22,14 @@ export default function WarpPools() {
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
   const [noGeo, setNoGeo] = useState(false);
+  const [geoOk, setGeoOk] = useState(false);
+  const [linkedOnly, setLinkedOnly] = useState(false);
+  const [pubF, setPubF] = useState("");
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [cost, setCost] = useState<"free" | "fixed">("free");
+  const [price, setPrice] = useState("");
+  const [pubMsg, setPubMsg] = useState("");
+  const [pubBusy, setPubBusy] = useState(false);
   const [paste, setPaste] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const [msg, setMsg] = useState("");
@@ -52,14 +60,14 @@ export default function WarpPools() {
   }, [loadGroups]);
 
   const load = useCallback(async () => {
-    const p = new URLSearchParams({ q, role, ...(noGeo ? { geo: "none" } : {}) });
+    const p = new URLSearchParams({ q, role, pub: pubF, ...(noGeo ? { geo: "none" } : geoOk ? { geo: "ok" } : {}), ...(linkedOnly ? { linked: "1" } : {}) });
     const r = await fetch(`/api/admin/warp-pools?${p}`);
     const j = await r.json().catch(() => ({}));
     if (r.ok) {
       setStats(j.stats);
       setRows(j.list ?? []);
     }
-  }, [q, role, noGeo]);
+  }, [q, role, noGeo, geoOk, linkedOnly, pubF]);
   useEffect(() => {
     const t = setTimeout(load, 250);
     return () => clearTimeout(t);
@@ -73,7 +81,7 @@ export default function WarpPools() {
     const j = await r.json().catch(() => ({}));
     setBusy(false);
     if (!r.ok) return setMsg(j.error ?? "저장하지 못했어요.");
-    setMsg(`읽음 ${j.read}건 (새로 ${j.added} · 바뀜 ${j.updated}${j.skipped ? ` · 잘려서 뺌 ${j.skipped}` : ""}) · 모두의카풀 글로 옮김 ${j.moved}건. 이어서 위치를 채워요.`);
+    setMsg(`읽음 ${j.read}건 (새로 ${j.added} · 바뀜 ${j.updated}${j.skipped ? ` · 잘려서 뺌 ${j.skipped}` : ""}). 이어서 위치를 채워요. 정기카풀 글은 아래에서 골라서 올려 주세요.`);
     setPaste("");
     setShowPaste(false);
     await load();
@@ -119,6 +127,25 @@ export default function WarpPools() {
     const r = await fetch("/api/admin/warp-pools", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "phone", warpId, userId }) });
     const j = await r.json().catch(() => ({}));
     setPhones((p) => ({ ...p, [key]: r.ok ? j.phone || "번호 없음" : j.error ?? "확인 불가" }));
+  };
+
+  const canPublish = (r: Row) => !!r.userId && r.active && !!r.work && r.geo && !r.moved && !r.withdrawn;
+  const toggle = (code: string) => setSel((s0) => { const n = new Set(s0); if (n.has(code)) n.delete(code); else n.add(code); return n; });
+  const doPublish = async (action: "publish" | "unpublish", codes: string[]) => {
+    if (!codes.length) return;
+    setPubBusy(true);
+    setPubMsg("");
+    const r = await fetch("/api/admin/warp-pools", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, codes, cost, price: Number(price) || 0 }) });
+    const j = await r.json().catch(() => ({}));
+    setPubBusy(false);
+    if (!r.ok) return setPubMsg(j.error ?? "처리하지 못했어요.");
+    if (action === "publish") {
+      const why = (j.skipped ?? []).reduce((m: Record<string, number>, x: { why: string }) => ({ ...m, [x.why]: (m[x.why] ?? 0) + 1 }), {});
+      setPubMsg(`정기카풀로 올림 ${j.posted}건${Object.keys(why).length ? ` · 건너뜀: ${Object.entries(why).map(([k, v]) => `${k} ${v}`).join(", ")}` : ""}`);
+    } else setPubMsg(`내림: 삭제 ${j.removed}건${j.closed ? ` · 신청이 있어 마감 ${j.closed}건` : ""}`);
+    setSel(new Set());
+    load();
+    loadGroups(gRadius);
   };
 
   const PersonActions = ({ k, warpId, userId, label, canMail }: { k: string; warpId: string; userId: string | null; label: string; canMail: boolean }) => (
@@ -168,7 +195,7 @@ export default function WarpPools() {
             {[
               ["저장된 워프 정기카풀", `${stats.total}건 (운전자 ${stats.drivers})`],
               ["위치 찾음", `${stats.geo}건${stats.geoWait ? ` · 대기 ${stats.geoWait}` : ""}${stats.geoFail ? ` · 못 찾음 ${stats.geoFail}` : ""}`],
-              ["모두의카풀 계정 연결", `${stats.linked}명 · 글로 옮김 ${stats.moved}`],
+              ["모두의카풀 계정 연결", `${stats.linked}명 · 정기카풀로 올림 ${stats.moved}`],
               ["모두의카풀 정기 글(위치 있음)", `${stats.modoPosts}건`],
             ].map(([a, b]) => (
               <div key={a} className="rounded-xl bg-bg px-3 py-2"><p className="text-xs text-sub">{a}</p><p className="num font-bold">{b}</p></div>
@@ -238,21 +265,50 @@ export default function WarpPools() {
           <select data-block-id="F425" data-block-name="역할 필터" className="rounded-xl border border-line bg-white px-3 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="">전체</option><option value="driver">운전자</option><option value="rider">탑승자</option>
           </select>
-          <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={noGeo} onChange={(e) => setNoGeo(e.target.checked)} />위치 못 찾은 글만</label>
+          <select data-block-id="F428" data-block-name="올림 필터" className="rounded-xl border border-line bg-white px-3 text-sm" value={pubF} onChange={(e) => setPubF(e.target.value)}>
+            <option value="">올림 여부 전체</option><option value="0">아직 안 올림</option><option value="1">올린 글</option>
+          </select>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-4 text-sm">
+          <label className="flex items-center gap-1"><input type="checkbox" checked={linkedOnly} onChange={(e) => setLinkedOnly(e.target.checked)} />모두의카풀 계정 있는 회원만</label>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={geoOk} onChange={(e) => { setGeoOk(e.target.checked); if (e.target.checked) setNoGeo(false); }} />출발·도착 위치 모두 찾은 글만</label>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={noGeo} onChange={(e) => { setNoGeo(e.target.checked); if (e.target.checked) setGeoOk(false); }} />위치 못 찾은 글만</label>
+        </div>
+        <div data-block-id="S418" data-block-name="정기카풀로 올리기" className="sticky top-0 z-10 mt-3 rounded-xl border border-accent bg-accentSoft p-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-bold">선택 {sel.size}건</span>
+            <button data-block-id="B447" data-block-name="올릴 수 있는 것 모두 선택" className="min-h-0 rounded-lg border border-line bg-white px-2.5 py-1" onClick={() => setSel(new Set(rows.filter(canPublish).map((r) => r.code)))}>올릴 수 있는 것 모두 선택 ({rows.filter(canPublish).length})</button>
+            <button data-block-id="B448" data-block-name="선택 해제" className="min-h-0 rounded-lg border border-line bg-white px-2.5 py-1" onClick={() => setSel(new Set())}>선택 해제</button>
+            <span className="ml-auto flex items-center gap-2">
+              비용
+              <select data-block-id="F429" data-block-name="올릴 때 비용" className="rounded-lg border border-line bg-white px-2 py-1" value={cost} onChange={(e) => setCost(e.target.value === "fixed" ? "fixed" : "free")}>
+                <option value="free">무료</option><option value="fixed">희망 금액</option>
+              </select>
+              {cost === "fixed" && <input data-block-id="F430" data-block-name="희망 금액" inputMode="numeric" className="w-24 rounded-lg border border-line bg-white px-2 py-1" placeholder="원(1회)" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ""))} />}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button data-block-id="B449" data-block-name="선택한 글 정기카풀로 올리기" disabled={pubBusy || !sel.size} className="min-h-0 flex-1 rounded-xl bg-accent py-2.5 font-bold text-white disabled:opacity-50" onClick={() => doPublish("publish", [...sel])}>{pubBusy ? "처리 중…" : `선택한 ${sel.size}건 정기카풀로 올리기`}</button>
+            <button data-block-id="B450" data-block-name="선택한 글 내리기" disabled={pubBusy || !sel.size} className="min-h-0 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold disabled:opacity-50" onClick={() => doPublish("unpublish", [...sel])}>선택 내리기</button>
+          </div>
+          <p className="mt-1 text-xs text-sub">계정이 있는 회원 · 출발·도착 위치를 모두 찾은 글만 올라가요. 장소 이름은 "송파대로 345"처럼 짧게 쓰고, 아래 지역 글씨는 위치로 자동으로 붙어요.</p>
+          {pubMsg && <p className="mt-1 text-sm font-semibold">{pubMsg}</p>}
         </div>
         <ul className="mt-3 divide-y divide-line">
           {rows.map((r) => (
             <li key={r.code} className={`py-3 ${base?.code === r.code ? "bg-accentSoft/60" : ""}`}>
               <div className="flex flex-wrap items-center gap-2 text-sm">
+                <input type="checkbox" aria-label="선택" className="h-4 w-4" checked={sel.has(r.code)} onChange={() => toggle(r.code)} />
                 {roleChip(r.role)}
                 <span className="num font-semibold">{r.warpId || "고유번호 없음"}</span>
                 {r.name && <span className="text-mint">· 모두의카풀 {r.name}</span>}
                 {r.withdrawn && <span className="text-warn">· 워프 탈퇴</span>}
                 {!r.active && <span className="text-sub">· 미사용</span>}
-                {r.moved && <span className="rounded bg-mintSoft px-1.5 text-xs text-mint">글로 옮김</span>}
+                {r.moved ? <span className="rounded bg-mintSoft px-1.5 text-xs font-semibold text-mint">정기카풀로 올림</span> : !r.userId ? <span className="rounded bg-bg px-1.5 text-xs text-sub">계정 없음</span> : null}
                 <span className="ml-auto text-xs text-sub">{r.regDate} · {r.code}</span>
               </div>
-              <p className="mt-1 text-[15px]">{r.home} → {r.work || "(회사 주소 없음)"}</p>
+              <p className="mt-1 text-[15px] font-semibold">{r.work ? r.short : `${r.short}(목적지 없음)`}</p>
+              <p className="text-xs text-sub">{r.home} → {r.work || "(회사 주소 없음)"}</p>
               <p className="text-xs text-sub">출근 {r.timeGo || "-"} · 퇴근 {r.timeBack || "-"}{!r.geo && (r.tried ? " · 위치 못 찾음" : " · 위치 찾는 중")}</p>
               <div className="mt-1 flex flex-wrap items-center gap-4">
                 <button data-block-id="B442" data-block-name="매칭 후보 찾기" disabled={!r.geo} className="min-h-0 text-sm font-bold text-accent underline disabled:text-sub disabled:no-underline" onClick={() => pickBase(r)}>매칭 후보 찾기</button>

@@ -290,6 +290,7 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now())`;
   await sql`create index if not exists warp_pools_warp_idx on warp_pools (upper(warp_id))`;
+  await sql`alter table warp_pools add column if not exists post_id uuid`;
   await sql`create table if not exists phone_view_log (
     id bigserial primary key, kind text not null, ref text not null, ip text not null default '', at timestamptz not null default now())`;
   await sql`create table if not exists admin_notify_log (

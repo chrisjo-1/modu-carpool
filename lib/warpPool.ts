@@ -6,7 +6,7 @@ import { db } from "./server";
  * 워프에서 관리하던 정기카풀(2026-10-31 사용자 지시).
  * - 관리자가 워프 목록을 붙여넣으면 warp_pools에 저장(같은 코드는 덮어씀)
  * - 자택·회사 주소를 좌표로 바꿔(fillWarpGeo) 거리로만 매칭 후보를 찾는다(시간은 나중에 정함)
- * - 해당 고유번호 회원이 모두의카풀 계정과 이어지면 정기카풀 글로 자동으로 옮긴다(migrateWarpPools)
+ * - 관리자가 고른 것만 정기카풀 글로 올린다(publishWarpPools, 자동 이전은 2026-10-31에 없앰)
  * 다른 회원에게는 보이지 않고, 관리자 '정기 매칭' 탭에서만 쓴다.
  */
 export type WarpPoolRow = { code: string; active: boolean; role: "driver" | "rider"; home: string; work: string; region: string; timeGo: string; timeBack: string; warpId: string; regDate: string };
@@ -210,7 +210,8 @@ export async function allPoints(): Promise<PoolPoint[]> {
         left join users u on u.id = l.matched_user`,
     sql`select p.id, p.role, p.origin, p.dest, p.origin_lat, p.origin_lng, p.dest_lat, p.dest_lng, p.time_go, p.time_back, p.user_id, u.name, u.member_code
         from posts p join users u on u.id = p.user_id
-        where p.regular and p.status <> 'closed' and not coalesce(p.demo, false) and not u.test and u.withdrawn_at is null`,
+        where p.regular and p.status <> 'closed' and not coalesce(p.demo, false) and not u.test and u.withdrawn_at is null
+          and not exists (select 1 from warp_pools wp where wp.post_id = p.id)`,
   ]);
   const n = (v: unknown) => (v == null ? null : Number(v));
   return [
@@ -287,24 +288,36 @@ export function pairGroups(all: PoolPoint[], radiusKm: number, perDriver = 2, li
   return groups.sort((a, b) => b.best - a.best || (b.riders[1]?.chance ?? 0) - (a.riders[1]?.chance ?? 0)).slice(0, limit);
 }
 
+/** 지금 글 표시 방식에 맞춘 짧은 장소 이름: 시·도와 시·군·구를 빼고 읍·면·도로명만("서울 송파구 송파대로 345" → "송파대로 345"). 지역 글씨는 위치로 따로 붙는다. */
+export function shortPlace(addr: string): string {
+  const parts = addr.replace(/\s*지하\s+/g, " ").replace(/\s+/g, " ").trim().split(" ");
+  let i = 0;
+  if (parts.length > 2 && /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)|(도|특별시|광역시|특별자치시|통합특별시)$/.test(parts[0])) i = 1;
+  while (i < parts.length - 2 && /(시|군|구)$/.test(parts[i])) i += 1;
+  return parts.slice(i).join(" ").slice(0, 60) || addr.slice(0, 60);
+}
+
 /**
- * 계정과 이어진 워프 정기카풀을 그 회원의 정기카풀 글로 옮긴다(한 번만). 이미 진행 중인 정기카풀 글이 있으면 새로 만들지 않고 그 글로 표시만 한다.
- * userId를 주면 그 회원만, 없으면 이어진 모든 회원.
+ * 관리자가 고른 워프 정기카풀만 정기카풀 글로 올린다(2026-10-31 사용자 지시: 자동 이전 대신 골라서 등록).
+ * 계정이 이어진 회원 · 사용 중 · 출발·도착 주소와 위치가 모두 있는 글만. 이미 올린 것은 건너뛴다.
  */
-export async function migrateWarpPools(userId?: string): Promise<number> {
+export async function publishWarpPools(codes: string[], cost: "free" | "fixed", price: number) {
   const sql = db();
-  const rows = userId
-    ? await sql`select w.*, l.matched_user from warp_pools w join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
-        where l.matched_user = ${userId} and w.migrated_post_id is null and w.active and w.work <> '' limit 5`
-    : await sql`select w.*, l.matched_user from warp_pools w join legacy_members l on upper(l.warp_id) = upper(w.warp_id)
-        join users u on u.id = l.matched_user
-        where l.matched_user is not null and w.migrated_post_id is null and w.active and w.work <> '' and u.withdrawn_at is null limit 300`;
-  let moved = 0;
+  const rows = await sql`select w.*, l.matched_user, u.withdrawn_at, u.blocked from warp_pools w
+      left join legacy_members l on upper(l.warp_id) = upper(w.warp_id) and w.warp_id <> ''
+      left join users u on u.id = l.matched_user
+      where w.code = any(${codes}::text[])`;
+  const out = { posted: 0, skipped: [] as { code: string; why: string }[] };
   for (const w of rows) {
-    const uid = String(w.matched_user);
-    const existing = await sql`select id from posts where user_id = ${uid} and regular and status <> 'closed' limit 1`;
-    if (existing.length) {
-      await sql`update warp_pools set migrated_post_id = ${existing[0].id} where code = ${w.code}`;
+    const code = String(w.code);
+    const why = w.post_id ? "이미 올림"
+      : !w.matched_user ? "모두의카풀 계정 없음"
+      : w.withdrawn_at || w.blocked ? "탈퇴·정지 회원"
+      : !w.active ? "워프에서 미사용"
+      : !String(w.work) ? "목적지(회사) 주소 없음"
+      : w.home_lat == null || w.work_lat == null ? "위치를 아직 못 찾음" : "";
+    if (why) {
+      out.skipped.push({ code, why });
       continue;
     }
     const timeGo = String(w.time_go || "08:00");
@@ -313,12 +326,32 @@ export async function migrateWarpPools(userId?: string): Promise<number> {
     const ins = await sql`
       insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
                          regular, days, time_go, time_back, tags)
-      values (${uid}, ${w.role === "driver" ? "driver" : "rider"}, 'commute', 'free', 0, ${String(w.home).slice(0, 60)}, ${String(w.work).slice(0, 60)}, ${next}, 1,
-              '워프에서 이어온 정기카풀이에요. 비용은 대화로 정해요.',
+      values (${w.matched_user}, ${w.role === "driver" ? "driver" : "rider"}, 'commute', ${cost}, ${cost === "fixed" ? price : 0},
+              ${shortPlace(String(w.home))}, ${shortPlace(String(w.work))}, ${next}, 1, '',
               ${w.home_lat}, ${w.home_lng}, ${w.work_lat}, ${w.work_lng}, true, ${days}, ${timeGo}, ${String(w.time_back ?? "")}, '{}'::text[])
       returning id`;
-    await sql`update warp_pools set migrated_post_id = ${ins[0].id} where code = ${w.code}`;
-    moved += 1;
+    await sql`update warp_pools set post_id = ${ins[0].id} where code = ${code}`;
+    out.posted += 1;
   }
-  return moved;
+  return out;
+}
+
+/** 올린 글 내리기: 신청이 없으면 지우고, 있으면 마감으로 바꾼다. */
+export async function unpublishWarpPools(codes: string[]) {
+  const sql = db();
+  const rows = await sql`select code, post_id from warp_pools where code = any(${codes}::text[]) and post_id is not null`;
+  let removed = 0;
+  let closed = 0;
+  for (const r of rows) {
+    const has = await sql`select 1 from requests where post_id = ${r.post_id} limit 1`;
+    if (has.length) {
+      await sql`update posts set status = 'closed' where id = ${r.post_id}`;
+      closed += 1;
+    } else {
+      await sql`delete from posts where id = ${r.post_id}`;
+      removed += 1;
+    }
+    await sql`update warp_pools set post_id = null where code = ${r.code}`;
+  }
+  return { removed, closed };
 }
