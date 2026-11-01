@@ -1,4 +1,4 @@
-import { audienceRows, parseAudience, SEGMENTS, TEMPLATES, type Audience, type Segment } from "@/lib/campaign";
+import { audienceSummary, parseAudience, SEGMENTS, TEMPLATES, type Audience, type Segment } from "@/lib/campaign";
 import { getPolicy, type MailCategory } from "@/lib/mail";
 import { body, db, ensureSchema, fail, hasDb, isAdmin, json, text } from "@/lib/server";
 
@@ -14,7 +14,7 @@ export async function GET() {
     const sql = db();
     const rows = await sql`
       select c.id, c.created_at, c.title, c.category, c.segment, c.only_consent, c.only_driver, c.subject, c.status, c.started_at, c.finished_at, c.auto,
-        c.followup_of, c.followup_mode,
+        c.followup_of, c.followup_mode, c.except_ids,
         (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent' and (g.opened_at is not null or g.clicked_at is not null)) as opened,
         (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent' and g.clicked_at is not null) as clicked,
         case when c.status = 'draft' then c.body end as body,
@@ -52,8 +52,7 @@ export async function POST(req: Request) {
       await ensureSchema();
       const a = parseAudience(b);
       if (!a) return json({ error: "대상이 올바르지 않습니다." }, 400);
-      const rows = await audienceRows(a, { limit: 100000 });
-      return json({ count: rows.length });
+      return json(await audienceSummary(a));
     } catch (e) {
       return fail(e);
     }
@@ -72,8 +71,8 @@ export async function POST(req: Request) {
   }
   try {
     await ensureSchema();
-    const rows = await db()`insert into mail_campaigns (title, category, segment, only_consent, only_driver, subject, body, status, followup_of, followup_mode)
-      values (${title}, ${category}, ${a.segment}, ${a.onlyConsent}, ${a.onlyDriver}, ${subject}, ${bodyText}, 'draft', ${a.followUpOf ?? null}, ${a.followUpMode ?? ""})
+    const rows = await db()`insert into mail_campaigns (title, category, segment, only_consent, only_driver, subject, body, status, followup_of, followup_mode, except_ids)
+      values (${title}, ${category}, ${a.segment}, ${a.onlyConsent}, ${a.onlyDriver}, ${subject}, ${bodyText}, 'draft', ${a.followUpOf ?? null}, ${a.followUpMode ?? ""}, ${a.exceptCampaigns ?? []}::text[])
       returning id`;
     return json({ ok: true, id: rows[0].id });
   } catch (e) {

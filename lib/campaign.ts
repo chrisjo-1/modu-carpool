@@ -21,6 +21,8 @@ export type Audience = {
   /** 다시 보내기: 이 캠페인을 받았지만 열지 않은(open) / 링크를 누르지 않은(click) 사람만 */
   followUpOf?: string | null;
   followUpMode?: "open" | "click" | "";
+  /** 이 캠페인들 중 하나라도 보낸 적이 있는 주소는 제목과 상관없이 뺀다 */
+  exceptCampaigns?: string[];
 };
 export const FOLLOWUP_LABEL: Record<string, string> = { open: "안 연 사람만", click: "링크 안 누른 사람만" };
 
@@ -65,6 +67,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
   const fmode = a.followUpMode === "click" ? "click" : "open";
   const subj: string | null = fof ? null : (a.subject ?? "").trim() || null;
   const mk = a.marketing === true;
+  const exc: string[] = a.exceptCampaigns ?? [];
   if (a.segment === "legacy_unjoined") {
     // 구워프 미가입자는 동의 정보가 없어 광고성 조건과 맞지 않는다(안내 메일 전용)
     if (a.onlyConsent || a.onlyDriver) return [];
@@ -78,6 +81,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         and (${fof}::uuid is null or (exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm) and f.status = 'sent')
           and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm)
             and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))
+        and not exists (select 1 from mail_log x where x.to_email = lower(l.email_norm) and x.status = 'sent' and x.campaign_id::text = any(${exc}::text[]))
       order by email limit ${lim}`) as { user_id: string | null; email: string }[];
   }
   return (await sql`select u.id as user_id, lower(u.email) as email from users u
@@ -95,7 +99,43 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(u.email)
           and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))
       and (${mk} = false or not exists (select 1 from mail_log g4 where g4.to_email = lower(u.email) and g4.category = 'marketing' and g4.status = 'sent' and g4.created_at > now() - make_interval(days => ${MARKETING_GAP_DAYS}::int)))
+      and not exists (select 1 from mail_log x where x.to_email = lower(u.email) and x.status = 'sent' and x.campaign_id::text = any(${exc}::text[]))
     order by email limit ${lim}`) as { user_id: string | null; email: string }[];
+}
+
+/**
+ * 발송 화면의 대상 설명: 이 조건으로 나갈 인원과, 왜 빠졌는지(같은 제목 받음 / 고른 캠페인 받음), 신워프·구워프 구분.
+ * 구워프 연결은 한 사람이 여러 명부 행을 가질 수 있어 두 수가 겹칠 수 있다.
+ */
+export async function audienceSummary(a: Audience): Promise<{
+  count: number; pool: number; excludedBySubject: number; excludedByCampaigns: number;
+  newWarp: number; legacyJoined: number; unjoined: number;
+}> {
+  const sql = db();
+  const pool = (await audienceRows({ ...a, subject: "", exceptCampaigns: [] }, { limit: 100000 })).length;
+  const afterSubject = (await audienceRows({ ...a, exceptCampaigns: [] }, { limit: 100000 })).length;
+  const rows = await audienceRows(a, { limit: 100000 });
+  const ids = rows.filter((r) => r.user_id).map((r) => r.user_id as string);
+  const unjoined = rows.length - ids.length;
+  let newWarp = 0;
+  let legacyJoined = 0;
+  if (ids.length) {
+    const r = (await sql`select
+        count(*) filter (where exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%'))::int as nw,
+        count(*) filter (where exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no not like '신워프%'))::int as lg
+      from users u where u.id = any(${ids}::uuid[])`) as { nw: number; lg: number }[];
+    newWarp = r[0]?.nw ?? 0;
+    legacyJoined = r[0]?.lg ?? 0;
+  }
+  return {
+    count: rows.length,
+    pool,
+    excludedBySubject: pool - afterSubject,
+    excludedByCampaigns: afterSubject - rows.length,
+    newWarp,
+    legacyJoined,
+    unjoined,
+  };
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
@@ -125,7 +165,9 @@ export function parseAudience(b: Record<string, unknown>): Audience | null {
   if (!seg) return null;
   const fof = typeof b.followUpOf === "string" && /^[0-9a-f-]{36}$/i.test(b.followUpOf) ? b.followUpOf : null;
   const fmode = b.followUpMode === "click" ? "click" : b.followUpMode === "open" ? "open" : "";
+  const exceptCampaigns = Array.isArray(b.exceptCampaigns) ? b.exceptCampaigns.filter((x): x is string => typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x)) : [];
   return {
+    exceptCampaigns,
     segment: seg,
     onlyConsent: b.onlyConsent === true,
     onlyDriver: b.onlyDriver === true,

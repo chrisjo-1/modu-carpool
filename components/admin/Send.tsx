@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Segment = { key: string; label: string };
 type Template = { key: string; label: string; category: string; subject: string; body: string };
-type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean; followup_of?: string | null; followup_mode?: string; opened?: number; clicked?: number };
+type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean; followup_of?: string | null; followup_mode?: string; opened?: number; clicked?: number; except_ids?: string[] | null };
+type Summary = { count: number; pool: number; excludedBySubject: number; excludedByCampaigns: number; newWarp: number; legacyJoined: number; unjoined: number };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
 type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[] };
 
@@ -33,6 +34,9 @@ export default function AdminSend() {
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [count, setCount] = useState<number | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  // 제외할 이전 캠페인: 그 캠페인을 받은 적이 있으면 제목과 상관없이 빼요(2026-11-01)
+  const [exceptIds, setExceptIds] = useState<string[]>([]);
   // 테스트 받는 주소: 최대 5개 저장(관리자 공용), 체크한 주소로만 보낸다.
   const [testList, setTestList] = useState<string[]>([]);
   const [testPick, setTestPick] = useState<string[]>([]);
@@ -89,7 +93,7 @@ export default function AdminSend() {
     setBodyText(t.body);
     if (!title) setTitle(t.label);
   };
-  const form = () => ({ segment, onlyConsent, onlyDriver, title, subject, body: bodyText, category, followUpOf: followOf || null, followUpMode: followOf ? followMode : "" });
+  const form = () => ({ segment, onlyConsent, onlyDriver, title, subject, body: bodyText, category, followUpOf: followOf || null, followUpMode: followOf ? followMode : "", exceptCampaigns: exceptIds });
   const segLabel = d?.segments.find((s) => s.key === segment)?.label ?? "";
 
   const doCount = async () => {
@@ -99,6 +103,16 @@ export default function AdminSend() {
     const j = await r.json();
     if (!r.ok) return setMsg(j.error ?? "대상을 계산하지 못했습니다.");
     setCount(j.count);
+    setSummary(j as Summary);
+  };
+
+  // 발송 중인데 남은 대상이 없으면 완료로 바꾼다(남은 대상이 있으면 그대로 둔다)
+  const settle = async (c: Campaign) => {
+    const r = await fetch(`/api/admin/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settle: true }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setMsg(j.error ?? "정리하지 못했습니다.");
+    setMsg(j.done ? `"${c.title}"을(를) 완료로 정리했어요.` : `"${c.title}"에는 아직 나가지 않은 대상 ${j.left}명이 남아 있어요. 이어서 보내거나 취소해 주세요.`);
+    load();
   };
 
   const sendTest = async () => {
@@ -138,13 +152,15 @@ export default function AdminSend() {
     setBodyText(c.body ?? "");
     setTemplateKey("custom");
     setCount(null);
+    setSummary(null);
+    setExceptIds(c.except_ids ?? []);
     setMsg(`"${c.title}" 초안을 불러왔어요. 고친 뒤 [저장]을 누르면 이 초안이 바뀝니다.`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const newDraft = () => {
     setDraftId("");
-    setTitle(""); setSubject(""); setBodyText(""); setTemplateKey("custom"); setCount(null); setFollowOf("");
+    setTitle(""); setSubject(""); setBodyText(""); setTemplateKey("custom"); setCount(null); setSummary(null); setFollowOf(""); setExceptIds([]);
     setMsg("새 글을 시작합니다.");
   };
 
@@ -261,6 +277,20 @@ export default function AdminSend() {
           <span className="text-[12px] leading-relaxed text-sub">고른 캠페인을 받은 사람 중에서 위 대상 조건에도 맞는 사람에게만 보내요. 열람은 메일 앱이 그림을 막으면 기록되지 않아 '안 연 사람'에 조금 더 들어갈 수 있어요. 2026-10-29 열람 추적을 켜기 전에 보낸 메일은 모두 '안 연 것'으로 보입니다.</span>
         </div>
 
+        <div data-block-id="F440" data-block-name="이미 받은 캠페인 제외" className="grid gap-2 rounded-xl border border-line bg-bg p-3 text-[14px]">
+          <span className="font-semibold">이미 받은 캠페인 제외 (선택) <span className="font-normal text-sub">{exceptIds.length ? `${exceptIds.length}개 고름` : ""}</span></span>
+          <div className="grid max-h-56 gap-1.5 overflow-y-auto">
+            {d?.campaigns.filter((c) => c.sent > 0 && c.id !== draftId).length === 0 && <span className="text-sub">받은 기록이 있는 캠페인이 없어요.</span>}
+            {d?.campaigns.filter((c) => c.sent > 0 && c.id !== draftId).map((c) => (
+              <label key={c.id} className="flex items-center gap-2">
+                <input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={exceptIds.includes(c.id)} onChange={(e) => { setExceptIds((p) => (e.target.checked ? [...p, c.id] : p.filter((x) => x !== c.id))); setCount(null); setSummary(null); }} />
+                <span>{c.title} <span className="text-sub">({when(c.created_at)} · {c.sent}명 받음 · 제목: {c.subject})</span></span>
+              </label>
+            ))}
+          </div>
+          <span className="text-[12px] leading-relaxed text-sub">여기서 고른 캠페인을 한 번이라도 받은 사람은 제목이 달라도 빼요. 내용을 고쳐 다시 보낼 때 이미 받은 사람을 건너뛰려면 고르세요.</span>
+        </div>
+
         <label className="grid gap-1 text-[14px]">
           <span className="font-semibold">캠페인 이름 (관리용)</span>
           <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 6월 구워프 안내 1차" maxLength={80} />
@@ -297,6 +327,13 @@ export default function AdminSend() {
           <button className={btn} disabled={busy} onClick={doCount}>대상자 수 확인</button>
           {count !== null && <span className="text-[14px]"><b>{segLabel}</b> 대상 <b>{count.toLocaleString()}명</b>{d && d.policy.dailyCap > 0 && count > d.policy.dailyCap ? ` · 하루 한도 ${d.policy.dailyCap}통이라 나눠서 발송됩니다(매일 자동 이어 보내기 가능)` : d && count > 1000 ? " · 월 한도에 맞춘 하루 몫만큼 나눠 보냅니다(매일 자동 이어 보내기 가능)" : ""}</span>}
         </div>
+        {summary && (
+          <div data-block-id="C441" data-block-name="대상 설명" className="grid gap-1 rounded-xl border border-line bg-bg p-3 text-[14px] leading-relaxed">
+            <span>신워프 계정 회원 <b>{summary.newWarp.toLocaleString()}명</b> · 구워프 연결 회원 <b>{summary.legacyJoined.toLocaleString()}명</b>{summary.unjoined > 0 ? <> · 계정 없는 구워프 명단 <b>{summary.unjoined.toLocaleString()}명</b></> : null} <span className="text-[12px] text-sub">(신워프·구워프 연결은 겹칠 수 있어요)</span></span>
+            <span className="text-sub">조건 전체 {summary.pool.toLocaleString()}명 중 같은 제목을 이미 받아서 뺀 사람 {summary.excludedBySubject.toLocaleString()}명, 고른 캠페인을 받아서 뺀 사람 {summary.excludedByCampaigns.toLocaleString()}명</span>
+            {summary.excludedBySubject > 0 && summary.count === 0 && <span className="font-semibold text-warn">같은 제목으로 이미 다 받은 상태예요. 메일 제목을 바꾸거나 위에서 '이미 받은 캠페인 제외'를 쓰세요.</span>}
+          </div>
+        )}
 
         <div className="flex flex-wrap items-end gap-2 border-t border-line pt-4">
           <div data-block-id="C140" className="grid w-full gap-2 text-[14px]">
@@ -353,6 +390,9 @@ export default function AdminSend() {
                   <td className="p-3">{c.sent} / {c.failed}{c.retry > 0 ? <span className="block text-xs text-sub">한도 초과 {c.retry}명 · 다시 보낼 수 있음</span> : null}</td>
                   <td className="p-3 whitespace-nowrap">{c.sent > 0 ? <>열람 {c.opened ?? 0} <span className="text-xs text-sub">({Math.round(((c.opened ?? 0) / c.sent) * 100)}%)</span><span className="block">클릭 {c.clicked ?? 0} <span className="text-xs text-sub">({Math.round(((c.clicked ?? 0) / c.sent) * 100)}%)</span></span></> : "—"}</td>
                   <td className="p-3 whitespace-nowrap">
+                    {c.status === "sending" && !running && (
+                      <button className={`${btn} mb-2`} onClick={() => settle(c)}>완료로 정리</button>
+                    )}
                     {c.status === "done" && c.retry > 0 && (
                       <button className={btnPrimary} disabled={!!running} onClick={() => start(c)}>실패분 다시 보내기 ({c.retry}명)</button>
                     )}

@@ -1,4 +1,5 @@
 import { parseAudience } from "@/lib/campaign";
+import { settleCampaign } from "@/lib/campaignRun";
 import type { MailCategory } from "@/lib/mail";
 import { body, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, text } from "@/lib/server";
 
@@ -16,6 +17,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     await ensureSchema();
     const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    if (b.settle === true) {
+      // '발송 중'에 멈춘 캠페인: 남은 대상이 없으면 완료로 바꾼다
+      const r = await settleCampaign(id);
+      if (!r.ok) return json({ error: r.error }, r.status);
+      return json({ ok: true, done: r.done, left: r.left });
+    }
     if (typeof b.auto === "boolean") {
       await db()`update mail_campaigns set auto = ${b.auto} where id = ${id} and status in ('sending','done')`;
       return json({ ok: true, auto: b.auto });
@@ -46,7 +53,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     await ensureSchema();
     const rows = await db()`update mail_campaigns set title = ${title}, category = ${category}, segment = ${a.segment},
         only_consent = ${a.onlyConsent}, only_driver = ${a.onlyDriver}, subject = ${subject}, body = ${bodyText},
-        followup_of = ${a.followUpOf ?? null}, followup_mode = ${a.followUpMode ?? ""}
+        followup_of = ${a.followUpOf ?? null}, followup_mode = ${a.followUpMode ?? ""}, except_ids = ${a.exceptCampaigns ?? []}::text[]
       where id = ${id} and status = 'draft' returning id`;
     if (!rows.length) return json({ error: "발송 전 초안만 고칠 수 있어요. 이미 발송했거나 취소된 캠페인입니다." }, 409);
     return json({ ok: true, id });

@@ -386,6 +386,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table users add column if not exists app_mode_at timestamptz`;
   await sql`alter table users add column if not exists app_first_at timestamptz`;
   await sql`alter table mail_campaigns add column if not exists followup_mode text not null default ''`;
+  // 이 캠페인 대상에서 뺄 이전 캠페인(받은 적이 있으면 제목과 상관없이 제외, 2026-11-01 사용자 지시)
+  await sql`alter table mail_campaigns add column if not exists except_ids text[] not null default '{}'`;
   await sql`create table if not exists mail_policy (
     id int primary key,
     daily_cap int not null default 100,

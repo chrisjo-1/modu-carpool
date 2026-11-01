@@ -4,6 +4,41 @@ import { db, ensureSchema } from "./server";
 
 export type BatchResult = { ok: true; sent: number; more: boolean; held: string | null; done: boolean } | { ok: false; status: number; error: string };
 
+/** 캠페인 행 → 대상 조건 */
+export function campaignAudience(c: Record<string, unknown>): Audience {
+  return {
+    segment: c.segment as Segment,
+    onlyConsent: !!c.only_consent,
+    onlyDriver: !!c.only_driver,
+    marketing: c.category === "marketing",
+    subject: String(c.subject ?? ""),
+    followUpOf: c.followup_of ? String(c.followup_of) : null,
+    followUpMode: c.followup_mode === "click" ? "click" : c.followup_mode === "open" ? "open" : "",
+    exceptCampaigns: Array.isArray(c.except_ids) ? (c.except_ids as unknown[]).map(String) : [],
+  };
+}
+
+/**
+ * '발송 중'으로 남은 캠페인을 정리한다. 남은 대상이 없으면 완료로 바꾸고, 있으면 그대로 둔다(이어서 보내기로 보낸다).
+ * 취소된 캠페인은 건드리지 않는다.
+ */
+export async function settleCampaign(id: string): Promise<{ ok: true; done: boolean; left: number } | { ok: false; status: number; error: string }> {
+  const sql = db();
+  const found = await sql`select * from mail_campaigns where id = ${id}`;
+  const c = found[0];
+  if (!c) return { ok: false, status: 404, error: "캠페인을 찾을 수 없습니다." };
+  if (c.status === "cancelled") return { ok: false, status: 409, error: "취소된 캠페인입니다." };
+  if (c.status === "draft") return { ok: false, status: 409, error: "아직 발송하지 않은 초안입니다." };
+  const a = campaignAudience(c);
+  const before = new Date(c.created_at as string).toISOString();
+  const left = (await audienceRows(a, { campaignId: id, before, limit: 100000 })).length;
+  if (left === 0) {
+    await sql`update mail_campaigns set status = 'done', finished_at = coalesce(finished_at, now()), auto = false where id = ${id}`;
+    return { ok: true, done: true, left: 0 };
+  }
+  return { ok: true, done: false, left };
+}
+
 /**
  * 캠페인 발송 한 배치(관리자 화면과 매일 자동 발송이 같이 쓴다).
  * 이미 이 캠페인으로 기록된 주소는 대상에서 빠지므로 중복 발송되지 않는다.
@@ -21,15 +56,7 @@ export async function runCampaignBatch(id: string, limit: number): Promise<Batch
   if (c.status === "cancelled") return { ok: false, status: 409, error: "취소된 캠페인입니다." };
   if (c.status === "draft") await sql`update mail_campaigns set status = 'sending', started_at = now() where id = ${id}`;
 
-  const a: Audience = {
-    segment: c.segment as Segment,
-    onlyConsent: !!c.only_consent,
-    onlyDriver: !!c.only_driver,
-    marketing: c.category === "marketing",
-    subject: String(c.subject ?? ""),
-    followUpOf: c.followup_of ? String(c.followup_of) : null,
-    followUpMode: c.followup_mode === "click" ? "click" : c.followup_mode === "open" ? "open" : "",
-  };
+  const a = campaignAudience(c);
   const category = c.category as MailCategory;
   const before = new Date(c.created_at as string).toISOString();
   // 오늘 남은 한도만큼만 꺼낸다.
