@@ -10,9 +10,10 @@ export async function GET() {
     await ensureSchema();
     const b = await readChatBanner();
     if (!b || !b.active) return json({ banner: null });
-    if (b.kind === "video") return b.video ? json({ banner: { kind: "video", video: b.video, title: b.title, ad: b.ad } }) : json({ banner: null });
-    if (!b.image) return json({ banner: null });
-    return json({ banner: { kind: "image", title: b.title, image: b.image, link: b.link, ad: b.ad } });
+    // 사진이 없어도 제목·설명만으로 한 칸을 보여 준다
+    if (b.kind === "video") return b.video ? json({ banner: { kind: "video", video: b.video, title: b.title, desc: b.desc, ad: b.ad } }) : json({ banner: null });
+    if (!b.image && !b.title && !b.desc) return json({ banner: null });
+    return json({ banner: { kind: "image", title: b.title, desc: b.desc, image: b.image, link: b.link, ad: b.ad } });
   } catch {
     return json({ banner: null });
   }

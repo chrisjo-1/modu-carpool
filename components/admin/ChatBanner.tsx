@@ -5,7 +5,7 @@ import { shrinkImage } from "@/lib/shrinkImage";
 import { youtubeId } from "@/lib/youtube";
 
 const input = "w-full rounded-xl border border-line bg-white px-3 py-2.5 text-[15px] text-ink outline-none focus:border-accent";
-const EMPTY: ChatBanner = { kind: "image", video: "", title: "", image: "", link: "", active: true, ad: false };
+const EMPTY: ChatBanner = { kind: "image", video: "", title: "", desc: "", image: "", link: "", active: true, ad: false };
 
 /** 관리자 > 사이트: 채팅 목록 아래 배너 한 칸. 이미지(누르면 링크) 또는 유튜브 영상(그 자리에서 재생). */
 export default function AdminChatBanner() {
@@ -125,9 +125,15 @@ export default function AdminChatBanner() {
       )}
 
       <label className="block space-y-1">
-        <span className="text-[14px] font-semibold text-ink">제목 (설명, 선택)</span>
+        <span className="text-[14px] font-semibold text-ink">제목 (선택, 한 줄)</span>
         <input className={input} maxLength={40} value={b.title} onChange={(e) => setB({ ...b, title: e.target.value })} />
       </label>
+      <label className="block space-y-1">
+        <span className="text-[14px] font-semibold text-ink">설명 (선택, 두 줄까지 보여요)</span>
+        <textarea className={`${input} min-h-[72px] resize-y`} maxLength={120} rows={2} value={b.desc} onChange={(e) => setB({ ...b, desc: e.target.value })} />
+        <span className="block text-right text-[12px] text-sub">{b.desc.length}/120</span>
+      </label>
+      <p className="rounded-xl bg-bg px-4 py-3 text-[13px] text-sub">사진 없이 제목·설명만 적어도 채팅 목록 아래에 한 칸으로 보여요. 사진이나 영상을 함께 쓰면 그 아래에 제목·설명이 붙어요.</p>
       <div className="flex flex-wrap gap-4 text-[14px]">
         <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={b.active} onChange={(e) => setB({ ...b, active: e.target.checked })} />보이기</label>
         <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={b.ad} onChange={(e) => setB({ ...b, ad: e.target.checked })} />광고 표시</label>
