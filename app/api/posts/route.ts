@@ -85,6 +85,7 @@ export async function GET(req: Request) {
       cost: r.cost,
       price: r.price,
       regular: r.regular,
+      leg: r.leg === "back" ? "back" : "go",
       days: r.days,
       timeGo: r.time_go,
       timeBack: r.time_back,
@@ -207,24 +208,55 @@ export async function PUT(req: Request) {
     if (!(await hasPhoto(me))) return json({ error: PHOTO_REQUIRED }, 403);
     const sql = db();
     if (role === "driver" && !(await carReady(me))) return json({ error: CAR_REQUIRED }, 403);
-    const updated = await sql`
+    const tags = allowedTags(await getKeywords(), b.tags, role, c.cost);
+    const note = text(b.note, 300);
+    // 출근 글(leg = go): 기존과 같이 한 건을 고친다. 퇴근길도 함께면 퇴근 글(leg = back)을 따로 둔다.
+    const goUpd = await sql`
       update posts set role = ${role}, cost = ${c.cost}, price = ${c.price}, origin = ${origin}, dest = ${dest},
         origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng}, geo_tried_at = null,
         days = ${sorted}, time_go = ${timeGo}, time_back = ${timeBack}, depart_at = ${next},
-        seats = ${seats}, note = ${text(b.note, 300)}, status = 'open', tags = ${allowedTags(await getKeywords(), b.tags, role, c.cost)}::text[]
-      where user_id = ${me} and regular returning id`;
-    if (updated.length) return json({ id: updated[0].id, updated: true });
-    const hadPost = (await sql`select 1 from posts where user_id = ${me} limit 1`).length > 0;
-    const rows = await sql`
-      insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
-                         regular, days, time_go, time_back, tags)
-      values (${me}, ${role}, 'commute', ${c.cost}, ${c.price}, ${origin}, ${dest}, ${next}, ${seats}, ${text(b.note, 300)},
-              ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${timeBack}, ${allowedTags(await getKeywords(), b.tags, role, c.cost)}::text[])
-      returning id`;
-    const credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
-    await notifyRouteAlerts(String(rows[0].id));
-    after(() => pingIndexNow([`/post/${rows[0].id}`]).catch(() => {}));
-    return json({ id: rows[0].id, updated: false, credit });
+        seats = ${seats}, note = ${note}, status = 'open', tags = ${tags}::text[]
+      where user_id = ${me} and regular and leg = 'go' returning id`;
+    let id: string;
+    let updated = goUpd.length > 0;
+    let credit = 0;
+    if (updated) {
+      id = String(goUpd[0].id);
+    } else {
+      const hadPost = (await sql`select 1 from posts where user_id = ${me} limit 1`).length > 0;
+      const rows = await sql`
+        insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
+                           regular, days, time_go, time_back, tags, leg)
+        values (${me}, ${role}, 'commute', ${c.cost}, ${c.price}, ${origin}, ${dest}, ${next}, ${seats}, ${note},
+                ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${timeBack}, ${tags}::text[], 'go')
+        returning id`;
+      id = String(rows[0].id);
+      credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
+      await notifyRouteAlerts(id);
+      after(() => pingIndexNow([`/post/${id}`]).catch(() => {}));
+    }
+    // 퇴근 글: 출발·도착을 바꾸고 시각은 퇴근 시각. 퇴근길을 껐으면 기존 퇴근 글은 마감한다.
+    if (timeBack) {
+      const backNext = new Date(nextOccurrence(sorted, timeBack)).toISOString();
+      const backUpd = await sql`
+        update posts set role = ${role}, cost = ${c.cost}, price = ${c.price}, origin = ${dest}, dest = ${origin},
+          origin_lat = ${dLat}, origin_lng = ${dLng}, dest_lat = ${oLat}, dest_lng = ${oLng}, geo_tried_at = null,
+          days = ${sorted}, time_go = ${timeBack}, time_back = '', depart_at = ${backNext},
+          seats = ${seats}, note = ${note}, status = 'open', tags = ${tags}::text[]
+        where user_id = ${me} and regular and leg = 'back' returning id`;
+      if (!backUpd.length) {
+        const back = await sql`
+          insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
+                             regular, days, time_go, time_back, tags, leg)
+          values (${me}, ${role}, 'commute', ${c.cost}, ${c.price}, ${dest}, ${origin}, ${backNext}, ${seats}, ${note},
+                  ${dLat}, ${dLng}, ${oLat}, ${oLng}, true, ${sorted}, ${timeBack}, '', ${tags}::text[], 'back')
+          returning id`;
+        await notifyRouteAlerts(String(back[0].id));
+      }
+    } else {
+      await sql`update posts set status = 'closed' where user_id = ${me} and regular and leg = 'back' and status <> 'closed'`;
+    }
+    return json({ id, updated, credit, both: !!timeBack });
   } catch (e) {
     return fail(e);
   }

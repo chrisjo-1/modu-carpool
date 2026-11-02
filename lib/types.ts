@@ -13,6 +13,8 @@ export type Post = {
   price?: number;
   /** 정기카풀 여부와 일정 */
   regular?: boolean;
+  /** 정기카풀 한 쌍의 출근(go)·퇴근(back) 글 */
+  leg?: "go" | "back";
   days?: string;
   timeGo?: string;
   timeBack?: string;

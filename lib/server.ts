@@ -66,6 +66,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table posts add column if not exists dest_lat double precision`;
   await sql`alter table posts add column if not exists dest_lng double precision`;
   await sql`alter table posts add column if not exists price integer not null default 0`;
+  // 정기카풀 한 쌍: 출근 글 'go'(기본), 퇴근 글 'back'(출발·도착을 바꾼 글)
+  await sql`alter table posts add column if not exists leg text not null default 'go'`;
   await sql`alter table posts add column if not exists regular boolean not null default false`;
   await sql`alter table posts add column if not exists days text not null default ''`;
   await sql`alter table posts add column if not exists time_go text not null default ''`;

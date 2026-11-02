@@ -73,7 +73,8 @@ export default function CommuteSheet({
   // 운전자·탑승자는 카풀 글의 입장이고, 지하철은 지하철 출퇴근(앉아가기) 등록이다.
   // 지하철을 골라도 마지막으로 고른 운전자·탑승자 입장(role)은 그대로 둔다.
   // 안내(앉아갈 정보)와 매칭은 하단 '지하철' 메뉴에서 본다.
-  const [role, setRole] = useState<"driver" | "rider">(initial?.role ?? defaultRoleFor(user));
+  // 처음 고르는 칸은 지금 앱의 모드(상단 알약)와 같게 맞춘다.
+  const [role, setRole] = useState<"driver" | "rider">(defaultRoleFor(user));
   const [mode, setMode] = useState<"driver" | "rider" | "subway">(startMode ?? role);
   const subwayOpen = mode === "subway";
   const pickMode = (m: "driver" | "rider" | "subway") => {
@@ -144,7 +145,7 @@ export default function CommuteSheet({
     if (subwayOpen) return;
     if (role === "driver" && !carOk) return setCarGate(true);
     setBusy(true);
-    const r = await api<{ updated: boolean; credit?: number }>("/api/posts", "PUT", {
+    const r = await api<{ updated: boolean; credit?: number; both?: boolean }>("/api/posts", "PUT", {
       role,
       origin: origin.name,
       dest: dest.name,
@@ -163,7 +164,7 @@ export default function CommuteSheet({
     });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
-    toast(t(r.data.updated ? "출퇴근 정보를 고쳤어요." : "정기카풀로 게시했어요.") + (r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : ""));
+    toast(t(r.data.updated ? "출퇴근 정보를 고쳤어요." : r.data.both ? "출근·퇴근 카풀 2개를 게시했어요." : "정기카풀로 게시했어요.") + (r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : ""));
     onDone();
   };
 
@@ -229,7 +230,7 @@ export default function CommuteSheet({
             </div>
             <label className="flex min-h-[44px] items-center gap-3 text-[15px]">
               <input data-block-id="F064" type="checkbox" className="h-5 w-5 accent-[#2F6BFF]" checked={back} onChange={(e) => setBack(e.target.checked)} />
-              {t("퇴근길도 함께")}
+              {t("퇴근길도 함께 등록")}
             </label>
 
             <div className="space-y-1.5">

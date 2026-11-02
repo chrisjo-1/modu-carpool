@@ -522,7 +522,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   /** 등록 탭에서 정기카풀(출퇴근)을 고르면, 이미 올린 정기카풀이 있는지 확인해 입력 창을 연다. */
   const openRegular = async () => {
     const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
-    const reg = (r.ok && r.data.posts.find((p) => p.regular)) || null;
+    const reg = (r.ok && r.data.posts.find((p) => p.regular && p.leg !== "back")) || null;
     // 이미 정기카풀이 있으면 바로 고치는 창, 없으면 출발지·도착지부터 묻는다.
     if (reg) setCommute({ post: reg, onboarding: false });
     else setCommuteStart(true);

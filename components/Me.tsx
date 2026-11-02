@@ -132,7 +132,8 @@ export default function Me({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const file = useRef<HTMLInputElement>(null);
-  const regular = mine.find((p) => p.regular) ?? null;
+  // 정기카풀 한 쌍 중 출근 글을 기준으로 연다(퇴근 글은 목록에 따로 보인다).
+  const regular = mine.find((p) => p.regular && p.leg !== "back") ?? null;
 
   const savePhoto = async (photo: string) => {
     // 삭제는 크레딧이 차감되므로 금액을 알리고 확인받는다. 변경(다른 사진으로 바꾸기)은 차감 없음.
