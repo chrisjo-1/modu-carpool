@@ -1,5 +1,13 @@
+import { alertAdmin } from "@/lib/adminAlert";
 import { runCampaignBatch } from "@/lib/campaignRun";
 import { db, ensureSchema, hasDb, json } from "@/lib/server";
+
+const HELD_TEXT: Record<string, string> = {
+  cap: "오늘 하루 발송 한도에 도달해 멈춤(내일 이어서 발송)",
+  quota: "메일 서비스 한도에 걸려 멈춤(한도가 풀리면 이어서 발송)",
+  off: "발송 정책이 꺼져 있어 멈춤",
+  quiet: "야간 발송 제한 시간이라 멈춤",
+};
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -33,6 +41,18 @@ export async function GET(req: Request) {
     }
     if (done) await db()`update mail_campaigns set auto = false where id = ${c.id}`;
     report.push({ id: String(c.id), title: String(c.title), sent, held, done });
+    // 이번 실행에서 보낸 게 있거나 끝났으면 관리자에게 알린다(하루 분 종료 또는 완료).
+    if (sent > 0 || done) {
+      const left = await db()`select count(*)::int as n from mail_log where campaign_id = ${c.id} and status = 'sent'`;
+      await alertAdmin(
+        done ? `[모두의카풀 관리] 메일 발송 완료: ${c.title}` : `[모두의카풀 관리] 오늘 분 발송 종료: ${c.title}`,
+        [
+          ["이번 실행 발송", `${sent.toLocaleString()}명`],
+          ["캠페인 누적 발송", `${Number(left[0]?.n ?? 0).toLocaleString()}건`],
+          ["상태", done ? "모든 대상에게 발송 완료(자동 발송 꺼짐)" : (held ? (HELD_TEXT[held] ?? held) : "남은 대상 있음(내일 09시 10분 이어서)")],
+        ],
+      );
+    }
     // 하루 한도에 닿았으면 다른 캠페인도 오늘은 못 보낸다.
     if (held === "cap" || held === "quota") break;
   }
