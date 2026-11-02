@@ -618,7 +618,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
           {tab === "home" &&
             (loaded ? <Home posts={posts} sample={sample} driverMode={!!user && defaultRoleFor(user) === "driver"} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} onSubway={(v) => { setSubwayStart({ view: v, n: Date.now() }); setTab("subway"); }} onSubwaySetup={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "home" && seo}
-          {tab === "post" && <PostForm key={repostFrom?.id ?? "new"} copy={repostFrom ?? undefined} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onGoProfile={() => { setOpen(null); setTab("me"); }} onDone={async (id) => { setRepostFrom(null); await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
+          {tab === "post" && <PostForm key={repostFrom?.id ?? "new"} copy={repostFrom ?? undefined} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { setRepostFrom(null); await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} start={subwayStart} onSettings={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} onChanged={loadThreads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {
             // 받은 신청: 내 글 목록에서 찾아 글 상세(수락·거절 버튼)를 연다.
@@ -654,7 +654,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
         {open && <PostDetail post={open} user={user} sample={sample} threads={threads} onClose={() => setOpen(null)} onChanged={refresh} goLogin={goLogin} openChat={openChat} toast={setToastMsg} onEditCommute={(p) => { setOpen(null); setCommute({ post: p, onboarding: false }); }} onEdit={(p) => { setOpen(null); setEditing(p); }} onRepost={repostOn ? startRepost : undefined} onProfile={setMember} onBlock={(userId, name) => setWhy({ mode: "block", userId, name })} />}
         {editing && (
           <Sheet title={t("글 수정")} blockId="S070" onClose={() => setEditing(null)}>
-            <PostForm initial={editing} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onGoProfile={() => { setOpen(null); setTab("me"); }} onDone={() => { setEditing(null); refresh(); }} />
+            <PostForm initial={editing} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={() => { setEditing(null); refresh(); }} />
           </Sheet>
         )}
         {pickInterests && user && (

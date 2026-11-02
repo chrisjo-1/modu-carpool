@@ -1,6 +1,6 @@
 "use client";
 import { nextSameSlot, slotLabel } from "@/lib/repost";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { priceAllowedAt } from "@/lib/time";
 import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
@@ -37,7 +37,6 @@ export default function PostForm({
   onDone,
   toast,
   onRegular,
-  onGoProfile,
   initial,
   copy,
 }: {
@@ -48,8 +47,6 @@ export default function PostForm({
   toast: (m: string) => void;
   /** 정기카풀(출퇴근) 입력 창을 연다. */
   onRegular: () => void;
-  /** 프로필 사진 안내에서 내 정보 프로필로 바로 간다. */
-  onGoProfile?: () => void;
   initial?: Post;
   /** 다시 올리기: 이 글 내용을 채우고 날짜만 다음 같은 요일·같은 시각으로 바꾼 새 글 */
   copy?: Post;
@@ -71,8 +68,9 @@ export default function PostForm({
   // 운전자 글은 차량번호와 차량 사진이 있어야 올릴 수 있다.
   const [carGate, setCarGate] = useState(false);
   const carOk = !!user?.carNo && !!user?.carPhoto;
-  // 프로필 사진이 없으면 올리기 전에 사진 등록 창을 띄운다(서버 안내 문구를 토스트로만 두지 않는다).
+  // 프로필 사진이 없으면 서버가 돌려준 안내로 사진 팝업을 띄운다.
   const [photoGate, setPhotoGate] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // 평일 출퇴근 시간대(오전 7~9시, 오후 6~8시) 출발일 때만 금액을 적을 수 있다.
   const allowed = kind === "commute" && priceAllowedAt(new Date(at).getTime());
@@ -81,7 +79,6 @@ export default function PostForm({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!initial && !user?.photo) return setPhotoGate(true);
     if (role === "driver" && !carOk) return setCarGate(true);
     // 운전자 글은 위치 권한을 허용해야 올릴 수 있다. 권한을 요청하고, 받은 위치를 서버에 기록한다.
     if (role === "driver") {
@@ -120,9 +117,9 @@ export default function PostForm({
   };
 
   const form = (
-    <form onSubmit={submit} className="space-y-4">
+    <form ref={formRef} onSubmit={submit} className="space-y-4">
       {carGate && <CarGateSheet onClose={() => setCarGate(false)} user={user} toast={toast} />}
-      {photoGate && <PhotoGateSheet onClose={() => setPhotoGate(false)} onGoProfile={onGoProfile} toast={toast} />}
+      {photoGate && <PhotoGateSheet onClose={() => setPhotoGate(false)} onSaved={() => formRef.current?.requestSubmit()} toast={toast} />}
       <Card className="space-y-4 p-5">
         {copy && !initial && (
           <p data-block-id="C401" data-block-name="다시 올리기 안내" className={`rounded-xl px-4 py-3 text-[14px] leading-relaxed ${copy.role === "driver" ? "bg-accentSoft text-accent" : "bg-mintSoft text-mint"}`}>

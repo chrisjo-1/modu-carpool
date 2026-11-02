@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { dayName } from "@/lib/i18n";
 import { priceAllowedRegular } from "@/lib/time";
 import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
+import PhotoGateSheet from "./PhotoGate";
+import { PHOTO_REQUIRED } from "@/lib/photoRequired";
 import PlaceField from "./PlaceField";
 import { Segment, Sheet, api, btnGhost, btnPrimary, btnRole, btnSubway, field, useLang, useT } from "./ui";
 import dynamic from "next/dynamic";
@@ -133,6 +135,9 @@ export default function CommuteSheet({
   // 운전자 글은 차량번호와 차량 사진이 있어야 올릴 수 있다.
   const [carGate, setCarGate] = useState(false);
   const carOk = !!user?.carNo && !!user?.carPhoto;
+  // 프로필 사진이 없으면 팝업에서 바로 올리고, 올린 뒤 등록을 이어서 보낸다.
+  const [photoGate, setPhotoGate] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const allowed = priceAllowedRegular(days, timeGo, back ? timeBack : "");
   // 비용은 출발 시간으로 자동 정해진다(시간대 안 = 금액 입력, 밖 = 무료).
@@ -163,15 +168,16 @@ export default function CommuteSheet({
       tags,
     });
     setBusy(false);
-    if (!r.ok) return toast(t(r.error));
+    if (!r.ok) return r.error === PHOTO_REQUIRED ? setPhotoGate(true) : toast(t(r.error));
     toast(t(r.data.updated ? "출퇴근 정보를 고쳤어요." : r.data.both ? "출근·퇴근 카풀 2개를 게시했어요." : "정기카풀로 게시했어요.") + (r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : ""));
     onDone();
   };
 
   return (
     <Sheet title={t("내 출퇴근 정보")} blockId="S060" onClose={onClose} locked={onboarding}>
-      <form onSubmit={submit} className="space-y-4">
+      <form ref={formRef} onSubmit={submit} className="space-y-4">
         {carGate && <CarGateSheet onClose={() => setCarGate(false)} user={user ?? null} toast={toast} />}
+        {photoGate && <PhotoGateSheet onClose={() => setPhotoGate(false)} onSaved={() => formRef.current?.requestSubmit()} toast={toast} />}
         {onboarding && (
           <div>
             <h2 className="text-2xl font-bold leading-snug">{t("출퇴근 정보를 알려 주세요")}</h2>
