@@ -9,7 +9,8 @@ const csp = [
   "connect-src 'self'",
   "worker-src 'self'",
   "manifest-src 'self'",
-  "frame-src 'none'",
+  // 채팅 배너의 유튜브 영상만 허용(개인정보 쿠키 없는 주소)
+  "frame-src https://www.youtube-nocookie.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

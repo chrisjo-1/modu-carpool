@@ -6,6 +6,7 @@ import { METER_URL, SHOW_METER, contactLabel, type Thread, type User } from "@/l
 import { Stars } from "./Member";
 import { Route } from "./Home";
 import type { usePush } from "./Push";
+import ChatBanner from "./ChatBanner";
 import { RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
 type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
@@ -168,6 +169,7 @@ export default function Chat({ user, enabled, threads, goLogin, openChat, openPo
           ))}
         </Card>
       )}
+      <ChatBanner />
     </section>
   );
 }

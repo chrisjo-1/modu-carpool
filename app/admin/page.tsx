@@ -31,6 +31,7 @@ const AdminDocs = dynamic(() => import("@/components/admin/Docs"), { ssr: false 
 const AdminRadius = dynamic(() => import("@/components/admin/Radius"), { ssr: false });
 const AdminSite = dynamic(() => import("@/components/admin/Site"), { ssr: false });
 const AdminBanners = dynamic(() => import("@/components/admin/Banners"), { ssr: false });
+const AdminChatBanner = dynamic(() => import("@/components/admin/ChatBanner"), { ssr: false });
 const AdminPopups = dynamic(() => import("@/components/admin/Popups"), { ssr: false });
 const AdminRepost = dynamic(() => import("@/components/admin/Repost"), { ssr: false });
 const AdminInstall = dynamic(() => import("@/components/admin/Install"), { ssr: false });
@@ -531,7 +532,7 @@ export default function Admin() {
       {tab === "chats" && <AdminChats />}
       {tab === "pools" && <AdminWarpPools />}
       {notifyUser && <NotifyModal target={{ userId: String(notifyUser.id), label: `${notifyUser.name || "-"} · ${notifyUser.email}` }} onClose={() => setNotifyUser(null)} />}
-      {tab === "site" && <><AdminSite /><AdminInstall /><AdminRepost /><AdminPopups /><AdminBanners /><AdminBubbles /></>}
+      {tab === "site" && <><AdminSite /><AdminInstall /><AdminRepost /><AdminPopups /><AdminBanners /><AdminChatBanner /><AdminBubbles /></>}
       {tab === "docs" && <AdminDocs />}
       {tab === "radius" && <AdminRadius />}
       {tab === "demo" && <AdminDemo />}
