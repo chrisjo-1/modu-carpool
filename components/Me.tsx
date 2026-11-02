@@ -19,6 +19,7 @@ const ContractSheet = dynamic(() => import("./Contract"), { ssr: false });
 const MyContracts = dynamic(() => import("./Contract").then((m) => m.MyContracts), { ssr: false });
 import { Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, field, scheduleText, useLang, useT } from "./ui";
 import { shrinkCar } from "./CarInput";
+import { shrinkProfile } from "@/lib/profilePhoto";
 
 /** 고른 사진을 가운데 정사각형으로 잘라 240px JPEG로 줄인다. */
 /** 차량 사진: 긴 변 800px JPEG */
@@ -26,18 +27,7 @@ import { shrinkCar } from "./CarInput";
 
 /** 내 글이 다른 회원 목록에 보이지 않는 이유 */
 
-async function shrink(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const side = Math.min(bitmap.width, bitmap.height);
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 240;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas");
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, 240, 240);
-  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 240, 240);
-  return canvas.toDataURL("image/jpeg", 0.82);
-}
+const shrink = shrinkProfile;
 
 const FOLD_KEY = "modu.me.open"; // 내 정보에서 펼쳐 둔 칸(이 기기)
 
@@ -268,7 +258,7 @@ export default function Me({
             </div>
             {needProfile && (
               <p data-block-id="C096" data-block-name="사진 등록 안내" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-[#7C2D12]">
-                {!user.photo ? t("카풀을 올리거나 신청·호출하려면 프로필 사진이 필요해요. 본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.") : t("연락 방법과 성별을 입력해 주세요.")}
+                {!user.photo ? t("카풀을 올리거나 신청·호출하려면 프로필 사진이 필요해요. 본인 사진이 원칙이며, AI로 보정한 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.") : t("연락 방법과 성별을 입력해 주세요.")}
               </p>
             )}
             <div className="grid grid-cols-2 gap-2">
@@ -286,7 +276,7 @@ export default function Me({
                     <button type="button" data-block-id="B044" data-block-name="사진 등록" disabled={busy} className="min-h-0 py-1 text-[15px] font-semibold text-accent" onClick={() => file.current?.click()}>{user.photo ? t("사진 변경") : t("사진 등록")}</button>
                     {user.photo && <button type="button" data-block-id="B045" data-block-name="사진 삭제" disabled={busy} className="min-h-0 py-1 text-[15px] text-sub underline" onClick={() => savePhoto("")}>{t("사진 삭제")}</button>}
                   </div>
-                  <p data-block-id="C058" data-block-name="사진 안내" className="text-[13px] leading-relaxed text-sub">{t("본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.")}</p>
+                  <p data-block-id="C058" data-block-name="사진 안내" className="text-[13px] leading-relaxed text-sub">{t("본인 사진이 원칙이며, AI로 보정한 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.")}</p>
                 </div>
                 <label className="block text-sm text-sub">
                   {t("자기소개")}

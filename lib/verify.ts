@@ -39,4 +39,4 @@ export async function hasPhoto(userId: string) {
   return Number(r[0]?.photo_v) > 0;
 }
 
-export const PHOTO_REQUIRED = "카풀을 올리거나 신청·호출하려면 프로필 사진을 먼저 등록해 주세요. 본인 사진이 원칙이며, AI로 바꾼 사진이나 얼굴이 나오지 않는 전신 사진도 가능해요.";
+export { PHOTO_REQUIRED } from "./photoRequired";
