@@ -25,8 +25,10 @@ export async function GET() {
           and not exists (select 1 from mail_log s where s.campaign_id = c.id and s.to_email = g.to_email and s.status = 'sent')) as retry
       from mail_campaigns c order by c.created_at desc limit 100`;
     const policy = await getPolicy();
+    const runs = await sql`select id, created_at, source, campaign_title, sent, held, done, ms, note from mail_runs order by created_at desc limit 100`;
     return json({
       policy,
+      runs: runs.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
       segments: SEGMENTS.map(([key, label]) => ({ key, label })),
       templates: TEMPLATES.map(({ key, label, category, subject, body }) => ({ key, label, category, subject, body })),
       history: (await sql`select g.created_at, g.to_email, g.subject, g.status, g.kind, g.campaign_id from mail_log g order by g.created_at desc limit 200`).map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),

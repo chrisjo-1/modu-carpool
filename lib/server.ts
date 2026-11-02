@@ -388,6 +388,20 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table mail_campaigns add column if not exists followup_mode text not null default ''`;
   // 이 캠페인 대상에서 뺄 이전 캠페인(받은 적이 있으면 제목과 상관없이 제외, 2026-11-01 사용자 지시)
   await sql`alter table mail_campaigns add column if not exists except_ids text[] not null default '{}'`;
+  // 자동 발송 실행 기록(매일 09시 10분·12시 10분 실행마다 한 줄, 관리자 메일 화면에 보인다)
+  await sql`create table if not exists mail_runs (
+    id bigserial primary key,
+    created_at timestamptz not null default now(),
+    source text not null default '',
+    campaign_id uuid,
+    campaign_title text not null default '',
+    sent integer not null default 0,
+    held text,
+    done boolean not null default false,
+    ms integer not null default 0,
+    note text not null default ''
+  )`;
+  await sql`create index if not exists mail_runs_created_idx on mail_runs (created_at desc)`;
   await sql`create table if not exists mail_policy (
     id int primary key,
     daily_cap int not null default 100,

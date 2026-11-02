@@ -17,6 +17,11 @@ export const maxDuration = 60;
  * 하루 한도(관리자 메일 정책·Resend 한도)에 닿으면 멈추고 다음 날 다시 이어 간다. 이미 받은 사람에게는 다시 가지 않는다.
  * Vercel 예약 실행이 부른다. 환경변수 CRON_SECRET이 있어야 하고, 요청 헤더가 그 값과 맞아야 한다.
  */
+/** Vercel 실행 제한(60초)보다 여유를 두고, 이 시간이 지나면 새 배치를 시작하지 않는다. */
+const BUDGET_MS = 30_000;
+/** 한 배치 = 100명(Resend 묶음 1회). 짧게 나눠 보내 시간 초과를 피한다. */
+const BATCH = 100;
+
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return json({ error: "CRON_SECRET이 설정되지 않았어요." }, 503);
@@ -25,36 +30,52 @@ export async function GET(req: Request) {
   await ensureSchema();
   const started = Date.now();
   const list = await db()`select id, title from mail_campaigns where auto and status in ('sending','done') order by created_at`;
-  const report: { id: string; title: string; sent: number; held: string | null; done: boolean }[] = [];
+  const report: { id: string; title: string; sent: number; held: string | null; done: boolean; note: string }[] = [];
   for (const c of list) {
     let sent = 0;
     let held: string | null = null;
     let done = false;
-    // 한 번에 500명씩(Resend 묶음 100통 × 5), 50초 안에서 최대한(한도가 있으면 한도까지) 이어 보낸다.
-    while (Date.now() - started < 50_000) {
-      const r = await runCampaignBatch(String(c.id), 500);
-      if (!r.ok) break;
-      sent += r.sent;
-      held = r.held;
-      done = r.done;
-      if (r.held || r.done || !r.more) break;
+    let note = "";
+    const t0 = Date.now();
+    try {
+      for (;;) {
+        if (Date.now() - started > BUDGET_MS) {
+          note = "시간 여유를 위해 여기서 멈춤(다음 실행에 이어서 보냄)";
+          break;
+        }
+        const r = await runCampaignBatch(String(c.id), BATCH);
+        if (!r.ok) {
+          note = r.error;
+          break;
+        }
+        sent += r.sent;
+        held = r.held;
+        done = r.done;
+        if (r.held || r.done || !r.more) break;
+      }
+    } catch (e) {
+      note = `오류: ${e instanceof Error ? e.message.slice(0, 200) : "알 수 없음"}`;
     }
     if (done) await db()`update mail_campaigns set auto = false where id = ${c.id}`;
-    report.push({ id: String(c.id), title: String(c.title), sent, held, done });
+    const ms = Date.now() - t0;
+    await db()`insert into mail_runs (source, campaign_id, campaign_title, sent, held, done, ms, note)
+      values ('자동 발송', ${c.id}, ${String(c.title)}, ${sent}, ${held}, ${done}, ${ms}, ${note})`;
+    report.push({ id: String(c.id), title: String(c.title), sent, held, done, note });
     // 이번 실행에서 보낸 게 있거나 끝났으면 관리자에게 알린다(하루 분 종료 또는 완료).
     if (sent > 0 || done) {
-      const left = await db()`select count(*)::int as n from mail_log where campaign_id = ${c.id} and status = 'sent'`;
+      const total = await db()`select count(*)::int as n from mail_log where campaign_id = ${c.id} and status = 'sent'`;
       await alertAdmin(
         done ? `[모두의카풀 관리] 메일 발송 완료: ${c.title}` : `[모두의카풀 관리] 오늘 분 발송 종료: ${c.title}`,
         [
           ["이번 실행 발송", `${sent.toLocaleString()}명`],
-          ["캠페인 누적 발송", `${Number(left[0]?.n ?? 0).toLocaleString()}건`],
-          ["상태", done ? "모든 대상에게 발송 완료(자동 발송 꺼짐)" : (held ? (HELD_TEXT[held] ?? held) : "남은 대상 있음(내일 09시 10분 이어서)")],
+          ["캠페인 누적 발송", `${Number(total[0]?.n ?? 0).toLocaleString()}건`],
+          ["상태", done ? "모든 대상에게 발송 완료(자동 발송 꺼짐)" : (held ? (HELD_TEXT[held] ?? held) : "남은 대상 있음(다음 실행에 이어서)")],
         ],
       );
     }
     // 하루 한도에 닿았으면 다른 캠페인도 오늘은 못 보낸다.
     if (held === "cap" || held === "quota") break;
+    if (Date.now() - started > BUDGET_MS) break;
   }
   return json({ ok: true, report });
 }

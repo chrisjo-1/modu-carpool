@@ -6,7 +6,8 @@ type Template = { key: string; label: string; category: string; subject: string;
 type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean; followup_of?: string | null; followup_mode?: string; opened?: number; clicked?: number; except_ids?: string[] | null };
 type Summary = { count: number; pool: number; excludedBySubject: number; excludedByCampaigns: number; newWarp: number; legacyJoined: number; unjoined: number };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
-type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[] };
+type Run = { id: number; created_at: number; source: string; campaign_title: string; sent: number; held: string | null; done: boolean; ms: number; note: string };
+type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[]; runs: Run[] };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const btn = "rounded-lg border border-line bg-white px-3 py-2 text-[14px] font-semibold hover:bg-bg disabled:opacity-50";
@@ -417,6 +418,26 @@ export default function AdminSend() {
         </div>
       </section>
       <section className="grid gap-3">
+        <h2 className="text-[18px] font-bold">자동 발송 실행 기록 <span className="text-sm font-normal text-sub">매일 9시 10분·12시 10분 실행, 최근 100건</span></h2>
+        <div data-block-id="C442" data-block-name="자동 발송 실행 기록" className="overflow-x-auto rounded-2xl border border-line bg-white">
+          <table className="w-full text-left text-[14px]">
+            <thead className="bg-bg text-sub">
+              <tr><th className="p-3">실행 시각</th><th className="p-3">캠페인</th><th className="p-3">이번 발송</th><th className="p-3">결과</th><th className="p-3">걸린 시간</th></tr>
+            </thead>
+            <tbody>
+              {d?.runs?.length === 0 && <tr><td className="p-4 text-sub" colSpan={5}>아직 자동 발송 기록이 없습니다.</td></tr>}
+              {d?.runs?.map((r) => (
+                <tr key={r.id} className="border-t border-line">
+                  <td className="p-3 whitespace-nowrap">{when(r.created_at)}</td>
+                  <td className="p-3">{r.campaign_title || "—"}</td>
+                  <td className="p-3">{r.sent.toLocaleString()}명</td>
+                  <td className="p-3">{r.done ? "완료" : (r.held ? (HELD[r.held] ?? r.held) : "진행 중")}{r.note ? <span className="block text-xs text-sub">{r.note}</span> : null}</td>
+                  <td className="p-3 whitespace-nowrap">{(r.ms / 1000).toFixed(1)}초</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <h2 className="text-[18px] font-bold">발송 기록 <span className="text-sm font-normal text-sub">최근 200건</span></h2>
         <div className="overflow-x-auto rounded-2xl border border-line bg-white">
           <table className="w-full text-left text-[14px]">
