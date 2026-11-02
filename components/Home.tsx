@@ -246,23 +246,30 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         </div>
         <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자만 보기")], ["rider", t("탑승자만 보기")]]} />
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
-        <div className={`flex flex-wrap items-center gap-1.5 ${view === "map" ? "hidden" : "flex"}`}>
-          <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex flex-wrap gap-1.5">
-            {([["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("가까운 순")], ["soon", t("출발순")]] as const).map(([k, label]) => (
-              <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-[44px] whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+        {/* 한 줄을 넘기지 않는다. 좁은 화면에서는 줄바꿈 대신 옆으로 밀어 본다(정기카풀이 아래로 내려가지 않게). */}
+        <div className={`flex-nowrap items-center gap-1.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${view === "map" ? "hidden" : "flex"}`}>
+          <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex shrink-0 flex-nowrap gap-1.5">
+            {([["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("거리순")], ["soon", t("출발순")]] as const).map(([k, label]) => (
+              <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
                 {label}
               </button>
             ))}
-            <button type="button" data-block-id="B008" data-block-name="내 글 모아보기" role="switch" aria-checked={mineOnly} onClick={() => setMineOnly((v) => !v)} className={`min-h-[44px] whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${mineOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+          </div>
+          {/* 필터(체크 상자 모양)는 정렬(알약 모양)과 얇은 선으로 나눈다 */}
+          <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-line" />
+          <div className="flex shrink-0 flex-nowrap gap-1.5">
+            <button type="button" data-block-id="B008" data-block-name="내 글 모아보기" role="switch" aria-checked={mineOnly} onClick={() => setMineOnly((v) => !v)} className={`inline-flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-2 text-[14px] max-[380px]:px-2 max-[380px]:text-[13px] ${mineOnly ? "border-ink bg-white font-semibold text-ink" : "border-line bg-white text-sub"}`}>
+              <CheckBox on={mineOnly} />
               {t("내 글")}
             </button>
+            <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`inline-flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-2 text-[14px] max-[380px]:px-2 max-[380px]:text-[13px] ${regularOnly ? "border-ink bg-white font-semibold text-ink" : "border-line bg-white text-sub"}`}>
+              <CheckBox on={regularOnly} />
+              {t("정기카풀")}
+            </button>
           </div>
-          <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`ml-auto min-h-[44px] whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-            {t("정기카풀")}
-          </button>
         </div>
-        {view === "list" && <Bubble blockId="C932" align="left">{t("가까운 순은 내 위치를 허용하면 쓸 수 있어요. 출발지가 가까운 글부터 보여요.")}</Bubble>}
-        {sort === "near" && here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 순서입니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
+        {view === "list" && <Bubble blockId="C932" align="left">{t("거리순은 내 위치를 허용하면 쓸 수 있어요. 출발지가 가까운 글부터 보여요.")}</Bubble>}
+        {sort === "near" && here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 글부터 보여 줍니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
       </div>
 
       {sample && <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] text-ink">{t("지금 보이는 글은 화면 확인용 예시입니다.")}</p>}
@@ -314,6 +321,16 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
       {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
       {incomingTaxiId && <IncomingTaxiCall callId={incomingTaxiId} toast={toast} onClose={() => { setIncomingTaxiId(null); window.history.replaceState(null, "", "/"); }} />}
     </section>
+  );
+}
+
+/** 필터 칩의 체크 상자(얇은 선 SVG). 켜지면 안에 체크 표시가 든다. */
+function CheckBox({ on }: { on: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden className="shrink-0">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="3" stroke="currentColor" strokeWidth="1.2" />
+      {on && <path d="M4.5 8.2l2.3 2.3 4.7-4.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />}
+    </svg>
   );
 }
 
