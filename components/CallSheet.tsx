@@ -114,7 +114,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
   const [mine, setMine] = useState<Post[] | null>(null);
   const [picked, setPicked] = useState<Post | null>(null);
   const [radius, setRadius] = useState<number | null>(null);
-  const [cost, setCost] = useState<number>(1000);
+  const [cost, setCost] = useState<number>(0);
   const [ready, setReady] = useState<boolean | null>(null);
   const [contactType, setContactType] = useState("");
   const [busy, setBusy] = useState(false);
@@ -209,7 +209,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
     setErr("");
     if (callsLeft !== null) setCallsLeft(Math.max(0, callsLeft - 1));
     const who = r.data.notified > 0 ? `${t("운전자")} ${r.data.notified.toLocaleString("ko-KR")}${t("명에게 알림을 보냈어요.")}` : t("반경 안에 알릴 운전자가 없어요.");
-    toast(`${who} -${cost.toLocaleString("ko-KR")} ${t("크레딧")}`);
+    toast(cost > 0 ? `${who} -${cost.toLocaleString("ko-KR")} ${t("크레딧")}` : who);
     onClose();
   };
 
@@ -290,13 +290,19 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
             <p className="text-sm text-sub">
               {radius !== null ? `${t("현재 위치 기준")} ${t("반경")} ${radius}km ${t("안의 운전자에게 알림을 보냅니다.")}` : t("현재 위치 주변의 운전자에게 알림을 보냅니다.")}
             </p>
-            <p className="text-sm font-semibold text-warn">{t("CALL은")} {cost.toLocaleString("ko-KR")} {t("크레딧이 차감됩니다.")}</p>
+            {cost > 0 ? (
+              <>
+                <p className="text-sm font-semibold text-warn">{t("CALL은")} {cost.toLocaleString("ko-KR")} {t("크레딧이 차감됩니다.")}</p>
+                <p className="text-sm text-sub">{t("응답하는 운전자가 없어도 크레딧은 환불되지 않아요.")}</p>
+              </>
+            ) : (
+              <p className="text-sm font-semibold text-mint">{t("CALL은 지금 무료예요.")}</p>
+            )}
             <p className="text-sm text-sub">{t("이 글은 지금 시간으로 다시 올라갑니다.")}</p>
-            <p className="text-sm text-sub">{t("응답하는 운전자가 없어도 크레딧은 환불되지 않아요.")}</p>
             <p className="text-sm text-sub">{t("수락한 운전자에게 내 연락 방법과 아이디가 보여요.")} ({contactType})</p>
           </Card>
           {err && <p role="alert" className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{err}</p>}
-          <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnRider} disabled={busy || callsLeft === 0} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost.toLocaleString("ko-KR")} ${t("크레딧")})`}</button>
+          <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnRider} disabled={busy || callsLeft === 0} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost > 0 ? `${cost.toLocaleString("ko-KR")} ${t("크레딧")}` : t("무료")})`}</button>
           <button type="button" className={btnGhost} onClick={() => setStep("pick")}>{t("뒤로")}</button>
         </div>
       )}

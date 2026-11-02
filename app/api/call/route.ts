@@ -1,4 +1,4 @@
-import { CALL_COST, acceptCall, callDrivers, callStatus, callerReady, getCallRadiusKm, incomingCall, nearbyBand } from "@/lib/call";
+import { acceptCall, callDrivers, callStatus, callerReady, getCallCost, getCallRadiusKm, incomingCall, nearbyBand } from "@/lib/call";
 import { contactLabel } from "@/lib/types";
 import { PHOTO_REQUIRED, hasPhoto } from "@/lib/verify";
 import { body, currentUserId, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     const lng = Number(sp.get("lng"));
     const hasPos = me && sp.get("lat") !== null && sp.get("lng") !== null && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
     const band = me && hasPos ? await nearbyBand(me, lat, lng) : null;
-    return json({ radiusKm: await getCallRadiusKm(), cost: CALL_COST, ready: ready.ready, contactType: contactLabel(ready.type), callsLeft: today?.left ?? null, callsLimit: today?.limit ?? null, band });
+    return json({ radiusKm: await getCallRadiusKm(), cost: await getCallCost(), ready: ready.ready, contactType: contactLabel(ready.type), callsLeft: today?.left ?? null, callsLimit: today?.limit ?? null, band });
   } catch (e) {
     return fail(e);
   }

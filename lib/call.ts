@@ -6,7 +6,9 @@ import { boundingBox } from "./radius";
 import { REASON_LABEL, getRules } from "./credits";
 
 export const DEFAULT_CALL_RADIUS_KM = 5;
-export const CALL_COST = 1000;
+/** CALL 1회 차감 크레딧 기본값. 회원이 많아지기 전까지는 0(무료)이고, 관리자 반경 탭에서 바꾼다. */
+export const DEFAULT_CALL_COST = 0;
+export const CALL_COST_MAX = 10000;
 /** 하루(한국 시간 기준) CALL 횟수 */
 export const DAILY_CALL_LIMIT = 2;
 /** 회원이 앱을 열 때 기록한 위치를 쓸 수 있는 시간(분). 이보다 오래된 위치의 운전자는 찾지 않는다. */
@@ -37,6 +39,14 @@ export async function saveLocation(me: string, lat: number, lng: number) {
   const la = Math.round(lat * 1e4) / 1e4;
   const ln = Math.round(lng * 1e4) / 1e4;
   await db()`update users set loc_lat = ${la}, loc_lng = ${ln}, loc_at = now() where id = ${me}`;
+}
+
+/** CALL 차감 크레딧(관리자 설정 call_cost). 0 ~ 10,000, 100 단위. 잘못된 값이면 기본값. */
+export async function getCallCost(): Promise<number> {
+  const rows = await db()`select value from settings where key = 'call_cost'`;
+  if (!rows.length) return DEFAULT_CALL_COST;
+  const v = Number(rows[0].value);
+  return Number.isInteger(v) && v >= 0 && v <= CALL_COST_MAX && v % 100 === 0 ? v : DEFAULT_CALL_COST;
 }
 
 /** 호출 반경(km). 관리자가 정하고, 0.5 ~ 20km 사이로 제한한다. */
@@ -118,20 +128,24 @@ export async function callDrivers(me: string, postId: string, lat: number, lng: 
   const st = await callStatus(me);
   if (st.left <= 0) return { error: `오늘 CALL은 ${DAILY_CALL_LIMIT}번까지 쓸 수 있어요. 내일 다시 이용해 주세요.` } as const;
   const radiusKm = await getCallRadiusKm();
+  const cost = await getCallCost();
   // 알릴 운전자가 없으면 크레딧을 쓰기 전에 멈춘다.
   const ids = await findDrivers(me, lat, lng, radiusKm);
   if (!ids.length) return { error: "근처에 알릴 운전자가 없어요. 호출하지 않았고 크레딧도 차감되지 않았어요." } as const;
-  const paid = await spend(me, CALL_COST, "call", `글 ${postId.slice(0, 8)}`);
-  if (!paid) {
-    const guide = await chargeGuide();
-    return { error: `크레딧이 부족해요. CALL에는 ${CALL_COST.toLocaleString("ko-KR")} 크레딧이 필요해요. ${guide}` } as const;
+  // 차감 기준이 0이면 크레딧을 쓰지도 돌려주지도 않는다.
+  if (cost > 0) {
+    const paid = await spend(me, cost, "call", `글 ${postId.slice(0, 8)}`);
+    if (!paid) {
+      const guide = await chargeGuide();
+      return { error: `크레딧이 부족해요. CALL에는 ${cost.toLocaleString("ko-KR")} 크레딧이 필요해요. ${guide}` } as const;
+    }
   }
   const copied = await sql`insert into posts (user_id, role, kind, cost, origin, dest, depart_at, seats, note, status, origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share)
     select user_id, role, 'trip', cost, origin, dest, now(), seats, note, 'open', origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share
     from posts where id = ${postId} and user_id = ${me} returning id`;
   if (!copied.length) {
-    await adjust(me, CALL_COST, "CALL 실패 환불").catch(() => null);
-    return { error: "글을 다시 올리지 못했어요. 크레딧은 돌려 드렸어요." } as const;
+    if (cost > 0) await adjust(me, cost, "CALL 실패 환불").catch(() => null);
+    return { error: cost > 0 ? "글을 다시 올리지 못했어요. 크레딧은 돌려 드렸어요." : "글을 다시 올리지 못했어요." } as const;
   }
   const call = await sql`insert into calls (caller, post_id, radius_km, caller_lat, caller_lng) values (${me}, ${String(copied[0].id)}, ${radiusKm}, ${lat}, ${lng}) returning id`;
   const callId = String(call[0].id);
@@ -139,7 +153,7 @@ export async function callDrivers(me: string, postId: string, lat: number, lng: 
   const title = "주변 탑승자가 호출했어요";
   const body = pushText.cut(`${String(p.origin)} → ${String(p.dest)} · 내 위치 반경 ${radiusKm}km · 수락하면 연락처가 보여요`, 120);
   await Promise.all(ids.map((id) => sendPush(id, { title, body, url: `/?call=${callId}`, tag: `call-${callId}` })));
-  return { ok: true, callId, notified: ids.length, radiusKm, spent: CALL_COST, newPostId: String(copied[0].id) } as const;
+  return { ok: true, callId, notified: ids.length, radiusKm, spent: cost, newPostId: String(copied[0].id) } as const;
 }
 
 /** 받은 호출 한 건(받은 회원에게만) */

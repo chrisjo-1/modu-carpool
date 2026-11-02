@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-type Values = { taxi: number; route: number; call: number };
+type Values = { taxi: number; route: number; call: number; cost: number };
 type Data = { choices: number[]; values: Values };
 const ROWS: [keyof Omit<Values, "call">, string, string][] = [
   ["taxi", "택시 동승 푸시 반경", "카풀 글에서 '택시 동승도 찾기'를 체크하면 출발지 반경 안 운전자·탑승자에게 알려요."],
@@ -16,6 +16,7 @@ export default function AdminRadius() {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [callKm, setCallKm] = useState("");
+  const [callCost, setCallCost] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/radius")
@@ -24,6 +25,7 @@ export default function AdminRadius() {
         if (!j.values) return;
         setD(j);
         setCallKm(String(j.values.call));
+        setCallCost(String(j.values.cost));
       })
       .catch(() => setMsg("불러오지 못했습니다."));
   }, []);
@@ -37,12 +39,19 @@ export default function AdminRadius() {
     if (!r.ok) return setMsg(j.error ?? "저장하지 못했습니다.");
     setD({ ...d, values: j.values });
     setCallKm(String(j.values.call));
+    setCallCost(String(j.values.cost));
     setMsg(done);
   };
 
   const saveCall = (e: React.FormEvent) => {
     e.preventDefault();
     void save({ call: Number(callKm) }, `CALL 반경을 ${Number(callKm)}km로 저장했습니다. 다음 호출부터 바로 적용됩니다.`);
+  };
+
+  const saveCost = (e: React.FormEvent) => {
+    e.preventDefault();
+    const c = Number(callCost);
+    void save({ cost: c }, c === 0 ? "CALL을 무료로 저장했습니다. 다음 호출부터 바로 적용됩니다." : `CALL 차감 크레딧을 ${c.toLocaleString("ko-KR")}으로 저장했습니다. 다음 호출부터 바로 적용됩니다.`);
   };
 
   return (
@@ -54,6 +63,15 @@ export default function AdminRadius() {
           <input data-block-id="F216" className={input} type="number" step="0.5" min="0.5" max="20" value={callKm} onChange={(e) => setCallKm(e.target.value)} aria-label="CALL 호출 반경 km" />
           <button data-block-id="B222" data-block-name="호출 반경 저장" disabled={busy} className="min-h-0 rounded-xl bg-accent px-4 py-2 text-[15px] font-semibold text-white disabled:opacity-50">저장</button>
         </div>
+      </form>
+      <form onSubmit={saveCost} className="space-y-2" data-block-id="S115" data-block-name="CALL 차감 크레딧">
+        <p className="text-[15px] font-semibold text-ink">CALL 차감 크레딧</p>
+        <p className="text-[13px] text-sub">CALL 1회에 차감할 크레딧입니다. 회원이 많아지기 전까지는 0(무료)으로 두세요. 0이면 차감도 환불도 하지 않아요. 0 ~ 10,000, 100 단위.</p>
+        <div className="flex items-center gap-2">
+          <input data-block-id="F217" className={input} type="number" step="100" min="0" max="10000" value={callCost} onChange={(e) => setCallCost(e.target.value)} aria-label="CALL 차감 크레딧" />
+          <button data-block-id="B223" data-block-name="차감 크레딧 저장" disabled={busy} className="min-h-0 rounded-xl bg-accent px-4 py-2 text-[15px] font-semibold text-white disabled:opacity-50">저장</button>
+        </div>
+        <p className="text-[13px] text-sub">현재: {Number(d.values.cost) === 0 ? "무료" : `${Number(d.values.cost).toLocaleString("ko-KR")} 크레딧`}</p>
       </form>
       {ROWS.map(([key, label, hint]) => (
         <div key={key} className="space-y-2">
