@@ -4,6 +4,7 @@ import { adjust, spend } from "./credits";
 import { contactLabel } from "./types";
 import { boundingBox } from "./radius";
 import { REASON_LABEL, getRules } from "./credits";
+import { allowedTags, getKeywords } from "./keywords";
 
 export const DEFAULT_CALL_RADIUS_KM = 5;
 /** CALL 1회 차감 크레딧 기본값. 회원이 많아지기 전까지는 0(무료)이고, 관리자 반경 탭에서 바꾼다. */
@@ -121,39 +122,99 @@ export async function callDrivers(me: string, postId: string, lat: number, lng: 
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return { error: "현재 위치를 확인하지 못했어요. 위치 권한을 허용하고 다시 시도해 주세요." } as const;
   }
-  const mine = await sql`select origin, dest, origin_lat, origin_lng, status from posts where id = ${postId} and user_id = ${me}`;
+  const mine = await sql`select origin, dest, status from posts where id = ${postId} and user_id = ${me}`;
   if (!mine.length) return { error: "내가 올린 글만 호출할 수 있어요." } as const;
   const p = mine[0];
   if (p.status !== "open") return { error: "진행 중이거나 닫힌 글은 호출할 수 없어요." } as const;
+  // 내 글을 지금 시간으로 다시 올린 뒤 그 글로 호출한다.
+  return sendCall(me, lat, lng, String(p.origin), String(p.dest), `글 ${postId.slice(0, 8)}`, postId, async () => {
+    const copied = await sql`insert into posts (user_id, role, kind, cost, origin, dest, depart_at, seats, note, status, origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share)
+      select user_id, role, 'trip', cost, origin, dest, now(), seats, note, 'open', origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share
+      from posts where id = ${postId} and user_id = ${me} returning id`;
+    return copied.length ? String(copied[0].id) : null;
+  });
+}
+
+export type QuickCallInput = {
+  origin: string;
+  dest: string;
+  oLat: number | null;
+  oLng: number | null;
+  dLat: number | null;
+  dLng: number | null;
+  /** 감사 표시 키워드 id(음료·쿠폰·기타 중 하나). 없으면 빈 문자열 */
+  gift: string;
+  lat: number;
+  lng: number;
+};
+
+/**
+ * 빠른 호출: 등록된 내 글이 없어도 현재 위치(출발지 기본)와 도착지만 골라 호출한다.
+ * 감사 표시는 무료 운행 키워드 중 하나를 고른다. 호출 글은 이때 새로 만들어 호출 기록에 연결한다.
+ */
+export async function quickCall(me: string, v: QuickCallInput) {
+  const sql = db();
+  const cr = await callerReady(me);
+  if (!cr.ready) return { error: "CALL을 쓰려면 프로필에서 연락 방법과 아이디를 먼저 등록해 주세요." } as const;
+  if (!Number.isFinite(v.lat) || !Number.isFinite(v.lng) || Math.abs(v.lat) > 90 || Math.abs(v.lng) > 180) {
+    return { error: "현재 위치를 확인하지 못했어요. 위치 권한을 허용하고 다시 시도해 주세요." } as const;
+  }
+  const origin = v.origin.trim().slice(0, 100);
+  const dest = v.dest.trim().slice(0, 100);
+  if (!origin || !dest) return { error: "출발지와 도착지를 골라 주세요." } as const;
+  const kw = await getKeywords();
+  const tags = allowedTags(kw, v.gift ? [v.gift] : [], "rider", "free").filter((id) => kw.gift.some((k) => k.id === id));
+  const oLat = v.oLat ?? v.lat;
+  const oLng = v.oLng ?? v.lng;
+  return sendCall(me, v.lat, v.lng, origin, dest, "빠른 호출", null, async () => {
+    const rows = await sql`insert into posts (user_id, role, kind, cost, origin, dest, depart_at, seats, note, status, origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share)
+      values (${me}, 'rider', 'trip', 'free', ${origin}, ${dest}, now(), 1, '', 'open', ${oLat}, ${oLng}, ${v.dLat}, ${v.dLng}, 0, ${tags}::text[], false)
+      returning id`;
+    return rows.length ? String(rows[0].id) : null;
+  });
+}
+
+/**
+ * 호출 공통 처리: 오늘 횟수·반경·차감, 호출 글 준비(makePost), 호출 기록, 운전자 푸시.
+ * 알릴 운전자가 없으면 크레딧을 쓰기 전에 멈춘다. 글을 못 만든 기술 오류만 차감을 돌려준다.
+ */
+async function sendCall(
+  me: string,
+  lat: number,
+  lng: number,
+  origin: string,
+  dest: string,
+  memo: string,
+  sourcePostId: string | null,
+  makePost: () => Promise<string | null>,
+) {
+  const sql = db();
   const st = await callStatus(me);
   if (st.left <= 0) return { error: `오늘 CALL은 ${DAILY_CALL_LIMIT}번까지 쓸 수 있어요. 내일 다시 이용해 주세요.` } as const;
   const radiusKm = await getCallRadiusKm();
   const cost = await getCallCost();
-  // 알릴 운전자가 없으면 크레딧을 쓰기 전에 멈춘다.
   const ids = await findDrivers(me, lat, lng, radiusKm);
   if (!ids.length) return { error: "근처에 알릴 운전자가 없어요. 호출하지 않았고 크레딧도 차감되지 않았어요." } as const;
   // 차감 기준이 0이면 크레딧을 쓰지도 돌려주지도 않는다.
   if (cost > 0) {
-    const paid = await spend(me, cost, "call", `글 ${postId.slice(0, 8)}`);
+    const paid = await spend(me, cost, "call", memo);
     if (!paid) {
       const guide = await chargeGuide();
       return { error: `크레딧이 부족해요. CALL에는 ${cost.toLocaleString("ko-KR")} 크레딧이 필요해요. ${guide}` } as const;
     }
   }
-  const copied = await sql`insert into posts (user_id, role, kind, cost, origin, dest, depart_at, seats, note, status, origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share)
-    select user_id, role, 'trip', cost, origin, dest, now(), seats, note, 'open', origin_lat, origin_lng, dest_lat, dest_lng, price, tags, taxi_share
-    from posts where id = ${postId} and user_id = ${me} returning id`;
-  if (!copied.length) {
+  const postId = await makePost();
+  if (!postId) {
     if (cost > 0) await adjust(me, cost, "CALL 실패 환불").catch(() => null);
     return { error: cost > 0 ? "글을 다시 올리지 못했어요. 크레딧은 돌려 드렸어요." : "글을 다시 올리지 못했어요." } as const;
   }
-  const call = await sql`insert into calls (caller, post_id, radius_km, caller_lat, caller_lng) values (${me}, ${String(copied[0].id)}, ${radiusKm}, ${lat}, ${lng}) returning id`;
+  const call = await sql`insert into calls (caller, post_id, source_post_id, radius_km, caller_lat, caller_lng) values (${me}, ${postId}, ${sourcePostId}, ${radiusKm}, ${lat}, ${lng}) returning id`;
   const callId = String(call[0].id);
-  if (ids.length) await sql`insert into call_recipients (call_id, user_id) select ${callId}, unnest(${ids}::uuid[]) on conflict do nothing`;
+  await sql`insert into call_recipients (call_id, user_id) select ${callId}, unnest(${ids}::uuid[]) on conflict do nothing`;
   const title = "주변 탑승자가 호출했어요";
-  const body = pushText.cut(`${String(p.origin)} → ${String(p.dest)} · 내 위치 반경 ${radiusKm}km · 수락하면 연락처가 보여요`, 120);
+  const body = pushText.cut(`${origin} → ${dest} · 내 위치 반경 ${radiusKm}km · 수락하면 연락처가 보여요`, 120);
   await Promise.all(ids.map((id) => sendPush(id, { title, body, url: `/?call=${callId}`, tag: `call-${callId}` })));
-  return { ok: true, callId, notified: ids.length, radiusKm, spent: cost, newPostId: String(copied[0].id) } as const;
+  return { ok: true, callId, notified: ids.length, radiusKm, spent: cost, newPostId: postId } as const;
 }
 
 /** 받은 호출 한 건(받은 회원에게만) */

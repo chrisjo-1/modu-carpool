@@ -32,6 +32,8 @@ export type Post = {
   /** 내 글이 다른 회원에게 보이지 않는 이유 */
   hidden?: "" | "test" | "closed" | "expired" | "blocked";
   ended?: boolean;
+  /** CALL을 보낸 기록. 개수·알림·수락 인원은 글 주인(mine)에게만 채워진다. */
+  call?: { count: number; notified: number; accepts: number; at: number; mine: boolean } | null;
   demo?: boolean;
   ownerTest?: boolean;
   createdAt?: number;

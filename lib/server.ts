@@ -553,6 +553,10 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   // CALL을 보낼 때의 호출자 현위치(호출 기록용)
   await sql`alter table calls add column if not exists caller_lat double precision`;
   await sql`alter table calls add column if not exists caller_lng double precision`;
+  // CALL을 보낸 원래 글(내 글 호출일 때). 원래 글에도 CALL 표시를 남기려고 쓴다. 빠른 호출은 비어 있다.
+  await sql`alter table calls add column if not exists source_post_id uuid`;
+  await sql`create index if not exists calls_post_idx on calls (post_id)`;
+  await sql`create index if not exists calls_source_idx on calls (source_post_id)`;
   // 도움말(튜토리얼·자주 묻는 질문·의견 안내). 관리자 화면에서 고친다.
   await sql`create table if not exists help_items (
     id bigserial primary key,

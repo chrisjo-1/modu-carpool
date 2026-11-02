@@ -271,7 +271,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
                 <Card className="space-y-3 p-5">
                   <div className="flex items-center justify-between gap-2">
                     <PostTags post={p} />
-                    <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "closed" && <Tag>{t("마감")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
+                    <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "closed" && <Tag>{t("마감")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.call && <Tag tone="mint">{p.call.count > 1 ? `CALL ${p.call.count}` : "CALL"}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
                   </div>
                   <Route origin={p.origin} dest={p.dest} originArea={p.originArea} destArea={p.destArea} />
                   <KeywordChips post={p} max={2} />
@@ -372,6 +372,12 @@ export function PostDetail({
         <PostTags post={post} />
         <Route origin={post.origin} dest={post.dest} originArea={post.originArea} destArea={post.destArea} />
         <KeywordChips post={post} />
+        {post.call && (
+          <div data-block-id="C460" data-block-name="CALL 기록" className="space-y-1 rounded-2xl bg-mintSoft px-4 py-3 text-[14px] text-mint">
+            <p className="font-semibold">CALL {post.call.count}{t("번 보냈어요")} · {when(post.call.at, lang)}</p>
+            {post.call.mine && <p>{t("알림")} {post.call.notified.toLocaleString("ko-KR")}{t("명 · 수락")} {post.call.accepts.toLocaleString("ko-KR")}{t("명")}</p>}
+          </div>
+        )}
         <dl className="space-y-2 text-[16px]">
           {post.regular && <div className="flex justify-between"><dt className="text-sub">{t("일정")}</dt><dd className="num font-semibold">{scheduleText(post, lang)}</dd></div>}
           <div className="flex justify-between"><dt className="text-sub">{t("출발")}</dt><dd className="num font-semibold">{when(post.departAt, lang)}</dd></div>

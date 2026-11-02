@@ -1,4 +1,4 @@
-import { acceptCall, callDrivers, callStatus, callerReady, getCallCost, getCallRadiusKm, incomingCall, nearbyBand } from "@/lib/call";
+import { acceptCall, callDrivers, callStatus, callerReady, getCallCost, getCallRadiusKm, incomingCall, nearbyBand, quickCall } from "@/lib/call";
 import { contactLabel } from "@/lib/types";
 import { PHOTO_REQUIRED, hasPhoto } from "@/lib/verify";
 import { body, currentUserId, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
@@ -43,6 +43,26 @@ export async function POST(req: Request) {
     if (b.action === "accept") {
       if (!isUuid(b.callId)) return json({ error: "잘못된 요청입니다." }, 400);
       const r = await acceptCall(me, String(b.callId));
+      if ("error" in r) return json({ error: r.error }, 400);
+      return json(r);
+    }
+    // 빠른 호출: 내 글 없이 현재 위치 → 도착지 + 감사 표시
+    if (b.quick === true) {
+      const num = (x: unknown) => (x == null || x === "" ? null : Number.isFinite(Number(x)) ? Number(x) : null);
+      const lat = num(b.lat);
+      const lng = num(b.lng);
+      if (lat == null || lng == null) return json({ error: "현재 위치를 확인하지 못했어요. 위치 권한을 허용하고 다시 시도해 주세요." }, 400);
+      const r = await quickCall(me, {
+        origin: String(b.origin ?? ""),
+        dest: String(b.dest ?? ""),
+        oLat: num(b.oLat),
+        oLng: num(b.oLng),
+        dLat: num(b.dLat),
+        dLng: num(b.dLng),
+        gift: String(b.gift ?? ""),
+        lat,
+        lng,
+      });
       if ("error" in r) return json({ error: r.error }, 400);
       return json(r);
     }

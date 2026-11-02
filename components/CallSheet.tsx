@@ -69,7 +69,7 @@ export function FloatingCall({ toast, onGoProfile, onSubway, onSubwaySetup }: { 
   );
 }
 
-type Step = "choose" | "pick" | "confirm" | "taxi" | "subway";
+type Step = "choose" | "pick" | "quick" | "confirm" | "taxi" | "subway";
 
 function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { onClose: () => void; toast: (m: string) => void; onGoProfile?: () => void } & SubwayGo) {
   const t = useT();
@@ -143,21 +143,22 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
 
   const pickStep = async () => {
     if (ready === false) return;
+    // 등록된 내 글이 없으면 도착지만 고르는 빠른 호출로 바로 간다.
+    if (mine) return setStep(mine.length > 0 ? "pick" : "quick");
     setStep("pick");
-    if (mine) return;
     const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
     if (!r.ok) return toast(t(r.error));
     // 같은 출발지·도착지 글은 한 건만 보여 준다(최신 글 우선). 호출은 그 글 기준으로 나간다.
     const seen = new Set<string>();
-    setMine(
-      r.data.posts.filter((p) => {
-        if (p.status !== "open" || p.originLat == null || p.originLng == null) return false;
-        const key = `${p.origin}|${p.dest}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      }),
-    );
+    const list = r.data.posts.filter((p) => {
+      if (p.status !== "open" || p.originLat == null || p.originLng == null) return false;
+      const key = `${p.origin}|${p.dest}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    setMine(list);
+    if (list.length === 0) setStep("quick");
   };
 
   const taxi = () => setStep("taxi");
@@ -260,6 +261,16 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
           <button type="button" className={btnGhost} onClick={() => setStep("choose")}>{t("뒤로")}</button>
         </div>
       )}
+      {step === "quick" && (
+        <QuickCall
+          cost={cost}
+          radius={radius}
+          callsLeft={callsLeft}
+          onBack={() => setStep("choose")}
+          onDone={onClose}
+          toast={toast}
+        />
+      )}
       {step === "subway" && ride && (
         <div className="space-y-4" data-block-id="S012" data-block-name="지하철 호출 확인">
           <div className="space-y-2 rounded-2xl bg-violetSoft px-4 py-4">
@@ -307,6 +318,88 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
         </div>
       )}
     </Sheet>
+  );
+}
+
+/** 빠른 호출: 내 글 없이 출발지(기본 현재 위치)·도착지를 고르고, 감사 표시를 정해 바로 호출한다. */
+function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: number; radius: number | null; callsLeft: number | null; onBack: () => void; onDone: () => void; toast: (m: string) => void }) {
+  const t = useT();
+  const [origin, setOrigin] = useState<Place>({ name: "", lat: null, lng: null });
+  const [dest, setDest] = useState<Place>({ name: "", lat: null, lng: null });
+  const [gifts, setGifts] = useState<{ id: string; label: string }[]>([]);
+  const [gift, setGift] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api<{ keywords: { gift: { id: string; label: string }[] } }>("/api/keywords").then((r) => {
+      if (r.ok) setGifts(r.data.keywords.gift);
+    });
+  }, []);
+
+  const send = async () => {
+    setErr("");
+    if (!dest.name.trim()) return setErr(t("도착지를 골라 주세요."));
+    setBusy(true);
+    const here = await currentHere();
+    if (!here) {
+      setBusy(false);
+      return setErr(t("현재 위치를 확인하지 못했어요. 위치 권한을 허용하고 다시 시도해 주세요."));
+    }
+    const r = await api<{ notified: number }>("/api/call", "POST", {
+      quick: true,
+      origin: origin.name.trim() || t("현재 위치"),
+      dest: dest.name,
+      oLat: origin.lat,
+      oLng: origin.lng,
+      dLat: dest.lat,
+      dLng: dest.lng,
+      gift,
+      lat: here.lat,
+      lng: here.lng,
+    });
+    setBusy(false);
+    if (!r.ok) return setErr(t(r.error));
+    toast(r.data.notified > 0 ? `${t("운전자")} ${r.data.notified.toLocaleString("ko-KR")}${t("명에게 알림을 보냈어요.")}` : t("반경 안에 알릴 운전자가 없어요."));
+    onDone();
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-sub">{t("등록된 카풀이 없어도 바로 부를 수 있어요. 출발지는 현재 위치가 기본이고, 도착지만 고르면 돼요.")}</p>
+      <PlaceField blockId="F105" label={t("출발지")} placeholder={t("현재 위치 (직접 입력도 가능)")} value={origin} onChange={setOrigin} locate toast={toast} />
+      <PlaceField blockId="F106" label={t("도착지")} placeholder={t("예: 여의도역 2번 출구")} value={dest} onChange={setDest} toast={toast} />
+      <div className="space-y-2">
+        <p className="text-[14px] font-semibold text-ink">{t("감사 표시")}</p>
+        <div role="radiogroup" aria-label={t("감사 표시")} className="flex flex-wrap gap-2">
+          {[{ id: "", label: t("없음") }, ...gifts].map((g) => (
+            <button
+              key={g.id || "none"}
+              type="button"
+              role="radio"
+              aria-checked={gift === g.id}
+              onClick={() => setGift(g.id)}
+              className={`min-h-0 rounded-full border px-4 py-2 text-[15px] ${gift === g.id ? "border-mint bg-mintSoft font-semibold text-mint" : "border-line bg-white text-sub"}`}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Card className="space-y-1 p-4">
+        <p className="text-sm text-sub">
+          {radius !== null ? `${t("현재 위치 기준")} ${t("반경")} ${radius}km ${t("안의 운전자에게 알림을 보냅니다.")}` : t("현재 위치 주변의 운전자에게 알림을 보냅니다.")}
+        </p>
+        <p className={`text-sm font-semibold ${cost > 0 ? "text-warn" : "text-mint"}`}>
+          {cost > 0 ? `${t("CALL은")} ${cost.toLocaleString("ko-KR")} ${t("크레딧이 차감됩니다.")}` : t("CALL은 지금 무료예요.")}
+        </p>
+      </Card>
+      {err && <p role="alert" className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{err}</p>}
+      <button type="button" data-block-id="B281" data-block-name="빠른 호출 보내기" className={btnRider} disabled={busy || callsLeft === 0} onClick={send}>
+        {busy ? t("처리 중…") : `${t("빠른 호출 보내기")} (${cost > 0 ? `${cost.toLocaleString("ko-KR")} ${t("크레딧")}` : t("무료")})`}
+      </button>
+      <button type="button" className={btnGhost} onClick={onBack}>{t("뒤로")}</button>
+    </div>
   );
 }
 

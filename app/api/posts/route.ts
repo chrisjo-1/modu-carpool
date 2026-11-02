@@ -48,11 +48,19 @@ export async function GET(req: Request) {
     const rows = mine
       ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, u.blocked as owner_blocked,
                          (not p.regular and p.depart_at <= now() - interval '7 days') as expired,
-                         (not p.regular and p.depart_at <= now()) as ended
+                         (not p.regular and p.depart_at <= now()) as ended,
+                         (select count(*)::int from calls c where c.post_id = p.id or c.source_post_id = p.id) as call_count,
+                         (select count(*)::int from call_recipients r join calls c on c.id = r.call_id where c.post_id = p.id or c.source_post_id = p.id) as call_notified,
+                         (select count(*)::int from call_accepts a join calls c on c.id = a.call_id where c.post_id = p.id or c.source_post_id = p.id) as call_accepts,
+                         (select max(c.created_at) from calls c where c.post_id = p.id or c.source_post_id = p.id) as call_at
                   from posts p join users u on u.id = p.user_id
                   where p.user_id = ${me} order by p.regular desc, p.depart_at desc limit 100`
       : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, false as owner_blocked, false as expired,
-                         (not p.regular and p.depart_at <= now()) as ended
+                         (not p.regular and p.depart_at <= now()) as ended,
+                         (select count(*)::int from calls c where c.post_id = p.id or c.source_post_id = p.id) as call_count,
+                         (select count(*)::int from call_recipients r join calls c on c.id = r.call_id where c.post_id = p.id or c.source_post_id = p.id) as call_notified,
+                         (select count(*)::int from call_accepts a join calls c on c.id = a.call_id where c.post_id = p.id or c.source_post_id = p.id) as call_accepts,
+                         (select max(c.created_at) from calls c where c.post_id = p.id or c.source_post_id = p.id) as call_at
                   from posts p join users u on u.id = p.user_id
                   where (p.status in ('open', 'progress') or (p.status = 'closed' and not u.test and not p.demo))
                     and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown)
@@ -96,6 +104,8 @@ export async function GET(req: Request) {
       mine: !!me && r.user_id === me,
       // 출발 시각이 지난 일회성 글: 목록에 '종료'로 남고 신청은 받지 않는다.
       ended: !!r.ended,
+      // CALL을 보낸 기록이 있는 글(원래 글과 그 호출 글 모두). 개수·알림·수락은 글 주인에게만 보인다.
+      call: Number(r.call_count ?? 0) > 0 ? (() => { const mineCall = !!me && r.user_id === me; return { count: Number(r.call_count), notified: mineCall ? Number(r.call_notified ?? 0) : 0, accepts: mineCall ? Number(r.call_accepts ?? 0) : 0, at: r.call_at ? new Date(r.call_at as string).getTime() : 0, mine: mineCall }; })() : null,
       // 최신순에서 실사용자 글을 임시글·테스트 계정 글보다 위에 두기 위한 표시
       demo: r.demo === true,
       ownerTest: r.owner_test === true,
