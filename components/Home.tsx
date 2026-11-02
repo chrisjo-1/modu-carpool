@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import CarInput from "./CarInput";
 import { areaLabel } from "@/lib/areaLabel";
+import { matchesFor, type PostMatch } from "@/lib/postMatch";
 import { HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
 import { Bubble, useHintTap, RoleTag, Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, btnRole, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
@@ -132,6 +133,8 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   // 키워드 필터: 고른 키워드 중 하나라도 붙은 글만 (여러 개 고르면 OR)
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
+  // 내 글만 모아 보기. 켜면 각 내 글 아래에 매칭률 높은 상대 글을 보여 준다(2026-11-02).
+  const [mineOnly, setMineOnly] = useState(false);
   // 정렬: 최신순(기본) · 가까운 순(내 위치 필요) · 출발 임박순
   const [sort, setSort] = useState<"soon" | "new" | "near">("new");
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
@@ -181,6 +184,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     setRole("all");
     setQ("");
     setRegularOnly(false);
+    setMineOnly(false);
     setSort("new");
   };
   /** 내 위치에서 글의 출발지까지 거리(km). 위치가 없는 글은 null. */
@@ -192,6 +196,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
       (p) =>
         (role === "all" || p.role === role) &&
         (!regularOnly || !!p.regular) &&
+        (!mineOnly || p.mine) &&
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
         (!k || `${p.origin} ${p.dest} ${p.note} ${(p.tags ?? []).map((x) => x.label).join(" ")} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
     );
@@ -210,11 +215,19 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, role, q, regularOnly, lang, here, sort]);
+  }, [posts, role, q, regularOnly, mineOnly, lang, here, sort]);
+
+  // 내 글마다 매칭률 높은 상대 글 3개(내 글 모아 보기일 때만 계산). 상대는 전체 글에서 찾는다.
+  const matchMap = useMemo(() => {
+    if (!mineOnly) return null;
+    const m: Record<string, PostMatch[]> = {};
+    for (const p of posts) if (p.mine) m[p.id] = matchesFor(p, posts);
+    return m;
+  }, [posts, mineOnly]);
 
   useEffect(() => {
     setShown(PAGE);
-  }, [q, role, regularOnly, sort, here]);
+  }, [q, role, regularOnly, mineOnly, sort, here]);
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
@@ -240,6 +253,9 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
                 {label}
               </button>
             ))}
+            <button type="button" data-block-id="B008" data-block-name="내 글 모아보기" role="switch" aria-checked={mineOnly} onClick={() => setMineOnly((v) => !v)} className={`min-h-[44px] whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${mineOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+              {t("내 글")}
+            </button>
           </div>
           <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`ml-auto min-h-[44px] whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${regularOnly ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
             {t("정기카풀")}
@@ -281,6 +297,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
                   </div>
                 </Card>
               </button>
+              {matchMap && <MyMatches matches={matchMap[p.id] ?? []} onOpen={onOpen} />}
             </li>
           ))}
         </ul>
@@ -297,6 +314,32 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
       {incomingId && <IncomingCall callId={incomingId} toast={toast} onClose={() => { setIncomingId(null); window.history.replaceState(null, "", "/"); }} />}
       {incomingTaxiId && <IncomingTaxiCall callId={incomingTaxiId} toast={toast} onClose={() => { setIncomingTaxiId(null); window.history.replaceState(null, "", "/"); }} />}
     </section>
+  );
+}
+
+/** 내 글 아래 매칭률 높은 상대 글(반대 역할, 반경 안·가는 길 위). 누르면 그 글을 연다. */
+function MyMatches({ matches, onOpen }: { matches: PostMatch[]; onOpen: (p: Post) => void }) {
+  const t = useT();
+  if (matches.length === 0) return <p className="px-1 pt-2 text-[13px] text-sub">{t("지금 반경 3km 안에 맞는 상대 글이 없어요.")}</p>;
+  return (
+    <div className="mt-2 space-y-1.5 rounded-2xl bg-bg p-3">
+      <p className="text-[13px] font-semibold text-sub">{t("매칭률 높은 상대")}</p>
+      {matches.map((m) => (
+        <button key={m.post.id} type="button" data-block-id="C945" data-block-name="내 글 매칭 상대" onClick={() => onOpen(m.post)} className="flex w-full items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 text-left">
+          <span className="min-w-0">
+            <span className="block truncate text-[14px] text-ink">{m.post.origin} → {m.post.dest}</span>
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[12px] text-sub">
+              <span>{m.post.role === "driver" ? t("운전자") : t("탑승자")}</span>
+              <span>· {kmText(m.originKm)}</span>
+              {m.routePct != null && <span>· {t("경로 일치")} {m.routePct}%</span>}
+              {m.timeOk === true && <span className="text-accent">· {t("시간 맞음")}</span>}
+              {m.onRoute && <span>· {t("가는 길 위")}</span>}
+            </span>
+          </span>
+          <span className="num shrink-0 text-[17px] font-bold text-accent">{m.pct}%</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
