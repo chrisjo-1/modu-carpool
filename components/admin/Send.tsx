@@ -7,6 +7,8 @@ type Campaign = { id: string; created_at: number; title: string; category: strin
 type Summary = { count: number; pool: number; excludedBySubject: number; excludedByCampaigns: number; newWarp: number; legacyJoined: number; unjoined: number };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
 type Run = { id: number; created_at: number; source: string; campaign_title: string; sent: number; held: string | null; done: boolean; ms: number; note: string };
+type LogRow = { created_at: number; to_email: string; status: string; error: string; opened: boolean; clicked: boolean };
+type LogData = { title: string; totals: { sent: number; failed: number; blocked: number; opened: number; clicked: number }; rows: LogRow[]; more: boolean; next: number | null };
 type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[]; runs: Run[] };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -50,6 +52,13 @@ export default function AdminSend() {
   // 지금 고치는 초안(없으면 새 글). 저장하면 이 초안이 갱신된다.
   const [draftId, setDraftId] = useState("");
   const [uploading, setUploading] = useState(false);
+  // 캠페인별 받은 사람 기록(열어 본 캠페인 하나)
+  const [logId, setLogId] = useState<string | null>(null);
+  const [logData, setLogData] = useState<LogData | null>(null);
+  const [logRows, setLogRows] = useState<LogRow[]>([]);
+  const [logStatus, setLogStatus] = useState("");
+  const [logQ, setLogQ] = useState("");
+  const [logBusy, setLogBusy] = useState(false);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/admin/campaigns");
@@ -115,6 +124,25 @@ export default function AdminSend() {
     setMsg(j.done ? `"${c.title}"을(를) 완료로 정리했어요.` : `"${c.title}"에는 아직 나가지 않은 대상 ${j.left}명이 남아 있어요. 이어서 보내거나 취소해 주세요.`);
     load();
   };
+
+  // 받은 사람 기록: 처음 불러오기(status·q 적용) 또는 '더 보기'(before 커서로 이어 붙이기)
+  const loadLog = async (id: string, status: string, q: string, before?: number) => {
+    setLogBusy(true);
+    const p = new URLSearchParams({ status, q, limit: "100" });
+    if (before) p.set("before", String(before));
+    const r = await fetch(`/api/admin/campaigns/${id}/log?${p}`);
+    const j = await r.json().catch(() => ({}));
+    setLogBusy(false);
+    if (!r.ok) return setMsg(j.error ?? "받은 사람 기록을 불러오지 못했습니다.");
+    const data = j as LogData;
+    setLogData(data);
+    setLogRows((prev) => (before ? [...prev, ...data.rows] : data.rows));
+  };
+  const openLog = (c: Campaign) => {
+    setLogId(c.id); setLogStatus(""); setLogQ(""); setLogRows([]); setLogData(null);
+    loadLog(c.id, "", "");
+  };
+  const closeLog = () => { setLogId(null); setLogData(null); setLogRows([]); };
 
   const sendTest = async () => {
     setBusy(true); setMsg("");
@@ -391,6 +419,7 @@ export default function AdminSend() {
                   <td className="p-3">{c.sent} / {c.failed}{c.retry > 0 ? <span className="block text-xs text-sub">한도 초과 {c.retry}명 · 다시 보낼 수 있음</span> : null}</td>
                   <td className="p-3 whitespace-nowrap">{c.sent > 0 ? <>열람 {c.opened ?? 0} <span className="text-xs text-sub">({Math.round(((c.opened ?? 0) / c.sent) * 100)}%)</span><span className="block">클릭 {c.clicked ?? 0} <span className="text-xs text-sub">({Math.round(((c.clicked ?? 0) / c.sent) * 100)}%)</span></span></> : "—"}</td>
                   <td className="p-3 whitespace-nowrap">
+                    <button className={`${btn} mb-2`} onClick={() => openLog(c)}>받은 사람 보기</button>
                     {c.status === "sending" && !running && (
                       <button className={`${btn} mb-2`} onClick={() => settle(c)}>완료로 정리</button>
                     )}
@@ -416,6 +445,54 @@ export default function AdminSend() {
             </tbody>
           </table>
         </div>
+        {logId && (
+          <div data-block-id="C443" data-block-name="캠페인 받은 사람" className="grid gap-3 rounded-2xl border border-line bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-[16px] font-bold">받은 사람 · {logData?.title ?? "불러오는 중"}</h3>
+              <button className={btn} onClick={closeLog}>닫기</button>
+            </div>
+            {logData && (
+              <p className="text-[14px] text-sub">
+                보냄 {logData.totals.sent.toLocaleString()} · 실패 {logData.totals.failed.toLocaleString()} · 차단 {logData.totals.blocked.toLocaleString()}
+                {" · "}열람 {logData.totals.opened.toLocaleString()} · 클릭 {logData.totals.clicked.toLocaleString()}
+              </p>
+            )}
+            <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (logId) loadLog(logId, logStatus, logQ.trim()); }}>
+              <select className={input} style={{ width: "auto" }} value={logStatus} onChange={(e) => { setLogStatus(e.target.value); if (logId) loadLog(logId, e.target.value, logQ.trim()); }}>
+                <option value="">전체</option>
+                <option value="sent">보냄</option>
+                <option value="failed">실패</option>
+                <option value="blocked">차단(보내지 않음)</option>
+              </select>
+              <input className={input} style={{ maxWidth: 260 }} placeholder="이메일 검색" value={logQ} onChange={(e) => setLogQ(e.target.value)} />
+              <button type="submit" className={btn} disabled={logBusy}>찾기</button>
+            </form>
+            <div className="overflow-x-auto rounded-xl border border-line">
+              <table className="w-full text-left text-[14px]">
+                <thead className="bg-bg text-sub">
+                  <tr><th className="p-3">시각</th><th className="p-3">받는 사람</th><th className="p-3">결과</th><th className="p-3">열람·클릭</th><th className="p-3">사유</th></tr>
+                </thead>
+                <tbody>
+                  {logRows.length === 0 && !logBusy && <tr><td className="p-4 text-sub" colSpan={5}>조건에 맞는 기록이 없습니다.</td></tr>}
+                  {logRows.map((r, i) => (
+                    <tr key={`${r.created_at}-${r.to_email}-${i}`} className="border-t border-line">
+                      <td className="p-3 whitespace-nowrap">{when(r.created_at)}</td>
+                      <td className="p-3">{r.to_email}</td>
+                      <td className="p-3">{r.status === "sent" ? "보냄" : r.status === "failed" ? "실패" : r.status === "blocked" ? "차단" : r.status}</td>
+                      <td className="p-3 whitespace-nowrap">{r.status === "sent" ? `${r.opened ? "열람" : "안 봄"}${r.clicked ? " · 클릭" : ""}` : "—"}</td>
+                      <td className="p-3 text-[13px] text-sub">{r.error}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {logData?.more && (
+              <button className={btn} disabled={logBusy} onClick={() => logId && logData.next && loadLog(logId, logStatus, logQ.trim(), logData.next)}>
+                {logBusy ? "불러오는 중…" : "더 보기"}
+              </button>
+            )}
+          </div>
+        )}
       </section>
       <section className="grid gap-3">
         <h2 className="text-[18px] font-bold">자동 발송 실행 기록 <span className="text-sm font-normal text-sub">매일 9시 10분·12시 10분 실행, 최근 100건</span></h2>
