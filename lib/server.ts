@@ -597,6 +597,27 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`create index if not exists posts_user_idx on posts (user_id)`;
   await sql`create index if not exists chat_reads_req_idx on chat_reads (request_id, user_id)`;
   // 마음 상담 예약. 응답 원문은 저장하지 않고 지수·단계만. 상담 시각이 지나고 180일 뒤 지운다(maintainData).
+  await sql`create table if not exists safety_sessions (
+    id uuid primary key default gen_random_uuid(),
+    request_id uuid not null,
+    requester_id uuid not null,
+    partner_id uuid not null,
+    rider_id uuid not null,
+    requester_phone text not null default '',
+    partner_phone text not null default '',
+    requester_consent_at timestamptz,
+    partner_consent_at timestamptz,
+    status text not null default 'pending',
+    result text not null default '',
+    started_at timestamptz,
+    closed_at timestamptz,
+    pending_since timestamptz,
+    last_answer text not null default '',
+    last_answer_at timestamptz,
+    created_at timestamptz not null default now()
+  )`;
+  await sql`create index if not exists safety_request_idx on safety_sessions (request_id, created_at desc)`;
+  await sql`create index if not exists safety_status_idx on safety_sessions (status, created_at desc)`;
   await sql`create table if not exists counsel_bookings (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references users(id) on delete cascade,

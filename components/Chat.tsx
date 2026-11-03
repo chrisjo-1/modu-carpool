@@ -7,6 +7,7 @@ import { Stars } from "./Member";
 import { Route } from "./Home";
 import type { usePush } from "./Push";
 import ChatBanner from "./ChatBanner";
+import { SafetyBlock } from "./Safety";
 import { RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnPrimary, field, money, scheduleText, useLang, useT } from "./ui";
 
 type Msg = { id: number; mine: boolean; body: string; image?: string; at: number };
@@ -338,6 +339,7 @@ export function ChatRoom({
   return (
     <Sheet title={`${thread.other} · ${thread.origin} → ${thread.dest}`} blockId="S030" onClose={onClose}>
       <div className="space-y-3">
+        <SafetyBlock requestId={thread.id} toast={toast} />
         {thread.otherId && (
           <div className="flex items-center justify-between gap-3">
             <button data-block-id="B032" data-block-name="상대 프로필" className="flex min-h-0 min-w-0 items-center gap-2 font-semibold" onClick={() => onProfile(thread.otherId as string)}>
