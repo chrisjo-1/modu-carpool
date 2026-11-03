@@ -161,14 +161,16 @@ async function stationSearch(base: string, lang: string): Promise<Item[]> {
         lng: Number(f.geometry?.coordinates?.[0]),
       });
     }
-    if (!out.length) {
+    // OSM 은 역 이름을 "구의(광진구청)"처럼 적기도 해서 '지하철역' 검색어도 함께 본다.
+    for (const q of [`${base}역`, `${base} 지하철역`]) {
+      if (out.length) break;
       const n = await get(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=20&countrycodes=kr&q=${encodeURIComponent(`${base}역`)}`,
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=20&countrycodes=kr&q=${encodeURIComponent(q)}`,
         { "User-Agent": UA, "Accept-Language": lang },
       ).catch(() => []);
       for (const x of n as (Record<string, string> & { address?: Record<string, string> })[]) {
         if (x.category !== "railway" || !["station", "halt"].includes(x.type ?? "")) continue;
-        if (!isName(x.name ?? "")) continue;
+        if (!isName(String(x.name ?? "").replace(/\s*\(.*\)$/, ""))) continue;
         const a = x.address ?? {};
         out.push({
           name: `${base}역`,
@@ -276,8 +278,8 @@ async function searchOnce(q: string, lang: string): Promise<Item[]> {
 export async function searchPlaces(q: string, lang = "ko"): Promise<Item[]> {
   const m = q.trim().match(STATION_RE);
   if (m) {
-    const st = await stationSearch(m[1], lang).catch(() => [] as Item[]);
-    if (st.length) return st;
+    // 역 이름으로 찾은 경우에는 가게 이름 결과로 넘어가지 않는다(못 찾으면 빈 결과 → "역을 찾지 못했어요").
+    return stationSearch(m[1], lang).catch(() => [] as Item[]);
   }
   const first = await searchOnce(q, lang);
   if (first.length) return first;
