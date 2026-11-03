@@ -21,8 +21,9 @@ async function get(url: string, headers: Record<string, string>) {
   return res.json();
 }
 
-export async function kakaoSearch(q: string, key: string): Promise<Item[]> {
-  const d = await get(`https://dapi.kakao.com/v2/local/search/keyword.json?size=8&query=${encodeURIComponent(q)}`, { Authorization: `KakaoAK ${key}` });
+export async function kakaoSearch(q: string, key: string, category = ""): Promise<Item[]> {
+  const cat = category ? `&category_group_code=${category}` : "";
+  const d = await get(`https://dapi.kakao.com/v2/local/search/keyword.json?size=8&query=${encodeURIComponent(q)}${cat}`, { Authorization: `KakaoAK ${key}` });
   return ((d.documents ?? []) as Record<string, string>[]).map((x) => ({
     name: x.place_name,
     address: [String(x.category_name ?? "").split(" > ").pop(), x.road_address_name || x.address_name].filter(Boolean).join(" · "),
@@ -126,6 +127,62 @@ async function osmSearch(q: string, lang: string): Promise<Item[]> {
   );
 }
 
+/** "구의역"처럼 역 이름으로 찾는 글자인지(끝이 '역'인 한글 이름) */
+const STATION_RE = /^([가-힣]{1,10})역$/;
+
+/**
+ * 역 이름 검색(2026-11-03): 이름에 '역'이 든 가게 대신 실제 철도·지하철 역만 보여 준다.
+ * 카카오는 지하철역 분류(SW8)로, 무료 지도는 철도 역(railway=station) 표시로 고른다.
+ */
+async function stationSearch(base: string, lang: string): Promise<Item[]> {
+  const isName = (n: string) => n.replace(/역$/, "") === base;
+  const out: Item[] = [];
+  const key = process.env.KAKAO_REST_KEY;
+  if (key && kakaoOn()) {
+    const k = await kakaoSearch(`${base}역`, key, "SW8").catch(() => [] as Item[]);
+    out.push(...k.filter((i) => isName(i.name)));
+  }
+  if (!out.length) {
+    const d = await get(
+      `https://photon.komoot.io/api/?limit=20&lang=${lang === "en" ? "en" : "default"}&bbox=124.5,33,131.9,38.7&q=${encodeURIComponent(`${base}역`)}`,
+      { "User-Agent": UA },
+    ).catch(() => ({ features: [] }));
+    type F = { geometry?: { coordinates?: number[] }; properties?: Record<string, string> };
+    for (const f of (d.features ?? []) as F[]) {
+      const p = f.properties ?? {};
+      if (p.countrycode && p.countrycode !== "KR") continue;
+      if (p.osm_key !== "railway" || !["station", "halt"].includes(p.osm_value ?? "")) continue;
+      const name = p.name ?? "";
+      if (!isName(name)) continue;
+      out.push({
+        name: `${base}역`,
+        address: join([kindOf("railway", "station", lang), join([p.city || p.county || p.state, p.district || p.locality], " ")], " · "),
+        lat: Number(f.geometry?.coordinates?.[1]),
+        lng: Number(f.geometry?.coordinates?.[0]),
+      });
+    }
+    if (!out.length) {
+      const n = await get(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=20&countrycodes=kr&q=${encodeURIComponent(`${base}역`)}`,
+        { "User-Agent": UA, "Accept-Language": lang },
+      ).catch(() => []);
+      for (const x of n as (Record<string, string> & { address?: Record<string, string> })[]) {
+        if (x.category !== "railway" || !["station", "halt"].includes(x.type ?? "")) continue;
+        if (!isName(x.name ?? "")) continue;
+        const a = x.address ?? {};
+        out.push({
+          name: `${base}역`,
+          address: join([kindOf("railway", "station", lang), join([a.city || a.county || a.province, a.borough || a.city_district, a.suburb || a.quarter || a.neighbourhood], " ")], " · "),
+          lat: Number(x.lat),
+          lng: Number(x.lon),
+        });
+      }
+    }
+  }
+  // 같은 역이 여러 번 나오면(노선마다 한 점) 한 번만 보인다(200m 안 같은 이름은 하나로)
+  return tidy(out.map((i) => ({ ...i, weak: false })));
+}
+
 /** 자동완성용 검색을 먼저 쓰고, 실패하거나 결과가 없으면 일반 검색으로 넘어간다. */
 export async function freeSearch(q: string, lang: string): Promise<Item[]> {
   const first = await photonSearch(q, lang).catch((e) => {
@@ -217,6 +274,11 @@ async function searchOnce(q: string, lang: string): Promise<Item[]> {
  * 결과가 없고 여러 낱말이면(예: "세종시 집현동") 뒤 낱말부터 하나씩 다시 찾는다(무료 지도는 "세종시"처럼 줄인 이름을 잘 모른다).
  */
 export async function searchPlaces(q: string, lang = "ko"): Promise<Item[]> {
+  const m = q.trim().match(STATION_RE);
+  if (m) {
+    const st = await stationSearch(m[1], lang).catch(() => [] as Item[]);
+    if (st.length) return st;
+  }
   const first = await searchOnce(q, lang);
   if (first.length) return first;
   const words = q.split(/\s+/).filter((w) => w.length >= 2 && !CITY_WORD.test(w));
