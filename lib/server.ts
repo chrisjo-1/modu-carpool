@@ -597,6 +597,15 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`create index if not exists posts_user_idx on posts (user_id)`;
   await sql`create index if not exists chat_reads_req_idx on chat_reads (request_id, user_id)`;
   // 마음 상담 예약. 응답 원문은 저장하지 않고 지수·단계만. 상담 시각이 지나고 180일 뒤 지운다(maintainData).
+  await sql`create table if not exists ops_log (
+    id bigserial primary key,
+    at timestamptz not null default now(),
+    category text not null default 'admin',
+    actor text not null default '',
+    action text not null,
+    detail text not null default ''
+  )`;
+  await sql`create index if not exists ops_log_at_idx on ops_log (at desc)`;
   await sql`create table if not exists safety_sessions (
     id uuid primary key default gen_random_uuid(),
     request_id uuid not null,

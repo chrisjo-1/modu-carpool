@@ -1,3 +1,4 @@
+import { logOps } from "@/lib/opsLog";
 import { driverTier } from "@/lib/types";
 import { sendSuspendMail } from "@/lib/mail";
 import { authEnabled, body, carPhotoUrl, checkAdminPassword, clearCookie, clientIp, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, photoUrl, setAdminSession, setUserSession, text } from "@/lib/server";
@@ -244,6 +245,7 @@ export async function PATCH(req: Request) {
         const t = b.tierSet === "silver" || b.tierSet === "gold" ? b.tierSet : "";
         const r = await sql`update users set tier_set = ${t} where id = ${b.userId} returning id`;
         if (!r.length) return json({ error: "회원을 찾을 수 없습니다." }, 404);
+        await logOps("admin", "운전자 등급 지정", `${t || "자동 판정"} · 회원 ${String(b.userId).slice(0, 8)}`);
         return json({ ok: true });
       }
       const before = await sql`select email, name, blocked from users where id = ${b.userId}`;

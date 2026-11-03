@@ -1,3 +1,4 @@
+import { logOps } from "@/lib/opsLog";
 import { deliver } from "@/lib/mail";
 import { sendPush } from "@/lib/push";
 import { body, db, ensureSchema, fail, isAdmin, isUuid, json, text } from "@/lib/server";
@@ -80,6 +81,7 @@ export async function POST(req: Request) {
     }
     const summary = result.join(" · ");
     await sql`insert into admin_notify_log (target, channel, title, result) values (${target}, ${channel}, ${title}, ${summary})`;
+    await logOps("admin", "회원 1:1 알림", `${target} · ${channel} · ${title}`);
     return json({ ok: true, result: summary });
   } catch (e) {
     return fail(e);

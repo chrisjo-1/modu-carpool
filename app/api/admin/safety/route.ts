@@ -1,3 +1,4 @@
+import { logOps } from "@/lib/opsLog";
 import { SAFETY_OVERDUE_MIN } from "@/lib/safety";
 import { body, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json } from "@/lib/server";
 
@@ -65,6 +66,8 @@ export async function POST(req: Request) {
         requester_phone = '', partner_phone = '', pending_since = null
       where id = ${id} and status <> 'closed' returning id`;
     if (!rows.length) return json({ error: "이미 처리된 건이에요." }, 409);
+    const label = result === "ok" ? "이상 없음" : result === "issue" ? "문제 있음" : "연락 안 됨";
+    await logOps("admin", `안전지킴 처리: ${label}`, `건 ${id.slice(0, 8)}`);
     return json({ ok: true });
   } catch (e) {
     return fail(e);
