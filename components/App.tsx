@@ -627,7 +627,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
             if (hit) setOpen(hit);
             else setToastMsg(t("글을 찾을 수 없어요."));
           }} push={push} toast={setToastMsg} />}
-          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) setPreview(false); }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} onRepost={repostOn ? startRepost : undefined} push={push} onCounsel={() => setCounselOpen(true)} />}
+          {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) { setPreview(false); setTab("home"); } }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} onRepost={repostOn ? startRepost : undefined} push={push} onCounsel={() => setCounselOpen(true)} />}
         </main>
 
         <nav aria-label={t("하단 메뉴")} className="safe-b fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur">
