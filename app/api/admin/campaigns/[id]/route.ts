@@ -51,7 +51,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (category === "marketing" && a.onlyConsent === false) return json({ error: "광고성 메일은 마케팅 동의 회원에게만 보낼 수 있어요." }, 400);
   try {
     await ensureSchema();
-    const rows = await db()`update mail_campaigns set title = ${title}, category = ${category}, segment = ${a.segment},
+    const rows = await db()`update mail_campaigns set title = ${title}, category = ${category}, segment = ${a.segments.join(",")},
         only_consent = ${a.onlyConsent}, only_driver = ${a.onlyDriver}, subject = ${subject}, body = ${bodyText},
         followup_of = ${a.followUpOf ?? null}, followup_mode = ${a.followUpMode ?? ""}, except_ids = ${a.exceptCampaigns ?? []}::text[]
       where id = ${id} and status = 'draft' returning id`;

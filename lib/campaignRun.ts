@@ -7,7 +7,7 @@ export type BatchResult = { ok: true; sent: number; more: boolean; held: string 
 /** 캠페인 행 → 대상 조건 */
 export function campaignAudience(c: Record<string, unknown>): Audience {
   return {
-    segment: c.segment as Segment,
+    segments: String(c.segment ?? "").split(",").filter(Boolean) as Segment[],
     onlyConsent: !!c.only_consent,
     onlyDriver: !!c.only_driver,
     marketing: c.category === "marketing",

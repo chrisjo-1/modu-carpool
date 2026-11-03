@@ -4,12 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type Segment = { key: string; label: string };
 type Template = { key: string; label: string; category: string; subject: string; body: string };
 type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean; followup_of?: string | null; followup_mode?: string; opened?: number; clicked?: number; except_ids?: string[] | null };
-type Summary = { count: number; pool: number; excludedBySubject: number; excludedByCampaigns: number; newWarp: number; legacyJoined: number; unjoined: number };
+type Summary = { count: number; pool: number; excludedBySubject: number; excludedByCampaigns: number; groups: Record<string, number> };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
 type Run = { id: number; created_at: number; source: string; campaign_title: string; sent: number; held: string | null; done: boolean; ms: number; note: string };
 type LogRow = { created_at: number; to_email: string; status: string; error: string; opened: boolean; clicked: boolean };
 type LogData = { title: string; totals: { sent: number; failed: number; blocked: number; opened: number; clicked: number }; rows: LogRow[]; more: boolean; next: number | null };
-type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; templates: Template[]; campaigns: Campaign[]; runs: Run[] };
+type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; segmentLabels: Record<string, string>; templates: Template[]; campaigns: Campaign[]; runs: Run[] };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const btn = "rounded-lg border border-line bg-white px-3 py-2 text-[14px] font-semibold hover:bg-bg disabled:opacity-50";
@@ -27,7 +27,7 @@ export default function AdminSend() {
   const [d, setD] = useState<Data | null>(null);
   const [templateKey, setTemplateKey] = useState("custom");
   const [category, setCategory] = useState<"transactional" | "marketing">("transactional");
-  const [segment, setSegment] = useState("members");
+  const [segs, setSegs] = useState<string[]>(["members"]);
   const [onlyConsent, setOnlyConsent] = useState(false);
   const [onlyDriver, setOnlyDriver] = useState(false);
   // 다시 보내기: 지난 캠페인을 받았지만 열지 않은(open) / 링크를 누르지 않은(click) 사람만
@@ -103,8 +103,10 @@ export default function AdminSend() {
     setBodyText(t.body);
     if (!title) setTitle(t.label);
   };
-  const form = () => ({ segment, onlyConsent, onlyDriver, title, subject, body: bodyText, category, followUpOf: followOf || null, followUpMode: followOf ? followMode : "", exceptCampaigns: exceptIds });
-  const segLabel = d?.segments.find((s) => s.key === segment)?.label ?? "";
+  const form = () => ({ segments: segs, onlyConsent, onlyDriver, title, subject, body: bodyText, category, followUpOf: followOf || null, followUpMode: followOf ? followMode : "", exceptCampaigns: exceptIds });
+  /** 저장된 대상(쉼표로 이어 쓴 키)을 사람이 읽는 이름으로 */
+  const labelOf = (seg: string) => seg.split(",").filter(Boolean).map((k) => d?.segmentLabels?.[k] ?? k).join(" + ");
+  const segLabel = labelOf(segs.join(","));
 
   const doCount = async () => {
     setBusy(true); setMsg("");
@@ -168,11 +170,30 @@ export default function AdminSend() {
     load();
   };
 
+  const sendNow = async () => {
+    setBusy(true); setMsg("");
+    const r = await fetch(draftId ? `/api/admin/campaigns/${draftId}` : "/api/admin/campaigns", {
+      method: draftId ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form()),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setBusy(false); return setMsg(j.error ?? "저장하지 못했습니다."); }
+    const id: string = draftId || j.id;
+    const list = await (await fetch("/api/admin/campaigns")).json();
+    setD(list);
+    setBusy(false);
+    const c = (list.campaigns as Campaign[]).find((x) => x.id === id);
+    if (!c) return setMsg("초안을 찾지 못했어요. 발송 목록에서 직접 [발송]을 눌러 주세요.");
+    setDraftId(id);
+    await start(c);
+  };
+
   const editDraft = (c: Campaign) => {
     setDraftId(c.id);
     setTitle(c.title);
     setCategory(c.category as "transactional" | "marketing");
-    setSegment(c.segment);
+    setSegs(c.segment.split(",").filter(Boolean));
     setOnlyConsent(c.only_consent);
     setOnlyDriver(c.only_driver);
     setFollowOf(c.followup_of ?? "");
@@ -195,7 +216,7 @@ export default function AdminSend() {
 
   const start = async (c: Campaign) => {
     const retry = c.status === "done";
-    if (retry ? !window.confirm(`"${c.title}" 캠페인에서 발송 한도로 실패한 ${c.retry}명에게 다시 보낼까요?\n이미 받은 분에게는 다시 가지 않아요.`) : !window.confirm(`"${c.title}" 캠페인을 발송할까요?\n\n대상: ${c.segment}${c.only_consent ? " · 동의 회원만" : ""}${c.only_driver ? " · 운전자만" : ""}\n제목: ${c.subject}\n\n한 번 시작하면 대상자 전체에게 나갑니다. 테스트 발송으로 먼저 확인하셨나요?`)) return;
+    if (retry ? !window.confirm(`"${c.title}" 캠페인에서 발송 한도로 실패한 ${c.retry}명에게 다시 보낼까요?\n이미 받은 분에게는 다시 가지 않아요.`) : !window.confirm(`"${c.title}" 캠페인을 발송할까요?\n\n대상: ${labelOf(c.segment)}${c.only_consent ? " · 동의 회원만" : ""}${c.only_driver ? " · 운전자만" : ""}\n제목: ${c.subject}\n\n한 번 시작하면 대상자 전체에게 나갑니다. 테스트 발송으로 먼저 확인하셨나요?`)) return;
     stopRef.current = false;
     setRunning(c.id); setProgress(0); setMsg("");
     let total = 0;
@@ -279,9 +300,15 @@ export default function AdminSend() {
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="grid gap-1 text-[14px]">
             <span className="font-semibold">보내는 대상</span>
-            <select className={input} value={segment} onChange={(e) => setSegment(e.target.value)}>
-              {d?.segments.filter((s) => !(isMarketing && s.key === "legacy_unjoined")).map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-            </select>
+            <div className="grid gap-1.5 rounded-xl border border-line bg-bg p-3">
+              {d?.segments.map((s) => (
+                <label key={s.key} className="flex items-center gap-2">
+                  <input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={segs.includes(s.key)} onChange={(e) => { setSegs((p) => (e.target.checked ? [...p, s.key] : p.filter((x) => x !== s.key))); setCount(null); setSummary(null); }} />
+                  {s.label}
+                </label>
+              ))}
+              <span className="text-[12px] text-sub">여러 개 고를 수 있어요. 같은 사람은 한 번만 보내요.</span>
+            </div>
           </label>
           <div className="grid content-end gap-2 text-[14px]">
             <label className="flex items-center gap-2"><input type="checkbox" checked={onlyConsent} disabled={isMarketing} onChange={(e) => setOnlyConsent(e.target.checked)} />마케팅 동의 회원만{isMarketing && " (광고성은 필수)"}</label>
@@ -353,12 +380,13 @@ export default function AdminSend() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button className={btn} disabled={busy} onClick={doCount}>대상자 수 확인</button>
+          <button className={btn} disabled={busy || !segs.length} onClick={doCount}>가능 인원 검색</button>
           {count !== null && <span className="text-[14px]"><b>{segLabel}</b> 대상 <b>{count.toLocaleString()}명</b>{d && d.policy.dailyCap > 0 && count > d.policy.dailyCap ? ` · 하루 한도 ${d.policy.dailyCap}통이라 나눠서 발송됩니다(매일 자동 이어 보내기 가능)` : d && count > 1000 ? " · 월 한도에 맞춘 하루 몫만큼 나눠 보냅니다(매일 자동 이어 보내기 가능)" : ""}</span>}
         </div>
         {summary && (
           <div data-block-id="C441" data-block-name="대상 설명" className="grid gap-1 rounded-xl border border-line bg-bg p-3 text-[14px] leading-relaxed">
-            <span>신워프 계정 회원 <b>{summary.newWarp.toLocaleString()}명</b> · 구워프 연결 회원 <b>{summary.legacyJoined.toLocaleString()}명</b>{summary.unjoined > 0 ? <> · 계정 없는 구워프 명단 <b>{summary.unjoined.toLocaleString()}명</b></> : null} <span className="text-[12px] text-sub">(신워프·구워프 연결은 겹칠 수 있어요)</span></span>
+            <span>{d?.segments.filter((s) => segs.includes(s.key)).map((s) => <span key={s.key} className="mr-4 inline-block">{s.label} <b>{(summary.groups[s.key] ?? 0).toLocaleString()}명</b></span>)}</span>
+            <span>합계(같은 사람은 한 번만) <b>{summary.count.toLocaleString()}명</b></span>
             <span className="text-sub">조건 전체 {summary.pool.toLocaleString()}명 중 같은 제목을 이미 받아서 뺀 사람 {summary.excludedBySubject.toLocaleString()}명, 고른 캠페인을 받아서 뺀 사람 {summary.excludedByCampaigns.toLocaleString()}명</span>
             {summary.excludedBySubject > 0 && summary.count === 0 && <span className="font-semibold text-warn">같은 제목으로 이미 다 받은 상태예요. 메일 제목을 바꾸거나 위에서 '이미 받은 캠페인 제외'를 쓰세요.</span>}
           </div>
@@ -389,7 +417,8 @@ export default function AdminSend() {
           </div>
           <button className={btn} disabled={busy || !testPick.length || !subject || !bodyText} onClick={sendTest}>테스트 발송{testPick.length ? ` (${testPick.length}곳)` : ""}</button>
           {draftId && <button className={btn} disabled={busy} onClick={newDraft}>새 글로 쓰기</button>}
-          <button className={btnPrimary} disabled={busy || !title || !subject || !bodyText} onClick={saveDraft}>{draftId ? "저장 (초안 고치기)" : "저장"}</button>
+          <button className={btn} disabled={busy || !title || !subject || !bodyText || !segs.length} onClick={saveDraft}>{draftId ? "저장 (초안 고치기)" : "저장"}</button>
+          <button className={btnPrimary} disabled={busy || !!running || !title || !subject || !bodyText || !segs.length} onClick={sendNow}>바로 발송</button>
         </div>
         <p className="text-[13px] text-sub">저장하면 발송 목록에 초안으로 남아요. 목록의 [발송]을 눌러야 나갑니다. 나가기 전까지 여러 번 고칠 수 있어요.</p>
       </section>
@@ -414,7 +443,7 @@ export default function AdminSend() {
                   <td className="p-3 whitespace-nowrap">{when(c.created_at)}</td>
                   <td className="p-3"><b>{c.title}</b><span className="block text-xs text-sub">{c.subject}</span></td>
                   <td className="p-3">{c.category === "marketing" ? "광고성" : "안내"}</td>
-                  <td className="p-3">{d.segments.find((s) => s.key === c.segment)?.label ?? c.segment}{c.only_consent ? " · 동의" : ""}{c.only_driver ? " · 운전자" : ""}{c.followup_of ? <span className="block text-xs text-sub">다시 보내기 · {c.followup_mode === "click" ? "링크 안 누른 사람" : "안 연 사람"}{d.campaigns.find((x) => x.id === c.followup_of) ? ` (${d.campaigns.find((x) => x.id === c.followup_of)?.title})` : ""}</span> : null}</td>
+                  <td className="p-3">{labelOf(c.segment)}{c.only_consent ? " · 동의" : ""}{c.only_driver ? " · 운전자" : ""}{c.followup_of ? <span className="block text-xs text-sub">다시 보내기 · {c.followup_mode === "click" ? "링크 안 누른 사람" : "안 연 사람"}{d.campaigns.find((x) => x.id === c.followup_of) ? ` (${d.campaigns.find((x) => x.id === c.followup_of)?.title})` : ""}</span> : null}</td>
                   <td className="p-3">{STATUS[c.status] ?? c.status}{c.finished_at ? <span className="block text-xs text-sub">{when(c.finished_at)}</span> : null}</td>
                   <td className="p-3">{c.sent} / {c.failed}{c.retry > 0 ? <span className="block text-xs text-sub">한도 초과 {c.retry}명 · 다시 보낼 수 있음</span> : null}</td>
                   <td className="p-3 whitespace-nowrap">{c.sent > 0 ? <>열람 {c.opened ?? 0} <span className="text-xs text-sub">({Math.round(((c.opened ?? 0) / c.sent) * 100)}%)</span><span className="block">클릭 {c.clicked ?? 0} <span className="text-xs text-sub">({Math.round(((c.clicked ?? 0) / c.sent) * 100)}%)</span></span></> : "—"}</td>

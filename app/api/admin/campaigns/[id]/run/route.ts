@@ -1,5 +1,5 @@
 import { runCampaignBatch } from "@/lib/campaignRun";
-import { body, fail, hasDb, isAdmin, isUuid, json } from "@/lib/server";
+import { body, db, fail, hasDb, isAdmin, isUuid, json } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +12,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const b = await body(req);
   const limit = Math.min(Math.max(Number(b.limit) || 50, 1), 500);
   try {
+    const t0 = Date.now();
     const r = await runCampaignBatch(id, limit);
     if (!r.ok) return json({ error: r.error }, r.status);
+    // 직접 발송도 실행 기록에 남긴다(매 배치, 보낸 것이 없고 멈춘 것도 없으면 생략)
+    if (r.sent > 0 || r.held || r.done) {
+      await db()`insert into mail_runs (source, campaign_id, campaign_title, sent, held, done, ms, note)
+        select '직접 발송', c.id, c.title, ${r.sent}, ${r.held}, ${r.done}, ${Date.now() - t0}, '' from mail_campaigns c where c.id = ${id}`;
+    }
     return json(r);
   } catch (e) {
     return fail(e);

@@ -1,4 +1,4 @@
-import { audienceSummary, parseAudience, SEGMENTS, TEMPLATES, type Audience, type Segment } from "@/lib/campaign";
+import { audienceSummary, parseAudience, SEGMENT_LABEL, SEGMENTS, TEMPLATES } from "@/lib/campaign";
 import { getPolicy, type MailCategory } from "@/lib/mail";
 import { body, db, ensureSchema, fail, hasDb, isAdmin, json, text } from "@/lib/server";
 
@@ -30,6 +30,7 @@ export async function GET() {
       policy,
       runs: runs.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
       segments: SEGMENTS.map(([key, label]) => ({ key, label })),
+      segmentLabels: SEGMENT_LABEL,
       templates: TEMPLATES.map(({ key, label, category, subject, body }) => ({ key, label, category, subject, body })),
       history: (await sql`select g.created_at, g.to_email, g.subject, g.status, g.kind, g.campaign_id from mail_log g order by g.created_at desc limit 200`).map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
       campaigns: rows.map((r) => ({
@@ -73,8 +74,8 @@ export async function POST(req: Request) {
   }
   try {
     await ensureSchema();
-    const rows = await db()`insert into mail_campaigns (title, category, segment, only_consent, only_driver, subject, body, status, followup_of, followup_mode, except_ids)
-      values (${title}, ${category}, ${a.segment}, ${a.onlyConsent}, ${a.onlyDriver}, ${subject}, ${bodyText}, 'draft', ${a.followUpOf ?? null}, ${a.followUpMode ?? ""}, ${a.exceptCampaigns ?? []}::text[])
+    const rows = await db()`insert into mail_campaigns (title, category, segment, only_consent, only_driver, subject, body, status, followup_of, followup_mode, except_ids, auto)
+      values (${title}, ${category}, ${a.segments.join(",")}, ${a.onlyConsent}, ${a.onlyDriver}, ${subject}, ${bodyText}, 'draft', ${a.followUpOf ?? null}, ${a.followUpMode ?? ""}, ${a.exceptCampaigns ?? []}::text[], ${b.auto !== false})
       returning id`;
     return json({ ok: true, id: rows[0].id });
   } catch (e) {
