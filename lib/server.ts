@@ -72,7 +72,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table posts add column if not exists days text not null default ''`;
   await sql`alter table posts add column if not exists time_go text not null default ''`;
   await sql`alter table posts add column if not exists time_back text not null default ''`;
-  await sql`create unique index if not exists posts_regular_uniq on posts (user_id) where regular`;
+  // 출퇴근 정기 글은 회원당 개수 제한을 두지 않는다(출근·퇴근 여러 건 가능). 예전 규칙은 지운다.
+  await sql`drop index if exists posts_regular_uniq`;
   await sql`alter table users add column if not exists photo text not null default ''`;
   await sql`alter table users add column if not exists photo_v integer not null default 0`;
   await sql`alter table users add column if not exists blocked boolean not null default false`;

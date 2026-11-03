@@ -153,7 +153,8 @@ export async function createDemo(count: number): Promise<{ created: number; erro
   let created = 0;
   for (let i = 0; i < count; i++) {
     const p = makeOne(kw, pick(owners));
-    // 정기카풀은 회원당 1개(posts_regular_uniq) — 이미 있는 임시 회원이면 건너뛴다.
+    // 임시 정기카풀은 임시 회원당 1개만 — 이미 있으면 건너뛴다(실회원 출퇴근 글 제한과 무관).
+    if (p.regular && (await sql`select 1 from posts where user_id = ${p.userId} and regular limit 1`).length) continue;
     const made = await sql`insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, status,
                 origin_lat, origin_lng, dest_lat, dest_lng, regular, days, time_go, time_back, tags, taxi_share, demo, demo_shown, created_at)
       values (${p.userId}, ${p.role}, ${p.kind}, ${p.cost}, ${p.price}, ${p.origin}, ${p.dest}, ${p.departAt}, ${p.seats}, ${p.note}, ${p.status},
