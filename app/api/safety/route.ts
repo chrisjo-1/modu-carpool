@@ -60,7 +60,8 @@ export async function GET(req: Request) {
     const p = await partyOf(requestId, me);
     if (!p) return json({ error: "대화방을 찾을 수 없어요." }, 404);
     const rows = await db()`select * from safety_sessions where request_id = ${requestId} and status <> 'closed' order by created_at desc limit 1`;
-    return json({ accepted: p.accepted, post: p.post, session: rows[0] ? shape(rows[0], me) : null });
+    const g = await db()`select gender from users where id = ${me}`;
+    return json({ accepted: p.accepted, post: p.post, canStart: String(g[0]?.gender ?? "") === "female", session: rows[0] ? shape(rows[0], me) : null });
   } catch (e) {
     return fail(e);
   }
@@ -87,6 +88,8 @@ export async function POST(req: Request) {
       const phone = normPhone(b.phone);
       if (!isUuid(requestId)) return json({ error: "잘못된 요청입니다." }, 400);
       if (!phone) return json({ error: "전화번호를 정확히 입력해 주세요." }, 400);
+      const g = await sql`select gender from users where id = ${me}`;
+      if (String(g[0]?.gender ?? "") !== "female") return json({ error: "안전지킴은 여성 회원만 신청할 수 있어요." }, 403);
       const p = await partyOf(requestId, me);
       if (!p) return json({ error: "대화방을 찾을 수 없어요." }, 404);
       if (!p.accepted) return json({ error: "수락된 카풀에서만 시작할 수 있어요." }, 400);
@@ -144,6 +147,8 @@ export async function POST(req: Request) {
         where id = ${id} and (requester_id = ${me} or partner_id = ${me}) and status <> 'closed' returning *`;
       if (!rows.length) return json({ error: "종료할 수 있는 안전지킴이 없어요." }, 409);
       const s = rows[0];
+      // 안전지킴 종료 = 카풀 종료로 보고 운전자 연락처도 지운다
+      await sql`delete from ride_contacts where request_id = ${s.request_id}`;
       const other = String(s.requester_id) === me ? String(s.partner_id) : String(s.requester_id);
       await sendPush(other, { title: "안전지킴 종료", body: "안전지킴이 종료됐어요.", url: `/?room=${s.request_id}`, tag: `safety-${s.request_id}` });
       return json({ ok: true });

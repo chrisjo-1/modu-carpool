@@ -19,7 +19,7 @@ type Session = {
   phoneSaved: boolean;
 };
 type Post = { origin: string; dest: string; timeGo: string; originLat: number | null; originLng: number | null; destLat: number | null; destLng: number | null };
-type Data = { accepted: boolean; post: Post; session: Session | null };
+type Data = { accepted: boolean; post: Post; canStart: boolean; session: Session | null };
 
 const FALLBACK_MIN = 40; // 경로 시간을 못 구했을 때 쓰는 기본 시간(분)
 const POLL_MS = 8000;
@@ -44,6 +44,8 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
 
   if (!data || !data.accepted) return null;
   const s = data.session;
+  // 신청은 여성 회원만. 진행 중인 건이 있으면 누구나(상대분 포함) 보고 동의·종료할 수 있다.
+  if (!s && !data.canStart) return null;
 
   const end = async () => {
     if (!s || busy) return;
@@ -68,7 +70,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
         )}
       </div>
 
-      {!s && (
+      {!s && data.canStart && (
         <button type="button" onClick={() => setSheet("start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안전지킴 신청하기</button>
       )}
 
@@ -216,6 +218,76 @@ function AnswerCard({ session, onChanged, toast }: { session: Session; onChanged
         <button type="button" disabled={busy} onClick={() => answer("no")} className="w-full rounded-xl border border-line bg-white px-4 py-3 text-[16px] font-semibold text-ink disabled:opacity-50">아니요, 불편해요</button>
         <button type="button" disabled={busy} onClick={() => answer("yes")} className="w-full rounded-xl bg-mint px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-50">네, 괜찮아요</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 운전자 대화방: 탑승자가 여성인 수락된 카풀이면 연락 가능한 번호를 받는다.
+ * 번호는 안전 확인에만 쓰고 상대에게 공개하지 않으며, 카풀이 끝나면 지운다(데이터로 보관하지 않음).
+ */
+export function DriverPhoneBlock({ requestId, toast }: { requestId: string; toast: (m: string) => void }) {
+  const [state, setState] = useState<{ needed: boolean; registered: boolean } | null>(null);
+  const [phone, setPhone] = useState("");
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    const r = await api<{ needed: boolean; registered: boolean }>(`/api/ride-contact?req=${requestId}`);
+    if (r.ok) setState(r.data);
+  };
+  useEffect(() => {
+    load();
+    // 안전지킴 종료 등으로 연락처가 지워지면 화면도 따라가도록 주기적으로 다시 읽는다
+    const timer = setInterval(load, 15_000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestId]);
+
+  if (!state || !state.needed) return null;
+
+  const register = async () => {
+    setBusy(true);
+    const r = await api("/api/ride-contact", "POST", { action: "register", requestId, phone, agree });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || "등록하지 못했어요.");
+    toast("연락처를 등록했어요.");
+    setPhone("");
+    setAgree(false);
+    load();
+  };
+
+  const finish = async () => {
+    if (!confirm("카풀을 마쳤나요? 등록한 번호는 지워져요.")) return;
+    setBusy(true);
+    const r = await api("/api/ride-contact", "POST", { action: "end", requestId });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || "삭제하지 못했어요.");
+    toast("연락처를 삭제했어요.");
+    load();
+  };
+
+  if (state.registered) {
+    return (
+      <div className="rounded-2xl border border-warn/30 bg-warnSoft p-3 text-[14px] text-ink">
+        <p className="font-semibold text-warn">🛡 안전을 위한 연락처 등록됨</p>
+        <p className="mt-1 text-sub">번호는 안전 확인에만 쓰고 상대에게 공개되지 않아요. 카풀이 끝나면 아래 버튼으로 지워 주세요.</p>
+        <button type="button" disabled={busy} onClick={finish} className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-3 text-[15px] font-semibold text-ink disabled:opacity-50">카풀 마쳤어요 · 번호 삭제</button>
+      </div>
+    );
+  }
+
+  const ok = agree && /^01[016789]\d{7,8}$/.test(phone.replace(/\D/g, ""));
+  return (
+    <div className="rounded-2xl border border-warn/30 bg-warnSoft p-3 text-[14px] text-ink">
+      <p className="font-semibold text-warn">🛡 탑승자가 여성이에요 · 연락처를 등록해 주세요</p>
+      <p className="mt-1 text-sub">안전을 위해 운전자님의 연락 가능한 번호가 필요해요. 번호는 안전 확인에만 쓰고, 데이터로 보관하지 않아요. 카풀이 끝나면 삭제해요.</p>
+      <input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className={`${field} mt-2`} />
+      <label className="mt-2 flex items-start gap-2 text-[13px] text-sub">
+        <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1" />
+        <span>안전 확인을 위해 번호를 등록하는 데 동의해요. 카풀이 끝나면 삭제되는 것을 알고 있어요.</span>
+      </label>
+      <button type="button" disabled={!ok || busy} onClick={register} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-40">연락처 등록하기</button>
     </div>
   );
 }

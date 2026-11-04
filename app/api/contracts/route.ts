@@ -146,6 +146,7 @@ export async function POST(req: Request) {
       if (row.status !== "signed" && row.status !== "proposed") return json({ error: "해지할 수 있는 계약서가 아니에요." }, 400);
       const was = String(row.status);
       await sql`update contracts set status = ${was === "signed" ? "ended" : "cancelled"}, ended_by = ${me}, ended_at = now() where id = ${id}`;
+      await sql`delete from ride_contacts where request_id = ${requestId}`;
       await announce(requestId, me, other, was === "signed" ? `⛔ 정기카풀 계약서 ${row.version}판을 해지했어요. 계약서의 중도 해지 약속을 확인해 주세요.` : `정기카풀 계약서 ${row.version}판 제안을 취소했어요.`);
       return json({ ok: true });
     }

@@ -607,6 +607,12 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     detail text not null default ''
   )`;
   await sql`create index if not exists ops_log_at_idx on ops_log (at desc)`;
+  // 운전자 연락처(여성 탑승자 카풀 안전용). 데이터로 보관하지 않고 카풀이 끝나면 지운다.
+  await sql`create table if not exists ride_contacts (
+    request_id uuid primary key references requests(id) on delete cascade,
+    phone text not null,
+    created_at timestamptz not null default now()
+  )`;
   await sql`create table if not exists safety_sessions (
     id uuid primary key default gen_random_uuid(),
     request_id uuid not null,
@@ -660,6 +666,9 @@ async function buildSchema(sql: ReturnType<typeof db>) {
 
 /** 매번 가볍게 확인하는 자료 정리(고유코드 없는 회원 채우기, 표시 이름을 고유코드로). 할 일이 없으면 쿼리 2번. */
 async function maintainData(sql: ReturnType<typeof db>) {
+  // 운전자 연락처 안전망: 신청이 취소·거절됐거나, 일회성 카풀이 출발한 지 2일 지나면 지운다.
+  await sql`delete from ride_contacts rc using requests r join posts p on p.id = r.post_id
+    where rc.request_id = r.id and (r.status <> 'accepted' or (not p.regular and p.depart_at < now() - interval '2 days'))`;
   await sql`delete from repost_reminds where day < current_date - 30`;
   await backfillMemberCodes(sql);
   await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
