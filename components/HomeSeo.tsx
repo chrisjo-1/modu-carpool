@@ -1,6 +1,6 @@
 import { db, ensureSchema, hasDb } from "@/lib/server";
 import { ALL_LINES } from "@/lib/lineMeta";
-import { OPENABLE_LINES } from "@/lib/subway";
+import { SEO_LINES } from "@/lib/subway";
 
 /**
  * 홈 아래쪽 서비스 소개(서버에서 그림). 검색엔진이 읽을 제목·소개·최근 카풀 글 링크를 담는다.
@@ -34,7 +34,7 @@ function whenText(r: Row): string {
 
 export default async function HomeSeo() {
   const posts = await recentPosts();
-  const lines = ALL_LINES.filter((l) => OPENABLE_LINES.includes(l.id));
+  const lines = ALL_LINES.filter((l) => SEO_LINES.includes(l.id));
   return (
     <section data-block-id="S300" data-block-name="서비스 소개" className="mt-10 space-y-5 border-t border-line pt-6 text-[14px] leading-relaxed text-sub">
       <div className="space-y-2">

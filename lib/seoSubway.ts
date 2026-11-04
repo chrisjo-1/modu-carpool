@@ -1,10 +1,10 @@
 // 공개 안내 페이지(/subway/…)용 계산. 서버에서만 쓴다(혼잡도 자료 JSON을 클라이언트에 넣지 않음).
 import { lookupCongestion, LEVEL_TEXT, levelOf, type CongestionLevel } from "./congestion";
 import { estimateCars } from "./seatCar";
-import { ALL_LINES, carCountOf, LINE_STATIONS, OPENABLE_LINES } from "./subway";
+import { ALL_LINES, carCountOf, LINE_STATIONS, SEO_LINES as OPEN_SEO } from "./subway";
 import { headingsAt, nextStations } from "./subwayRoute";
 
-export const SEO_LINES = OPENABLE_LINES;
+export const SEO_LINES = OPEN_SEO;
 export const AM_SLOTS = ["07:00", "07:30", "08:00", "08:30", "09:00"];
 export const PM_SLOTS = ["18:00", "18:30", "19:00", "19:30"];
 const WEEKDAY = "1";

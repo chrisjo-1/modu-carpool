@@ -13,8 +13,14 @@ export { ALL_LINES, LINE_COLORS, lineColor };
 /** 시범 노선. 관리자 설정 기본값이며 현재 2·5·6·7·9호선이다. */
 export const DEFAULT_PILOT_LINES: LineId[] = ["2", "5", "6", "7", "9"];
 
-/** 관리자가 열 수 있는 노선(역 목록·방향 자료가 있는 노선). */
-export const OPENABLE_LINES: LineId[] = ["2", "5", "6", "7", "9"];
+/**
+ * 관리자가 열 수 있는 노선(역 목록·방향 자료가 있는 노선).
+ * 1·3·4·8호선은 2026-11-05 사용자 지시로 추가 — 서울교통공사 운영 구간만 역 목록이 있다(코레일 구간·다른 노선은 다음 단계).
+ */
+export const OPENABLE_LINES: LineId[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+/** 검색 노출(공개 역 안내 페이지)은 역 목록이 노선 전체인 노선만. 서울교통공사 구간만 있는 1·3·4·8호선은 아직 뺀다. */
+export const SEO_LINES: LineId[] = ["2", "5", "6", "7", "9"];
 
 /** 노선 이름 목록을 "2·5·6호선"처럼 짧게 잇는다. */
 export function linesLabel(ids: LineId[]): string {
