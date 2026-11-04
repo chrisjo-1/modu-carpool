@@ -71,6 +71,16 @@ export default function SubwayPanel({ plan, setPlan, onPilot }: { plan: SubwayPl
         <p className="text-sm font-semibold text-ink">{t("내 방면")}</p>
         {lineSelect(plan.boardLine, (boardLine) => set({ boardLine, board: "", boardNext: "" }), t("탑승 노선"))}
         {stationSelect(plan.boardLine, plan.board, (board) => set({ board, boardNext: "" }), t("탑승역"))}
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block text-sm text-sub">
+            {t("출근 승차 시간")}
+            <input className={`${field} num mt-1`} type="time" required value={plan.timeGo} onChange={(e) => set({ timeGo: e.target.value })} />
+          </label>
+          <label className={`block text-sm text-sub ${plan.back ? "" : "opacity-40"}`}>
+            {t("퇴근 승차 시간")}
+            <input className={`${field} num mt-1`} type="time" required={plan.back} disabled={!plan.back} value={plan.timeBack} onChange={(e) => set({ timeBack: e.target.value })} />
+          </label>
+        </div>
         {lineSelect(plan.alightLine, (alightLine) => set({ alightLine, alight: "", backNext: "" }), t("하차 노선"))}
         {stationSelect(plan.alightLine, plan.alight, (alight) => set({ alight, backNext: "" }), t("하차역"))}
         <DirectionToggle line={plan.boardLine} station={plan.board} value={plan.boardNext} onChange={(boardNext) => set({ boardNext })} label={t("진행 방면 (화살표)")} />
