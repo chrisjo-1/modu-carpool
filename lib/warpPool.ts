@@ -180,8 +180,11 @@ function osmThrottled(q: string, must: string) {
  * 위치 채우기: 주소 글자를 지도 좌표(위도·경도)로 바꾼다. 좌표가 있어야 거리 매칭·지도에 들어간다.
  * 시간 예산 안에서 4건씩 동시에, 같은 주소는 이미 찾은 좌표를 다시 쓴다. 이번에 찾은 수·못 찾은 수·남은 수를 돌려준다.
  */
-export async function fillWarpGeo(budgetMs = 20_000): Promise<{ done: number; found: number; failed: number; left: number }> {
+export async function fillWarpGeo(budgetMs = 20_000, only?: string[]): Promise<{ done: number; found: number; failed: number; left: number }> {
   const sql = db();
+  // 선택한 글만 채울 때(only): 전체 대기 2시간 대신 고른 글만 찾는다(2026-11-04 사용자 요청)
+  const onlyOn = !!only?.length;
+  const onlyCodes = only ?? [];
   const start = Date.now();
   let done = 0;
   let found = 0;
@@ -194,7 +197,8 @@ export async function fillWarpGeo(budgetMs = 20_000): Promise<{ done: number; fo
   };
   while (Date.now() - start < budgetMs - 8000) {
     const rows = await sql`select code, home, work, home_lat, work_lat from warp_pools
-      where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> '')) order by reg_date desc, code limit 4`;
+      where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> ''))
+        and (${onlyOn} = false or code = any(${onlyCodes}::text[])) order by reg_date desc, code limit 4`;
     if (!rows.length) break;
     await Promise.all(rows.map(async (x) => {
       const h = x.home_lat == null ? await known(String(x.home)) : null;
@@ -207,7 +211,8 @@ export async function fillWarpGeo(budgetMs = 20_000): Promise<{ done: number; fo
       if ((x.home_lat != null || h) && (!String(x.work) || x.work_lat != null || w)) found += 1;
     }));
   }
-  const left = await sql`select count(*)::int as n from warp_pools where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> ''))`;
+  const left = await sql`select count(*)::int as n from warp_pools where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> ''))
+    and (${onlyOn} = false or code = any(${onlyCodes}::text[]))`;
   return { done, found, failed: done - found, left: Number(left[0].n) };
 }
 

@@ -209,7 +209,7 @@ export default function WarpPools() {
   };
 
   // 위치 채우기: 한 번에 약 40초씩, 남은 게 없거나 멈출 때까지 이어서
-  const fillGeo = async () => {
+  const fillGeo = async (only?: string[]) => {
     if (geoRun) return;
     setGeoRun(true);
     geoStop.current = false;
@@ -217,7 +217,7 @@ export default function WarpPools() {
     geoT0.current = Date.now();
     setGeoLast({ ...sum });
     for (let i = 0; i < 400 && !geoStop.current; i++) {
-      const r = await fetch("/api/admin/warp-pools", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "geo" }) });
+      const r = await fetch("/api/admin/warp-pools", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(only?.length ? { action: "geo", codes: only } : { action: "geo" }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
         setMsg(j.error ?? "위치 채우기 중 오류가 났어요.");
@@ -584,6 +584,7 @@ export default function WarpPools() {
             </span>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
+            <button data-block-id="B450" data-block-name="선택한 글만 위치 채우기" disabled={geoRun || !sel.size} className="min-h-0 rounded-xl border border-line bg-white px-3 py-2.5 font-semibold disabled:opacity-50" onClick={() => fillGeo([...sel])}>{geoRun ? "위치 채우는 중…" : `선택한 ${sel.size}건만 위치 채우기`}</button>
             <button data-block-id="B449" data-block-name="선택한 글 정기카풀로 올리기" disabled={pubBusy || !sel.size} className="min-h-0 flex-1 rounded-xl bg-accent py-2.5 font-bold text-white disabled:opacity-50" onClick={() => doPublish("publish", [...sel])}>{pubBusy ? "처리 중…" : `선택한 ${sel.size}건 정기카풀로 올리기`}</button>
             <button data-block-id="B450" data-block-name="선택한 글 내리기" disabled={pubBusy || !sel.size} className="min-h-0 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold disabled:opacity-50" onClick={() => doPublish("unpublish", [...sel])}>선택 내리기</button>
           </div>

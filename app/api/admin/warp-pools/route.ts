@@ -143,7 +143,8 @@ export async function POST(req: Request) {
       return json({ ok: true, read: rows.length, skipped, ...saved });
     }
     if (b.action === "geo") {
-      const r = await fillWarpGeo(45_000);
+      const only = Array.isArray(b.codes) ? b.codes.map((x: unknown) => String(x)).slice(0, 300) : undefined;
+      const r = await fillWarpGeo(45_000, only);
       return json({ ok: true, ...r });
     }
     if (b.action === "publish" || b.action === "unpublish") {
