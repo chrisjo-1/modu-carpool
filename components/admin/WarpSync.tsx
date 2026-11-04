@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 type Item = {
   id: string; warpId: string; role: string; home: string; work: string; homeName: string; workName: string;
-  departAt: string; regAt: string; warpState: string; price: number; tags: string;
+  departAt: string; regAt: string; kind: string; timeGo: string; timeBack: string; warpState: string; price: number; tags: string;
   status: string; stage: string; note: string; postId: string; label: string; hasAccount: boolean; gone: boolean; canGo: boolean; locked: boolean;
 };
 type Filter = "all" | "new" | "go" | "queued" | "posted" | "hold" | "excluded";
@@ -114,7 +114,7 @@ export default function WarpSync() {
 
         <div className="mt-3">
           <label className="text-sm font-semibold">여러 건 붙여넣기 (한 줄에 한 건)</label>
-          <p className="mt-0.5 text-xs text-sub">순서: 고유번호 | 운전자·탑승자 | 출발 주소 | 도착 주소 | 출발 일시 | 상태(대기·시간경과·완료) | 금액 | 등록 일시. 칸은 | 또는 탭으로 나눠요.</p>
+          <p className="mt-0.5 text-xs text-sub">순서: 고유번호 | 운전자·탑승자 | 출발 주소 | 도착 주소 | 출발 일시(정기카풀은 07:00/19:00) | 상태(대기·시간경과·완료) | 금액 | 등록 일시. 칸은 | 또는 탭으로 나눠요.</p>
           <textarea data-block-id="F440" value={text} onChange={(e) => setText(e.target.value)} rows={4}
             placeholder={"예) 0247737X|운전자|충남 천안시 동남구 신방동 920|인천 영종구 운서동 2868|2026-10-31 14:00|시간경과||2026-10-31 07:53"}
             className="mt-1 w-full rounded-xl border border-line bg-white p-3 text-[15px] outline-none focus:border-accent" />
@@ -160,7 +160,7 @@ export default function WarpSync() {
                   <span className="rounded-md bg-bg px-1.5 py-0.5 text-xs text-sub">워프 {STATE_NAME[x.warpState] ?? x.warpState}</span>
                 </div>
                 <p className="mt-1 break-words text-sm text-ink">{x.homeName || x.home} → {x.workName || x.work}</p>
-                <p className="mt-0.5 break-words text-xs text-sub">출발 {when(x.departAt)} · {x.price ? `${x.price.toLocaleString("ko-KR")}원` : "금액 없음"}{x.tags ? ` · ${x.tags}` : ""} · 워프 등록 {when(x.regAt)}</p>
+                <p className="mt-0.5 break-words text-xs text-sub">{x.kind === "regular" ? `정기 · 출근 ${x.timeGo || "-"} / 퇴근 ${x.timeBack || "-"}` : `출발 ${when(x.departAt)}`} · {x.price ? `${x.price.toLocaleString("ko-KR")}원` : "금액 없음"}{x.tags ? ` · ${x.tags}` : ""} · 워프 등록 {when(x.regAt)}</p>
                 {x.note && <p className="mt-0.5 text-xs text-warn">{x.note}</p>}
               </div>
             </label>

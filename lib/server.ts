@@ -330,6 +330,10 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table warp_sync_items add column if not exists mailed_at timestamptz`;
   await sql`create unique index if not exists warp_sync_key_idx on warp_sync_items (warp_id, depart_at)`;
   await sql`create index if not exists warp_sync_work_idx on warp_sync_items (status, stage)`;
+  // 정기카풀(출근·퇴근 시각만 있는 워프 글)도 받는다: kind = once(1회) | regular(평일 정기). 정기는 회원당 하나.
+  await sql`alter table warp_sync_items add column if not exists kind text not null default 'once'`;
+  await sql`alter table warp_sync_items add column if not exists time_back text not null default ''`;
+  await sql`create unique index if not exists warp_sync_regular_idx on warp_sync_items (warp_id) where kind = 'regular'`;
   await sql`alter table warp_pools add column if not exists post_id uuid`;
   await sql`alter table warp_pools add column if not exists dup_count integer not null default 0`;
   await sql`alter table warp_pools add column if not exists wait_since timestamptz`;

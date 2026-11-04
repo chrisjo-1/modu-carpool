@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { campaignQuietNow, warpPostedMail } from "./mail";
 import { db } from "./server";
-import { MAX_PRICE, priceAllowedAt } from "./time";
+import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular } from "./time";
 import { geocodeAddress, shortPlace } from "./warpPool";
 
 /**
@@ -22,9 +22,9 @@ export async function runWarpSync(budgetMs = 25_000) {
   // 대기(계정 없음) 글은 6시간에 한 번만 다시 확인한다
   const items = await sql`select * from warp_sync_items where status = 'go' and post_id is null
       and (stage = '' or (stage = 'queued' and updated_at < now() - interval '6 hours'))
-    order by (stage = 'queued'), updated_at limit 6`;
+    order by (stage = 'queued'), updated_at limit 4`;
   for (const it of items) {
-    if (Date.now() - t0 > budgetMs - 8000) break;
+    if (Date.now() - t0 > budgetMs * 0.6) break;
     const id = String(it.id);
     const warpId = String(it.warp_id).toUpperCase();
     const acc = await sql`select l.email_norm, l.nickname, l.name, l.matched_user from legacy_members l
@@ -59,8 +59,13 @@ export async function runWarpSync(budgetMs = 25_000) {
     const work = String(it.work);
     const h = await geocodeAddress(home).catch(() => null);
     const w = work ? await geocodeAddress(work).catch(() => null) : null;
-    const departAt = it.depart_at ? new Date(it.depart_at) : new Date();
-    const allowed = priceAllowedAt(departAt.getTime());
+    const regular = String(it.kind) === "regular";
+    const timeGo = String(it.time_go || "");
+    const timeBack = String(it.time_back || "");
+    const days = "12345";
+    // 정기카풀은 다음 평일 출근 시각을 출발 시각으로 둔다(앱의 정기카풀과 같은 방식)
+    const departAt = regular ? new Date(nextOccurrence(days, timeGo || "08:00")) : it.depart_at ? new Date(it.depart_at) : new Date();
+    const allowed = regular ? priceAllowedRegular(days, timeGo || "08:00", timeBack) : priceAllowedAt(departAt.getTime());
     const rawPrice = Number(it.price) || 0;
     const fixed = allowed && rawPrice >= 500;
     const price = fixed ? Math.min(MAX_PRICE, Math.round(rawPrice / 100) * 100) : 0;
@@ -70,12 +75,28 @@ export async function runWarpSync(budgetMs = 25_000) {
     const dest = (String(it.work_name || "") || shortPlace(work)).slice(0, 60);
     const status = String(it.warp_state) === "done" ? "closed" : "open";
     const created = it.reg_at ? new Date(it.reg_at).toISOString() : new Date().toISOString();
-    const post = await sql`insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note,
-        origin_lat, origin_lng, dest_lat, dest_lng, tags, source, warp_code, status, created_at)
-      values (${userId}, ${String(it.role) === "driver" ? "driver" : "rider"}, ${allowed ? "commute" : "trip"}, ${fixed ? "fixed" : "free"}, ${price},
-        ${origin}, ${dest}, ${departAt.toISOString()}, 1, ${note},
-        ${h?.lat ?? null}, ${h?.lng ?? null}, ${w?.lat ?? null}, ${w?.lng ?? null}, '{}'::text[], 'warp', ${warpId}, ${status}, ${created})
-      returning id`;
+    // 처리가 도중에 끊겨 다시 실행돼도 같은 글을 두 번 만들지 않는다(고유번호 + 출발 시각이 같은 워프 글이 있으면 그 글을 잇는다)
+    const dup = regular
+      ? await sql`select id from posts where source = 'warp' and warp_code = ${warpId} and regular and status <> 'closed' limit 1`
+      : await sql`select id from posts where source = 'warp' and warp_code = ${warpId} and depart_at = ${departAt.toISOString()} limit 1`;
+    if (dup.length) {
+      await sql`update warp_sync_items set stage = 'posted', post_id = ${dup[0].id}, user_id = ${userId}, updated_at = now() where id = ${id}`;
+      out.posted += 1;
+      continue;
+    }
+    const post = regular
+      ? await sql`insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note,
+          origin_lat, origin_lng, dest_lat, dest_lng, regular, days, time_go, time_back, tags, source, warp_code, status, created_at)
+        values (${userId}, ${String(it.role) === "driver" ? "driver" : "rider"}, 'commute', ${fixed ? "fixed" : "free"}, ${price},
+          ${origin}, ${dest}, ${departAt.toISOString()}, 1, ${note},
+          ${h?.lat ?? null}, ${h?.lng ?? null}, ${w?.lat ?? null}, ${w?.lng ?? null}, true, ${days}, ${timeGo || "08:00"}, ${timeBack}, '{}'::text[], 'warp', ${warpId}, 'open', ${created})
+        returning id`
+      : await sql`insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note,
+          origin_lat, origin_lng, dest_lat, dest_lng, tags, source, warp_code, status, created_at)
+        values (${userId}, ${String(it.role) === "driver" ? "driver" : "rider"}, ${allowed ? "commute" : "trip"}, ${fixed ? "fixed" : "free"}, ${price},
+          ${origin}, ${dest}, ${departAt.toISOString()}, 1, ${note},
+          ${h?.lat ?? null}, ${h?.lng ?? null}, ${w?.lat ?? null}, ${w?.lng ?? null}, '{}'::text[], 'warp', ${warpId}, ${status}, ${created})
+        returning id`;
     await sql`update warp_sync_items set stage = 'posted', post_id = ${post[0].id}, user_id = ${userId},
       note = ${h ? "" : "출발 위치를 못 찾음(글 이름으로 나중에 채움)"}, updated_at = now() where id = ${id}`;
     out.posted += 1;
@@ -83,7 +104,7 @@ export async function runWarpSync(budgetMs = 25_000) {
 
   // 메일: 밤에는 보내지 않고 아침에 이어서. 한 사람에게 한 통(그 사람 글을 모두 담아).
   if (!campaignQuietNow()) {
-    const due = await sql`select s.id, s.user_id, p.origin, p.dest, (p.status = 'closed' or (not p.regular and p.depart_at <= now())) as over
+    const due = await sql`select s.id, s.user_id, p.origin, p.dest, p.regular, (p.status = 'closed' or (not p.regular and p.depart_at <= now())) as over
       from warp_sync_items s join posts p on p.id = s.post_id
       where s.stage = 'posted' and s.mailed_at is null and s.user_id is not null order by s.user_id limit 30`;
     const byUser = new Map<string, { ids: string[]; routes: { route: string; over: boolean }[] }>();
@@ -91,7 +112,7 @@ export async function runWarpSync(budgetMs = 25_000) {
       const k = String(r.user_id);
       const g = byUser.get(k) ?? { ids: [], routes: [] };
       g.ids.push(String(r.id));
-      g.routes.push({ route: `${r.origin} → ${r.dest}`, over: !!r.over });
+      g.routes.push({ route: `${r.regular ? "[정기] " : ""}${r.origin} → ${r.dest}`, over: !!r.over });
       byUser.set(k, g);
     }
     for (const [uid, g] of byUser) {
@@ -117,5 +138,5 @@ export async function maybeRunWarpSync() {
   const claim = await sql`insert into settings (key, value) values ('warp_sync_at', ${String(Date.now())})
     on conflict (key) do update set value = excluded.value
     where settings.value::bigint < ${Date.now() - 180_000} returning value`;
-  if (claim.length) await runWarpSync(25_000);
+  if (claim.length) await runWarpSync(12_000);
 }

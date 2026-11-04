@@ -49,6 +49,7 @@ export async function GET() {
         home: String(r.home), work: String(r.work), homeName: String(r.home_name ?? ""), workName: String(r.work_name ?? ""),
         departAt: r.depart_at ? new Date(r.depart_at).toISOString() : "", regAt: r.reg_at ? new Date(r.reg_at).toISOString() : "",
         warpState: String(r.warp_state ?? "open"), price: Number(r.price) || 0, tags: String(r.tags ?? ""),
+        kind: String(r.kind ?? "once"), timeGo: String(r.time_go ?? ""), timeBack: String(r.time_back ?? ""),
         status, stage, note: String(r.note ?? ""), postId: r.post_id ? String(r.post_id) : "", label, hasAccount, gone,
         canGo: status === "new" && !gone,
         locked: !!r.post_id || stage === "queued",
@@ -81,14 +82,27 @@ export async function POST(req: Request) {
         const role = ROLE(c[1] ?? "");
         const home = c[2] ?? "";
         const work = c[3] ?? "";
-        const depart = kst(c[4] ?? "");
+        // 출발 일시 칸에 "07:00/19:00"처럼 출근·퇴근 시각만 적으면 정기카풀
+        const reg2 = /^([01]?\d|2[0-3]):([0-5]\d)\s*[/~-]\s*(?:(([01]?\d|2[0-3]):([0-5]\d)))?$/.exec((c[4] ?? "").trim());
+        const depart = reg2 ? null : kst(c[4] ?? "");
         const state = STATE(c[5] ?? "");
         const price = Number(String(c[6] ?? "").replace(/[^\d]/g, "")) || 0;
         const reg = kst(c[7] ?? "");
-        if (!WARP_ID.test(id) || !role || !home || !work || !depart) {
+        if (!WARP_ID.test(id) || !role || !home || !work || (!depart && !reg2)) {
           bad.push(line.slice(0, 60));
           continue;
         }
+        if (reg2) {
+          const go = `${reg2[1].padStart(2, "0")}:${reg2[2]}`;
+          const back = reg2[3] ? `${reg2[4].padStart(2, "0")}:${reg2[5]}` : "";
+          await sql`insert into warp_sync_items (warp_id, kind, role, home, work, time_go, time_back, reg_date, reg_at, warp_state, price, status, updated_at)
+            values (${id}, 'regular', ${role}, ${home.slice(0, 120)}, ${work.slice(0, 120)}, ${go}, ${back}, ${reg ? reg.toISOString().slice(0, 10) : ""},
+                    ${reg ? reg.toISOString() : null}, 'open', ${price}, 'new', now())
+            on conflict (warp_id) where kind = 'regular' do nothing`;
+          saved += 1;
+          continue;
+        }
+        if (!depart) continue;
         await sql`insert into warp_sync_items (warp_id, role, home, work, time_go, reg_date, depart_at, reg_at, warp_state, price, status, updated_at)
           values (${id}, ${role}, ${home.slice(0, 120)}, ${work.slice(0, 120)}, '', ${reg ? reg.toISOString().slice(0, 10) : ""},
                   ${depart.toISOString()}, ${reg ? reg.toISOString() : null}, ${state}, ${price}, 'new', now())
