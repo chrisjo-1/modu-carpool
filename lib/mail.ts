@@ -558,3 +558,41 @@ ${quote ? `<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border
     console.error("[mail]", e);
   }
 }
+
+/**
+ * 워프동기화로 워프 글을 모두의카풀에 대신 올린 뒤 본인에게 알린다(2026-11-04 사용자 지시: 모두의카풀로 유도).
+ * 비밀번호를 아직 안 정한 분에게는 '비밀번호 찾기'로 정하는 방법을 함께 적는다. 보냈으면 true.
+ */
+export async function warpPostedMail(toUserId: string, routes: { route: string; over: boolean }[]): Promise<boolean> {
+  try {
+    const rows = await db()`select email, pw_reset_required from users where id = ${toUserId} and notify and not test and not blocked and withdrawn_at is null`;
+    if (!rows.length) return false;
+    const to = String(rows[0].email);
+    if (await suppressedNow(to)) return false;
+    const needPw = !!rows[0].pw_reset_required;
+    const subject = "[모두의카풀] 워프에 올리신 카풀을 모두의카풀에도 올려 두었어요";
+    const lead = "워프에 올리신 카풀을 모두의카풀에도 올려 두었어요. 모두의카풀에서 같은 길을 가는 분을 더 쉽게 찾을 수 있어요.";
+    const anyOver = routes.some((r) => r.over);
+    const list = routes.slice(0, 5).map((r) => `· ${r.route}${r.over ? " (지난 일정 · 종료로 표시)" : ""}`).join("\n");
+    const steps = needPw
+      ? "처음 오셨다면 로그인 화면의 '비밀번호 찾기'에 이 메일 주소를 넣어 비밀번호를 정해 주세요. 그다음 내 정보 › 내가 올린 카풀에서 고치거나 마감할 수 있어요."
+      : "로그인하신 뒤 내 정보 › 내가 올린 카풀에서 고치거나 마감할 수 있어요.";
+    const overLine = anyOver ? "지난 일정은 흐리게 '종료'로 보여요. 같은 길로 다시 가실 때는 새 일정으로 올려 주세요." : "";
+    const foot = "원하지 않으시면 내 정보에서 글을 지우거나, 설정 › 계정에서 탈퇴·개인정보 삭제를 신청하실 수 있어요.";
+    const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6">${esc(lead)}</p>
+<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border-radius:12px;font-size:15px;line-height:1.7;white-space:pre-wrap">${esc(list)}</p>
+<p style="margin:0 0 16px;font-size:15px;line-height:1.6">${esc(steps)}</p>
+${overLine ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#4E5968">${esc(overLine)}</p>` : ""}
+<a href="${SITE}" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">모두의카풀에서 확인하기</a>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${esc(foot)}</p>
+</div></div>`;
+    return await deliver({ kind: "notify-warp-posted", category: "transactional", to, userId: toUserId, subject, html,
+      text: `${lead}\n\n${list}\n\n${steps}${overLine ? `\n${overLine}` : ""}\n\n${SITE}\n\n${foot}` });
+  } catch (e) {
+    console.error("[mail]", e);
+    return false;
+  }
+}

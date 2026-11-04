@@ -293,9 +293,11 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now())`;
   await sql`create index if not exists warp_pools_warp_idx on warp_pools (upper(warp_id))`;
-  // 워프동기화 탭: 화면(사진)으로 확인한 워프 글을 목록에 넣기 전에 모아 두는 곳(2026-11-04 사용자 지시, 스크린샷 원본은 저장 안 함)
+  // 워프동기화: 화면(사진)으로 확인한 워프 1회 카풀 글. 서버가 계정 확인 → 등록 → 메일까지 처리한다(2026-11-04 사용자 지시, 스크린샷 원본은 저장 안 함).
+  // status: new(관리자 확인 전) · go(등록 진행) · hold(보류) · excluded(제외) / stage: ''(처리 전) · queued(계정 없음 대기) · posted(등록) · mailed(메일 보냄) · skip
   await sql`create table if not exists warp_sync_items (
-    warp_id text primary key,
+    id bigserial primary key,
+    warp_id text not null,
     role text not null default 'rider',
     home text not null default '',
     work text not null default '',
@@ -305,6 +307,29 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     added_at timestamptz,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now())`;
+  await sql`alter table warp_sync_items add column if not exists id bigserial`;
+  await sql`do $$ begin
+    if exists (select 1 from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
+               where c.conrelid = 'warp_sync_items'::regclass and c.contype = 'p' and a.attname = 'warp_id') then
+      alter table warp_sync_items drop constraint warp_sync_items_pkey;
+      alter table warp_sync_items add primary key (id);
+    end if;
+  end $$`;
+  await sql`alter table warp_sync_items add column if not exists home_name text not null default ''`;
+  await sql`alter table warp_sync_items add column if not exists work_name text not null default ''`;
+  await sql`alter table warp_sync_items add column if not exists depart_at timestamptz`;
+  await sql`alter table warp_sync_items add column if not exists reg_at timestamptz`;
+  await sql`alter table warp_sync_items add column if not exists warp_state text not null default 'open'`;
+  await sql`alter table warp_sync_items add column if not exists price integer not null default 0`;
+  await sql`alter table warp_sync_items add column if not exists tags text not null default ''`;
+  await sql`alter table warp_sync_items add column if not exists stage text not null default ''`;
+  await sql`alter table warp_sync_items add column if not exists note text not null default ''`;
+  await sql`alter table warp_sync_items add column if not exists user_id uuid`;
+  await sql`alter table warp_sync_items add column if not exists post_id uuid`;
+  await sql`alter table warp_sync_items add column if not exists queued_at timestamptz`;
+  await sql`alter table warp_sync_items add column if not exists mailed_at timestamptz`;
+  await sql`create unique index if not exists warp_sync_key_idx on warp_sync_items (warp_id, depart_at)`;
+  await sql`create index if not exists warp_sync_work_idx on warp_sync_items (status, stage)`;
   await sql`alter table warp_pools add column if not exists post_id uuid`;
   await sql`alter table warp_pools add column if not exists dup_count integer not null default 0`;
   await sql`alter table warp_pools add column if not exists wait_since timestamptz`;

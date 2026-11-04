@@ -1,3 +1,4 @@
+import { maybeRunWarpSync } from "@/lib/warpSync";
 import { driverTier } from "@/lib/types";
 import { notifyRouteAlerts } from "@/lib/alerts";
 import { notifyDrivers } from "@/lib/drivers";
@@ -121,6 +122,8 @@ export async function GET(req: Request) {
     // 위치 없이 이름만 있는 글을 먼저 채우고, 이어서 지역 글씨를 채운다.
     after(() => fillPostCoords().catch((e) => console.error("[geofill]", e)).then(() => fillPostAreas()).catch(() => {}));
     after(() => maybeRunRepostReminders().catch((e) => console.error("[repost-remind]", e)));
+    // 워프동기화: 대신 올릴 워프 글 처리(3분에 한 번, 응답 뒤)
+    after(() => maybeRunWarpSync().catch((e) => console.error("[warp-sync]", e)));
     if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });
   } catch (e) {
