@@ -293,6 +293,18 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now())`;
   await sql`create index if not exists warp_pools_warp_idx on warp_pools (upper(warp_id))`;
+  // 워프동기화 탭: 화면(사진)으로 확인한 워프 글을 목록에 넣기 전에 모아 두는 곳(2026-11-04 사용자 지시, 스크린샷 원본은 저장 안 함)
+  await sql`create table if not exists warp_sync_items (
+    warp_id text primary key,
+    role text not null default 'rider',
+    home text not null default '',
+    work text not null default '',
+    time_go text not null default '',
+    reg_date text not null default '',
+    status text not null default 'new',
+    added_at timestamptz,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now())`;
   await sql`alter table warp_pools add column if not exists post_id uuid`;
   await sql`alter table warp_pools add column if not exists dup_count integer not null default 0`;
   await sql`alter table warp_pools add column if not exists wait_since timestamptz`;
