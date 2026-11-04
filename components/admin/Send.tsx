@@ -524,6 +524,24 @@ export default function AdminSend() {
         )}
       </section>
       <section className="grid gap-3">
+        <h2 className="text-[18px] font-bold">자동 이어 보내기 중인 캠페인 <span className="text-sm font-normal text-sub">실행 한 번에 200명, 하루 2번 · 자동이 멈춰도 [지금 이어서 발송]으로 바로 보낼 수 있어요</span></h2>
+        <div className="grid gap-2">
+          {d?.campaigns.filter((c) => c.auto && (c.status === "sending" || c.status === "done")).length === 0 && (
+            <p className="rounded-2xl border border-line bg-white p-4 text-[14px] text-sub">자동으로 이어 보내는 캠페인이 없어요.</p>
+          )}
+          {d?.campaigns.filter((c) => c.auto && (c.status === "sending" || c.status === "done")).map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4">
+              <div className="min-w-0">
+                <p className="font-semibold">{c.title}</p>
+                <p className="mt-1 text-[14px]">발송 <b>{c.sent.toLocaleString()}명</b> · 열람 <b>{(c.opened ?? 0).toLocaleString()}명</b> · 버튼 클릭 <b>{(c.clicked ?? 0).toLocaleString()}명</b>{c.failed > 0 ? <span className="text-sub"> · 실패 {c.failed.toLocaleString()}명</span> : null}</p>
+                <p className="text-[12px] text-sub">열람·클릭은 메일 앱이 기록을 허용한 사람만 집계돼요.</p>
+              </div>
+              <button className={btnPrimary} disabled={!!running} onClick={() => start(c)}>지금 이어서 발송</button>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="grid gap-3">
         <h2 className="text-[18px] font-bold">자동 발송 실행 기록 <span className="text-sm font-normal text-sub">매일 9시 10분·12시 10분 실행, 최근 100건</span></h2>
         <div data-block-id="C442" data-block-name="자동 발송 실행 기록" className="overflow-x-auto rounded-2xl border border-line bg-white">
           <table className="w-full text-left text-[14px]">

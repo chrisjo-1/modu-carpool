@@ -29,7 +29,9 @@ export async function GET(req: Request) {
   if (!hasDb()) return json({ error: "DB가 연결되지 않았습니다." }, 503);
   await ensureSchema();
   const started = Date.now();
-  const list = await db()`select id, title from mail_campaigns where auto and status in ('sending','done') order by created_at`;
+  // 마지막 실행이 오래된 캠페인부터 돌린다(앞 캠페인이 실행 시간을 다 써서 뒤 캠페인이 굶지 않게)
+  const list = await db()`select c.id, c.title from mail_campaigns c where c.auto and c.status in ('sending','done')
+    order by (select max(r.created_at) from mail_runs r where r.campaign_id = c.id) nulls first, c.created_at`;
   const report: { id: string; title: string; sent: number; held: string | null; done: boolean; note: string }[] = [];
   for (const c of list) {
     let sent = 0;
