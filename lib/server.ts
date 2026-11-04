@@ -295,6 +295,7 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`create index if not exists warp_pools_warp_idx on warp_pools (upper(warp_id))`;
   await sql`alter table warp_pools add column if not exists post_id uuid`;
   await sql`alter table warp_pools add column if not exists dup_count integer not null default 0`;
+  await sql`alter table warp_pools add column if not exists wait_since timestamptz`;
   await sql`alter table warp_pools add column if not exists last_dup_at timestamptz`;
   await sql`create table if not exists phone_view_log (
     id bigserial primary key, kind text not null, ref text not null, ip text not null default '', at timestamptz not null default now())`;
@@ -596,6 +597,9 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   // 채팅 목록(/api/requests)에서 "내가 보낸 신청 + 내 글에 들어온 신청"을 빨리 찾기 위한 색인
   await sql`create index if not exists requests_user_idx on requests (user_id)`;
   await sql`create index if not exists posts_user_idx on posts (user_id)`;
+  // 워프 고유코드로 관리자가 대신 올린 글: source='warp', warp_code=고유코드
+  await sql`alter table posts add column if not exists source text not null default ''`;
+  await sql`alter table posts add column if not exists warp_code text`;
   await sql`create index if not exists chat_reads_req_idx on chat_reads (request_id, user_id)`;
   // 마음 상담 예약. 응답 원문은 저장하지 않고 지수·단계만. 상담 시각이 지나고 180일 뒤 지운다(maintainData).
   await sql`create table if not exists ops_log (
@@ -668,6 +672,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
 
 /** 매번 가볍게 확인하는 자료 정리(고유코드 없는 회원 채우기, 표시 이름을 고유코드로). 할 일이 없으면 쿼리 2번. */
 async function maintainData(sql: ReturnType<typeof db>) {
+  // 이메일 대기열 워프 글: 30일 안에 계정 이메일이 안 채워지면 지운다(사용자 지시 2026-11-04).
+  await sql`delete from warp_pools where post_id is null and wait_since is not null and wait_since < now() - interval '30 days'`;
   // 운전자 연락처 안전망: 신청이 취소·거절됐거나, 일회성 카풀이 출발한 지 2일 지나면 지운다.
   await sql`delete from ride_contacts rc using requests r join posts p on p.id = r.post_id
     where rc.request_id = r.id and (r.status <> 'accepted' or (not p.regular and p.depart_at < now() - interval '2 days'))`;

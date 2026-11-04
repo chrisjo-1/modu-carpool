@@ -529,3 +529,32 @@ export async function sendSuspendMail(to: string, name: string, reason: string) 
 </div></div>`;
   return deliver({ kind: "suspend", category: "transactional", to, subject, html, text: `${lead}\n\n${note}` });
 }
+
+/**
+ * 워프에서 올라온 글(source='warp')에 신청이 들어오면 주인에게 바로 알린다(신청 한 건마다 한 통, 사용자 지시 2026-11-04).
+ * 비밀번호를 아직 정하지 않은 주인은 메일 안내대로 '비밀번호 찾기'로 정하면 된다.
+ */
+export async function warpRequestMail(toUserId: string, fromName: string, route: string, quote = "") {
+  try {
+    const rows = await db()`select email, pw_reset_required from users where id = ${toUserId} and notify and not test and not blocked and withdrawn_at is null`;
+    if (!rows.length) return;
+    const to = String(rows[0].email);
+    const from = fromName || "회원";
+    const subject = `[모두의카풀] 워프에서 올린 카풀에 ${from} 님이 신청했어요`;
+    const lead = `워프에서 등록된 "${route}" 카풀에 ${from} 님이 신청했어요. 모두의카풀에서 수락하거나 대화해 보세요.`;
+    const note = rows[0].pw_reset_required
+      ? "아직 비밀번호를 정하지 않으셨다면 로그인 화면의 '비밀번호 찾기'로 정하면 글을 관리할 수 있어요."
+      : "이 메일은 신청 알림입니다. 받고 싶지 않으면 내 정보에서 \"메일 알림\"을 꺼 주세요.";
+    const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6">${esc(lead)}</p>
+${quote ? `<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border-radius:12px;font-size:15px;line-height:1.6;white-space:pre-wrap">${esc(quote)}</p>` : ""}
+<a href="${SITE}/?tab=chat" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">신청 확인하기</a>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${esc(note)}</p>
+</div></div>`;
+    await deliver({ kind: "notify-warp-request", category: "transactional", to, userId: toUserId, subject, html, text: `${lead}\n${quote ? `\n"${quote}"\n` : ""}\n${note}\n${SITE}/?tab=chat` });
+  } catch (e) {
+    console.error("[mail]", e);
+  }
+}

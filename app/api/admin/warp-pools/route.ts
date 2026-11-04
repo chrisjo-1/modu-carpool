@@ -1,5 +1,6 @@
+import { after } from "next/server";
 import { body, clientIp, db, ensureSchema, fail, isAdmin, json, text } from "@/lib/server";
-import { allPoints, candidatesFor, pairGroups, pairList, regionCounts, regionOf, sameAddr, workplaces, type PairSort, type RegionFilter, fillWarpGeo, parseWarpPools, publishWarpPools, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
+import { allPoints, candidatesFor, pairGroups, pairList, regionCounts, regionOf, sameAddr, workplaces, type PairSort, type RegionFilter, fillWarpGeo, parseWarpPools, publishWarpPools, publishQueuedWarp, saveWarpPools, shortPlace, unpublishWarpPools } from "@/lib/warpPool";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -137,7 +138,8 @@ export async function POST(req: Request) {
       const { rows, skipped } = parseWarpPools(raw);
       if (!rows.length) return json({ error: "읽을 수 있는 정기카풀 글이 없어요. 워프 목록을 그대로 복사해 붙여 주세요." }, 400);
       const saved = await saveWarpPools(rows);
-      // 이미 모두의카풀 계정과 이어진 회원은 바로 옮긴다(위치는 나중에 채워져도 글은 주소 이름으로 먼저 보인다)
+      after(() => { publishQueuedWarp().catch((e) => console.error("[warp-queue]", e)); });
+            // 이미 모두의카풀 계정과 이어진 회원은 바로 옮긴다(위치는 나중에 채워져도 글은 주소 이름으로 먼저 보인다)
       return json({ ok: true, read: rows.length, skipped, ...saved });
     }
     if (b.action === "geo") {

@@ -300,7 +300,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
                   <KeywordChips post={p} max={2} />
                   <div className="flex items-center justify-between text-[14px] text-sub">
                     <span className="num">{scheduleText(p, lang)}{far(p) != null && <b className="ml-1.5 font-semibold text-accent">· {kmText(far(p) as number)}</b>}</span>
-                    <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} role={p.role} size={28} />{p.owner}<TierBadge tier={p.ownerTier} /></span>
+                    <span className="flex items-center gap-1.5"><Avatar src={p.ownerPhoto} name={p.owner} role={p.role} size={28} />{p.owner}<TierBadge tier={p.ownerTier} />{p.fromWarp && <span className="rounded-md bg-violetSoft px-1.5 py-0.5 text-[11px] font-semibold text-violet">{t("워프에서 등록된 카풀")}</span>}</span>
                   </div>
                 </Card>
               </button>

@@ -7,6 +7,8 @@ export type Post = {
   owner: string;
   ownerBio: string;
   role: "driver" | "rider";
+  /** 워프 고유코드로 관리자가 대신 올린 글 */
+  fromWarp?: boolean;
   kind: "commute" | "trip";
   cost: "free" | "meter" | "fixed";
   /** cost 가 fixed 일 때 1인 금액(원) */

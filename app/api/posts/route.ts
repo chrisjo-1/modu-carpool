@@ -82,6 +82,7 @@ export async function GET(req: Request) {
       ownerTier: r.role === "driver" ? driverTier({ carNo: r.owner_car_no, carPhoto: carPhotoUrl(r.user_id, r.car_v), photo: photoUrl(r.user_id, r.photo_v), tierSet: r.owner_tier_set }) : "",
       role: r.role,
       kind: r.kind,
+      fromWarp: r.source === "warp",
       cost: r.cost,
       price: r.price,
       regular: r.regular,

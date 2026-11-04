@@ -1,5 +1,5 @@
 import { driverTier } from "@/lib/types";
-import { notify } from "@/lib/mail";
+import { notify, warpRequestMail } from "@/lib/mail";
 import { pushText, sendPush } from "@/lib/push";
 import { PHOTO_REQUIRED, hasPhoto, isVerified } from "@/lib/verify";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     const sql = db();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 카풀을 신청할 수 있어요. 메일함을 확인해 주세요." }, 403);
     if (!(await hasPhoto(me))) return json({ error: PHOTO_REQUIRED }, 403);
-    const post = await sql`select user_id, status, origin, dest, demo, (not regular and depart_at <= now()) as ended from posts where id = ${b.postId}`;
+    const post = await sql`select user_id, status, origin, dest, demo, source, (not regular and depart_at <= now()) as ended from posts where id = ${b.postId}`;
     if (post.length && post[0].demo) return json({ error: "예시 글에는 신청할 수 없어요." }, 400);
     if (post.length && post[0].ended) return json({ error: "출발 시각이 지나 종료된 카풀입니다." }, 409);
     if (post.length && post[0].status === "progress") return json({ error: "이미 카풀이 진행 중인 글이라 신청할 수 없습니다." }, 409);
@@ -108,6 +108,7 @@ export async function POST(req: Request) {
       const route = `${post[0].origin} → ${post[0].dest}`;
       await Promise.all([
         notify(String(post[0].user_id), "request", String(who[0]?.name ?? ""), route, text(b.message, 300)),
+        post[0].source === "warp" ? warpRequestMail(String(post[0].user_id), String(who[0]?.name ?? ""), route, text(b.message, 300)) : null,
         sendPush(String(post[0].user_id), { title: "카풀 신청이 왔어요", body: pushText.cut(`${who[0]?.name || "회원"}님 · ${route}`, 120), url: "/?tab=chat", tag: `req-${b.postId}` }),
       ]);
     }

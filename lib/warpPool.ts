@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { nextOccurrence } from "./time";
 import { kakaoAddress, osmAddress, photonAddress } from "./placeSearch";
 import { db } from "./server";
@@ -499,38 +500,73 @@ export function shortPlace(addr: string): string {
  */
 export async function publishWarpPools(codes: string[], cost: "free" | "fixed", price: number) {
   const sql = db();
-  const rows = await sql`select w.*, l.matched_user, u.withdrawn_at, u.blocked from warp_pools w
+  const rows = await sql`select w.*, l.matched_user, l.email_norm, l.nickname, l.name as warp_name, u.withdrawn_at, u.blocked from warp_pools w
       left join legacy_members l on upper(l.warp_id) = upper(w.warp_id) and w.warp_id <> ''
       left join users u on u.id = l.matched_user
       where w.code = any(${codes}::text[])`;
-  const out = { posted: 0, skipped: [] as { code: string; why: string }[] };
+  const out = { posted: 0, accounts: 0, skipped: [] as { code: string; why: string }[] };
   for (const w of rows) {
     const code = String(w.code);
     const why = w.post_id ? "이미 올림"
-      : !w.matched_user ? "모두의카풀 계정 없음"
+      : !w.matched_user && !w.email_norm ? "이메일 없음(계정을 만들 수 없음)"
       : w.withdrawn_at || w.blocked ? "탈퇴·정지 회원"
       : !w.active ? "워프에서 미사용"
       : !String(w.work) ? "목적지(회사) 주소 없음"
       : sameAddr(String(w.home), String(w.work)) ? "출발·도착 주소 같음(주소 확인 필요)"
       : w.home_lat == null || w.work_lat == null ? "위치를 아직 못 찾음" : "";
     if (why) {
+      // 이메일이 없는 최근 가입자 등 계정을 아직 못 만드는 글은 대기열에 둔다(30일 보관). 명단 업로드 때 다시 시도한다.
+      if (why.startsWith("이메일 없음")) await sql`update warp_pools set wait_since = coalesce(wait_since, now()) where code = ${code}`;
       out.skipped.push({ code, why });
       continue;
+    }
+    // 계정이 없으면 고유코드 고객에게 만든다(신워프 명단과 같은 방식: 비밀번호는 아무도 모르는 값, 회원이 비밀번호 찾기로 정함)
+    let userId = w.matched_user ? String(w.matched_user) : "";
+    if (!userId) {
+      const email = String(w.email_norm).trim().toLowerCase();
+      const ins = await sql`insert into users (email, pw, name, contact, contact_type, member_code, pw_reset_required, email_verified)
+        values (${email}, ${`unset:${randomBytes(32).toString("hex")}`}, ${String(w.nickname || w.warp_name || "").slice(0, 40)}, '', '', ${code}, true, true)
+        on conflict do nothing returning id`;
+      let uid = ins[0]?.id ? String(ins[0].id) : "";
+      if (!uid) {
+        const ex = await sql`select id, withdrawn_at, blocked from users where lower(email) = ${email} limit 1`;
+        if (!ex.length || ex[0].withdrawn_at || ex[0].blocked) {
+          out.skipped.push({ code, why: "기존 계정이 탈퇴·정지 상태" });
+          continue;
+        }
+        uid = String(ex[0].id);
+      }
+      // 명단의 matched_user는 건드리지 않는다(구워프 미가입자 메일 대상 판정에 쓰임). 다음 게시 때는 이메일로 같은 계정을 찾는다.
+      userId = uid;
+      out.accounts += 1;
     }
     const timeGo = String(w.time_go || "08:00");
     const days = "12345";
     const next = new Date(nextOccurrence(days, timeGo)).toISOString();
     const ins = await sql`
       insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
-                         regular, days, time_go, time_back, tags)
-      values (${w.matched_user}, ${w.role === "driver" ? "driver" : "rider"}, 'commute', ${cost}, ${cost === "fixed" ? price : 0},
+                         regular, days, time_go, time_back, tags, source, warp_code)
+      values (${userId}, ${w.role === "driver" ? "driver" : "rider"}, 'commute', ${cost}, ${cost === "fixed" ? price : 0},
               ${shortPlace(String(w.home))}, ${shortPlace(String(w.work))}, ${next}, 1, '',
-              ${w.home_lat}, ${w.home_lng}, ${w.work_lat}, ${w.work_lng}, true, ${days}, ${timeGo}, ${String(w.time_back ?? "")}, '{}'::text[])
+              ${w.home_lat}, ${w.home_lng}, ${w.work_lat}, ${w.work_lng}, true, ${days}, ${timeGo}, ${String(w.time_back ?? "")}, '{}'::text[],
+              'warp', ${code})
       returning id`;
-    await sql`update warp_pools set post_id = ${ins[0].id} where code = ${code}`;
+    await sql`update warp_pools set post_id = ${ins[0].id}, wait_since = null where code = ${code}`;
     out.posted += 1;
   }
   return out;
+}
+
+/**
+ * 대기열(이메일 없어서 못 올린 워프 글)을 다시 올려 본다. 명단(legacy_members) 업로드·워프 목록 업로드 뒤에 부른다.
+ * 이메일이 채워진 것만 올라가고, 나머지는 대기열에 그대로 남는다. 대기열 글은 무료로 올린다.
+ */
+export async function publishQueuedWarp() {
+  const sql = db();
+  const rows = await sql`select code from warp_pools where post_id is null and wait_since is not null limit 300`;
+  if (!rows.length) return { tried: 0, posted: 0, accounts: 0 };
+  const r = await publishWarpPools(rows.map((x) => String(x.code)), "free", 0);
+  return { tried: rows.length, posted: r.posted, accounts: r.accounts };
 }
 
 /** 올린 글 내리기: 신청이 없으면 지우고, 있으면 마감으로 바꾼다. */

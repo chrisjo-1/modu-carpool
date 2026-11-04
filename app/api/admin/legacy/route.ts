@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import { publishQueuedWarp } from "@/lib/warpPool";
 import { randomBytes } from "node:crypto";
 import { keyedHash, maskEmail, maskPhone, normEmail, normPhone, runMatch } from "@/lib/legacy";
 import { body, clientIp, db, ensureSchema, fail, hasDb, isAdmin, json } from "@/lib/server";
@@ -131,6 +133,7 @@ export async function POST(req: Request) {
     const sql = db();
     if (b.action === "match") {
       const m = await runMatch();
+      after(() => { publishQueuedWarp().catch((e) => console.error("[warp-queue]", e)); });
       return json({ ok: true, ...m, oldDupRemoved: await dropOldWarpDuplicates() });
     }
     if (b.action !== "import" || !Array.isArray(b.rows) || b.rows.length === 0 || b.rows.length > 1000)
@@ -224,7 +227,8 @@ export async function POST(req: Request) {
       withdrawnAccounts = r.length;
     }
     const oldDupRemoved = await dropOldWarpDuplicates();
-    return json({ ok: true, saved: cols.id.length, skipped, created, withdrawnAccounts, oldDupRemoved });
+    after(() => { publishQueuedWarp().catch((e) => console.error("[warp-queue]", e)); });
+      return json({ ok: true, saved: cols.id.length, skipped, created, withdrawnAccounts, oldDupRemoved });
   } catch (e) {
     return fail(e);
   }
