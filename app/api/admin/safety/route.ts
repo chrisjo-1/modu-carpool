@@ -14,6 +14,7 @@ export async function GET() {
     await ensureSchema();
     const sql = db();
     const rows = await sql`select s.*, p.origin, p.dest, p.time_go,
+        exists (select 1 from ride_contacts rc where rc.request_id = s.request_id) as ride_contact,
         ru.email as rider_email, ru.name as rider_nick, ru.member_code as rider_code,
         du.email as driver_email, du.name as driver_nick, du.member_code as driver_code
       from safety_sessions s
@@ -45,6 +46,9 @@ export async function GET() {
         lastAnswer: String(s.last_answer ?? ""),
         lastAnswerAt: ms(s.last_answer_at),
         createdAt: ms(s.created_at),
+        requestId: String(s.request_id),
+        urgentAt: ms(s.urgent_at),
+        rideContact: s.ride_contact === true,
       };
     });
     return json({ items });

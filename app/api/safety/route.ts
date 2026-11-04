@@ -1,7 +1,7 @@
 import { after } from "next/server";
-import { notifySafetyStart } from "@/lib/safetyNotify";
+import { notifySafetyAlert, notifySafetyStart } from "@/lib/safetyNotify";
 import { sendPush } from "@/lib/push";
-import { normPhone, SAFETY_INTERVAL_MIN } from "@/lib/safety";
+import { normPhone, SAFETY_INTERVAL_MIN, SAFETY_OVERDUE_MIN } from "@/lib/safety";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +46,7 @@ function shape(s: Record<string, unknown>, me: string) {
     iConsented: String(s.requester_id) === me ? !!s.requester_consent_at : !!s.partner_consent_at,
     otherConsented: String(s.requester_id) === me ? !!s.partner_consent_at : !!s.requester_consent_at,
     phoneSaved: String(s.requester_id) === me ? !!s.requester_phone : !!s.partner_phone,
+    urgentAt: ms(s.urgent_at),
   };
 }
 
@@ -61,6 +62,12 @@ export async function GET(req: Request) {
     if (!p) return json({ error: "대화방을 찾을 수 없어요." }, 404);
     const rows = await db()`select * from safety_sessions where request_id = ${requestId} and status <> 'closed' order by created_at desc limit 1`;
     const g = await db()`select gender from users where id = ${me}`;
+    const cur = rows[0];
+    // 3분 넘게 답이 없는 질문은 한 번만 관리자에게 메일(누군가 상태를 읽을 때 감지)
+    if (cur && String(cur.status) === "active" && cur.pending_since && Date.now() - new Date(cur.pending_since as string).getTime() > SAFETY_OVERDUE_MIN * 60_000) {
+      const flag = await db()`update safety_sessions set overdue_mailed_at = now() where id = ${cur.id} and overdue_mailed_at is null returning id`;
+      if (flag.length) after(() => notifySafetyAlert("overdue", String(cur.id)).catch(() => {}));
+    }
     return json({ accepted: p.accepted, post: p.post, canStart: String(g[0]?.gender ?? "") === "female", session: rows[0] ? shape(rows[0], me) : null });
   } catch (e) {
     return fail(e);
@@ -136,7 +143,21 @@ export async function POST(req: Request) {
       const rows = await sql`update safety_sessions set last_answer = ${answer}, last_answer_at = now(), pending_since = null
         where id = ${id} and rider_id = ${me} and status = 'active' and pending_since is not null returning *`;
       if (!rows.length) return json({ error: "지금 답할 확인 질문이 없어요." }, 409);
+      if (answer === "no") after(() => notifySafetyAlert("no", id).catch(() => {}));
       return json({ ok: true, session: shape(rows[0], me) });
+    }
+
+    if (b.action === "urgent") {
+      const id = String(b.id ?? "");
+      if (!isUuid(id)) return json({ error: "잘못된 요청입니다." }, 400);
+      const rows = await sql`update safety_sessions set urgent_at = coalesce(urgent_at, now())
+        where id = ${id} and (requester_id = ${me} or partner_id = ${me}) and status = 'active' returning *`;
+      if (!rows.length) return json({ error: "진행 중인 안전지킴에서만 보낼 수 있어요." }, 409);
+      const s = rows[0];
+      const other = String(s.requester_id) === me ? String(s.partner_id) : String(s.requester_id);
+      await sendPush(other, { title: "위급 신호", body: "상대분이 위급 신호를 보냈어요. 괜찮으신지 바로 확인해 주세요.", url: `/?room=${s.request_id}`, tag: `safety-urgent-${id}` });
+      after(() => notifySafetyAlert("urgent", id).catch(() => {}));
+      return json({ ok: true, session: shape(s, me) });
     }
 
     if (b.action === "end") {
@@ -150,7 +171,7 @@ export async function POST(req: Request) {
       // 안전지킴 종료 = 카풀 종료로 보고 운전자 연락처도 지운다
       await sql`delete from ride_contacts where request_id = ${s.request_id}`;
       const other = String(s.requester_id) === me ? String(s.partner_id) : String(s.requester_id);
-      await sendPush(other, { title: "안전지킴 종료", body: "안전지킴이 종료됐어요.", url: `/?room=${s.request_id}`, tag: `safety-${s.request_id}` });
+      await sendPush(other, { title: "안전지킴 종료", body: String(s.rider_id) === me ? "탑승자가 도착해 안전지킴을 종료했어요. 카풀이 끝났어요." : "안전지킴이 종료됐어요.", url: `/?room=${s.request_id}`, tag: `safety-${s.request_id}` });
       return json({ ok: true });
     }
 

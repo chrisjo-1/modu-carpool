@@ -633,6 +633,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     created_at timestamptz not null default now()
   )`;
   await sql`create index if not exists safety_request_idx on safety_sessions (request_id, created_at desc)`;
+  await sql`alter table safety_sessions add column if not exists urgent_at timestamptz`;
+  await sql`alter table safety_sessions add column if not exists overdue_mailed_at timestamptz`;
   await sql`create index if not exists safety_status_idx on safety_sessions (status, created_at desc)`;
   await sql`create table if not exists counsel_bookings (
     id uuid primary key default gen_random_uuid(),

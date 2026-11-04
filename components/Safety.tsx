@@ -17,6 +17,7 @@ type Session = {
   iConsented: boolean;
   otherConsented: boolean;
   phoneSaved: boolean;
+  urgentAt: number | null;
 };
 type Post = { origin: string; dest: string; timeGo: string; originLat: number | null; originLng: number | null; destLat: number | null; destLng: number | null };
 type Data = { accepted: boolean; post: Post; canStart: boolean; session: Session | null };
@@ -47,14 +48,29 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
   // 신청은 여성 회원만. 진행 중인 건이 있으면 누구나(상대분 포함) 보고 동의·종료할 수 있다.
   if (!s && !data.canStart) return null;
 
-  const end = async () => {
+  // arrived: 탑승자의 '도착했어요' 종료(카풀도 끝남). 아니면 일반 종료.
+  const end = async (arrived: boolean) => {
     if (!s || busy) return;
-    if (!confirm("안전지킴을 종료할까요? 입력한 전화번호는 지워져요.")) return;
+    const ask = arrived
+      ? "도착했나요? 안전지킴을 끝내면 카풀도 끝나고, 입력한 전화번호는 지워져요."
+      : "안전지킴을 종료할까요? 입력한 전화번호는 지워져요.";
+    if (!confirm(ask)) return;
     setBusy(true);
     const r = await api("/api/safety", "POST", { action: "end", id: s.id });
     setBusy(false);
     if (!r.ok) return toast(r.error || "종료하지 못했어요.");
-    toast("안전지킴을 종료했어요.");
+    toast(arrived ? "도착을 확인했어요. 안전지킴을 종료했어요." : "안전지킴을 종료했어요.");
+    load();
+  };
+
+  const urgent = async () => {
+    if (!s || busy) return;
+    if (!confirm("위급 신호를 보낼까요? 운영팀 화면에 바로 올라가고, 상대분께도 알림이 가요.")) return;
+    setBusy(true);
+    const r = await api("/api/safety", "POST", { action: "urgent", id: s.id });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || "보내지 못했어요.");
+    toast("위급 신호를 보냈어요.");
     load();
   };
 
@@ -65,8 +81,8 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
           <p className="font-semibold text-warn">🛡 안전지킴</p>
           <p className="mt-0.5 text-[13px] text-sub">{SAFETY_DISCLAIMER}</p>
         </div>
-        {s && s.status !== "closed" && (
-          <button type="button" onClick={end} disabled={busy} className="shrink-0 rounded-xl border border-line bg-white px-3 py-2 text-[14px] font-semibold text-ink disabled:opacity-50">종료</button>
+        {s && s.status !== "closed" && !(s.isRider && s.status === "active") && (
+          <button type="button" onClick={() => end(false)} disabled={busy} className="shrink-0 rounded-xl border border-line bg-white px-3 py-2 text-[14px] font-semibold text-ink disabled:opacity-50">종료</button>
         )}
       </div>
 
@@ -84,6 +100,18 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
       {s?.status === "active" && (
         <>
           <p className="mt-2 text-[14px] text-sub">진행 중이에요. {s.isRider ? "이동 중에 몇 번 가볍게 여쭤볼게요." : "탑승자께 이동 중 확인 질문이 가요."}</p>
+          <p className="mt-1 text-[13px] font-semibold text-warn">진행 중에는 운영팀이 실시간으로 감시하고 있어요. 응답과 긴급 신호는 바로 운영팀 화면에 올라가요.</p>
+          {s.urgentAt ? (
+            <div className="mt-2 rounded-xl bg-warn p-3 text-white">
+              <p className="text-[15px] font-semibold">위급 신호를 보냈어요. 바로 112에 전화해 주세요.</p>
+              <a href="tel:112" className="mt-2 block rounded-xl bg-white px-4 py-3 text-center text-[16px] font-bold text-warn">112 전화 걸기</a>
+            </div>
+          ) : (
+            <button type="button" onClick={urgent} disabled={busy} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-bold text-white disabled:opacity-50">🚨 위급해요 · 운영팀에 바로 알리기</button>
+          )}
+          {s.isRider && (
+            <button type="button" onClick={() => end(true)} disabled={busy} className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-3 text-[16px] font-semibold text-ink disabled:opacity-50">도착했어요 · 안전지킴 종료</button>
+          )}
           {s.isRider && <RiderChecks session={s} post={data.post} onChanged={load} toast={toast} />}
         </>
       )}
@@ -130,6 +158,7 @@ function PhoneSheet({ title, button, onClose, onSubmit }: { title: string; butto
     <Sheet title={title} onClose={onClose} blockId="S430">
       <div className="space-y-4 text-[15px] text-ink">
         <p className="rounded-xl bg-warnSoft p-3 text-[14px] text-sub">{SAFETY_DISCLAIMER}</p>
+        <p className="text-[14px] font-semibold text-warn">진행 중에는 운영팀이 실시간으로 감시하고 있어요. 응답과 긴급 신호는 바로 운영팀 화면에 올라가요.</p>
         <label className="block text-sm text-sub">
           연락 가능한 휴대폰 번호
           <input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className={`${field} mt-1`} />

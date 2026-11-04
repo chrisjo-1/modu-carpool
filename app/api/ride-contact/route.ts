@@ -1,3 +1,4 @@
+import { logOps } from "@/lib/opsLog";
 import { normPhone } from "@/lib/safety";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
 
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
       if (!phone) return json({ error: "전화번호를 정확히 입력해 주세요." }, 400);
       await db()`insert into ride_contacts (request_id, phone) values (${requestId}, ${phone})
         on conflict (request_id) do update set phone = excluded.phone, created_at = now()`;
+      await logOps("admin", "운전자 연락처 동의", `요청 ${requestId.slice(0, 8)} · 번호는 기록하지 않음`, "운전자");
       return json({ ok: true });
     }
 

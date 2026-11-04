@@ -19,6 +19,9 @@ type Item = {
   lastAnswer: string;
   lastAnswerAt: number | null;
   createdAt: number | null;
+  requestId: string;
+  urgentAt: number | null;
+  rideContact: boolean;
 };
 
 const RESULT: Record<string, string> = { ok: "이상 없음", issue: "문제 있음", unreachable: "연락 안 됨" };
@@ -50,7 +53,10 @@ export default function AdminSafety() {
     load();
   };
 
-  const active = items.filter((i) => i.status === "active");
+  // 진행 중: 위급 신호 → 무응답 순으로 위에 둔다
+  const active = items
+    .filter((i) => i.status === "active")
+    .sort((a, b) => (b.urgentAt ? 2 : 0) + (b.overdue ? 1 : 0) - ((a.urgentAt ? 2 : 0) + (a.overdue ? 1 : 0)));
   const recent = items.filter((i) => i.status !== "active");
 
   return (
@@ -58,8 +64,8 @@ export default function AdminSafety() {
       <Card>
         <h2 className="text-[18px] font-bold">안전지킴</h2>
         <p className="mt-1 text-[14px] text-sub">
-          탑승자가 3분 넘게 답하지 않으면 빨간 표시가 뜹니다. 등록된 번호로 직접 연락한 뒤 결과를 눌러 주세요. 처리하면 전화번호는 지워집니다.
-          전화번호는 운영팀만 보며 회원에게 공개되지 않습니다.
+          위급 신호는 맨 위에 뜨고 메일로도 알려요. 탑승자가 3분 넘게 답하지 않으면 빨간 표시가 뜹니다. 등록된 번호로 직접 연락한 뒤 결과를 눌러 주세요. 처리하면 전화번호는 지워집니다.
+          운전자 연락처는 버튼을 눌러야 보이며, 볼 때마다 운영 일지에 기록이 남아요. 전화번호는 운영팀만 보며 회원에게 공개되지 않습니다.
         </p>
         {msg && <p className="mt-2 text-[14px] text-mint">{msg}</p>}
         {err && <p className="mt-2 text-[14px] text-warn">{err}</p>}
@@ -81,10 +87,21 @@ export default function AdminSafety() {
 
 function Row({ item: i, onResolve }: { item: Item; onResolve: (id: string, result: string) => void }) {
   const active = i.status === "active";
+  const [dphone, setDphone] = useState<string | null>(null);
+  const [dmsg, setDmsg] = useState("");
+
+  // 운전자 연락처는 버튼을 눌렀을 때만 가져온다(서버에서 열람 기록을 남김)
+  const reveal = async () => {
+    const r = await api<{ phone: string }>(`/api/admin/safety/phone?req=${i.requestId}`);
+    if (r.ok) setDphone(r.data.phone);
+    else setDmsg(r.error || "불러오지 못했어요.");
+  };
+
   return (
-    <Card className={i.overdue ? "border-warn" : ""}>
+    <Card className={i.urgentAt || i.overdue ? "border-warn" : ""}>
       <div className="flex flex-wrap items-center gap-2">
         {active ? <Tag tone="accent">진행 중</Tag> : <Tag>{RESULT[i.result] ?? "종료"}</Tag>}
+        {i.urgentAt && <Tag tone="warn">🚨 위급 신호 {clock(i.urgentAt)}</Tag>}
         {i.overdue && <Tag tone="warn">3분 넘게 답 없음</Tag>}
         {i.lastAnswer === "no" && <Tag tone="warn">마지막 답: 아니요</Tag>}
       </div>
@@ -96,6 +113,16 @@ function Row({ item: i, onResolve }: { item: Item; onResolve: (id: string, resul
         <p><span className="text-sub">탑승자 번호</span> {i.rider.phone ? <a href={`tel:${i.rider.phone}`} className="font-semibold underline">{i.rider.phone}</a> : "없음"}</p>
         <p><span className="text-sub">운전자 번호</span> {i.driver.phone ? <a href={`tel:${i.driver.phone}`} className="font-semibold underline">{i.driver.phone}</a> : "없음"}</p>
       </div>
+      {i.rideContact && (
+        <div className="mt-2 text-[14px]">
+          {dphone ? (
+            <p><span className="text-sub">운전자 연락처(카풀 등록)</span> <a href={`tel:${dphone}`} className="font-semibold underline">{dphone}</a></p>
+          ) : (
+            <button type="button" onClick={reveal} className="rounded-xl border border-line bg-white px-3 py-2 text-[13px] font-semibold text-ink">운전자 연락처 보기 (열람 기록 남음)</button>
+          )}
+          {dmsg && <p className="mt-1 text-[13px] text-warn">{dmsg}</p>}
+        </div>
+      )}
       {active && (
         <div className="mt-3 grid grid-cols-3 gap-2">
           <button type="button" onClick={() => onResolve(i.id, "ok")} className="rounded-xl border border-line bg-white px-2 py-2.5 text-[14px] font-semibold">이상 없음</button>
