@@ -6,7 +6,7 @@ import { body, db, ensureSchema, fail, hasDb, isAdmin, isUuid, json, text } from
 export const dynamic = "force-dynamic";
 
 /**
- * 캠페인 취소(본문 없음) 또는 매일 자동 이어 보내기 켜고 끄기(`{auto: boolean}`).
+ * 캠페인 취소(본문 없음) 또는 발송 완료로 정리(`{action: 'settle'}`).
  * 취소: 이미 발송된 메일은 되돌리지 않고, 아직 나가지 않은 대상만 멈춘다.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -23,11 +23,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!r.ok) return json({ error: r.error }, r.status);
       return json({ ok: true, done: r.done, left: r.left });
     }
-    if (typeof b.auto === "boolean") {
-      await db()`update mail_campaigns set auto = ${b.auto} where id = ${id} and status in ('sending','done')`;
-      return json({ ok: true, auto: b.auto });
-    }
-    await db()`update mail_campaigns set status = 'cancelled', finished_at = now(), auto = false where id = ${id} and status in ('draft','sending')`;
+    await db()`update mail_campaigns set status = 'cancelled', finished_at = now() where id = ${id} and status in ('draft','sending')`;
     return json({ ok: true });
   } catch (e) {
     return fail(e);

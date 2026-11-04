@@ -35,32 +35,6 @@ export const FOLLOWUP_LABEL: Record<string, string> = { open: "안 연 사람만
 /** 광고성 메일은 같은 회원에게 이 기간(일) 안에 한 번만 보낸다 */
 export const MARKETING_GAP_DAYS = 7;
 
-/** 발송 종류 템플릿. 문구는 초안이므로 발송 전에 반드시 검토한다. */
-export const TEMPLATES: { key: string; label: string; category: MailCategory; subject: string; body: string }[] = [
-  {
-    key: "legacy-privacy",
-    label: "구워프 회원 안내 (개인정보 삭제·탈퇴 방법)",
-    category: "transactional",
-    subject: "[모두의카풀] 워프 회원 정보 이용 안내",
-    body: "안녕하세요, 모두의카풀입니다.\n\n워프에서 가입하셨던 회원님께 개인정보 이용 내용을 알려 드립니다.\n\n현재 모두의카풀에서는 회원님의 정보를 최소한으로만 보관하고 있습니다. 더 이상 이용을 원하지 않으시면 탈퇴하실 수 있고, 계속 이용하시더라도 개인정보만 삭제하실 수 있습니다.\n\n탈퇴·개인정보 삭제 방법: 모두의카풀 앱 또는 웹사이트에 로그인해 내 정보 > 탈퇴 신청을 선택해 주세요.\n\n문의: 모두의카풀 고객센터",
-  },
-  {
-    key: "new-warp-welcome",
-    label: "신워프 회원 안내 (모두의카풀 이전 완료)",
-    category: "transactional",
-    subject: "[모두의카풀] 모두의카풀 계정이 준비되었어요",
-    body: "안녕하세요, 모두의카풀입니다.\n\n워프 회원님의 모두의카풀 계정이 준비되었습니다.\n\n계정은 이 메일 주소로 만들어 두었습니다. 로그인하시려면 비밀번호 찾기로 새 비밀번호를 정해 주세요.\n\n로그인하기: " + SITE,
-  },
-  {
-    key: "promo-taxi-subway",
-    label: "광고: 택시 동승·지하철 자리나눔 출시 소식",
-    category: "marketing",
-    subject: "(광고) 모두의카풀에 택시 동승과 지하철 자리나눔이 곧 열려요",
-    body: "안녕하세요, 모두의카풀입니다.\n\n모두의카풀에 택시 동승과 지하철 자리나눔 서비스를 준비하고 있어요. 이용 후기와 의견을 받아 함께 만들어 가겠습니다.\n\n지금 모두의카풀에서 확인해 보세요: " + SITE,
-  },
-  { key: "custom", label: "직접 작성", category: "transactional", subject: "", body: "" },
-];
-
 /**
  * 대상자 목록. 고른 그룹을 모두 합치고, 같은 이메일은 한 번만 넣는다(가입 회원 정보가 있는 쪽을 우선).
  * 아이폰 메일(APPLE_MAIL_DOMAINS)은 메일이 닿지 않아 뺀다. 캠페인 생성 시각 이전에 만들어진 회원만 포함하고,
@@ -96,6 +70,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         )
         and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(l.email_norm) and not (g.status = 'failed' and g.error like '429%')))
         and (${subj}::text is null or not exists (select 1 from mail_log g3 where g3.to_email = lower(l.email_norm) and g3.subject = ${subj}::text and g3.status = 'sent'))
+        and (${fof}::uuid is not null or not exists (select 1 from mail_log g5 where g5.to_email = lower(l.email_norm) and g5.status = 'sent' and g5.campaign_id is not null))
         and (${fof}::uuid is null or (exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm) and f.status = 'sent')
           and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm)
             and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))
@@ -120,6 +95,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         and (${a.onlyDriver} = false or (u.car_no <> '' and u.car_v > 0))
         and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(u.email) and not (g.status = 'failed' and g.error like '429%')))
         and (${subj}::text is null or not exists (select 1 from mail_log g2 where g2.to_email = lower(u.email) and g2.subject = ${subj}::text and g2.status = 'sent'))
+        and (${fof}::uuid is not null or not exists (select 1 from mail_log g6 where g6.to_email = lower(u.email) and g6.status = 'sent' and g6.campaign_id is not null))
         and (${fof}::uuid is null or (exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(u.email) and f.status = 'sent')
           and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(u.email)
             and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))

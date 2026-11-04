@@ -1,4 +1,4 @@
-import { audienceSummary, parseAudience, SEGMENT_LABEL, SEGMENTS, TEMPLATES } from "@/lib/campaign";
+import { audienceSummary, parseAudience, SEGMENT_LABEL, SEGMENTS } from "@/lib/campaign";
 import { getPolicy, type MailCategory } from "@/lib/mail";
 import { body, db, ensureSchema, fail, hasDb, isAdmin, json, text } from "@/lib/server";
 
@@ -13,7 +13,7 @@ export async function GET() {
     await ensureSchema();
     const sql = db();
     const rows = await sql`
-      select c.id, c.created_at, c.title, c.category, c.segment, c.only_consent, c.only_driver, c.subject, c.status, c.started_at, c.finished_at, c.auto,
+      select c.id, c.created_at, c.title, c.category, c.segment, c.only_consent, c.only_driver, c.subject, c.status, c.started_at, c.finished_at,
         c.followup_of, c.followup_mode, c.except_ids,
         (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent' and (g.opened_at is not null or g.clicked_at is not null)) as opened,
         (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent' and g.clicked_at is not null) as clicked,
@@ -31,7 +31,6 @@ export async function GET() {
       runs: runs.map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
       segments: SEGMENTS.map(([key, label]) => ({ key, label })),
       segmentLabels: SEGMENT_LABEL,
-      templates: TEMPLATES.map(({ key, label, category, subject, body }) => ({ key, label, category, subject, body })),
       history: (await sql`select g.created_at, g.to_email, g.subject, g.status, g.kind, g.campaign_id from mail_log g order by g.created_at desc limit 200`).map((r) => ({ ...r, created_at: new Date(r.created_at as string).getTime() })),
       campaigns: rows.map((r) => ({
         ...r,
@@ -74,8 +73,8 @@ export async function POST(req: Request) {
   }
   try {
     await ensureSchema();
-    const rows = await db()`insert into mail_campaigns (title, category, segment, only_consent, only_driver, subject, body, status, followup_of, followup_mode, except_ids, auto)
-      values (${title}, ${category}, ${a.segments.join(",")}, ${a.onlyConsent}, ${a.onlyDriver}, ${subject}, ${bodyText}, 'draft', ${a.followUpOf ?? null}, ${a.followUpMode ?? ""}, ${a.exceptCampaigns ?? []}::text[], ${b.auto !== false})
+    const rows = await db()`insert into mail_campaigns (title, category, segment, only_consent, only_driver, subject, body, status, followup_of, followup_mode, except_ids)
+      values (${title}, ${category}, ${a.segments.join(",")}, ${a.onlyConsent}, ${a.onlyDriver}, ${subject}, ${bodyText}, 'draft', ${a.followUpOf ?? null}, ${a.followUpMode ?? ""}, ${a.exceptCampaigns ?? []}::text[])
       returning id`;
     return json({ ok: true, id: rows[0].id });
   } catch (e) {

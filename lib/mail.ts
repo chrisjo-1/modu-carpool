@@ -86,16 +86,21 @@ async function blockCheck(m: Mail): Promise<{ code: "log" | "off" | "quiet" | "c
 
 const DAY = 86_400_000;
 
-/** 오늘(KST) 대량 메일 발송 몫. 하루 한도를 정했으면 그 값, 0이면 월 한도에 맞춰 자동으로 나눈다. */
-export type Allowance = { auto: boolean; cap: number; left: number; sentToday: number; monthSent: number; monthlyCap: number; daysLeft: number; cycleStart: number; cycleEnd: number };
-
 /**
- * 자동(하루 한도 0): (월 한도 − 이번 결제 주기에 이미 보낸 전체 메일(오늘 전까지) − 꼭 필요한 메일 몫) ÷ 남은 날수(오늘 포함).
- * 꼭 필요한 메일 몫은 월 한도의 10%를 남은 날수 비율로 남긴다. 어제 덜 보냈으면 오늘 몫이 늘어난다.
- * 수동 한도도 월 한도 남은 양을 넘지 않는다.
+ * 오늘(KST) 대량 메일 발송 몫 (2026-11-04 확정 공식):
+ * 몫 = (월 한도 − 이번 결제 주기에서 오늘 전까지 보낸 전체 메일) ÷ 남은 날수(오늘 포함), 소수점은 버린다.
+ * 오늘 몫에서 오늘 이미 보낸 전체 메일을 뺀 것이 남은 몫이다. 하루 한도 칸·자동 설정·예비분은 없다.
  */
-export async function campaignAllowance(p?: MailPolicy): Promise<Allowance> {
-  const pol = p ?? (await getPolicy());
+export type Allowance = { cap: number; left: number; sentToday: number; monthSent: number; monthlyCap: number; daysLeft: number; cycleStart: number; cycleEnd: number };
+
+/** 대량(캠페인) 메일은 밤 21시~아침 8시(KST)에 보내지 않는다. 고정값이라 설정하지 않는다. */
+export function campaignQuietNow(): boolean {
+  const h = kstHour();
+  return h >= 21 || h < 8;
+}
+
+export async function campaignAllowance(): Promise<Allowance> {
+  const pol = await getPolicy();
   const k = new Date(Date.now() + 9 * 3600_000);
   const y = k.getUTCFullYear(), mo = k.getUTCMonth(), d = k.getUTCDate();
   const dayIn = (yy: number, mm: number) => Math.min(pol.cycleDay, new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate());
@@ -107,21 +112,14 @@ export async function campaignAllowance(p?: MailPolicy): Promise<Allowance> {
   const cycleEnd = kst(ny, nm, dayIn(ny, nm));
   const todayStart = kst(y, mo, d);
   const daysLeft = Math.max(1, Math.round((cycleEnd - todayStart) / DAY));
-  const cycleLen = Math.max(1, Math.round((cycleEnd - cycleStart) / DAY));
   const r = await db()`select count(*) filter (where created_at < ${new Date(todayStart).toISOString()})::int as before,
-      count(*)::int as total,
-      count(*) filter (where campaign_id is not null and created_at >= ${new Date(todayStart).toISOString()})::int as today
+      count(*) filter (where created_at >= ${new Date(todayStart).toISOString()})::int as today,
+      count(*)::int as total
     from mail_log where status = 'sent' and created_at >= ${new Date(cycleStart).toISOString()}`;
-  const before = Number(r[0].before), monthSent = Number(r[0].total), sentToday = Number(r[0].today);
-  const monthLeft = Math.max(0, pol.monthlyCap - monthSent);
-  let cap: number;
-  if (pol.dailyCap > 0) cap = pol.dailyCap;
-  else {
-    const reserve = Math.round(pol.monthlyCap * 0.1 * daysLeft / cycleLen);
-    cap = Math.max(0, Math.floor((pol.monthlyCap - before - reserve) / daysLeft));
-  }
-  const left = Math.max(0, Math.min(cap - sentToday, monthLeft));
-  return { auto: pol.dailyCap <= 0, cap, left, sentToday, monthSent, monthlyCap: pol.monthlyCap, daysLeft, cycleStart, cycleEnd };
+  const before = Number(r[0].before), sentToday = Number(r[0].today), monthSent = Number(r[0].total);
+  const cap = Math.max(0, Math.floor((pol.monthlyCap - before) / daysLeft));
+  const left = Math.max(0, Math.min(cap - sentToday, pol.monthlyCap - monthSent));
+  return { cap, left, sentToday, monthSent, monthlyCap: pol.monthlyCap, daysLeft, cycleStart, cycleEnd };
 }
 
 type Prepared = { held: Status } | { payload: { from: string; to: string[]; subject: string; html: string; text: string; headers?: Record<string, string> } };

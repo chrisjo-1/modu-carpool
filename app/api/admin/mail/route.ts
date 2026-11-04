@@ -57,7 +57,7 @@ export async function GET(req: Request) {
              (select count(*)::int from legacy_members l where l.matched_user is null and not l.withdrawn and split_part(lower(l.email_norm), '@', 2) = any(${APPLE_MAIL_DOMAINS}::text[])) as old,
              (select count(*)::int from legacy_members l where l.matched_user is null and not l.withdrawn and coalesce(l.phone_norm, '') <> '' and split_part(lower(l.email_norm), '@', 2) = any(${APPLE_MAIL_DOMAINS}::text[])) as old_ph`;
     const policy = await getPolicy();
-    const allowance = await campaignAllowance(policy);
+    const allowance = await campaignAllowance();
     return json({
       policy,
       allowance,

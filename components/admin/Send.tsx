@@ -2,14 +2,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Segment = { key: string; label: string };
-type Template = { key: string; label: string; category: string; subject: string; body: string };
 type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean; followup_of?: string | null; followup_mode?: string; opened?: number; clicked?: number; except_ids?: string[] | null };
 type Summary = { count: number; pool: number; excludedBySubject: number; excludedByCampaigns: number; groups: Record<string, number> };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
 type Run = { id: number; created_at: number; source: string; campaign_title: string; sent: number; held: string | null; done: boolean; ms: number; note: string };
 type LogRow = { created_at: number; to_email: string; status: string; error: string; opened: boolean; clicked: boolean };
 type LogData = { title: string; totals: { sent: number; failed: number; blocked: number; opened: number; clicked: number }; rows: LogRow[]; more: boolean; next: number | null };
-type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; segmentLabels: Record<string, string>; templates: Template[]; campaigns: Campaign[]; runs: Run[] };
+type Data = { history: Hist[]; policy: { marketingOn: boolean; requireConsent: boolean; dailyCap: number }; segments: Segment[]; segmentLabels: Record<string, string>; campaigns: Campaign[]; runs: Run[] };
 
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const btn = "rounded-lg border border-line bg-white px-3 py-2 text-[14px] font-semibold hover:bg-bg disabled:opacity-50";
@@ -25,8 +24,8 @@ const when = (t: number | null) => (t ? new Date(t).toLocaleString("ko-KR", { ti
 
 export default function AdminSend() {
   const [d, setD] = useState<Data | null>(null);
-  const [templateKey, setTemplateKey] = useState("custom");
-  const [category, setCategory] = useState<"transactional" | "marketing">("transactional");
+  // 광고성 메일은 쓰지 않는다(구워프 회원 마케팅 동의 0명). 안내 메일만 보낸다.
+  const category = "transactional" as const;
   const [segs, setSegs] = useState<string[]>(["members"]);
   const [onlyConsent, setOnlyConsent] = useState(false);
   const [onlyDriver, setOnlyDriver] = useState(false);
@@ -90,19 +89,7 @@ export default function AdminSend() {
     setTestNew("");
   };
 
-  // 광고성 메일은 마케팅 동의 회원에게만 보낸다
-  const isMarketing = category === "marketing";
-  useEffect(() => { if (isMarketing) setOnlyConsent(true); }, [isMarketing]);
 
-  const pickTemplate = (key: string) => {
-    setTemplateKey(key);
-    const t = d?.templates.find((x) => x.key === key);
-    if (!t || key === "custom") return;
-    setCategory(t.category as "transactional" | "marketing");
-    setSubject(t.subject);
-    setBodyText(t.body);
-    if (!title) setTitle(t.label);
-  };
   const form = () => ({ segments: segs, onlyConsent, onlyDriver, title, subject, body: bodyText, category, followUpOf: followOf || null, followUpMode: followOf ? followMode : "", exceptCampaigns: exceptIds });
   /** 저장된 대상(쉼표로 이어 쓴 키)을 사람이 읽는 이름으로 */
   const labelOf = (seg: string) => seg.split(",").filter(Boolean).map((k) => d?.segmentLabels?.[k] ?? k).join(" + ");
@@ -192,15 +179,14 @@ export default function AdminSend() {
   const editDraft = (c: Campaign) => {
     setDraftId(c.id);
     setTitle(c.title);
-    setCategory(c.category as "transactional" | "marketing");
-    setSegs(c.segment.split(",").filter(Boolean));
+        setSegs(c.segment.split(",").filter(Boolean));
     setOnlyConsent(c.only_consent);
     setOnlyDriver(c.only_driver);
     setFollowOf(c.followup_of ?? "");
     setFollowMode(c.followup_mode === "click" ? "click" : "open");
     setSubject(c.subject);
     setBodyText(c.body ?? "");
-    setTemplateKey("custom");
+    
     setCount(null);
     setSummary(null);
     setExceptIds(c.except_ids ?? []);
@@ -210,7 +196,7 @@ export default function AdminSend() {
 
   const newDraft = () => {
     setDraftId("");
-    setTitle(""); setSubject(""); setBodyText(""); setTemplateKey("custom"); setCount(null); setSummary(null); setFollowOf(""); setExceptIds([]);
+    setTitle(""); setSubject(""); setBodyText("");  setCount(null); setSummary(null); setFollowOf(""); setExceptIds([]);
     setMsg("새 글을 시작합니다.");
   };
 
@@ -258,12 +244,6 @@ export default function AdminSend() {
     setMsg("이미지를 본문 끝에 넣었어요. 위치는 {{img}} 줄을 옮겨서 바꿀 수 있어요.");
   };
 
-  // 매일 아침 예약 실행이 남은 대상에게 하루 한도만큼 이어서 보낸다(CRON_SECRET 필요).
-  const toggleAuto = async (c: Campaign, auto: boolean) => {
-    const r = await fetch(`/api/admin/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ auto }) });
-    setMsg(r.ok ? (auto ? `"${c.title}"을(를) 매일 아침 자동으로 이어 보내요.` : `"${c.title}" 자동 이어 보내기를 껐어요.`) : "바꾸지 못했어요.");
-    load();
-  };
 
   const cancel = async (c: Campaign) => {
     if (!window.confirm(`"${c.title}" 캠페인을 취소할까요? 아직 나가지 않은 대상만 멈춥니다.`)) return;
@@ -275,27 +255,8 @@ export default function AdminSend() {
     <div className="grid gap-6">
       {msg && <div className="rounded-lg border border-line bg-white px-4 py-3 text-[14px]" role="status">{msg}</div>}
 
-      {d && !d.policy.marketingOn && isMarketing && (
-        <div className="rounded-lg border border-warn bg-white px-4 py-3 text-[14px] text-warn">광고성 발송이 정책에서 꺼져 있어, 광고성 캠페인은 발송되지 않습니다. 메일 탭 정책에서 허용해 주세요.</div>
-      )}
-
       <section className="grid gap-4 rounded-2xl border border-line bg-white p-5">
         <h2 className="text-[18px] font-bold">{draftId ? "초안 고치기" : "새 발송 만들기"}</h2>
-
-        <label className="grid gap-1 text-[14px]">
-          <span className="font-semibold">템플릿</span>
-          <select className={input} value={templateKey} onChange={(e) => pickTemplate(e.target.value)}>
-            {d?.templates.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </select>
-        </label>
-
-        <fieldset className="grid gap-1 text-[14px]">
-          <span className="font-semibold">메일 종류</span>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2"><input type="radio" checked={category === "transactional"} onChange={() => setCategory("transactional")} />안내 메일 (동의 불필요)</label>
-            <label className="flex items-center gap-2"><input type="radio" checked={category === "marketing"} onChange={() => setCategory("marketing")} />광고성 메일 (마케팅 동의 회원만, 제목 앞에 (광고) 자동 표시)</label>
-          </div>
-        </fieldset>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="grid gap-1 text-[14px]">
@@ -311,7 +272,6 @@ export default function AdminSend() {
             </div>
           </label>
           <div className="grid content-end gap-2 text-[14px]">
-            <label className="flex items-center gap-2"><input type="checkbox" checked={onlyConsent} disabled={isMarketing} onChange={(e) => setOnlyConsent(e.target.checked)} />마케팅 동의 회원만{isMarketing && " (광고성은 필수)"}</label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={onlyDriver} onChange={(e) => setOnlyDriver(e.target.checked)} />운전자 등록 회원만 (차량 등록)</label>
           </div>
         </div>
@@ -381,7 +341,7 @@ export default function AdminSend() {
 
         <div className="flex flex-wrap items-center gap-2">
           <button className={btn} disabled={busy || !segs.length} onClick={doCount}>가능 인원 검색</button>
-          {count !== null && <span className="text-[14px]"><b>{segLabel}</b> 대상 <b>{count.toLocaleString()}명</b>{d && d.policy.dailyCap > 0 && count > d.policy.dailyCap ? ` · 하루 한도 ${d.policy.dailyCap}통이라 나눠서 발송됩니다(매일 자동 이어 보내기 가능)` : d && count > 1000 ? " · 월 한도에 맞춘 하루 몫만큼 나눠 보냅니다(매일 자동 이어 보내기 가능)" : ""}</span>}
+          {count !== null && <span className="text-[14px]"><b>{segLabel}</b> 대상 <b>{count.toLocaleString()}명</b> · 하루 몫(월 한도 기준)만큼 나눠 보냅니다</span>}
         </div>
         {summary && (
           <div data-block-id="C441" data-block-name="대상 설명" className="grid gap-1 rounded-xl border border-line bg-bg p-3 text-[14px] leading-relaxed">
@@ -462,12 +422,6 @@ export default function AdminSend() {
                         <button className={btn} disabled={!!running} onClick={() => cancel(c)}>취소</button>
                       </div>
                     )}
-                    {(c.status === "sending" || (c.status === "done" && c.retry > 0)) && (
-                      <label className="mt-2 flex items-center gap-2 text-[13px]" title="매일 아침 9시 10분(한도가 풀린 뒤) 남은 대상에게 하루 한도만큼 이어서 보내요.">
-                        <input type="checkbox" className="h-4 w-4 accent-[#2F6BFF]" checked={!!c.auto} onChange={(e) => toggleAuto(c, e.target.checked)} />
-                        매일 자동 이어 보내기
-                      </label>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -524,32 +478,14 @@ export default function AdminSend() {
         )}
       </section>
       <section className="grid gap-3">
-        <h2 className="text-[18px] font-bold">자동 이어 보내기 중인 캠페인 <span className="text-sm font-normal text-sub">실행 한 번에 200명, 하루 2번 · 자동이 멈춰도 [지금 이어서 발송]으로 바로 보낼 수 있어요</span></h2>
-        <div className="grid gap-2">
-          {d?.campaigns.filter((c) => c.auto && (c.status === "sending" || c.status === "done")).length === 0 && (
-            <p className="rounded-2xl border border-line bg-white p-4 text-[14px] text-sub">자동으로 이어 보내는 캠페인이 없어요.</p>
-          )}
-          {d?.campaigns.filter((c) => c.auto && (c.status === "sending" || c.status === "done")).map((c) => (
-            <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4">
-              <div className="min-w-0">
-                <p className="font-semibold">{c.title}</p>
-                <p className="mt-1 text-[14px]">발송 <b>{c.sent.toLocaleString()}명</b> · 열람 <b>{(c.opened ?? 0).toLocaleString()}명</b> · 버튼 클릭 <b>{(c.clicked ?? 0).toLocaleString()}명</b>{c.failed > 0 ? <span className="text-sub"> · 실패 {c.failed.toLocaleString()}명</span> : null}</p>
-                <p className="text-[12px] text-sub">열람·클릭은 메일 앱이 기록을 허용한 사람만 집계돼요.</p>
-              </div>
-              <button className={btnPrimary} disabled={!!running} onClick={() => start(c)}>지금 이어서 발송</button>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="grid gap-3">
-        <h2 className="text-[18px] font-bold">자동 발송 실행 기록 <span className="text-sm font-normal text-sub">매일 9시 10분·12시 10분 실행, 최근 100건</span></h2>
-        <div data-block-id="C442" data-block-name="자동 발송 실행 기록" className="overflow-x-auto rounded-2xl border border-line bg-white">
+        <h2 className="text-[18px] font-bold">발송 실행 기록 <span className="text-sm font-normal text-sub">[지금 이어서 발송] 실행 내역, 최근 100건</span></h2>
+        <div data-block-id="C442" data-block-name="발송 실행 기록" className="overflow-x-auto rounded-2xl border border-line bg-white">
           <table className="w-full text-left text-[14px]">
             <thead className="bg-bg text-sub">
               <tr><th className="p-3">실행 시각</th><th className="p-3">캠페인</th><th className="p-3">이번 발송</th><th className="p-3">결과</th><th className="p-3">걸린 시간</th></tr>
             </thead>
             <tbody>
-              {d?.runs?.length === 0 && <tr><td className="p-4 text-sub" colSpan={5}>아직 자동 발송 기록이 없습니다.</td></tr>}
+              {d?.runs?.length === 0 && <tr><td className="p-4 text-sub" colSpan={5}>아직 발송 기록이 없습니다.</td></tr>}
               {d?.runs?.map((r) => (
                 <tr key={r.id} className="border-t border-line">
                   <td className="p-3 whitespace-nowrap">{when(r.created_at)}</td>

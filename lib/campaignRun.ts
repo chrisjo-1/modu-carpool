@@ -1,5 +1,5 @@
 import { RETENTION_TEXT, audienceRows, renderHtml, type Audience, type Segment } from "./campaign";
-import { campaignAllowance, deliverCampaignBatch, reconcileFailed, type MailCategory } from "./mail";
+import { campaignAllowance, campaignQuietNow, deliverCampaignBatch, reconcileFailed, type MailCategory } from "./mail";
 import { db, ensureSchema } from "./server";
 
 export type BatchResult = { ok: true; sent: number; more: boolean; held: string | null; done: boolean } | { ok: false; status: number; error: string };
@@ -33,7 +33,7 @@ export async function settleCampaign(id: string): Promise<{ ok: true; done: bool
   const before = new Date(c.created_at as string).toISOString();
   const left = (await audienceRows(a, { campaignId: id, before, limit: 100000 })).length;
   if (left === 0) {
-    await sql`update mail_campaigns set status = 'done', finished_at = coalesce(finished_at, now()), auto = false where id = ${id}`;
+    await sql`update mail_campaigns set status = 'done', finished_at = coalesce(finished_at, now()) where id = ${id}`;
     return { ok: true, done: true, left: 0 };
   }
   return { ok: true, done: false, left };
@@ -61,6 +61,8 @@ export async function runCampaignBatch(id: string, limit: number): Promise<Batch
   const before = new Date(c.created_at as string).toISOString();
   // 오늘 남은 한도만큼만 꺼낸다.
   // 하루 한도를 정했으면 그 값, 0(자동)이면 월 한도를 남은 날수로 나눈 몫. Resend가 429를 주면 quota로 멈춘다.
+  // 밤 21시~아침 8시에는 보내지 않는다(안내 메일도 포함)
+  if (campaignQuietNow()) return { ok: true, sent: 0, more: true, held: "quiet", done: false };
   const { left } = await campaignAllowance();
   if (left <= 0) return { ok: true, sent: 0, more: true, held: "cap", done: false };
   const rows = await audienceRows(a, { campaignId: id, before, limit: Math.min(limit, left) });
