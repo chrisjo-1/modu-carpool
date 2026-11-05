@@ -17,6 +17,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     await ensureSchema();
     const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    if (typeof b.auto === "boolean") {
+      // 자동 이어 보내기 켜기/끄기(발송을 시작한 캠페인만)
+      const r = await db()`update mail_campaigns set auto = ${b.auto} where id = ${id} and status in ('sending', 'done') returning id`;
+      if (!r.length) return json({ error: "발송을 시작한 캠페인만 자동으로 이어 보낼 수 있어요." }, 409);
+      return json({ ok: true, auto: b.auto });
+    }
     if (b.settle === true) {
       // '발송 중'에 멈춘 캠페인: 남은 대상이 없으면 완료로 바꾼다
       const r = await settleCampaign(id);

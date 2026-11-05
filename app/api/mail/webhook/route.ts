@@ -55,6 +55,9 @@ export async function POST(req: Request) {
   try {
     await ensureSchema();
     for (const a of to) await suppress(String(a), reason);
+    // 반송은 보낸 기록에도 남긴다(자동 발송 반송률 안전장치)
+    const eid = String(ev.data?.email_id ?? "");
+    if (reason === "bounce" && eid) await db()`update mail_log set bounced_at = coalesce(bounced_at, now()) where provider_id = ${eid}`;
   } catch (e) {
     console.error("[mail-webhook]", e);
     return new Response("error", { status: 500 });

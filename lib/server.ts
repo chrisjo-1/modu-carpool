@@ -424,6 +424,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   // 열람·클릭 추적(Resend 웹훅 email.opened·email.clicked → provider_id로 찾아 기록), 안 연 사람에게만 다시 보내기
   await sql`alter table mail_log add column if not exists opened_at timestamptz`;
   await sql`alter table mail_log add column if not exists clicked_at timestamptz`;
+  // 반송 시각(웹훅·Resend 목록 정리). 대량 메일 자동 발송의 반송률 안전장치에 쓴다.
+  await sql`alter table mail_log add column if not exists bounced_at timestamptz`;
   await sql`create index if not exists mail_log_provider_idx on mail_log (provider_id) where provider_id <> ''`;
   await sql`alter table mail_campaigns add column if not exists followup_of uuid`;
   // 앱 설치 여부: 마지막으로 연 방식(app = 홈 화면 앱, browser = 인터넷 창)과 시각, 앱으로 처음 연 시각

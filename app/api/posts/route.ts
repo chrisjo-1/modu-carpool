@@ -1,4 +1,5 @@
 import { maybeRunWarpSync } from "@/lib/warpSync";
+import { maybeRunAutoMail } from "@/lib/mailAuto";
 import { driverTier } from "@/lib/types";
 import { notifyRouteAlerts } from "@/lib/alerts";
 import { notifyDrivers } from "@/lib/drivers";
@@ -124,6 +125,8 @@ export async function GET(req: Request) {
     after(() => maybeRunRepostReminders().catch((e) => console.error("[repost-remind]", e)));
     // 워프동기화: 대신 올릴 워프 글 처리(3분에 한 번, 응답 뒤)
     after(() => maybeRunWarpSync().catch((e) => console.error("[warp-sync]", e)));
+    // 대량 메일 자동 이어 보내기(안전장치: 9~20시, 하루 몫, 반송률 4% 넘으면 멈춤). 10분에 한 번
+    after(() => maybeRunAutoMail().catch((e) => console.error("[mail-auto]", e)));
     if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });
   } catch (e) {

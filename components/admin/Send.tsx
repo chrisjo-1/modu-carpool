@@ -106,6 +106,25 @@ export default function AdminSend() {
   };
 
   // 발송 중인데 남은 대상이 없으면 완료로 바꾼다(남은 대상이 있으면 그대로 둔다)
+  // 자동 이어 보내기(안전장치판): 상태·반송률 보기, 멈춤 풀기, 캠페인별 켜기/끄기
+  const [autoInfo, setAutoInfo] = useState<{ paused: boolean; reason: string; backfill: { done: boolean; found: number }; bounce: { sent: number; bounced: number; rate: number | null } } | null>(null);
+  const loadAuto = useCallback(async () => {
+    const r = await fetch("/api/admin/mail/auto");
+    if (r.ok) setAutoInfo(await r.json());
+  }, []);
+  useEffect(() => { loadAuto(); }, [loadAuto]);
+  const resumeAuto = async () => {
+    await fetch("/api/admin/mail/auto", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "resume" }) });
+    loadAuto();
+  };
+  const toggleAuto = async (c: Campaign) => {
+    const r = await fetch(`/api/admin/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ auto: !c.auto }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setMsg(j.error ?? "바꾸지 못했습니다.");
+    setMsg(!c.auto ? `"${c.title}" 자동 이어 보내기를 켰어요. 오전 9시~오후 8시에 하루 몫 안에서 10분마다 이어서 보내요.` : `"${c.title}" 자동 이어 보내기를 껐어요.`);
+    load();
+  };
+
   const settle = async (c: Campaign) => {
     const r = await fetch(`/api/admin/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settle: true }) });
     const j = await r.json().catch(() => ({}));
@@ -384,6 +403,20 @@ export default function AdminSend() {
       </section>
 
       <section className="grid gap-3">
+        {autoInfo && (
+          <div data-block-id="C450" data-block-name="자동 이어 보내기 상태" className={`rounded-2xl border p-4 text-sm ${autoInfo.paused ? "border-warn bg-warnSoft" : "border-line bg-white"}`}>
+            <p className="font-semibold">자동 이어 보내기 (안전장치) {autoInfo.paused ? "· 멈춤" : "· 켜짐"}</p>
+            <p className="mt-1 text-sub">'자동'을 켠 발송 중 캠페인만 오전 9시~오후 8시에 하루 몫 안에서 10분마다 이어서 보내요. 최근 3일 반송률이 4%를 넘으면 스스로 멈추고 관리자에게 메일을 보내요.</p>
+            <p className="mt-1">최근 3일 반송률: {autoInfo.bounce.rate === null ? `판단 전(보낸 ${autoInfo.bounce.sent}통, 300통부터 판단)` : `${(autoInfo.bounce.rate * 100).toFixed(1)}% (보낸 ${autoInfo.bounce.sent}통 중 반송 ${autoInfo.bounce.bounced}통)`}</p>
+            <p className="mt-0.5 text-sub">반송 주소 정리: {autoInfo.backfill.done ? `끝남 (반송 ${autoInfo.backfill.found}건을 제외 목록에 넣음)` : `진행 중 (지금까지 ${autoInfo.backfill.found}건)`}</p>
+            {autoInfo.paused && (
+              <>
+                <p className="mt-2 font-semibold text-warn">{autoInfo.reason}</p>
+                <button data-block-id="B470" data-block-name="자동 발송 다시 켜기" className={`${btn} mt-2`} onClick={resumeAuto}>자동 발송 다시 켜기</button>
+              </>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <h2 className="text-[18px] font-bold">발송 목록</h2>
           <div className="flex items-center gap-2">
@@ -411,6 +444,9 @@ export default function AdminSend() {
                     <button className={`${btn} mb-2`} onClick={() => openLog(c)}>받은 사람 보기</button>
                     {c.status === "sending" && !running && (
                       <button className={`${btn} mb-2`} onClick={() => settle(c)}>완료로 정리</button>
+                    )}
+                    {c.status === "sending" && (
+                      <button data-block-id="B471" data-block-name="자동 이어 보내기 켜기" className={`${c.auto ? btnPrimary : btn} mb-2`} onClick={() => toggleAuto(c)}>{c.auto ? "자동 이어 보내기 켜짐 (끄기)" : "자동 이어 보내기 켜기"}</button>
                     )}
                     {c.status === "done" && c.retry > 0 && (
                       <button className={btnPrimary} disabled={!!running} onClick={() => start(c)}>실패분 다시 보내기 ({c.retry}명)</button>

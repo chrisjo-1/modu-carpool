@@ -14,7 +14,7 @@ export async function GET() {
     const sql = db();
     const rows = await sql`
       select c.id, c.created_at, c.title, c.category, c.segment, c.only_consent, c.only_driver, c.subject, c.status, c.started_at, c.finished_at,
-        c.followup_of, c.followup_mode, c.except_ids,
+        c.followup_of, c.followup_mode, c.except_ids, c.auto,
         (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent' and (g.opened_at is not null or g.clicked_at is not null)) as opened,
         (select count(distinct g.to_email)::int from mail_log g where g.campaign_id = c.id and g.status = 'sent' and g.clicked_at is not null) as clicked,
         case when c.status = 'draft' then c.body end as body,
