@@ -8,7 +8,7 @@ import { areaLabel } from "@/lib/areaLabel";
 import { matchesFor, type PostMatch } from "@/lib/postMatch";
 import { HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
-import { Bubble, useHintTap, RoleTag, Avatar, TierBadge, Card, Icon, Segment, Sheet, Tag, api, btnGhost, btnPrimary, btnRole, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
+import { Bubble, useHintTap, RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnGhost, btnPrimary, btnRole, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
@@ -125,11 +125,56 @@ export function RoleSwitch({ user, onUser, toast }: { user: User | null; onUser?
   );
 }
 
+/**
+ * 글의 지역 이름(지역 필터용, 2026-11-05 사용자 요청). 지역 글씨 첫 낱말을 쓴다:
+ * 광역시는 "서울"·"인천"처럼, 도 지역은 "수원시"·"창원시"처럼 시·군, 제주시·서귀포시는 "제주"로 묶는다.
+ */
+const METRO_RE = /^(서울|부산|대구|인천|광주|대전|울산|세종)(특별시|광역시|특별자치시)?$/;
+function regionOf(area?: string | null): string {
+  const first = (area ?? "").trim().split(" ")[0] ?? "";
+  if (!first) return "";
+  if (/^(제주|서귀포)/.test(first)) return "제주";
+  const m = METRO_RE.exec(first);
+  return m ? m[1] : first;
+}
+const postRegions = (p: Post) => [...new Set([regionOf(p.originArea), regionOf(p.destArea)].filter(Boolean))];
+const REGION_KEY = "modu.regions";
+
 export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost, onSubway, onSubwaySetup, driverMode }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; driverMode?: boolean; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void; onSubway?: (view: "seat" | "match" | "edit") => void; onSubwaySetup?: () => void }) {
   const t = useT();
   const lang = useLang();
   const hintTap = useHintTap();
   const [role, setRole] = useState<Role>("all");
+  // 지역 필터: 고른 지역(여러 곳) 중 출발·도착 한 곳이라도 맞는 글만. 이 기기에 기억한다.
+  const [regions, setRegions] = useState<Set<string>>(new Set());
+  const [regionOpen, setRegionOpen] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(REGION_KEY) ?? "[]");
+      if (Array.isArray(saved) && saved.length) setRegions(new Set(saved.map(String)));
+    } catch {
+      /* 무시 */
+    }
+  }, []);
+  const saveRegions = (next: Set<string>) => {
+    setRegions(next);
+    try {
+      localStorage.setItem(REGION_KEY, JSON.stringify([...next]));
+    } catch {
+      /* 무시 */
+    }
+  };
+  const toggleRegion = (r: string) => {
+    const n = new Set(regions);
+    if (n.has(r)) n.delete(r);
+    else n.add(r);
+    saveRegions(n);
+  };
+  const regionCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of posts) for (const r of postRegions(p)) m.set(r, (m.get(r) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"));
+  }, [posts]);
   // 키워드 필터: 고른 키워드 중 하나라도 붙은 글만 (여러 개 고르면 OR)
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
@@ -156,6 +201,8 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   const [shown, setShown] = useState(PAGE);
 
   const pickSort = (s: "soon" | "new" | "near") => {
+    // 거리순·출발순은 켜고 끄는 버튼: 다시 누르면 기본(최신순)으로 돌아간다.
+    if (s !== "new" && sort === s) return setSort("new");
     if (s === "near" && !here && hintTap("C932")) return;
     if (s !== "near") {
       setSort(s);
@@ -186,6 +233,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     setRegularOnly(false);
     setMineOnly(false);
     setSort("new");
+    saveRegions(new Set());
   };
   /** 내 위치에서 글의 출발지까지 거리(km). 위치가 없는 글은 null. */
   const far = (p: Post) => (here && p.originLat != null && p.originLng != null ? distanceKm(here.lat, here.lng, p.originLat, p.originLng) : null);
@@ -197,6 +245,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         (role === "all" || p.role === role) &&
         (!regularOnly || !!p.regular) &&
         (!mineOnly || p.mine) &&
+        (regions.size === 0 || postRegions(p).some((r) => regions.has(r))) &&
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
         (!k || `${p.origin} ${p.dest} ${p.note} ${(p.tags ?? []).map((x) => x.label).join(" ")} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
     );
@@ -204,7 +253,10 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     // 실사용자 글을 임시글·테스트 계정 글보다 먼저, 그 안에서는 최근 등록 순.
     if (sort === "new") {
       const real = (p: Post) => (p.demo || p.ownerTest ? 1 : 0);
-      return [...hit].sort((a, b) => real(a) - real(b) || (b.createdAt ?? 0) - (a.createdAt ?? 0));
+      // 제주 글은 다른 지역 글 뒤에(2026-11-05 사용자 요청). 지역 필터에서 제주를 고르면 평소 순서로.
+      const jejuLow = !regions.has("제주");
+      const low = (p: Post) => (jejuLow && postRegions(p).includes("제주") ? 1 : 0);
+      return [...hit].sort((a, b) => real(a) - real(b) || low(a) - low(b) || (b.createdAt ?? 0) - (a.createdAt ?? 0));
     }
     // 다른 정렬에서는 종료·마감된 글을 맨 아래에 둔다.
     const over = (p: Post) => !!p.ended || p.status === "closed";
@@ -215,7 +267,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, role, q, regularOnly, mineOnly, lang, here, sort]);
+  }, [posts, role, q, regularOnly, mineOnly, lang, here, sort, regions]);
 
   // 내 글마다 매칭률 높은 상대 글 3개(내 글 모아 보기일 때만 계산). 상대는 전체 글에서 찾는다.
   const matchMap = useMemo(() => {
@@ -227,7 +279,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
 
   useEffect(() => {
     setShown(PAGE);
-  }, [q, role, regularOnly, mineOnly, sort, here]);
+  }, [q, role, regularOnly, mineOnly, sort, here, regions]);
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
@@ -244,13 +296,52 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
           </div>
           {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 글의 출발지 위치를 볼 수 있어요.")}</Bubble></div>}
         </div>
-        <Segment compact label={t("역할")} value={role} onChange={setRole} options={[["all", t("전체")], ["driver", t("운전자만 보기")], ["rider", t("탑승자만 보기")]]} />
+        {/* [지역] + [운전자만]·[탑승자만](켜고 끄기, 둘 다 꺼짐 = 전체). 2026-11-05 사용자 요청으로 [전체] 버튼을 지역 필터로 바꿈 */}
+        <div className="flex items-center gap-1.5">
+          <button type="button" data-block-id="B009" data-block-name="지역 필터" aria-expanded={regionOpen} onClick={() => setRegionOpen((v) => !v)}
+            className={`inline-flex min-h-[44px] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl border px-3.5 py-2 text-[14px] ${regions.size ? "border-ink bg-white font-semibold text-ink" : "border-line bg-white text-sub"}`}>
+            {regions.size ? `${t("지역")} ${regions.size}${t("곳")}` : t("지역")}
+            <span aria-hidden className="text-[11px]">{regionOpen ? "▲" : "▼"}</span>
+          </button>
+          <button type="button" data-block-id="B010" data-block-name="운전자만 보기" role="switch" aria-checked={role === "driver"} onClick={() => setRole((r) => (r === "driver" ? "all" : "driver"))}
+            className={`min-h-[44px] flex-1 whitespace-nowrap rounded-xl border px-3 py-2 text-[14px] ${role === "driver" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+            {t("운전자만")}
+          </button>
+          <button type="button" data-block-id="B011" data-block-name="탑승자만 보기" role="switch" aria-checked={role === "rider"} onClick={() => setRole((r) => (r === "rider" ? "all" : "rider"))}
+            className={`min-h-[44px] flex-1 whitespace-nowrap rounded-xl border px-3 py-2 text-[14px] ${role === "rider" ? "border-mint bg-mintSoft font-semibold text-mint" : "border-line bg-white text-sub"}`}>
+            {t("탑승자만")}
+          </button>
+        </div>
+        {regionOpen && (
+          <div data-block-id="C012" data-block-name="지역 고르기" className="rounded-2xl border border-line bg-white p-3">
+            <p className="text-[13px] text-sub">{t("보고 싶은 지역을 고르세요. 출발지나 도착지가 그 지역인 글만 보여요.")}</p>
+            {regionCounts.length === 0 ? (
+              <p className="py-3 text-center text-[14px] text-sub">{t("지역 정보가 있는 글이 아직 없어요.")}</p>
+            ) : (
+              <div className="mt-2 grid max-h-60 grid-cols-2 gap-1.5 overflow-y-auto min-[400px]:grid-cols-3">
+                {regionCounts.map(([r, n]) => (
+                  <button key={r} type="button" role="checkbox" aria-checked={regions.has(r)} onClick={() => toggleRegion(r)}
+                    className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-[14px] ${regions.has(r) ? "border-ink font-semibold text-ink" : "border-line text-sub"}`}>
+                    <CheckBox on={regions.has(r)} />
+                    <span className="min-w-0 truncate">{r}</span>
+                    <span className="num ml-auto shrink-0 text-[12px] text-sub">{n}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 flex gap-2">
+              <button type="button" data-block-id="B012" data-block-name="지역 초기화" disabled={!regions.size} onClick={() => saveRegions(new Set())} className="min-h-[40px] flex-1 rounded-xl border border-line bg-white text-[14px] text-sub disabled:opacity-50">{t("초기화")}</button>
+              <button type="button" onClick={() => setRegionOpen(false)} className="min-h-[40px] flex-1 rounded-xl bg-ink text-[14px] font-semibold text-white">{t("닫기")}</button>
+            </div>
+          </div>
+        )}
         {/* 정렬과 정기카풀 필터를 한 줄에 둔다 */}
         {/* 한 줄을 넘기지 않는다. 좁은 화면에서는 줄바꿈 대신 옆으로 밀어 본다(정기카풀이 아래로 내려가지 않게). */}
         <div className={`flex-nowrap items-center gap-1.5 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${view === "map" ? "hidden" : "flex"}`}>
-          <div data-block-id="B003" data-block-name="정렬" role="radiogroup" aria-label={t("정렬")} className="flex shrink-0 flex-nowrap gap-1.5">
-            {([["new", t("최신순")], ["near", locating ? t("위치를 찾는 중…") : t("거리순")], ["soon", t("출발순")]] as const).map(([k, label]) => (
-              <button key={k} type="button" role="radio" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+          <div data-block-id="B003" data-block-name="정렬" role="group" aria-label={t("정렬")} className="flex shrink-0 flex-nowrap gap-1.5">
+            {/* 기본은 최신순. 거리순·출발순은 켜고 끄기(다시 누르면 최신순) */}
+            {([["near", locating ? t("위치를 찾는 중…") : t("거리순")], ["soon", t("출발순")]] as const).map(([k, label]) => (
+              <button key={k} type="button" role="switch" aria-checked={sort === k} disabled={k === "near" && locating} onClick={() => pickSort(k)} className={`min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-3.5 py-2 text-[14px] max-[380px]:px-2.5 max-[380px]:text-[13px] ${sort === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
                 {label}
               </button>
             ))}
