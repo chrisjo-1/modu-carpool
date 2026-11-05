@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, Icon, api, useLang, useT } from "./ui";
 
-type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number; car: number; photo?: number; firstpost?: number };
+type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number; car: number; photo?: number; firstpost?: number; karrot?: number };
 type Item = { id: string; amount: number; reason: string; label: string; memo: string; at: number };
 type Data = { balance: number; attended: boolean; welcome: number; rules: Rules; callCost?: number; historyCount: number; warpHidden?: boolean; legacyPending?: string | null };
 
@@ -134,6 +134,7 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
     [t("차량 등록 축하"), `+${creditText(d.rules.car ?? 0, lang)}`],
     [t("프로필 사진 등록 (최초 1회)"), `+${creditText(d.rules.photo ?? 0, lang)}`],
     [t("첫 카풀 등록 (최초 1회)"), `+${creditText(d.rules.firstpost ?? 0, lang)}`],
+    ...(d.rules.karrot ? [[t("당근함 물건 등록 · 사진 2장 (최초 1회)"), `+${creditText(d.rules.karrot, lang)}`] as [string, string]] : []),
     [t("프로필 사진 삭제"), `−${creditText(d.rules.photo ?? 0, lang)}`],
     ...(d.rules.legacy ? [[t("워프 회원 이전 축하"), `+${creditText(d.rules.legacy, lang)}`] as [string, string]] : []),
   ];

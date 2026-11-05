@@ -57,8 +57,11 @@ export function KarrotShowcase({ toast }: { toast: (m: string) => void }) {
         <button type="button" data-block-id="B340" data-block-name="내 물품 관리" onClick={() => setManage(true)} className="min-h-0 text-[14px] font-semibold text-accent">{t("내 물품 관리")}</button>
       </div>
       <Card data-block-id="C110" data-block-name="나의 당근함" className="space-y-3 p-4">
-        <p className="text-[13px] text-sub">{t("내가 등록한 물건이에요. 카풀 보상으로 고를 수 있고, 구매는 당근마켓에서 해요.")}</p>
-        <input data-block-id="F130" type="search" className={input} placeholder={t("키워드로 찾기 (예: 음료)")} aria-label={t("키워드로 찾기 (예: 음료)")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="space-y-1 text-[14px] leading-relaxed text-sub">
+          <p><b className="font-semibold text-ink">{t("나의 당근함에 물건을 올리면 크레딧을 드려요.")}</b></p>
+          <p>{t("올린 물건은 판매할 수도 있고, 카풀 보상으로 제공할 수도 있어요.")}</p>
+        </div>
+        {(q || (items?.length ?? 0) > 0) && <input data-block-id="F130" type="search" className={input} placeholder={t("키워드로 찾기 (예: 음료)")} aria-label={t("키워드로 찾기 (예: 음료)")} value={q} onChange={(e) => setQ(e.target.value)} />}
         {items === null ? (
           <p className="text-[15px] text-sub">{t("불러오는 중…")}</p>
         ) : items.length === 0 ? (
@@ -115,7 +118,7 @@ function KarrotSample({ onAdd }: { onAdd: () => void }) {
         </div>
       </div>
       <ol className="space-y-1 text-[13px] leading-relaxed text-sub">
-        <li>1. {t("사진 1~2장을 올려요. 물건이 잘 보이게 찍어 주세요.")}</li>
+        <li>1. {t("사진 2장을 올려요(1장도 가능, 크레딧은 2장일 때). 물건이 잘 보이게 찍어 주세요.")}</li>
         <li>2. {t("제목은 40자 이내로, 물건 이름과 상태를 적어요.")}</li>
         <li>3. {t("설명은 300자 이내로, 용량·사용 여부 등을 적어요.")}</li>
         <li>4. {t("당근마켓 앱에서 내 판매글 → 공유 → 링크 복사 후 붙여 넣어요.")}</li>
@@ -207,7 +210,8 @@ function ItemForm({ item, toast, onDone, onCancel }: { item: Item | null; toast:
       : await api("/api/karrot", "POST", payload);
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
-    toast(t("저장했어요."));
+    const credit = r.data && typeof r.data === "object" && "credit" in r.data ? Number((r.data as { credit?: number }).credit) || 0 : 0;
+    toast(credit ? `${t("저장했어요.")} +${credit.toLocaleString("ko-KR")} ${t("크레딧")}` : t("저장했어요."));
     onDone();
   };
 
@@ -215,6 +219,7 @@ function ItemForm({ item, toast, onDone, onCancel }: { item: Item | null; toast:
     <div className="space-y-3">
       <div className="space-y-2">
         <p className="text-[14px] font-semibold">{t("사진")} <span className="text-sub">({photos.length}/{KARROT_MAX_PHOTOS})</span></p>
+        <p data-block-id="C424" className="text-[13px] text-sub">{t("사진 2장을 올리면 첫 등록 때 1,000 크레딧을 드려요.")}</p>
         <div className="flex gap-2">
           {photos.map((p, i) => (
             <div key={i} className="relative h-20 w-20">

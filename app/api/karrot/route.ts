@@ -1,4 +1,5 @@
 import { KARROT_LINK_HINT, KARROT_MAX_ITEMS, KARROT_MAX_PHOTOS, isKarrotLink, parseKarrotPhoto } from "@/lib/karrot";
+import { grant } from "@/lib/credits";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +65,9 @@ export async function POST(req: Request) {
     const rows = (await db()`
       insert into karrot_items (user_id, title, note, link, photos) values (${me}, ${title}, ${note}, ${link}, ${photos}::text[])
       returning id, user_id, title, note, link, photos, created_at`) as Item[];
-    return json({ item: view(rows[0], me) });
+    // 사진 2장을 넣어 물건을 올리면 한 번 크레딧(지웠다 다시 올려도 다시 주지 않음, credit_karrot_uniq)
+    const credit = photos.length >= KARROT_MAX_PHOTOS ? await grant(me, "karrot").catch(() => 0) : 0;
+    return json({ item: view(rows[0], me), credit });
   } catch (e) {
     return fail(e);
   }
@@ -97,7 +100,9 @@ export async function PATCH(req: Request) {
       where id = ${b.id} and user_id = ${me}
       returning id, user_id, title, note, link, photos, created_at`) as Item[];
     if (!rows.length) return json({ error: "수정할 물품을 찾을 수 없어요." }, 404);
-    return json({ item: view(rows[0], me) });
+    // 1장으로 올렸다가 2장으로 고쳐도 그때 한 번 지급
+    const credit = photos.length >= KARROT_MAX_PHOTOS ? await grant(me, "karrot").catch(() => 0) : 0;
+    return json({ item: view(rows[0], me), credit });
   } catch (e) {
     return fail(e);
   }
