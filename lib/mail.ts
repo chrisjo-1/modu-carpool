@@ -541,7 +541,7 @@ export async function warpRequestMail(toUserId: string, fromName: string, route:
     const to = String(rows[0].email);
     const from = fromName || "회원";
     const subject = `[모두의카풀] 워프에서 올린 카풀에 ${from} 님이 신청했어요`;
-    const lead = `워프에서 등록된 "${route}" 카풀에 ${from} 님이 신청했어요. 모두의카풀에서 수락하거나 대화해 보세요.`;
+    const lead = `워프와 동기화된 "${route}" 카풀에 ${from} 님이 신청했어요. 모두의카풀에서 수락하거나 대화해 보세요.`;
     const note = rows[0].pw_reset_required
       ? "아직 비밀번호를 정하지 않으셨다면 로그인 화면의 '비밀번호 찾기'로 정하면 글을 관리할 수 있어요."
       : "이 메일은 신청 알림입니다. 받고 싶지 않으면 내 정보에서 \"메일 알림\"을 꺼 주세요.";

@@ -70,7 +70,7 @@ export async function runWarpSync(budgetMs = 25_000) {
     const fixed = allowed && rawPrice >= 500;
     const price = fixed ? Math.min(MAX_PRICE, Math.round(rawPrice / 100) * 100) : 0;
     const tags = String(it.tags ?? "").split(/[,·]/).map((x) => x.trim()).filter((x) => x && !/\d+\s*원|%/.test(x)).slice(0, 5);
-    const note = ["워프에서 옮겨 온 카풀이에요.", tags.length ? tags.join(" · ") : ""].filter(Boolean).join(" ").slice(0, 300);
+    const note = ["워프와 동기화된 카풀이에요.", tags.length ? tags.join(" · ") : ""].filter(Boolean).join(" ").slice(0, 300);
     const origin = (String(it.home_name || "") || shortPlace(home)).slice(0, 60);
     const dest = (String(it.work_name || "") || shortPlace(work)).slice(0, 60);
     const status = String(it.warp_state) === "done" ? "closed" : "open";
