@@ -76,8 +76,11 @@ export async function runWarpSync(budgetMs = 25_000) {
     const status = String(it.warp_state) === "done" ? "closed" : "open";
     const created = it.reg_at ? new Date(it.reg_at).toISOString() : new Date().toISOString();
     // 처리가 도중에 끊겨 다시 실행돼도 같은 글을 두 번 만들지 않는다(고유번호 + 출발 시각이 같은 워프 글이 있으면 그 글을 잇는다)
+    // 정기카풀은 관리자 '정기 매칭'에서 이미 올린 같은 회원 글(warp_pools.post_id)도 중복으로 본다
     const dup = regular
-      ? await sql`select id from posts where source = 'warp' and warp_code = ${warpId} and regular and status <> 'closed' limit 1`
+      ? await sql`select id from posts where status <> 'closed' and regular and (
+            (source = 'warp' and warp_code = ${warpId})
+            or id in (select post_id from warp_pools where upper(warp_id) = ${warpId} and post_id is not null)) limit 1`
       : await sql`select id from posts where source = 'warp' and warp_code = ${warpId} and depart_at = ${departAt.toISOString()} limit 1`;
     if (dup.length) {
       await sql`update warp_sync_items set stage = 'posted', post_id = ${dup[0].id}, user_id = ${userId}, updated_at = now() where id = ${id}`;
@@ -97,6 +100,8 @@ export async function runWarpSync(budgetMs = 25_000) {
           ${origin}, ${dest}, ${departAt.toISOString()}, 1, ${note},
           ${h?.lat ?? null}, ${h?.lng ?? null}, ${w?.lat ?? null}, ${w?.lng ?? null}, '{}'::text[], 'warp', ${warpId}, ${status}, ${created})
         returning id`;
+    // 정기카풀이면 '정기 매칭' 목록의 같은 회원 행에도 올린 글을 이어 둔다(관리자가 다시 올려 중복되지 않게)
+    if (regular) await sql`update warp_pools set post_id = ${post[0].id} where upper(warp_id) = ${warpId} and post_id is null`;
     await sql`update warp_sync_items set stage = 'posted', post_id = ${post[0].id}, user_id = ${userId},
       note = ${h ? "" : "출발 위치를 못 찾음(글 이름으로 나중에 채움)"}, updated_at = now() where id = ${id}`;
     out.posted += 1;
