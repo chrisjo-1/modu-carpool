@@ -34,10 +34,10 @@ export default async function Page({ params }: { params: Promise<{ line: string 
   return (
     <PublicPage blockId="S302" name="노선 앉아가기 안내" crumbs={[{ href: "/subway", label: "지하철 앉아가기" }]}>
       <BreadcrumbLd items={[{ name: "모두의카풀", url: SITE_URL }, { name: "지하철 앉아가기", url: `${SITE_URL}/subway` }, { name: `${name} 앉아가기`, url: `${SITE_URL}/subway/${line}` }]} />
-      <h1 className="flex items-center gap-2 text-[26px] font-bold leading-tight">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[16px]" style={{ background: c.bg, color: c.text }}>{line}</span>
-        {name} 앉아가기
-      </h1>
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[16px] font-bold" style={{ background: c.bg, color: c.text }}>{line}</span>
+        <h1 className="text-[26px] font-bold leading-tight">{name} 앉아가기</h1>
+      </div>
       <p className="mt-3 text-sub">
         {name}은 {carCountOf(line)}칸 열차예요.{" "}
         {data ? "평일 출근 시간에 가장 붐비는 구간과 역별 앉을 칸을 서울교통공사 시간대별 혼잡도(2026년 6월)로 정리했어요." : "이 노선은 공개 혼잡도 자료가 아직 없어, 칸 위치와 이용자 착석 기록으로 앉을 칸을 추정해요."}

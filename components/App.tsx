@@ -192,8 +192,8 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const setPreview = (v: boolean) => {
     setPreviewState(v);
     try {
-      if (v) sessionStorage.setItem("modu.preview", "1");
-      else sessionStorage.removeItem("modu.preview");
+      // 로그인 없이 목록부터 보여 준다(2026-11-05 외부 진단 반영). 로그인 화면을 직접 부르면 "0"으로 남겨 이 창에서는 로그인 화면을 유지한다.
+      sessionStorage.setItem("modu.preview", v ? "1" : "0");
     } catch {
       /* 무시 */
     }
@@ -285,8 +285,8 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
     screenReady.current = true;
     try {
       const saved = localStorage.getItem(LANG_KEY) as Lang | null;
-      const guess = (navigator.language || "ko").slice(0, 2) as Lang;
-      const pick = saved ?? guess;
+      // 번역을 다 넣기 전까지는 브라우저 언어를 따르지 않고 한국어로 시작한다(직접 고른 언어는 그대로).
+      const pick = saved ?? "ko";
       if (["ko", "en", "ja", "zh"].includes(pick)) setLangState(pick);
     } catch {
       /* 무시 */
@@ -366,7 +366,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       setScreenRestored(true);
     });
     try {
-      if (sessionStorage.getItem("modu.preview") === "1") setPreviewState(true);
+      if (sessionStorage.getItem("modu.preview") !== "0") setPreviewState(true);
     } catch {
       /* 무시 */
     }
@@ -592,7 +592,9 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
         )}
         {user && <VerifyBanner user={user} toast={setToastMsg} />}
         <header className="flex items-start gap-3 px-5 pb-2 pt-5">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-white">{Icon.car(1.8)}</span>
+          <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand">
+            <svg viewBox="8 12 180 92" className="w-7" fill="none"><path d="M24 84V56a30 30 0 0 1 60 0v8a12 12 0 0 0 24 0v-8a30 30 0 0 1 60 0v28" className="stroke-white" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" /><circle cx="168" cy="78" r="13" className="fill-coral" /></svg>
+          </span>
           <div className="min-w-0 flex-1">
             <p className="text-xl font-bold leading-tight">{t("모두의카풀")}</p>
             <p className="text-[13px] leading-tight text-sub">{t(slogan)}</p>
