@@ -337,6 +337,9 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table warp_pools add column if not exists post_id uuid`;
   await sql`alter table warp_pools add column if not exists dup_count integer not null default 0`;
   await sql`alter table warp_pools add column if not exists wait_since timestamptz`;
+  // 정기 매칭 일괄 게시(lib/poolJob.ts): 한 번 올리기를 시도한 시각·본인 안내 메일 보낸 시각
+  await sql`alter table warp_pools add column if not exists publish_tried_at timestamptz`;
+  await sql`alter table warp_pools add column if not exists mailed_at timestamptz`;
   await sql`alter table warp_pools add column if not exists last_dup_at timestamptz`;
   await sql`create table if not exists phone_view_log (
     id bigserial primary key, kind text not null, ref text not null, ip text not null default '', at timestamptz not null default now())`;

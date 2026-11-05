@@ -272,9 +272,9 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     // 실사용자 글을 임시글·테스트 계정 글보다 먼저, 그 안에서는 최근 등록 순.
     if (sort === "new") {
       const real = (p: Post) => (p.demo || p.ownerTest ? 1 : 0);
-      // 제주 글은 다른 지역 글 뒤에(2026-11-05 사용자 요청). 지역 필터에서 제주를 고르면 평소 순서로.
+      // 제주 글과 정기 매칭에서 한꺼번에 올린 글은 다른 글 뒤에(2026-11-05 사용자 요청). 지역 필터에서 제주를 고르면 제주 글은 평소 순서로.
       const jejuLow = !regions.has("제주");
-      const low = (p: Post) => (jejuLow && postRegions(p).includes("제주") ? 1 : 0);
+      const low = (p: Post) => (p.warpPool || (jejuLow && postRegions(p).includes("제주")) ? 1 : 0);
       return [...hit].sort((a, b) => real(a) - real(b) || low(a) - low(b) || (b.createdAt ?? 0) - (a.createdAt ?? 0));
     }
     // 다른 정렬에서는 종료·마감된 글을 맨 아래에 둔다.

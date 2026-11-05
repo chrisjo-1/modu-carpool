@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import NotifyModal, { type NotifyTarget } from "./NotifyModal";
+import PoolJob from "./PoolJob";
 import type { MapPoint } from "./PairMap";
 
 const PairMap = dynamic(() => import("./PairMap"), { ssr: false });
@@ -288,6 +289,7 @@ export default function WarpPools() {
 
   return (
     <section data-block-id="S413" data-block-name="정기 매칭" className="space-y-4">
+      <PoolJob />
       <div className="rounded-2xl border border-line bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">워프 정기카풀 · 거리 매칭</h2>

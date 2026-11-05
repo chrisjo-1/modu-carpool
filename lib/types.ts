@@ -9,6 +9,8 @@ export type Post = {
   role: "driver" | "rider";
   /** 워프 고유코드로 관리자가 대신 올린 글 */
   fromWarp?: boolean;
+  /** 정기 매칭(워프 명단)에서 관리자가 한꺼번에 올린 글. 최신순에서 뒤로 보낸다. */
+  warpPool?: boolean;
   kind: "commute" | "trip";
   cost: "free" | "meter" | "fixed";
   /** cost 가 fixed 일 때 1인 금액(원) */

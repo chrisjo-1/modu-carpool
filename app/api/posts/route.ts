@@ -1,5 +1,6 @@
 import { maybeRunWarpSync } from "@/lib/warpSync";
 import { maybeRunAutoMail } from "@/lib/mailAuto";
+import { maybeRunPoolJob } from "@/lib/poolJob";
 import { driverTier } from "@/lib/types";
 import { notifyRouteAlerts } from "@/lib/alerts";
 import { notifyDrivers } from "@/lib/drivers";
@@ -68,7 +69,9 @@ export async function GET(req: Request) {
                     and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown)
                     and (p.regular or p.depart_at > now() - interval '7 days' or not u.test)
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
-                  order by p.created_at desc limit 300`;
+                  -- 정기 매칭(워프 명단)에서 한꺼번에 올린 글(warp_code가 영문 코드)은 뒤로(2026-11-05 사용자 요청, 약 6천 건 예정):
+                  -- 최근 300건을 고를 때 실제 회원 글이 밀려나지 않게 서버에서도 먼저 실제 글을 고른다.
+                  order by (p.source = 'warp' and coalesce(p.warp_code, '') ~ '^[A-Z]{6,12}$'), p.created_at desc limit 300`;
     const now = Date.now();
     const kw = await getKeywords();
     const posts = rows.map((r) => ({
@@ -85,6 +88,7 @@ export async function GET(req: Request) {
       role: r.role,
       kind: r.kind,
       fromWarp: r.source === "warp",
+      warpPool: r.source === "warp" && /^[A-Z]{6,12}$/.test(String(r.warp_code ?? "")),
       cost: r.cost,
       price: r.price,
       regular: r.regular,
@@ -127,6 +131,8 @@ export async function GET(req: Request) {
     after(() => maybeRunWarpSync().catch((e) => console.error("[warp-sync]", e)));
     // 대량 메일 자동 이어 보내기(안전장치: 9~20시, 하루 몫, 반송률 4% 넘으면 멈춤). 10분에 한 번
     after(() => maybeRunAutoMail().catch((e) => console.error("[mail-auto]", e)));
+    // 정기 매칭 일괄 게시·안내 메일(켜져 있을 때만, 3분에 한 번)
+    after(() => maybeRunPoolJob().catch((e) => console.error("[pool-job]", e)));
     if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });
   } catch (e) {
