@@ -126,7 +126,10 @@ export default function CommuteSheet({
     setHasPlan(false);
     toast(t("앉아가기 등록을 해제했어요."));
   };
-  const [back, setBack] = useState(initial ? !!initial.timeBack : true);
+  // 올릴 길: 출근만 · 출근·퇴근 · 퇴근만(퇴근만이면 출근 글은 숨김 상태로 남아 있다)
+  const [legs, setLegs] = useState<"go" | "both" | "back">(initial ? (initial.status === "hidden" ? "back" : initial.timeBack ? "both" : "go") : "both");
+  const back = legs !== "go";
+  const goOn = legs !== "back";
   const [timeBack, setTimeBack] = useState(initial?.timeBack || "18:30");
   const [price, setPrice] = useState(initial?.price ? String(initial.price) : "");
   const [note, setNote] = useState(initial?.note ?? "");
@@ -139,7 +142,7 @@ export default function CommuteSheet({
   const [photoGate, setPhotoGate] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const allowed = priceAllowedRegular(days, timeGo, back ? timeBack : "");
+  const allowed = priceAllowedRegular(days, goOn ? timeGo : timeBack, goOn && back ? timeBack : "");
   // 비용은 출발 시간으로 자동 정해진다(시간대 안 = 금액 입력, 밖 = 무료).
   const cost: "free" | "fixed" = allowed ? "fixed" : "free";
   const toggleDay = (i: number) => setDays((d) => (d.includes(String(i)) ? d.replace(String(i), "") : [...d, String(i)].sort().join("")));
@@ -150,7 +153,7 @@ export default function CommuteSheet({
     if (subwayOpen) return;
     if (role === "driver" && !carOk) return setCarGate(true);
     setBusy(true);
-    const r = await api<{ updated: boolean; credit?: number; both?: boolean }>("/api/posts", "PUT", {
+    const r = await api<{ updated: boolean; credit?: number; both?: boolean; legs?: string }>("/api/posts", "PUT", {
       role,
       origin: origin.name,
       dest: dest.name,
@@ -159,8 +162,9 @@ export default function CommuteSheet({
       destLat: dest.lat,
       destLng: dest.lng,
       days,
-      timeGo,
+      timeGo: goOn ? timeGo : "",
       timeBack: back ? timeBack : "",
+      legs,
       seats: 1,
       cost: cost === "fixed" && !allowed ? "free" : cost,
       price: Number(price),
@@ -169,7 +173,7 @@ export default function CommuteSheet({
     });
     setBusy(false);
     if (!r.ok) return r.error === PHOTO_REQUIRED ? setPhotoGate(true) : toast(t(r.error));
-    toast(t(r.data.updated ? "출퇴근 정보를 고쳤어요." : r.data.both ? "출근·퇴근 카풀 2개를 게시했어요." : "정기카풀로 게시했어요.") + (r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : ""));
+    toast(t(r.data.updated ? "출퇴근 정보를 고쳤어요." : r.data.both ? "출근·퇴근 카풀 2개를 게시했어요." : r.data.legs === "back" ? "퇴근 카풀을 게시했어요." : "정기카풀로 게시했어요.") + (r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")} ${t("크레딧")}` : ""));
     onDone();
   };
 
@@ -225,19 +229,25 @@ export default function CommuteSheet({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-sm text-sub">
+              <label className={`block text-sm text-sub ${goOn ? "" : "opacity-40"}`}>
                 {t("출근 출발 시각")}
-                <input data-block-id="F062" className={`${field} num mt-1`} type="time" required value={timeGo} onChange={(e) => setTimeGo(e.target.value)} />
+                <input data-block-id="F062" className={`${field} num mt-1`} type="time" required={goOn} disabled={!goOn} value={timeGo} onChange={(e) => setTimeGo(e.target.value)} />
               </label>
               <label className={`block text-sm text-sub ${back ? "" : "opacity-40"}`}>
                 {t("퇴근 출발 시각")}
                 <input data-block-id="F063" className={`${field} num mt-1`} type="time" required={back} disabled={!back} value={timeBack} onChange={(e) => setTimeBack(e.target.value)} />
               </label>
             </div>
-            <label className="flex min-h-[44px] items-center gap-3 text-[15px]">
-              <input data-block-id="F064" type="checkbox" className="h-5 w-5 accent-[#2F6BFF]" checked={back} onChange={(e) => setBack(e.target.checked)} />
-              {t("퇴근길도 함께 등록")}
-            </label>
+            <div data-block-id="F064" data-block-name="올릴 길" className="space-y-1.5">
+              <p className="text-sm text-sub">{t("올릴 길")}</p>
+              <Segment
+                label={t("올릴 길")}
+                value={legs}
+                onChange={setLegs}
+                options={[["go", t("출근만")], ["both", t("출근·퇴근")], ["back", t("퇴근만")]]}
+              />
+              {legs === "back" && <p className="text-[13px] text-sub">{t("퇴근길은 회사에서 집으로 올라가요.")}</p>}
+            </div>
 
             <div className="space-y-1.5">
               <p className="text-sm text-sub">{t("비용")}</p>

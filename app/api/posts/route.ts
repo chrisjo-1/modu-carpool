@@ -200,12 +200,20 @@ export async function PUT(req: Request) {
   const [dLat, dLng] = coord(b.destLat, b.destLng);
   if (origin.length < 2 || dest.length < 2) return json({ error: "출발지와 도착지를 입력해 주세요." }, 400);
   if (!validDays(days)) return json({ error: "출퇴근 요일을 하나 이상 골라 주세요." }, 400);
-  if (toMinutes(timeGo) < 0 || (timeBack && toMinutes(timeBack) < 0)) return json({ error: "출발 시각을 확인해 주세요." }, 400);
+  // 올릴 길: go(출근만) · both(출근·퇴근) · back(퇴근만, 2026-11-05 사용자 요청). 예전 화면은 퇴근 시각 유무로 판단.
+  const legs: "go" | "both" | "back" = b.legs === "go" || b.legs === "both" || b.legs === "back" ? b.legs : timeBack ? "both" : "go";
+  const goOn = legs !== "back";
+  const backOn = legs !== "go";
+  if (goOn && toMinutes(timeGo) < 0) return json({ error: "출근 출발 시각을 확인해 주세요." }, 400);
+  if (backOn && toMinutes(timeBack) < 0) return json({ error: "퇴근 출발 시각을 확인해 주세요." }, 400);
   if (!(seats >= 1 && seats <= 6)) return json({ error: "인원은 1~6명으로 입력해 주세요." }, 400);
-  const c = costOf(b, true, priceAllowedRegular(days, timeGo, timeBack));
+  const c = costOf(b, true, priceAllowedRegular(days, goOn ? timeGo : timeBack, goOn && backOn ? timeBack : ""));
   if (c.error) return json({ error: c.error }, 400);
   const sorted = [...days].sort().join("");
-  const next = new Date(nextOccurrence(sorted, timeGo)).toISOString();
+  const next = new Date(nextOccurrence(sorted, goOn ? timeGo : timeBack)).toISOString();
+  // 퇴근만이면 출근 글은 숨김(설정값만 보관해 다음 수정 때 쓴다)
+  const goStatus = goOn ? "open" : "hidden";
+  const goBack = backOn ? timeBack : "";
   try {
     await ensureSchema();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 글을 올릴 수 있어요. 메일함을 확인해 주세요." }, 403);
@@ -218,8 +226,8 @@ export async function PUT(req: Request) {
     const goUpd = await sql`
       update posts set role = ${role}, cost = ${c.cost}, price = ${c.price}, origin = ${origin}, dest = ${dest},
         origin_lat = ${oLat}, origin_lng = ${oLng}, dest_lat = ${dLat}, dest_lng = ${dLng}, geo_tried_at = null,
-        days = ${sorted}, time_go = ${timeGo}, time_back = ${timeBack}, depart_at = ${next},
-        seats = ${seats}, note = ${note}, status = 'open', tags = ${tags}::text[]
+        days = ${sorted}, time_go = ${timeGo}, time_back = ${goBack}, depart_at = ${next},
+        seats = ${seats}, note = ${note}, status = ${goStatus}, tags = ${tags}::text[]
       where user_id = ${me} and regular and leg = 'go' returning id`;
     let id: string;
     let updated = goUpd.length > 0;
@@ -230,17 +238,20 @@ export async function PUT(req: Request) {
       const hadPost = (await sql`select 1 from posts where user_id = ${me} limit 1`).length > 0;
       const rows = await sql`
         insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note, origin_lat, origin_lng, dest_lat, dest_lng,
-                           regular, days, time_go, time_back, tags, leg)
+                           regular, days, time_go, time_back, tags, leg, status)
         values (${me}, ${role}, 'commute', ${c.cost}, ${c.price}, ${origin}, ${dest}, ${next}, ${seats}, ${note},
-                ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${timeBack}, ${tags}::text[], 'go')
+                ${oLat}, ${oLng}, ${dLat}, ${dLng}, true, ${sorted}, ${timeGo}, ${goBack}, ${tags}::text[], 'go', ${goStatus})
         returning id`;
       id = String(rows[0].id);
       credit = (await grant(me, "post").catch(() => 0)) + (hadPost ? 0 : await grant(me, "firstpost").catch(() => 0));
-      await notifyRouteAlerts(id);
-      after(() => pingIndexNow([`/post/${id}`]).catch(() => {}));
+      if (goOn) {
+        const goId = id;
+        await notifyRouteAlerts(goId);
+        after(() => pingIndexNow([`/post/${goId}`]).catch(() => {}));
+      }
     }
     // 퇴근 글: 출발·도착을 바꾸고 시각은 퇴근 시각. 퇴근길을 껐으면 기존 퇴근 글은 마감한다.
-    if (timeBack) {
+    if (backOn) {
       const backNext = new Date(nextOccurrence(sorted, timeBack)).toISOString();
       const backUpd = await sql`
         update posts set role = ${role}, cost = ${c.cost}, price = ${c.price}, origin = ${dest}, dest = ${origin},
@@ -256,11 +267,15 @@ export async function PUT(req: Request) {
                   ${dLat}, ${dLng}, ${oLat}, ${oLng}, true, ${sorted}, ${timeBack}, '', ${tags}::text[], 'back')
           returning id`;
         await notifyRouteAlerts(String(back[0].id));
+        if (!goOn) {
+          const backId = String(back[0].id);
+          after(() => pingIndexNow([`/post/${backId}`]).catch(() => {}));
+        }
       }
     } else {
       await sql`update posts set status = 'closed' where user_id = ${me} and regular and leg = 'back' and status <> 'closed'`;
     }
-    return json({ id, updated, credit, both: !!timeBack });
+    return json({ id, updated, credit, both: goOn && backOn, legs });
   } catch (e) {
     return fail(e);
   }

@@ -135,6 +135,8 @@ export default function Me({
   const file = useRef<HTMLInputElement>(null);
   // 정기카풀 한 쌍 중 출근 글을 기준으로 연다(퇴근 글은 목록에 따로 보인다).
   const regular = mine.find((p) => p.regular && p.leg !== "back") ?? null;
+  // 퇴근만 등록한 회원의 숨긴 출근 글은 '내가 올린 카풀' 목록에 보이지 않는다.
+  const shownMine = mine.filter((p) => p.status !== "hidden");
 
   const savePhoto = async (photo: string) => {
     // 삭제는 크레딧이 차감되므로 금액을 알리고 확인받는다. 변경(다른 사진으로 바꾸기)은 차감 없음.
@@ -331,12 +333,12 @@ export default function Me({
 
           <GroupTitle>{t("카풀 정보")}</GroupTitle>
           <div className="space-y-2">
-            <Fold id="commute" blockId="C043" title={t("내 출퇴근 정보")} summary={regular ? `${regular.origin} → ${regular.dest}` : t("미입력")} warn={!regular}>
+            <Fold id="commute" blockId="C043" title={t("내 출퇴근 정보")} summary={regular ? (regular.status === "hidden" ? `${t("퇴근만")} · ${regular.dest} → ${regular.origin}` : `${regular.origin} → ${regular.dest}`) : t("미입력")} warn={!regular}>
               <Card className="space-y-3 p-5">
                 {regular ? (
                   <div>
-                    <p className="font-semibold">{regular.origin} → {regular.dest}</p>
-                    <p className="num text-[14px] text-sub">{scheduleText(regular, lang)}</p>
+                    <p className="font-semibold">{regular.status === "hidden" ? `${regular.dest} → ${regular.origin}` : `${regular.origin} → ${regular.dest}`}</p>
+                    <p className="num text-[14px] text-sub">{regular.status === "hidden" ? `${t("퇴근만")} · ${scheduleText({ ...regular, timeGo: regular.timeBack, timeBack: "" }, lang)}` : scheduleText(regular, lang)}</p>
                   </div>
                 ) : (
                   <p className="text-[15px] text-sub">{t("아직 출퇴근 정보를 입력하지 않았어요.")}</p>
@@ -388,12 +390,12 @@ export default function Me({
 
           <GroupTitle>{t("내 카풀")}</GroupTitle>
           <div className="space-y-2">
-            <Fold id="mine" blockId="B292" title={t("내가 올린 카풀")} summary={`${mine.length.toLocaleString("ko-KR")}${t("건")}`}>
-              {mine.length === 0 ? (
+            <Fold id="mine" blockId="B292" title={t("내가 올린 카풀")} summary={`${shownMine.length.toLocaleString("ko-KR")}${t("건")}`}>
+              {shownMine.length === 0 ? (
                 <Card className="px-6 py-8 text-center text-sub">{t("아직 올린 글이 없어요.")}</Card>
               ) : (
                 <Card id="my-posts" className="divide-y divide-line">
-                  {mine.map((p) => (
+                  {shownMine.map((p) => (
                     <div key={p.id} data-block-id="C045" data-block-name="내 글">
                       <button onClick={() => onOpen(p)} className="flex w-full items-center justify-between gap-3 px-5 pb-1 pt-4 text-left">
                         <div className="min-w-0">

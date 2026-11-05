@@ -50,7 +50,7 @@ export type Post = {
   departAt: number;
   seats: number;
   note: string;
-  status: "open" | "progress" | "closed";
+  status: "open" | "progress" | "closed" | "hidden";
   mine: boolean;
 };
 
