@@ -2,7 +2,7 @@ import { deliver, siteUrl } from "./mail";
 import { db } from "./server";
 
 /**
- * 안전지킴이 신청되면 관리자(ADMIN_EMAILS 전원)에게 메일을 보낸다(2026-11-04 사용자 지시).
+ * 안심동행이 신청되면 관리자(ADMIN_EMAILS 전원)에게 메일을 보낸다(2026-11-04 사용자 지시).
  * 전화번호는 메일에 넣지 않는다. 번호는 관리자 화면에서만 본다.
  */
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
@@ -10,7 +10,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 export async function notifySafetyStart(info: { requesterId: string; requestId: string; origin: string; dest: string; timeGo: string; requesterIsRider: boolean }) {
   const to = (process.env.ADMIN_EMAILS ?? "").split(",").map((v) => v.trim()).filter(Boolean);
   if (!to.length) {
-    console.warn("[safety] ADMIN_EMAILS 가 비어 있어 안전지킴 신청 알림을 보내지 못했습니다.");
+    console.warn("[safety] ADMIN_EMAILS 가 비어 있어 안심동행 신청 알림을 보내지 못했습니다.");
     return;
   }
   const u = await db()`select email, name, member_code from users where id = ${info.requesterId}`;
@@ -26,12 +26,12 @@ export async function notifySafetyStart(info: { requesterId: string; requestId: 
     ["신청 시각", when],
     ["대화방 번호", info.requestId],
   ];
-  const lead = "안전지킴이 신청되었어요. 상대분의 동의를 기다리는 중이에요. 동의되면 탑승자에게 이동 중 확인 질문이 가요. 전화번호는 관리자 화면 '안전' 탭에서만 볼 수 있어요.";
+  const lead = "안심동행이 신청되었어요. 상대분의 동의를 기다리는 중이에요. 동의되면 탑승자에게 이동 중 확인 질문이 가요. 전화번호는 관리자 화면 '안전' 탭에서만 볼 수 있어요.";
   const link = `${siteUrl()}/admin`;
-  const subject = `[모두의카풀] 안전지킴 신청 · ${info.origin} → ${info.dest}`;
+  const subject = `[모두의카풀] 안심동행 신청 · ${info.origin} → ${info.dest}`;
   const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
-<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#C2410C">모두의카풀 · 안전지킴 신청</p>
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#C2410C">모두의카풀 · 안심동행 신청</p>
 <p style="margin:0 0 16px;font-size:16px;line-height:1.6">${esc(lead)}</p>
 <table style="width:100%;border-collapse:collapse;font-size:15px;line-height:1.6;margin:0 0 20px">${rows
     .map(([k, v]) => `<tr><td style="padding:6px 0;color:#8B95A1;width:110px;vertical-align:top">${esc(k)}</td><td style="padding:6px 0">${esc(v)}</td></tr>`)
@@ -43,10 +43,10 @@ export async function notifySafetyStart(info: { requesterId: string; requestId: 
 }
 
 /**
- * 안전지킴 경고 메일(관리자 전원). kind: urgent(위급 신호) · no('아니요' 응답) · overdue(3분 넘은 무응답).
+ * 안심동행 경고 메일(관리자 전원). kind: urgent(위급 신호) · no('아니요' 응답) · overdue(3분 넘은 무응답) · late(예상 도착 시각 지남).
  * 전화번호는 넣지 않는다. 번호는 관리자 화면에서만 본다.
  */
-export async function notifySafetyAlert(kind: "urgent" | "no" | "overdue", sessionId: string) {
+export async function notifySafetyAlert(kind: "urgent" | "no" | "overdue" | "late", sessionId: string) {
   const to = (process.env.ADMIN_EMAILS ?? "").split(",").map((v) => v.trim()).filter(Boolean);
   if (!to.length) return;
   const rows = await db()`select p.origin, p.dest, p.time_go, s.rider_id,
@@ -55,7 +55,7 @@ export async function notifySafetyAlert(kind: "urgent" | "no" | "overdue", sessi
     from safety_sessions s join requests r on r.id = s.request_id join posts p on p.id = r.post_id where s.id = ${sessionId}`;
   if (!rows.length) return;
   const x = rows[0];
-  const label = kind === "urgent" ? "위급 신호" : kind === "no" ? "'아니요' 응답" : "3분 넘게 무응답";
+  const label = kind === "urgent" ? "위급 신호" : kind === "no" ? "'아니요' 응답" : kind === "late" ? "도착 지연(예상 시각 지남)" : "3분 넘게 무응답";
   const when = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ") + " (KST)";
   const rowsOut: [string, string][] = [
     ["구분", label],
@@ -65,12 +65,12 @@ export async function notifySafetyAlert(kind: "urgent" | "no" | "overdue", sessi
     ["출근 시각", String(x.time_go ?? "") || "미정"],
     ["알림 시각", when],
   ];
-  const lead = "안전지킴 상황이 접수됐어요. 관리자 화면 '안전' 탭에서 확인하고 처리해 주세요. 전화번호는 화면에서만 볼 수 있어요.";
+  const lead = "안심동행 상황이 접수됐어요. 관리자 화면 '안전' 탭에서 확인하고 처리해 주세요. 전화번호는 화면에서만 볼 수 있어요.";
   const link = `${siteUrl()}/admin`;
-  const subject = `[모두의카풀] 안전지킴 ${label} · ${x.origin} → ${x.dest}`;
+  const subject = `[모두의카풀] 안심동행 ${label} · ${x.origin} → ${x.dest}`;
   const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
-<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#C2410C">모두의카풀 · 안전지킴 ${esc(label)}</p>
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#C2410C">모두의카풀 · 안심동행 ${esc(label)}</p>
 <p style="margin:0 0 16px;font-size:16px;line-height:1.6">${esc(lead)}</p>
 <table style="width:100%;border-collapse:collapse;font-size:15px;line-height:1.6;margin:0 0 20px">${rowsOut
     .map(([k, v]) => `<tr><td style="padding:6px 0;color:#8B95A1;width:110px;vertical-align:top">${esc(k)}</td><td style="padding:6px 0">${esc(v)}</td></tr>`)

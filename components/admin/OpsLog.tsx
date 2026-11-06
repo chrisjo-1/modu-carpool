@@ -42,7 +42,7 @@ export default function AdminOpsLog() {
       <Card>
         <h2 className="text-[18px] font-bold">운영 일지</h2>
         <p className="mt-1 text-[14px] text-sub">
-          관리자가 화면에서 한 조치는 자동으로 남아요(등급 지정, 1:1 알림, 안전지킴 처리). 메모도 여기에 적을 수 있어요. 개발 변경 기록은 저장소의 docs/CHANGELOG.md에 있어요.
+          관리자가 화면에서 한 조치는 자동으로 남아요(등급 지정, 1:1 알림, 안심동행 처리). 메모도 여기에 적을 수 있어요. 개발 변경 기록은 저장소의 docs/CHANGELOG.md에 있어요.
         </p>
         <div className="mt-3 flex flex-col gap-2">
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="메모 (예: 신워프 명단 2차 업로드 완료)" className={field} />

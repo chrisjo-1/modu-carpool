@@ -318,8 +318,8 @@ export default function Me({
                 <p className="text-[13px] leading-relaxed text-sub">{t("운전과 탑승을 모두 하신다면 운전자를 선택해 주세요.")} {t("성별과 이용 역할은 공개되지 않고, 맞춤 공지를 보낼 때만 써요.")}</p>
                 {gender === "female" && (
                   <div className="rounded-xl border border-warn/30 bg-warnSoft p-3 text-[14px] leading-relaxed text-ink">
-                    <p className="font-semibold text-warn">{t("🛡 안전지킴 안내")}</p>
-                    <p className="mt-1 text-sub">{t("카풀 대화방에서 ‘안전지킴’을 신청할 수 있어요. 수락된 카풀에서 신청하면 이동 중 몇 번 확인 질문이 가고, 답이 없으면 운영팀이 등록된 번호로 연락해요.")}</p>
+                    <p className="font-semibold text-warn">{t("🛡 안심동행 안내")}</p>
+                    <p className="mt-1 text-sub">{t("카풀 대화방에서 ‘안심동행’을 신청할 수 있어요. 탑승하면 [뒷자리에 탔어요]와 예상 도착 시각을 정하고, 도착하면 [도착했어요]를 눌러 주세요. 도착할 때까지 운영팀이 함께 지켜보고, 답이 없거나 늦어지면 등록된 번호로 연락해요.")}</p>
                     <p className="mt-1 text-sub">{t(SAFETY_DISCLAIMER)}</p>
                   </div>
                 )}

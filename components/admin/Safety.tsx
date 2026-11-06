@@ -22,12 +22,16 @@ type Item = {
   requestId: string;
   urgentAt: number | null;
   rideContact: boolean;
+  boardedAt: number | null;
+  rearSeat: boolean;
+  etaAt: number | null;
+  lateAt: number | null;
 };
 
 const RESULT: Record<string, string> = { ok: "이상 없음", issue: "문제 있음", unreachable: "연락 안 됨" };
 const clock = (v: number | null) => (v ? new Date(v).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-");
 
-/** 관리자 '안전지킴' 탭: 진행 중 건(전화번호 포함)과 최근 종료 건. 3분 넘게 답 없는 건을 먼저 표시한다. */
+/** 관리자 '안심동행' 탭: 진행 중 건(전화번호 포함)과 최근 종료 건. 3분 넘게 답 없는 건을 먼저 표시한다. */
 export default function AdminSafety() {
   const [items, setItems] = useState<Item[]>([]);
   const [msg, setMsg] = useState("");
@@ -56,15 +60,15 @@ export default function AdminSafety() {
   // 진행 중: 위급 신호 → 무응답 순으로 위에 둔다
   const active = items
     .filter((i) => i.status === "active")
-    .sort((a, b) => (b.urgentAt ? 2 : 0) + (b.overdue ? 1 : 0) - ((a.urgentAt ? 2 : 0) + (a.overdue ? 1 : 0)));
+    .sort((a, b) => (b.urgentAt ? 4 : 0) + (b.lateAt ? 2 : 0) + (b.overdue ? 1 : 0) - ((a.urgentAt ? 4 : 0) + (a.lateAt ? 2 : 0) + (a.overdue ? 1 : 0)));
   const recent = items.filter((i) => i.status !== "active");
 
   return (
     <div className="space-y-4">
       <Card>
-        <h2 className="text-[18px] font-bold">안전지킴</h2>
+        <h2 className="text-[18px] font-bold">안심동행</h2>
         <p className="mt-1 text-[14px] text-sub">
-          위급 신호는 맨 위에 뜨고 메일로도 알려요. 탑승자가 3분 넘게 답하지 않으면 빨간 표시가 뜹니다. 등록된 번호로 직접 연락한 뒤 결과를 눌러 주세요. 처리하면 전화번호는 지워집니다.
+          위급 신호 → 도착 지연(예상 도착 시각 10분 지남) → 무응답 순으로 위에 뜨고 메일로도 알려요. 탑승자가 3분 넘게 답하지 않으면 빨간 표시가 뜹니다. 등록된 번호로 직접 연락한 뒤 결과를 눌러 주세요. 처리하면 전화번호는 지워집니다.
           운전자 연락처는 버튼을 눌러야 보이며, 볼 때마다 운영 일지에 기록이 남아요. 전화번호는 운영팀만 보며 회원에게 공개되지 않습니다.
         </p>
         {msg && <p className="mt-2 text-[14px] text-mint">{msg}</p>}
@@ -73,7 +77,7 @@ export default function AdminSafety() {
 
       <section className="space-y-2">
         <h3 className="text-[15px] font-bold">진행 중 {active.length}건</h3>
-        {active.length === 0 && <p className="text-[14px] text-sub">진행 중인 안전지킴이 없어요.</p>}
+        {active.length === 0 && <p className="text-[14px] text-sub">진행 중인 안심동행이 없어요.</p>}
         {active.map((i) => <Row key={i.id} item={i} onResolve={resolve} />)}
       </section>
 
@@ -98,11 +102,14 @@ function Row({ item: i, onResolve }: { item: Item; onResolve: (id: string, resul
   };
 
   return (
-    <Card className={i.urgentAt || i.overdue ? "border-warn" : ""}>
+    <Card className={i.urgentAt || i.overdue || i.lateAt ? "border-warn" : ""}>
       <div className="flex flex-wrap items-center gap-2">
         {active ? <Tag tone="accent">진행 중</Tag> : <Tag>{RESULT[i.result] ?? "종료"}</Tag>}
         {i.urgentAt && <Tag tone="warn">🚨 위급 신호 {clock(i.urgentAt)}</Tag>}
         {i.overdue && <Tag tone="warn">3분 넘게 답 없음</Tag>}
+        {i.lateAt && <Tag tone="warn">도착 지연 · 예상 {clock(i.etaAt)}</Tag>}
+        {active && (i.boardedAt ? <Tag>{i.rearSeat ? "뒷자리 탑승 ✓" : "탑승 ✓ (뒷자리 아님)"} {clock(i.boardedAt)}</Tag> : <Tag tone="warn">아직 탑승 확인 전</Tag>)}
+        {active && i.etaAt && !i.lateAt && <Tag>도착 예정 {clock(i.etaAt)}</Tag>}
         {i.lastAnswer === "no" && <Tag tone="warn">마지막 답: 아니요</Tag>}
       </div>
       <p className="mt-2 text-[15px] font-semibold">{i.origin} → {i.dest}</p>

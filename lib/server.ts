@@ -704,6 +704,11 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table safety_sessions add column if not exists urgent_at timestamptz`;
   await sql`alter table safety_sessions add column if not exists overdue_mailed_at timestamptz`;
   await sql`create index if not exists safety_status_idx on safety_sessions (status, created_at desc)`;
+  // 안심동행(2026-11-06): 탑승자의 '뒷자리에 탔어요' 확인 시각, 예상 도착 시각, 도착 지연 알림 시각
+  await sql`alter table safety_sessions add column if not exists boarded_at timestamptz`;
+  await sql`alter table safety_sessions add column if not exists rear_seat boolean not null default false`;
+  await sql`alter table safety_sessions add column if not exists eta_at timestamptz`;
+  await sql`alter table safety_sessions add column if not exists late_at timestamptz`;
   await sql`create table if not exists counsel_bookings (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references users(id) on delete cascade,

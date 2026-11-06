@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const denied = () => json({ error: "관리자 로그인이 필요합니다." }, 401);
 const ms = (v: unknown) => (v ? new Date(v as string).getTime() : null);
 
-/** 관리자: 진행 중 안전지킴(전화번호 포함) + 최근 종료 20건. 3분 넘게 답 없는 건(overdue)과 '아니오' 응답을 표시. */
+/** 관리자: 진행 중 안심동행(전화번호 포함) + 최근 종료 20건. 3분 넘게 답 없는 건(overdue)과 '아니오' 응답을 표시. */
 export async function GET() {
   if (!(await isAdmin())) return denied();
   if (!hasDb()) return json({ error: "DB가 연결되지 않았습니다." }, 503);
@@ -49,6 +49,10 @@ export async function GET() {
         requestId: String(s.request_id),
         urgentAt: ms(s.urgent_at),
         rideContact: s.ride_contact === true,
+        boardedAt: ms(s.boarded_at),
+        rearSeat: s.rear_seat === true,
+        etaAt: ms(s.eta_at),
+        lateAt: ms(s.late_at),
       };
     });
     return json({ items });
@@ -71,7 +75,7 @@ export async function POST(req: Request) {
       where id = ${id} and status <> 'closed' returning id`;
     if (!rows.length) return json({ error: "이미 처리된 건이에요." }, 409);
     const label = result === "ok" ? "이상 없음" : result === "issue" ? "문제 있음" : "연락 안 됨";
-    await logOps("admin", `안전지킴 처리: ${label}`, `건 ${id.slice(0, 8)}`);
+    await logOps("admin", `안심동행 처리: ${label}`, `건 ${id.slice(0, 8)}`);
     return json({ ok: true });
   } catch (e) {
     return fail(e);

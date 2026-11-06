@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, btnGhost, field, Sheet } from "@/components/ui";
-import { SAFETY_DISCLAIMER, SAFETY_INTERVAL_MIN } from "@/lib/safety";
+import { SAFETY_DISCLAIMER, SAFETY_DRIVER_CONSENT, SAFETY_INTERVAL_MIN, SAFETY_WATCH_TEXT } from "@/lib/safety";
 
-/** 대화방의 안전지킴 상태(서버 shape와 같다) */
+/** 대화방의 안심동행 상태(서버 shape와 같다) */
 type Session = {
   id: string;
   status: string;
@@ -18,6 +18,10 @@ type Session = {
   otherConsented: boolean;
   phoneSaved: boolean;
   urgentAt: number | null;
+  boardedAt: number | null;
+  rearSeat: boolean;
+  etaAt: number | null;
+  lateAt: number | null;
 };
 type Post = { origin: string; dest: string; timeGo: string; originLat: number | null; originLng: number | null; destLat: number | null; destLng: number | null };
 type Data = { accepted: boolean; post: Post; canStart: boolean; session: Session | null };
@@ -25,7 +29,7 @@ type Data = { accepted: boolean; post: Post; canStart: boolean; session: Session
 const FALLBACK_MIN = 40; // 경로 시간을 못 구했을 때 쓰는 기본 시간(분)
 const POLL_MS = 8000;
 
-/** 대화방 안의 안전지킴 블록. 수락된 카풀에서만 보인다. */
+/** 대화방 안의 안심동행 블록. 수락된 카풀에서만 보인다. */
 export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m: string) => void }) {
   const [data, setData] = useState<Data | null>(null);
   const [sheet, setSheet] = useState<"start" | "consent" | null>(null);
@@ -52,14 +56,14 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
   const end = async (arrived: boolean) => {
     if (!s || busy) return;
     const ask = arrived
-      ? "도착했나요? 안전지킴을 끝내면 카풀도 끝나고, 입력한 전화번호는 지워져요."
-      : "안전지킴을 종료할까요? 입력한 전화번호는 지워져요.";
+      ? "도착했나요? 안심동행을 마치면 카풀도 끝나고, 입력한 전화번호는 지워져요."
+      : "안심동행을 종료할까요? 입력한 전화번호는 지워져요.";
     if (!confirm(ask)) return;
     setBusy(true);
     const r = await api("/api/safety", "POST", { action: "end", id: s.id });
     setBusy(false);
     if (!r.ok) return toast(r.error || "종료하지 못했어요.");
-    toast(arrived ? "도착을 확인했어요. 안전지킴을 종료했어요." : "안전지킴을 종료했어요.");
+    toast(arrived ? "도착을 확인했어요. 안심동행을 마쳤어요." : "안심동행을 종료했어요.");
     load();
   };
 
@@ -78,16 +82,16 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
     <div className="rounded-2xl border border-warn/30 bg-warnSoft p-3 text-[14px] text-ink">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-warn">🛡 안전지킴</p>
+          <p className="font-semibold text-warn">🛡 안심동행</p>
           <p className="mt-0.5 text-[13px] text-sub">{SAFETY_DISCLAIMER}</p>
         </div>
-        {s && s.status !== "closed" && !(s.isRider && s.status === "active") && (
+        {s && s.status !== "closed" && !(s.isRider && s.status === "active" && s.boardedAt) && (
           <button type="button" onClick={() => end(false)} disabled={busy} className="shrink-0 rounded-xl border border-line bg-white px-3 py-2 text-[14px] font-semibold text-ink disabled:opacity-50">종료</button>
         )}
       </div>
 
       {!s && data.canStart && (
-        <button type="button" onClick={() => setSheet("start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안전지킴 신청하기</button>
+        <button type="button" onClick={() => setSheet("start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안심동행 신청하기</button>
       )}
 
       {s?.status === "pending" && s.iRequested && (
@@ -99,8 +103,16 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
 
       {s?.status === "active" && (
         <>
-          <p className="mt-2 text-[14px] text-sub">진행 중이에요. {s.isRider ? "이동 중에 몇 번 가볍게 여쭤볼게요." : "탑승자께 이동 중 확인 질문이 가요."}</p>
-          <p className="mt-1 text-[13px] font-semibold text-warn">진행 중에는 운영팀이 실시간으로 감시하고 있어요. 응답과 긴급 신호는 바로 운영팀 화면에 올라가요.</p>
+          <p className="mt-2 text-[14px] text-sub">진행 중이에요. {s.isRider ? "이동 중에 몇 번 가볍게 여쭤볼게요." : s.boardedAt ? `탑승자가 탑승했어요${s.etaAt ? ` · 도착 예정 ${hm(s.etaAt)}` : ""}.` : "탑승자가 탑승하면 알려 드려요."}</p>
+          <p className="mt-1 text-[13px] font-semibold text-warn">{SAFETY_WATCH_TEXT}</p>
+          {s.isRider && !s.boardedAt && <BoardCard session={s} post={data.post} onDone={load} toast={toast} />}
+          {s.isRider && s.boardedAt && (
+            <div className={`mt-2 rounded-xl border p-3 ${s.lateAt ? "border-warn bg-white" : "border-line bg-white"}`}>
+              <p className="text-[15px] font-semibold">{s.lateAt ? "예상 도착 시각이 지났어요. 도착하셨나요?" : `도착 예정 ${s.etaAt ? hm(s.etaAt) : "-"} · 도착하면 아래 버튼을 눌러 주세요`}</p>
+              <button type="button" data-block-id="B482" data-block-name="도착했어요" onClick={() => end(true)} disabled={busy} className="mt-2 w-full rounded-xl bg-mint px-4 py-4 text-[18px] font-bold text-white disabled:opacity-50">도착했어요</button>
+              <EtaEdit session={s} onDone={load} toast={toast} />
+            </div>
+          )}
           {s.urgentAt ? (
             <div className="mt-2 rounded-xl bg-warn p-3 text-white">
               <p className="text-[15px] font-semibold">위급 신호를 보냈어요. 바로 112에 전화해 주세요.</p>
@@ -109,16 +121,13 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
           ) : (
             <button type="button" onClick={urgent} disabled={busy} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-bold text-white disabled:opacity-50">🚨 위급해요 · 운영팀에 바로 알리기</button>
           )}
-          {s.isRider && (
-            <button type="button" onClick={() => end(true)} disabled={busy} className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-3 text-[16px] font-semibold text-ink disabled:opacity-50">도착했어요 · 안전지킴 종료</button>
-          )}
-          {s.isRider && <RiderChecks session={s} post={data.post} onChanged={load} toast={toast} />}
+          {s.isRider && s.boardedAt && <RiderChecks session={s} post={data.post} onChanged={load} toast={toast} />}
         </>
       )}
 
       {sheet === "start" && (
         <PhoneSheet
-          title="안전지킴 신청"
+          title="안심동행 신청"
           button="신청하기"
           onClose={() => setSheet(null)}
           onSubmit={async (phone) => {
@@ -132,13 +141,14 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
       )}
       {sheet === "consent" && s && (
         <PhoneSheet
-          title="안전지킴 동의"
+          title="안심동행 동의"
           button="동의하고 시작"
+          consentText={s.isRider ? undefined : SAFETY_DRIVER_CONSENT}
           onClose={() => setSheet(null)}
           onSubmit={async (phone) => {
             const r = await api("/api/safety", "POST", { action: "consent", id: s.id, phone });
             if (!r.ok) return toast(r.error || "동의하지 못했어요.");
-            toast("안전지킴을 시작했어요.");
+            toast("안심동행을 시작했어요.");
             setSheet(null);
             load();
           }}
@@ -149,7 +159,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
 }
 
 /** 전화번호 입력과 동의. 전화번호는 운영팀만 보고 상대에게 공개되지 않는다. */
-function PhoneSheet({ title, button, onClose, onSubmit }: { title: string; button: string; onClose: () => void; onSubmit: (phone: string) => Promise<void> }) {
+function PhoneSheet({ title, button, consentText, onClose, onSubmit }: { title: string; button: string; consentText?: string; onClose: () => void; onSubmit: (phone: string) => Promise<void> }) {
   const [phone, setPhone] = useState("");
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -158,7 +168,11 @@ function PhoneSheet({ title, button, onClose, onSubmit }: { title: string; butto
     <Sheet title={title} onClose={onClose} blockId="S430">
       <div className="space-y-4 text-[15px] text-ink">
         <p className="rounded-xl bg-warnSoft p-3 text-[14px] text-sub">{SAFETY_DISCLAIMER}</p>
-        <p className="text-[14px] font-semibold text-warn">진행 중에는 운영팀이 실시간으로 감시하고 있어요. 응답과 긴급 신호는 바로 운영팀 화면에 올라가요.</p>
+        {consentText ? (
+          <p data-block-id="C427" className="rounded-xl border border-warn/40 bg-white p-3 text-[16px] font-semibold leading-relaxed text-ink">{consentText}</p>
+        ) : (
+          <p className="text-[14px] font-semibold text-warn">{SAFETY_WATCH_TEXT}</p>
+        )}
         <label className="block text-sm text-sub">
           연락 가능한 휴대폰 번호
           <input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className={`${field} mt-1`} />
@@ -176,6 +190,96 @@ function PhoneSheet({ title, button, onClose, onSubmit }: { title: string; butto
   );
 }
 
+const hm = (t: number) => new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+/** <input type="time"> 값(HH:MM) → 오늘(이미 지난 시각이면 내일) 그 시각 */
+function timeToMs(v: string) {
+  const [h, m] = v.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+const toTimeValue = (t: number) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+
+/** 경로 시간(분). 좌표가 없거나 못 구하면 FALLBACK_MIN */
+function useRouteMinutes(post: Post) {
+  const [min, setMin] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (post.originLat == null || post.originLng == null || post.destLat == null || post.destLng == null) {
+      setMin(FALLBACK_MIN);
+      return;
+    }
+    fetch(`/api/route?olat=${post.originLat}&olng=${post.originLng}&dlat=${post.destLat}&dlng=${post.destLng}`)
+      .then((r) => r.json())
+      .then((j: { seconds?: number }) => { if (alive) setMin(j.seconds ? Math.max(10, Math.round(j.seconds / 60)) : FALLBACK_MIN); })
+      .catch(() => { if (alive) setMin(FALLBACK_MIN); });
+    return () => { alive = false; };
+  }, [post.originLat, post.originLng, post.destLat, post.destLng]);
+  return min;
+}
+
+/** 탑승자: 탑승 체크 — [뒷자리에 탔어요] + 예상 도착 시각(경로 시간으로 미리 채움, 고칠 수 있음) */
+function BoardCard({ session, post, onDone, toast }: { session: Session; post: Post; onDone: () => void; toast: (m: string) => void }) {
+  const routeMin = useRouteMinutes(post);
+  const [eta, setEta] = useState("");
+  const [rear, setRear] = useState(true);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (routeMin != null && !eta) setEta(toTimeValue(Date.now() + (routeMin + 5) * 60_000));
+  }, [routeMin, eta]);
+  const submit = async () => {
+    const t = timeToMs(eta);
+    if (!Number.isFinite(t)) return toast("예상 도착 시각을 골라 주세요.");
+    setBusy(true);
+    const r = await api("/api/safety", "POST", { action: "board", id: session.id, rearSeat: rear, eta: t });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || "저장하지 못했어요.");
+    toast(rear ? "뒷자리 탑승을 확인했어요. 도착하면 [도착했어요]를 눌러 주세요." : "탑승을 확인했어요. 도착하면 [도착했어요]를 눌러 주세요.");
+    onDone();
+  };
+  return (
+    <div data-block-id="C428" data-block-name="탑승 체크" className="mt-2 space-y-3 rounded-xl border border-warn/40 bg-white p-3">
+      <p className="text-[15px] font-semibold">차에 타면 알려 주세요</p>
+      <label className="flex items-center gap-2 text-[15px]">
+        <input type="checkbox" checked={rear} onChange={(e) => setRear(e.target.checked)} className="h-5 w-5" />
+        뒷자리에 탔어요
+      </label>
+      <p className="-mt-1 text-[13px] text-sub">처음 만나는 분과는 뒷자리에 앉기를 권해요.</p>
+      <label className="block text-[14px] text-sub">
+        예상 도착 시각 {routeMin != null && <span>(경로 약 {routeMin}분)</span>}
+        <input type="time" value={eta} onChange={(e) => setEta(e.target.value)} className={`${field} mt-1`} />
+      </label>
+      <button type="button" data-block-id="B481" data-block-name="탑승했어요" disabled={busy || !eta} onClick={submit} className="w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-50">탑승했어요</button>
+    </div>
+  );
+}
+
+/** 탑승자: 예상 도착 시각 바꾸기(길이 막힐 때) */
+function EtaEdit({ session, onDone, toast }: { session: Session; onDone: () => void; toast: (m: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [eta, setEta] = useState(session.etaAt ? toTimeValue(session.etaAt) : "");
+  const [busy, setBusy] = useState(false);
+  if (!open) return <button type="button" onClick={() => setOpen(true)} className="mt-2 text-[13px] font-semibold text-sub underline">늦어질 것 같아요 · 도착 시각 바꾸기</button>;
+  return (
+    <div className="mt-2 flex gap-2">
+      <input type="time" value={eta} onChange={(e) => setEta(e.target.value)} className={field} />
+      <button type="button" disabled={busy || !eta} onClick={async () => {
+        const t = timeToMs(eta);
+        if (!Number.isFinite(t)) return;
+        setBusy(true);
+        const r = await api("/api/safety", "POST", { action: "board", id: session.id, eta: t });
+        setBusy(false);
+        if (!r.ok) return toast(r.error || "바꾸지 못했어요.");
+        toast("도착 예정 시각을 바꿨어요.");
+        setOpen(false);
+        onDone();
+      }} className="shrink-0 rounded-xl border border-line bg-white px-4 py-2 text-[15px] font-semibold disabled:opacity-50">저장</button>
+    </div>
+  );
+}
+
 /**
  * 탑승자 앱에서만 동작: 출발 뒤 SAFETY_INTERVAL_MIN분마다, 도착 예정(경로 시간) 전까지 확인 질문을 보낸다.
  * 질문은 앱이 열려 있을 때만 떠요(예약 장치는 아직 없음).
@@ -186,11 +290,15 @@ function RiderChecks({ session, post, onChanged, toast }: { session: Session; po
   // 부모가 매번 새 함수를 넘기므로 최신 것만 ref로 든다(효과를 다시 돌리지 않게)
   const changed = useRef(onChanged);
   changed.current = onChanged;
-  const startedAt = session.startedAt ?? Date.now();
+  const startedAt = session.boardedAt ?? session.startedAt ?? Date.now();
   const intervalMs = SAFETY_INTERVAL_MIN * 60_000;
 
-  // 경로 시간 구하기(좌표가 있을 때만)
+  // 탑승자가 정한 예상 도착 시각이 있으면 그때까지, 없으면 경로 시간으로
   useEffect(() => {
+    if (session.etaAt) {
+      setEndMs(session.etaAt);
+      return;
+    }
     let alive = true;
     const minutes = (sec: number) => Math.max(sec * 1000, 10 * 60_000);
     if (post.originLat == null || post.originLng == null || post.destLat == null || post.destLng == null) {
@@ -202,7 +310,7 @@ function RiderChecks({ session, post, onChanged, toast }: { session: Session; po
       .then((j: { seconds?: number }) => { if (alive) setEndMs(startedAt + (j.seconds ? minutes(j.seconds) : FALLBACK_MIN * 60_000)); })
       .catch(() => { if (alive) setEndMs(startedAt + FALLBACK_MIN * 60_000); });
     return () => { alive = false; };
-  }, [post.originLat, post.originLng, post.destLat, post.destLng, startedAt]);
+  }, [post.originLat, post.originLng, post.destLat, post.destLng, startedAt, session.etaAt]);
 
   // 앱을 연 시점의 칸은 건너뛰고, 다음 칸 경계부터 질문한다
   useEffect(() => {
@@ -267,7 +375,7 @@ export function DriverPhoneBlock({ requestId, toast }: { requestId: string; toas
   };
   useEffect(() => {
     load();
-    // 안전지킴 종료 등으로 연락처가 지워지면 화면도 따라가도록 주기적으로 다시 읽는다
+    // 안심동행 종료 등으로 연락처가 지워지면 화면도 따라가도록 주기적으로 다시 읽는다
     const timer = setInterval(load, 15_000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -309,14 +417,15 @@ export function DriverPhoneBlock({ requestId, toast }: { requestId: string; toas
   const ok = agree && /^01[016789]\d{7,8}$/.test(phone.replace(/\D/g, ""));
   return (
     <div className="rounded-2xl border border-warn/30 bg-warnSoft p-3 text-[14px] text-ink">
-      <p className="font-semibold text-warn">🛡 탑승자가 여성이에요 · 연락처를 등록해 주세요</p>
-      <p className="mt-1 text-sub">안전을 위해 운전자님의 연락 가능한 번호가 필요해요. 번호는 안전 확인에만 쓰고, 데이터로 보관하지 않아요. 카풀이 끝나면 삭제해요.</p>
+      <p className="font-semibold text-warn">🛡 안심동행 · 탑승자가 여성이에요</p>
+      <p className="mt-1 font-semibold text-ink">{SAFETY_DRIVER_CONSENT}</p>
+      <p className="mt-1 text-sub">동의하시면 연락 가능한 번호를 남겨 주세요. 번호는 안전 확인에만 쓰고 상대에게 공개하지 않으며, 카풀이 끝나면 삭제해요.</p>
       <input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className={`${field} mt-2`} />
       <label className="mt-2 flex items-start gap-2 text-[13px] text-sub">
         <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1" />
-        <span>안전 확인을 위해 번호를 등록하는 데 동의해요. 카풀이 끝나면 삭제되는 것을 알고 있어요.</span>
+        <span>도착할 때까지 운영팀이 함께 지켜보는 데 동의하고, 안전 확인을 위해 번호를 남겨요. 카풀이 끝나면 삭제되는 것을 알고 있어요.</span>
       </label>
-      <button type="button" disabled={!ok || busy} onClick={register} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-40">연락처 등록하기</button>
+      <button type="button" disabled={!ok || busy} onClick={register} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-40">동의하고 번호 남기기</button>
     </div>
   );
 }
