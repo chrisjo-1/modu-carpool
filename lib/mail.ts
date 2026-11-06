@@ -1,4 +1,5 @@
 import { db, ensureSchema } from "./server";
+import { isAppleMail } from "./appleMail";
 import { SITE_URL as SITE } from "./site";
 import { suppressedNow, unsubUrl } from "./unsub";
 
@@ -596,6 +597,8 @@ export async function warpPostedMail(toUserId: string, routes: { route: string; 
     const rows = await db()`select email, pw_reset_required from users where id = ${toUserId} and notify and not test and not blocked and withdrawn_at is null`;
     if (!rows.length) return false;
     const to = String(rows[0].email);
+    // 아이폰(애플) 메일은 대량 안내 대상이 아니다 — 특히 '이메일 가리기' 중계 주소는 거의 모두 반송돼 Resend 반송률을 올린다(비번 찾기 같은 1:1 메일은 그대로 보냄)
+    if (isAppleMail(to)) return false;
     if (await suppressedNow(to)) return false;
     const needPw = !!rows[0].pw_reset_required;
     const subject = "[모두의카풀] 워프에 올리신 카풀을 모두의카풀에도 올려 두었어요";
