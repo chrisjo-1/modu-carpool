@@ -1,8 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { api, btnGhost, field, Sheet } from "@/components/ui";
-import { SAFETY_CLOSE_HOUR, SAFETY_DISCLAIMER, SAFETY_DRIVER_CONSENT, SAFETY_HOURS_TEXT, SAFETY_INTERVAL_MIN, SAFETY_NIGHT_TEXT, SAFETY_WATCH_TEXT } from "@/lib/safety";
+import { api, Avatar, btnGhost, field, Sheet } from "@/components/ui";
+import { SAFETY_CLOSE_HOUR, SAFETY_DISCLAIMER, SAFETY_DRIVER_CONSENT, SAFETY_HOURS_TEXT, SAFETY_INTERVAL_MIN, SAFETY_NIGHT_TEXT, SAFETY_PHOTO_DRIVER, SAFETY_PHOTO_ME, SAFETY_WATCH_TEXT } from "@/lib/safety";
+
+const PhotoGateSheet = dynamic(() => import("./PhotoGate"), { ssr: false });
 
 /** 대화방의 안심동행 상태(서버 shape와 같다) */
 type Session = {
@@ -24,7 +27,7 @@ type Session = {
   lateAt: number | null;
 };
 type Post = { origin: string; dest: string; timeGo: string; originLat: number | null; originLng: number | null; destLat: number | null; destLng: number | null };
-type Data = { accepted: boolean; post: Post; open?: boolean; canStart: boolean; session: Session | null };
+type Data = { accepted: boolean; post: Post; open?: boolean; canStart: boolean; session: Session | null; myPhoto?: boolean; otherPhoto?: string; otherHasPhoto?: boolean; otherName?: string };
 
 const FALLBACK_MIN = 40; // 경로 시간을 못 구했을 때 쓰는 기본 시간(분)
 const POLL_MS = 8000;
@@ -32,7 +35,7 @@ const POLL_MS = 8000;
 /** 대화방 안의 안심동행 블록. 수락된 카풀에서만 보인다. */
 export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m: string) => void }) {
   const [data, setData] = useState<Data | null>(null);
-  const [sheet, setSheet] = useState<"start" | "consent" | null>(null);
+  const [sheet, setSheet] = useState<"start" | "consent" | "photo" | "photoConsent" | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -90,6 +93,31 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
         )}
       </div>
 
+      {(s ? s.status !== "closed" : data.canStart) && (
+        <div data-block-id="C430" data-block-name="서로 프로필 확인" className="mt-2 flex items-center gap-3 rounded-xl border border-line bg-white p-3">
+          {data.otherHasPhoto ? <Avatar src={data.otherPhoto} name={data.otherName || "상대"} size={56} /> : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-bg text-[12px] text-sub">사진 없음</div>}
+          <div className="min-w-0 flex-1 text-[14px]">
+            <p className="font-semibold">{data.otherName || "상대분"}</p>
+            {data.otherHasPhoto ? (
+              <p className="text-sub">만나면 이 사진과 같은 분인지 꼭 확인해 주세요.</p>
+            ) : (
+              <>
+                <p className="text-warn">상대분이 아직 프로필 사진을 등록하지 않았어요. 등록해 달라고 알려 드릴게요.</p>
+                <button type="button" data-block-id="B483" disabled={busy} onClick={async () => { setBusy(true); const r = await api("/api/safety", "POST", { action: "askPhoto", requestId }); setBusy(false); toast(r.ok ? "상대분께 사진을 올려 달라고 알렸어요." : r.error || "알리지 못했어요."); }} className="mt-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-semibold">사진 올려 달라고 알리기</button>
+              </>
+            )}
+            {data.myPhoto === false && s && !s.iRequested && (
+              <div data-block-id="C431" data-block-name="운전자 사진 등록 권유" className="mt-2 rounded-lg border border-warn/40 bg-warnSoft p-2">
+                <p className="text-[13px] font-semibold text-ink">{SAFETY_PHOTO_DRIVER}</p>
+                <button type="button" data-block-id="B485" onClick={() => setSheet("photoConsent")} className="mt-1.5 w-full rounded-lg bg-warn px-3 py-2 text-[14px] font-semibold text-white">프로필 사진 등록하기</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {sheet === "photo" && <PhotoGateSheet text={SAFETY_PHOTO_ME} button="프로필 사진 등록하기" onClose={() => setSheet(null)} onSaved={load} toast={toast} />}
+      {sheet === "photoConsent" && <PhotoGateSheet text={SAFETY_PHOTO_DRIVER} button="프로필 사진 등록하기" onClose={() => setSheet(null)} onSaved={load} toast={toast} />}
+
       {!s && data.canStart && data.open === false && (
         <div data-block-id="C429" data-block-name="안심동행 운영 시간 아님" className="mt-2 rounded-xl border border-line bg-white p-3">
           <p className="text-[14px] font-semibold text-ink">{SAFETY_HOURS_TEXT}</p>
@@ -98,7 +126,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
         </div>
       )}
       {!s && data.canStart && data.open !== false && (
-        <button type="button" onClick={() => setSheet("start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안심동행 신청하기</button>
+        <button type="button" data-block-id="B484" onClick={() => setSheet(data.myPhoto === false ? "photo" : "start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안심동행 신청하기</button>
       )}
 
       {s?.status === "pending" && s.iRequested && (
@@ -236,6 +264,7 @@ function BoardCard({ session, post, onDone, toast }: { session: Session; post: P
   const routeMin = useRouteMinutes(post);
   const [eta, setEta] = useState("");
   const [rear, setRear] = useState(true);
+  const [face, setFace] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (routeMin != null && !eta) setEta(toTimeValue(Date.now() + (routeMin + 5) * 60_000));
@@ -243,6 +272,7 @@ function BoardCard({ session, post, onDone, toast }: { session: Session; post: P
   const submit = async () => {
     const t = timeToMs(eta);
     if (!Number.isFinite(t)) return toast("예상 도착 시각을 골라 주세요.");
+    if (!face) return toast("운전자가 프로필 사진과 같은 분인지 먼저 확인해 주세요.");
     setBusy(true);
     const r = await api("/api/safety", "POST", { action: "board", id: session.id, rearSeat: rear, eta: t });
     setBusy(false);
@@ -254,6 +284,10 @@ function BoardCard({ session, post, onDone, toast }: { session: Session; post: P
     <div data-block-id="C428" data-block-name="탑승 체크" className="mt-2 space-y-3 rounded-xl border border-warn/40 bg-white p-3">
       <p className="text-[15px] font-semibold">차에 타면 알려 주세요</p>
       <label className="flex items-center gap-2 text-[15px]">
+        <input type="checkbox" checked={face} onChange={(e) => setFace(e.target.checked)} className="h-5 w-5" />
+        운전자가 프로필 사진과 같은 분이에요
+      </label>
+      <label className="flex items-center gap-2 text-[15px]">
         <input type="checkbox" checked={rear} onChange={(e) => setRear(e.target.checked)} className="h-5 w-5" />
         뒷자리에 탔어요
       </label>
@@ -262,7 +296,7 @@ function BoardCard({ session, post, onDone, toast }: { session: Session; post: P
         예상 도착 시각 {routeMin != null && <span>(경로 약 {routeMin}분)</span>}
         <input type="time" value={eta} onChange={(e) => setEta(e.target.value)} className={`${field} mt-1`} />
       </label>
-      <button type="button" data-block-id="B481" data-block-name="탑승했어요" disabled={busy || !eta} onClick={submit} className="w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-50">탑승했어요</button>
+      <button type="button" data-block-id="B481" data-block-name="탑승했어요" disabled={busy || !eta || !face} onClick={submit} className="w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-50">탑승했어요</button>
     </div>
   );
 }

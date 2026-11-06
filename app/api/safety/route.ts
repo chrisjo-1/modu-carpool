@@ -1,8 +1,8 @@
 import { after } from "next/server";
 import { notifySafetyAlert, notifySafetyStart } from "@/lib/safetyNotify";
 import { sendPush } from "@/lib/push";
-import { normPhone, safetyOpen, SAFETY_INTERVAL_MIN, SAFETY_LATE_MIN, SAFETY_NIGHT_TEXT, SAFETY_OVERDUE_MIN } from "@/lib/safety";
-import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
+import { normPhone, safetyOpen, SAFETY_INTERVAL_MIN, SAFETY_LATE_MIN, SAFETY_NIGHT_TEXT, SAFETY_OVERDUE_MIN, SAFETY_PHOTO_ME } from "@/lib/safety";
+import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, photoUrl } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,19 @@ async function partyOf(requestId: string, me: string) {
       destLat: x.dest_lat == null ? null : Number(x.dest_lat), destLng: x.dest_lng == null ? null : Number(x.dest_lng),
     },
   };
+}
+
+/** 두 사람의 프로필 사진(있는지·상대 사진 주소·이름) */
+async function photos(me: string, other: string) {
+  const r = await db()`select id, name, photo_v, photo <> '' as has from users where id in (${me}, ${other})`;
+  const mine = r.find((x) => String(x.id) === me);
+  const o = r.find((x) => String(x.id) === other);
+  const has = (x: Record<string, unknown> | undefined) => !!x && (x.has === true || Number(x.photo_v) > 0);
+  return { myPhoto: has(mine), otherPhoto: has(o) ? photoUrl(other, o?.photo_v) : "", otherHasPhoto: has(o), otherName: String(o?.name ?? "") };
+}
+/** 상대에게 사진을 올려 달라는 푸시(같은 대화에서는 알림 하나로 묶임) */
+async function askPhoto(other: string, requestId: string) {
+  await sendPush(other, { title: "프로필 사진을 올려 주세요", body: "상대분이 안심동행을 하려고 해요. 서로 얼굴을 확인할 수 있게 프로필 사진을 올려 주세요.", url: `/?room=${requestId}`, tag: `safety-photo-${requestId}` }).catch(() => 0);
 }
 
 const ms = (v: unknown) => (v ? new Date(v as string).getTime() : null);
@@ -81,7 +94,7 @@ export async function GET(req: Request) {
         after(() => notifySafetyAlert("late", String(f.id)).catch(() => {}));
       }
     }
-    return json({ accepted: p.accepted, post: p.post, open: safetyOpen(), canStart: String(g[0]?.gender ?? "") === "female", session: rows[0] ? shape(rows[0], me) : null });
+    return json({ accepted: p.accepted, post: p.post, open: safetyOpen(), ...(await photos(me, p.other)), canStart: String(g[0]?.gender ?? "") === "female", session: rows[0] ? shape(rows[0], me) : null });
   } catch (e) {
     return fail(e);
   }
@@ -115,13 +128,16 @@ export async function POST(req: Request) {
       const p = await partyOf(requestId, me);
       if (!p) return json({ error: "대화방을 찾을 수 없어요." }, 404);
       if (!p.accepted) return json({ error: "수락된 카풀에서만 시작할 수 있어요." }, 400);
+      // 신청하는 여성 회원은 본인 사진이 있어야 한다. 상대(운전자) 사진은 동의할 때 등록하게 한다.
+      const ph = await photos(me, p.other);
+      if (!ph.myPhoto) return json({ error: SAFETY_PHOTO_ME, code: "photo-me" }, 400);
       const busy = await sql`select 1 from safety_sessions where request_id = ${requestId} and status <> 'closed' limit 1`;
       if (busy.length) return json({ error: "이미 진행 중인 안심동행이 있어요." }, 409);
       const rows = await sql`insert into safety_sessions (request_id, requester_id, partner_id, rider_id, requester_phone, requester_consent_at)
         values (${requestId}, ${me}, ${p.other}, ${p.riderId}, ${phone}, now()) returning *`;
       const info = { requesterId: me, requestId, origin: p.post.origin, dest: p.post.dest, timeGo: p.post.timeGo, requesterIsRider: me === p.riderId };
       after(() => notifySafetyStart(info).catch((e) => console.error("[safety] notify", e)));
-      await sendPush(p.other, { title: "안심동행 요청", body: "상대분이 안심동행을 신청했어요. 도착할 때까지 운영팀이 함께 지켜봐요. 확인하고 동의해 주세요.", url: `/?room=${requestId}`, tag: `safety-${requestId}` });
+      await sendPush(p.other, { title: "안심동행 요청", body: ph.otherHasPhoto ? "상대분이 안심동행을 신청했어요. 도착할 때까지 운영팀이 함께 지켜봐요. 확인하고 동의해 주세요." : "상대분이 안심동행을 신청했어요. 동의하고, 얼굴이 보이는 프로필 사진도 등록해 주세요. 탑승자가 안심해요.", url: `/?room=${requestId}`, tag: `safety-${requestId}` });
       return json({ ok: true, session: shape(rows[0], me) });
     }
 
@@ -140,6 +156,15 @@ export async function POST(req: Request) {
         await sendPush(uid, { title: "안심동행 시작", body: "두 분 모두 동의해 안심동행이 시작됐어요. 탑승하면 [뒷자리에 탔어요]를, 도착하면 [도착했어요]를 눌러 주세요.", url: `/?room=${s.request_id}`, tag: `safety-${s.request_id}` });
       }
       return json({ ok: true, session: shape(s, me) });
+    }
+
+    if (b.action === "askPhoto") {
+      const requestId = String(b.requestId ?? "");
+      if (!isUuid(requestId)) return json({ error: "잘못된 요청입니다." }, 400);
+      const p = await partyOf(requestId, me);
+      if (!p || !p.accepted) return json({ error: "수락된 카풀에서만 알릴 수 있어요." }, 400);
+      await askPhoto(p.other, requestId);
+      return json({ ok: true });
     }
 
     if (b.action === "board") {

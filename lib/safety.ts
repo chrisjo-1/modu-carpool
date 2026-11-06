@@ -9,6 +9,11 @@ export const SAFETY_OVERDUE_MIN = 3; // 확인 질문 뒤 이 시간 안에 답�
 
 export const SAFETY_LATE_MIN = 10; // 예상 도착 시각에서 이만큼 지나도 [도착했어요]가 없으면 '도착 지연'
 export const SAFETY_NAME = "안심동행";
+/** 안심동행은 서로 얼굴을 확인할 수 있게 두 사람 모두 프로필 사진이 있어야 한다(2026-11-06 사용자 지시) */
+export const SAFETY_PHOTO_ME = "안심동행은 서로 얼굴을 확인할 수 있게 두 분 모두 프로필 사진이 있어야 해요. 프로필 사진을 먼저 등록해야 신청할 수 있어요.";
+/** 운전자(상대분): 사진 없이도 동의는 되지만, 동의한 뒤 대화방에서 계속 등록을 권한다 */
+export const SAFETY_PHOTO_DRIVER = "얼굴이 보이는 프로필 사진을 등록해 주셔야 탑승자가 안심합니다.";
+
 /** 운영 시간(한국 시각, 2026-11-06 사용자 지시: 밤 10시~아침 6시는 운영팀도 쉬어서 한시적으로 막음) */
 export const SAFETY_OPEN_HOUR = 6;
 export const SAFETY_CLOSE_HOUR = 22;
