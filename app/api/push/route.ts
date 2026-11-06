@@ -1,4 +1,5 @@
 import { pushEnabled } from "@/lib/push";
+import { PUSH_LOCK_TEXT, PUSH_PAUSE_ALLOWED } from "@/lib/pushPolicy";
 import { body, currentUserId, db, ensureSchema, fail, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,11 @@ export async function GET(req: Request) {
       const r = await db()`select paused_at from push_subs where endpoint = ${endpoint} and user_id = ${me}`;
       subscribed = r.length > 0;
       paused = subscribed && r[0].paused_at != null;
+      // 끄기를 막아 둔 동안은 접속한 기기의 멈춤을 풀어 '켜짐'으로 둔다
+      if (paused && !PUSH_PAUSE_ALLOWED) {
+        await db()`update push_subs set paused_at = null where endpoint = ${endpoint} and user_id = ${me}`;
+        paused = false;
+      }
     } catch {
       /* 무시 */
     }
@@ -68,6 +74,7 @@ export async function PATCH(req: Request) {
   if (!me) return needLogin();
   const endpoint = new URL(req.url).searchParams.get("endpoint") ?? "";
   const b = await body(req);
+  if (b.paused === true && !PUSH_PAUSE_ALLOWED) return json({ error: PUSH_LOCK_TEXT }, 403);
   try {
     await ensureSchema();
     const r = b.paused === true

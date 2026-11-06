@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { notifySafetyAlert, notifySafetyStart } from "@/lib/safetyNotify";
 import { pushEnabled, sendPush } from "@/lib/push";
 import { maybeRunSafetyChecks } from "@/lib/safetyJob";
+import { PUSH_PAUSE_ALLOWED } from "@/lib/pushPolicy";
 import { normPhone, safetyOpen, SAFETY_INTERVAL_MIN, SAFETY_NIGHT_TEXT, SAFETY_PHOTO_ME, SAFETY_PUSH_ME } from "@/lib/safety";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, photoUrl } from "@/lib/server";
 
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
       if (!ph.myPhoto) return json({ error: SAFETY_PHOTO_ME, code: "photo-me" }, 400);
       // 안심 체크는 푸시로 묻기 때문에 알림이 켜진 기기가 하나는 있어야 신청할 수 있다(2026-11-06 사용자 지시)
       if (pushEnabled()) {
-        const ps = await sql`select 1 from push_subs where user_id = ${me} and paused_at is null limit 1`;
+        const ps = await sql`select 1 from push_subs where user_id = ${me} and (paused_at is null or ${!PUSH_PAUSE_ALLOWED}) limit 1`;
         if (!ps.length) return json({ error: SAFETY_PUSH_ME, code: "push-off" }, 400);
       }
       const busy = await sql`select 1 from safety_sessions where request_id = ${requestId} and status <> 'closed' limit 1`;

@@ -13,6 +13,7 @@ import TopLoading from "./TopLoading";
 import NoticeTicker from "./NoticeTicker";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
+import { setPushGateState } from "@/lib/pushGate";
 import { Bubble, HintContext, Icon, LangContext, PhotoZoomLayer, Sheet, api, setPhotoZoom } from "./ui";
 import { defaultRoleFor, type Place } from "@/lib/types";
 
@@ -40,6 +41,8 @@ const CommuteStart = dynamic(() => import("./CommuteStart"), { ssr: false });
 const CommuteOnboard = dynamic(() => import("./CommuteOnboard"), { ssr: false });
 // 글이 없는 회원에게만 보이는 홈 안내 카드(로그인 뒤에 불러와 첫 화면을 막지 않는다)
 const PostNudge = dynamic(() => import("./PostNudge"), { ssr: false });
+// 알림 꺼짐 안내 카드·알림 켜기 창(알림이 꺼진 회원에게만, 2026-11-06)
+const PushGate = dynamic(() => import("./PushGate"), { ssr: false });
 // 앱 접속 팝업(관리자 > 사이트). 첫 화면이 뜬 뒤에 불러온다.
 const LaunchPopup = dynamic(() => import("./LaunchPopup"), { ssr: false });
 const InstallGate = dynamic(() => import("./InstallGate"), { ssr: false });
@@ -199,6 +202,10 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
     }
   };
   const push = usePush(!!user);
+  // 신청·CALL 전에 알림이 켜져 있는지 묻는 곳(lib/pushGate.ts)에 이 기기 상태를 알려 둔다
+  useEffect(() => {
+    setPushGateState(user ? push.state : "loading");
+  }, [user, push.state]);
   const [version, setVersion] = useState(0);
   const t = (ko: string) => translate(shownLang, ko);
 
@@ -613,6 +620,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
             />
           </div>
         )}
+        {user && push.state !== "loading" && push.state !== "on" && <PushGate push={push} toast={setToastMsg} card={tab === "home"} />}
         {tab === "home" && user && !user.test && !commuteStart && !commute && <PostNudge user={user} toast={setToastMsg} onCommute={() => setCommute({ post: null, onboarding: false })} onGoMe={() => { setOpen(null); setTab("me"); }} onPosted={refresh} />}
         {tab === "home" && <div className="flex justify-end px-5 pb-1 empty:hidden"><Bubble blockId="C930" align="right">{t("지금 내 기본 역할이에요. 누르면 운전자와 탑승자가 바뀌고, 카풀을 올릴 때 기본값이 돼요.")}</Bubble></div>}
 

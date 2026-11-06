@@ -1,4 +1,5 @@
 "use client";
+import { needPush } from "@/lib/pushGate";
 import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { useEffect, useMemo, useState } from "react";
@@ -706,6 +707,7 @@ export function PostDetail({
               onClick={() => {
                 if (sample) return toast(t("예시 글에는 신청할 수 없어요."));
                 if (!user) return goLogin();
+                if (needPush()) return; // 알림이 꺼져 있으면 먼저 켜게 한다
                 run("/api/requests", "POST", { postId: post.id, message }, "신청했어요. 수락되면 대화할 수 있습니다.");
               }}
             >

@@ -1,4 +1,5 @@
 "use client";
+import { needPush } from "@/lib/pushGate";
 import { useEffect, useState } from "react";
 import { type Place, type Post } from "@/lib/types";
 import PlaceField from "./PlaceField";
@@ -198,6 +199,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
 
   const send = async () => {
     if (!picked) return;
+    if (needPush()) return; // 알림이 꺼져 있으면 먼저 켜게 한다
     setBusy(true);
     const here = await locate();
     if (!here) return setBusy(false);
@@ -340,6 +342,7 @@ function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: n
   const send = async () => {
     setErr("");
     if (!dest.name.trim()) return setErr(t("도착지를 골라 주세요."));
+    if (needPush()) return;
     setBusy(true);
     const here = await currentHere();
     if (!here) {
