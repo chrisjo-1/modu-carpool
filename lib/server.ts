@@ -165,6 +165,11 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   // 의견 감사 크레딧: 관리자가 한 번만 지급한다(지급액·지급 시각 기록)
   await sql`alter table feedback add column if not exists reward integer not null default 0`;
   await sql`alter table feedback add column if not exists rewarded_at timestamptz`;
+  // 워프 크레딧 이관 신청(의견 종류 'credit'): 회원이 적은 워프 고유번호·메일·보유 크레딧. 같은 고유번호는 한 번만 지급.
+  await sql`alter table feedback add column if not exists warp_code text not null default ''`;
+  await sql`alter table feedback add column if not exists warp_email text not null default ''`;
+  await sql`alter table feedback add column if not exists warp_credits integer not null default 0`;
+  await sql`create unique index if not exists feedback_warp_paid_uniq on feedback (upper(warp_code)) where category = 'credit' and rewarded_at is not null and warp_code <> ''`;
   await sql`alter table users add column if not exists role_pref text not null default ''`;
   // 역할은 운전자·탑승자 둘 중 하나만 쓴다(운전자는 탑승도 하므로 "둘 다"는 운전자로 옮긴다).
   await sql`update users set role_pref = 'driver' where role_pref = 'both'`;

@@ -563,6 +563,34 @@ ${quote ? `<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border
  * 워프동기화로 워프 글을 모두의카풀에 대신 올린 뒤 본인에게 알린다(2026-11-04 사용자 지시: 모두의카풀로 유도).
  * 비밀번호를 아직 안 정한 분에게는 '비밀번호 찾기'로 정하는 방법을 함께 적는다. 보냈으면 true.
  */
+/** 워프 크레딧 이관 완료 안내(관리자가 지급하면 바로). 수신거부·탈퇴 주소는 보내지 않는다. */
+export async function warpCreditMail(toUserId: string, amount: number): Promise<boolean> {
+  try {
+    const rows = await db()`select email, pw_reset_required from users where id = ${toUserId} and not test and not blocked and withdrawn_at is null`;
+    if (!rows.length) return false;
+    const to = String(rows[0].email);
+    if (await suppressedNow(to)) return false;
+    const n = amount.toLocaleString("ko-KR");
+    const subject = `[모두의카풀] 워프 크레딧 ${n}을 옮겨 드렸어요`;
+    const lead = `신청하신 워프 크레딧 ${n}을 모두의카풀 크레딧으로 옮겨 드렸어요.`;
+    const steps = rows[0].pw_reset_required
+      ? "처음 오셨다면 로그인 화면의 '비밀번호 찾기'에 이 메일 주소를 넣어 비밀번호를 정한 뒤, 내 정보 › 크레딧에서 확인해 주세요."
+      : "로그인하신 뒤 내 정보 › 크레딧에서 확인해 주세요.";
+    const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6">${esc(lead)}</p>
+<p style="margin:0 0 16px;padding:12px 14px;background:#F5F7FA;border-radius:12px;font-size:20px;font-weight:700;text-align:center">+${esc(n)} 크레딧</p>
+<p style="margin:0 0 16px;font-size:15px;line-height:1.6">${esc(steps)}</p>
+<a href="${SITE}/?tab=me" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">내 크레딧 확인하기</a>
+</div></div>`;
+    return await deliver({ kind: "notify-warp-credit", category: "transactional", to, userId: toUserId, subject, html, text: `${lead}\n\n+${n} 크레딧\n\n${steps}\n\n${SITE}/?tab=me` });
+  } catch (e) {
+    console.error("[mail]", e);
+    return false;
+  }
+}
+
 export async function warpPostedMail(toUserId: string, routes: { route: string; over: boolean }[]): Promise<boolean> {
   try {
     const rows = await db()`select email, pw_reset_required from users where id = ${toUserId} and notify and not test and not blocked and withdrawn_at is null`;

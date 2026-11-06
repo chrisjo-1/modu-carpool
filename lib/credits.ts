@@ -12,6 +12,7 @@ export const REASON_LABEL: Record<string, string> = {
   firstpost: "첫 카풀 등록 축하",
   subway: "지하철 출퇴근 등록 축하",
   karrot: "당근함 첫 물건 등록 축하",
+  warp_credit: "워프 크레딧 이관",
   sit: "지하철 앉아가기(하루 1회)",
   photo_del: "프로필 사진 삭제 차감",
   attend: "출석",
