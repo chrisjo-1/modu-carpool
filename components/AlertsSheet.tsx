@@ -23,7 +23,11 @@ export default function AlertsSheet({ onClose, onUnread, toast }: { onClose: () 
       const r = await api<{ unread: number }>("/api/inbox", "POST", { action: "read", id: it.id });
       if (r.ok) onUnread(r.data.unread);
     }
-    if (it.url && it.url !== "/") location.assign(it.url); // 알림을 누른 것과 같은 화면으로 연다
+    const p = /^\/\?p=([0-9a-f-]{36})$/i.exec(it.url);
+    if (p) {
+      onClose();
+      window.dispatchEvent(new CustomEvent("modu:open-post", { detail: p[1] })); // 글은 새로고침 없이 앱 안에서 연다
+    } else if (it.url && it.url !== "/") location.assign(it.url); // 그 밖은 알림을 누른 것과 같은 화면으로 연다
     else {
       setItems((l) => (l ? l.map((x) => (x.id === it.id ? { ...x, read: true } : x)) : l));
     }

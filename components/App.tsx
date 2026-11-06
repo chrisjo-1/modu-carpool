@@ -89,6 +89,21 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const [enabled, setEnabled] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [open, setOpen] = useState<Post | null>(null);
+  /** 글 하나를 앱 안에서 연다(매칭 목록·알림함·?p= 링크). 목록에 없으면 서버에서 그 글만 받는다. */
+  const openPostById = useCallback(async (id: string) => {
+    const r = await api<{ posts: Post[] }>(`/api/posts?id=${encodeURIComponent(id)}`);
+    const found = r.ok ? r.data.posts.find((p) => p.id === id) : undefined;
+    if (found) {
+      setTab("home");
+      setOpen(found);
+    } else setToastMsg(translate(langNow(), "글을 찾을 수 없어요. 마감됐거나 내려간 글일 수 있어요."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const on = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (id) void openPostById(id); };
+    window.addEventListener("modu:open-post", on);
+    return () => window.removeEventListener("modu:open-post", on);
+  }, [openPostById]);
   const [room, setRoom] = useState<Thread | null>(null);
   const [editing, setEditing] = useState<Post | null>(null);
   const [member, setMember] = useState<string | null>(null);
@@ -361,6 +376,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       const id = new URLSearchParams(location.search).get("p");
       const hit = id && list.find((p) => p.id === id);
       if (hit) setOpen(hit);
+      else if (id) void openPostById(id); // 목록(최근 300개) 밖의 글은 그 글 하나만 받아 연다
       else if (!id) {
         let savedOpen: string | null = null;
         try {

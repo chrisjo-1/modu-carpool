@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Post } from "@/lib/types";
-import { Avatar, Sheet, api, btnGhost, btnRole, useLang, useT, when } from "./ui";
+import { Avatar, Sheet, api, btnGhost, useLang, useT, when } from "./ui";
 
 type Item = {
   postId: string; code: string; photo: string; role: "driver" | "rider"; regular: boolean;
@@ -39,7 +39,7 @@ export function MatchButton({ post, toast }: { post: Post; toast: (m: string) =>
           }
           setOpen(true);
         }}
-        className={`${d.count ? btnRole(post.role) : btnGhost} py-3 text-[15px] disabled:opacity-60`}>
+        className={`${d.count ? "min-h-[48px] w-full rounded-2xl bg-brand px-4 font-semibold text-white" : btnGhost} py-3 text-[15px] disabled:opacity-60`}>
         {d.count ? `${t("매칭 가능성 있는 회원 보기")} · ${d.count}${t("명")}${d.locked && d.cost ? ` (${d.cost.toLocaleString("ko-KR")} ${t("크레딧")})` : ""}` : t("아직 같은 길 회원이 없어요 · 새로 올라오면 알려 드려요")}
       </button>
       {open && d.items && <MatchSheet items={d.items} onClose={() => setOpen(false)} />}
@@ -57,7 +57,7 @@ function MatchSheet({ items, onClose }: { items: Item[]; onClose: () => void }) 
         <ul data-block-id="C438" data-block-name="매칭 회원 목록" className="space-y-2">
           {items.map((m) => (
             <li key={m.postId}>
-              <button type="button" onClick={() => location.assign(`/?p=${m.postId}`)} className="flex w-full items-start gap-3 rounded-2xl border border-line bg-white p-3 text-left active:bg-bg">
+              <button type="button" onClick={() => { onClose(); window.dispatchEvent(new CustomEvent("modu:open-post", { detail: m.postId })); }} className="flex w-full items-start gap-3 rounded-2xl border border-line bg-white p-3 text-left active:bg-bg">
                 <Avatar src={m.photo} name={m.code} role={m.role} size={40} />
                 <span className="min-w-0 flex-1 space-y-1">
                   <span className="flex items-center gap-2">
