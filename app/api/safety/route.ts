@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { notifySafetyAlert, notifySafetyStart } from "@/lib/safetyNotify";
 import { sendPush } from "@/lib/push";
-import { normPhone, SAFETY_INTERVAL_MIN, SAFETY_LATE_MIN, SAFETY_OVERDUE_MIN } from "@/lib/safety";
+import { normPhone, safetyOpen, SAFETY_INTERVAL_MIN, SAFETY_LATE_MIN, SAFETY_NIGHT_TEXT, SAFETY_OVERDUE_MIN } from "@/lib/safety";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -81,7 +81,7 @@ export async function GET(req: Request) {
         after(() => notifySafetyAlert("late", String(f.id)).catch(() => {}));
       }
     }
-    return json({ accepted: p.accepted, post: p.post, canStart: String(g[0]?.gender ?? "") === "female", session: rows[0] ? shape(rows[0], me) : null });
+    return json({ accepted: p.accepted, post: p.post, open: safetyOpen(), canStart: String(g[0]?.gender ?? "") === "female", session: rows[0] ? shape(rows[0], me) : null });
   } catch (e) {
     return fail(e);
   }
@@ -109,6 +109,7 @@ export async function POST(req: Request) {
       const phone = normPhone(b.phone);
       if (!isUuid(requestId)) return json({ error: "잘못된 요청입니다." }, 400);
       if (!phone) return json({ error: "전화번호를 정확히 입력해 주세요." }, 400);
+      if (!safetyOpen()) return json({ error: SAFETY_NIGHT_TEXT }, 403);
       const g = await sql`select gender from users where id = ${me}`;
       if (String(g[0]?.gender ?? "") !== "female") return json({ error: "안심동행은 여성 회원만 신청할 수 있어요." }, 403);
       const p = await partyOf(requestId, me);
@@ -129,6 +130,7 @@ export async function POST(req: Request) {
       const phone = normPhone(b.phone);
       if (!isUuid(id)) return json({ error: "잘못된 요청입니다." }, 400);
       if (!phone) return json({ error: "전화번호를 정확히 입력해 주세요." }, 400);
+      if (!safetyOpen()) return json({ error: SAFETY_NIGHT_TEXT }, 403);
       const rows = await sql`update safety_sessions set partner_phone = ${phone}, partner_consent_at = now(),
           status = 'active', started_at = now()
         where id = ${id} and partner_id = ${me} and status = 'pending' and partner_consent_at is null returning *`;

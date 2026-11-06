@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, btnGhost, field, Sheet } from "@/components/ui";
-import { SAFETY_DISCLAIMER, SAFETY_DRIVER_CONSENT, SAFETY_INTERVAL_MIN, SAFETY_WATCH_TEXT } from "@/lib/safety";
+import { SAFETY_CLOSE_HOUR, SAFETY_DISCLAIMER, SAFETY_DRIVER_CONSENT, SAFETY_HOURS_TEXT, SAFETY_INTERVAL_MIN, SAFETY_NIGHT_TEXT, SAFETY_WATCH_TEXT } from "@/lib/safety";
 
 /** 대화방의 안심동행 상태(서버 shape와 같다) */
 type Session = {
@@ -24,7 +24,7 @@ type Session = {
   lateAt: number | null;
 };
 type Post = { origin: string; dest: string; timeGo: string; originLat: number | null; originLng: number | null; destLat: number | null; destLng: number | null };
-type Data = { accepted: boolean; post: Post; canStart: boolean; session: Session | null };
+type Data = { accepted: boolean; post: Post; open?: boolean; canStart: boolean; session: Session | null };
 
 const FALLBACK_MIN = 40; // 경로 시간을 못 구했을 때 쓰는 기본 시간(분)
 const POLL_MS = 8000;
@@ -83,21 +83,31 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold text-warn">🛡 안심동행</p>
-          <p className="mt-0.5 text-[13px] text-sub">{SAFETY_DISCLAIMER}</p>
+          <p className="mt-0.5 text-[13px] text-sub">{SAFETY_DISCLAIMER} {SAFETY_HOURS_TEXT}</p>
         </div>
         {s && s.status !== "closed" && !(s.isRider && s.status === "active" && s.boardedAt) && (
           <button type="button" onClick={() => end(false)} disabled={busy} className="shrink-0 rounded-xl border border-line bg-white px-3 py-2 text-[14px] font-semibold text-ink disabled:opacity-50">종료</button>
         )}
       </div>
 
-      {!s && data.canStart && (
+      {!s && data.canStart && data.open === false && (
+        <div data-block-id="C429" data-block-name="안심동행 운영 시간 아님" className="mt-2 rounded-xl border border-line bg-white p-3">
+          <p className="text-[14px] font-semibold text-ink">{SAFETY_HOURS_TEXT}</p>
+          <p className="mt-1 text-[13px] text-sub">{SAFETY_NIGHT_TEXT}</p>
+          <a href="tel:112" className="mt-2 block rounded-xl border border-warn bg-white px-4 py-2.5 text-center text-[15px] font-bold text-warn">112 전화 걸기</a>
+        </div>
+      )}
+      {!s && data.canStart && data.open !== false && (
         <button type="button" onClick={() => setSheet("start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안심동행 신청하기</button>
       )}
 
       {s?.status === "pending" && s.iRequested && (
         <p className="mt-2 text-[14px] text-sub">상대분의 동의를 기다리고 있어요. 동의하면 시작돼요.</p>
       )}
-      {s?.status === "pending" && !s.iRequested && (
+      {s?.status === "pending" && !s.iRequested && data.open === false && (
+        <p className="mt-2 text-[14px] text-sub">{SAFETY_NIGHT_TEXT}</p>
+      )}
+      {s?.status === "pending" && !s.iRequested && data.open !== false && (
         <button type="button" onClick={() => setSheet("consent")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">상대분이 신청했어요 · 동의하고 시작</button>
       )}
 
@@ -105,6 +115,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
         <>
           <p className="mt-2 text-[14px] text-sub">진행 중이에요. {s.isRider ? "이동 중에 몇 번 가볍게 여쭤볼게요." : s.boardedAt ? `탑승자가 탑승했어요${s.etaAt ? ` · 도착 예정 ${hm(s.etaAt)}` : ""}.` : "탑승자가 탑승하면 알려 드려요."}</p>
           <p className="mt-1 text-[13px] font-semibold text-warn">{SAFETY_WATCH_TEXT}</p>
+          {data.open === false && <p className="mt-1 rounded-lg bg-white p-2 text-[13px] text-ink">운영 시간(밤 {SAFETY_CLOSE_HOUR - 12}시까지)이 지나 운영팀 확인이 늦을 수 있어요. 위급하면 바로 112에 연락해 주세요.</p>}
           {s.isRider && !s.boardedAt && <BoardCard session={s} post={data.post} onDone={load} toast={toast} />}
           {s.isRider && s.boardedAt && (
             <div className={`mt-2 rounded-xl border p-3 ${s.lateAt ? "border-warn bg-white" : "border-line bg-white"}`}>

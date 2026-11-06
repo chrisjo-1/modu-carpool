@@ -9,6 +9,16 @@ export const SAFETY_OVERDUE_MIN = 3; // 확인 질문 뒤 이 시간 안에 답�
 
 export const SAFETY_LATE_MIN = 10; // 예상 도착 시각에서 이만큼 지나도 [도착했어요]가 없으면 '도착 지연'
 export const SAFETY_NAME = "안심동행";
+/** 운영 시간(한국 시각, 2026-11-06 사용자 지시: 밤 10시~아침 6시는 운영팀도 쉬어서 한시적으로 막음) */
+export const SAFETY_OPEN_HOUR = 6;
+export const SAFETY_CLOSE_HOUR = 22;
+export const SAFETY_HOURS_TEXT = `안심동행은 오전 ${SAFETY_OPEN_HOUR}시부터 밤 ${SAFETY_CLOSE_HOUR - 12}시까지 운영해요.`;
+export const SAFETY_NIGHT_TEXT = `밤 ${SAFETY_CLOSE_HOUR - 12}시부터 아침 ${SAFETY_OPEN_HOUR}시까지는 운영팀이 확인하지 못해 새로 시작할 수 없어요. 위급하면 바로 112에 연락해 주세요.`;
+/** 지금(또는 t) 한국 시각이 운영 시간인지 */
+export function safetyOpen(t = Date.now()) {
+  const h = new Date(t + 9 * 3600_000).getUTCHours();
+  return h >= SAFETY_OPEN_HOUR && h < SAFETY_CLOSE_HOUR;
+}
 
 export const SAFETY_DISCLAIMER = "안심동행은 보조 장치이며 안전을 완전히 보장하지 않아요. 위급한 상황에는 먼저 112에 연락해 주세요.";
 /** 도착할 때까지 운영팀이 함께 지켜본다는 안내(의무가 아니라 서로 조심하자는 뜻) */
