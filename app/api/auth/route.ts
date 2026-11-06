@@ -8,7 +8,7 @@ import { sendLegacyConfirmMail, sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
 import { sendResetMail, siteUrl } from "@/lib/mail";
 import { findLegacyByKey, maskEmail, normEmail } from "@/lib/legacy";
-import { logConsent } from "@/lib/unsub";
+import { logConsent, suppressedNow } from "@/lib/unsub";
 import { CONTACT_TYPES, JOIN_SOURCES, driverTier } from "@/lib/types";
 import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
 
@@ -289,7 +289,12 @@ async function forgot(req: Request, email: string) {
     const sql = db();
     const n = await sql`select count(*)::int as n from password_resets where ip = ${ip} and created_at > now() - interval '1 hour'`;
     if ((n[0].n as number) >= 10) return json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, 429);
-    const u = await sql`select id from users where email = ${email} and not test and not blocked and withdrawn_at is null`;
+    let u = await sql`select id from users where email = ${email} and not test and not blocked and withdrawn_at is null`;
+    // 계정은 없지만 워프 명단(구·신워프)에 있는 메일이면 임시 계정을 만들고 워프 정보에 이어 준 뒤 같은 비밀번호 설정 메일을 보낸다(2026-11-06).
+    if (!u.length) {
+      const made = await accountFromLegacy(email).catch((e) => { console.error("[forgot-legacy]", e); return null; });
+      if (made) u = [{ id: made }];
+    }
     if (u.length) {
       const recent = await sql`select count(*)::int as n from password_resets where user_id = ${u[0].id} and created_at > now() - interval '1 hour'`;
       if ((recent[0].n as number) < 3) {
@@ -306,6 +311,39 @@ async function forgot(req: Request, email: string) {
   } catch (e) {
     return fail(e);
   }
+}
+
+/**
+ * 비밀번호 찾기에 넣은 메일이 계정은 없고 워프 명단에만 있을 때(구워프 회원은 계정이 미리 없음, 2026-11-06 문의 대응):
+ * 탈퇴하지 않았고 아직 아무 계정에도 이어지지 않은 명단이면, 신워프 임시가입과 같은 방식(비번 미설정·인증됨)으로 계정을 만들고 이어 준다.
+ * 메일 받는 사람만 링크를 누를 수 있어 본인 확인이 된다. 수신거부·탈퇴·개인정보 삭제 주소는 만들지 않는다.
+ */
+async function accountFromLegacy(email: string): Promise<string | null> {
+  const sql = db();
+  const l = await sql`select warp_id, coalesce(src_no, '') as src_no from legacy_members
+    where email_norm = ${email} and not coalesce(withdrawn, false) and withdrawn_at is null and matched_user is null
+    order by (coalesce(src_no, '') like '신워프%') desc limit 1`;
+  if (!l.length) return null;
+  if (await suppressedNow(email)) return null;
+  const warpId = String(l[0].warp_id);
+  // 신워프는 워프 고유번호를 그대로 회원 고유코드로(명단 업로드 때와 같게), 구워프는 새 고유코드
+  const fixed = String(l[0].src_no).startsWith("신워프") && /^[0-9A-Z]{6,12}$/.test(warpId.toUpperCase()) ? warpId.toUpperCase() : "";
+  let id = "";
+  for (let i = 0; i < 10 && !id; i++) {
+    const code = fixed && i === 0 ? fixed : makeMemberCode();
+    try {
+      const ins = await sql`insert into users (email, pw, name, contact, contact_type, member_code, pw_reset_required, email_verified)
+        values (${email}, ${`unset:${randomBytes(32).toString("hex")}`}, ${code}, '', '', ${code}, true, true) returning id`;
+      id = String(ins[0].id);
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e;
+      const ex = await sql`select id from users where email = ${email} and not blocked and withdrawn_at is null`;
+      if (ex.length) return String(ex[0].id);
+    }
+  }
+  if (!id) return null;
+  await claimLegacy(id, warpId, "비밀번호 찾기");
+  return id;
 }
 
 /** 메일 링크의 토큰으로 새 비밀번호를 정한다. 성공하면 다른 기기의 로그인은 끊기고 이 기기는 로그인된다. */
