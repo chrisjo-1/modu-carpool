@@ -11,7 +11,14 @@ export const FEEDBACK_STATUS: [string, string][] = [
   ["closed", "답변 완료"],
 ];
 /** 예전에 쓰던 종류(목록에서 빠졌지만 지난 의견에 남아 있음) */
-const OLD_CATS: Record<string, string> = { idea: "아이디어" };
+const OLD_CATS: Record<string, string> = { idea: "아이디어", safety: "안심동행 후기" };
+/** 안심동행 후기(2026-11-06 사용자 지시): [도착했어요] 뒤 창에서만 받는다(일반 의견 종류 목록에는 없음) */
+export const SAFETY_FEEDBACK = "safety";
+export const SAFETY_RATINGS: [string, string][] = [
+  ["good", "안심됐어요"],
+  ["soso", "보통이에요"],
+  ["bad", "아쉬웠어요"],
+];
 export const catLabel = (k: string) => FEEDBACK_CATS.find(([x]) => x === k)?.[1] ?? OLD_CATS[k] ?? k;
 /** 워프 크레딧 이관 신청 한 건 상한(관리자가 확인 후 한 번에 지급) */
 export const WARP_CREDIT_MAX = 1_000_000;

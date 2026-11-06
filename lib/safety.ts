@@ -18,14 +18,16 @@ export const SAFETY_PHOTO_DRIVER = "얼굴이 보이는 프로필 사진을 등�
 export const SAFETY_OPEN_HOUR = 6;
 export const SAFETY_CLOSE_HOUR = 22;
 export const SAFETY_HOURS_TEXT = `안심동행은 오전 ${SAFETY_OPEN_HOUR}시부터 밤 ${SAFETY_CLOSE_HOUR - 12}시까지 운영해요.`;
-export const SAFETY_NIGHT_TEXT = `밤 ${SAFETY_CLOSE_HOUR - 12}시부터 아침 ${SAFETY_OPEN_HOUR}시까지는 운영팀이 확인하지 못해 새로 시작할 수 없어요. 위급하면 바로 112에 연락해 주세요.`;
+export const SAFETY_NIGHT_TEXT = `밤 ${SAFETY_CLOSE_HOUR - 12}시부터 아침 ${SAFETY_OPEN_HOUR}시까지는 운영팀이 확인하지 못해 새로 시작할 수 없어요.`;
+/** 안심 체크는 푸시로 묻는다 — 알림이 꺼져 있으면 신청할 수 없다 */
+export const SAFETY_PUSH_ME = "안심동행은 이동 중 확인을 알림으로 보내 드려요. 알림을 켜야 신청할 수 있어요.";
 /** 지금(또는 t) 한국 시각이 운영 시간인지 */
 export function safetyOpen(t = Date.now()) {
   const h = new Date(t + 9 * 3600_000).getUTCHours();
   return h >= SAFETY_OPEN_HOUR && h < SAFETY_CLOSE_HOUR;
 }
 
-export const SAFETY_DISCLAIMER = "안심동행은 보조 장치이며 안전을 완전히 보장하지 않아요. 위급한 상황에는 먼저 112에 연락해 주세요.";
+export const SAFETY_DISCLAIMER = "안심동행은 보조 장치이며 안전을 완전히 보장하지는 않아요.";
 /** 도착할 때까지 운영팀이 함께 지켜본다는 안내(의무가 아니라 서로 조심하자는 뜻) */
 export const SAFETY_WATCH_TEXT = "도착할 때까지 운영팀이 함께 지켜보고 있어요. 확인 응답과 긴급 신호는 바로 운영팀 화면에 올라가요.";
 /** 운전자(상대분)에게 보이는 동의 문구 */

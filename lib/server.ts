@@ -709,6 +709,9 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table safety_sessions add column if not exists rear_seat boolean not null default false`;
   await sql`alter table safety_sessions add column if not exists eta_at timestamptz`;
   await sql`alter table safety_sessions add column if not exists late_at timestamptz`;
+  // 안심 체크를 서버가 푸시로 보낸다(2026-11-06): 마지막 질문 시각, 무응답 다시 알림 시각
+  await sql`alter table safety_sessions add column if not exists last_ask_at timestamptz`;
+  await sql`alter table safety_sessions add column if not exists reminded_at timestamptz`;
   await sql`create table if not exists counsel_bookings (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references users(id) on delete cascade,

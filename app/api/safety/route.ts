@@ -1,7 +1,8 @@
 import { after } from "next/server";
 import { notifySafetyAlert, notifySafetyStart } from "@/lib/safetyNotify";
-import { sendPush } from "@/lib/push";
-import { normPhone, safetyOpen, SAFETY_INTERVAL_MIN, SAFETY_LATE_MIN, SAFETY_NIGHT_TEXT, SAFETY_OVERDUE_MIN, SAFETY_PHOTO_ME } from "@/lib/safety";
+import { pushEnabled, sendPush } from "@/lib/push";
+import { maybeRunSafetyChecks } from "@/lib/safetyJob";
+import { normPhone, safetyOpen, SAFETY_INTERVAL_MIN, SAFETY_NIGHT_TEXT, SAFETY_PHOTO_ME, SAFETY_PUSH_ME } from "@/lib/safety";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, photoUrl } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -77,23 +78,10 @@ export async function GET(req: Request) {
     await ensureSchema();
     const p = await partyOf(requestId, me);
     if (!p) return json({ error: "대화방을 찾을 수 없어요." }, 404);
+    // 안심 체크·무응답 다시 알림·도착 지연은 서버 작업이 처리한다(1분에 한 번). 이 응답에도 바로 반영되게 먼저 돌린다.
+    await maybeRunSafetyChecks().catch((e) => console.error("[safety-job]", e));
     const rows = await db()`select * from safety_sessions where request_id = ${requestId} and status <> 'closed' order by created_at desc limit 1`;
     const g = await db()`select gender from users where id = ${me}`;
-    const cur = rows[0];
-    // 3분 넘게 답이 없는 질문은 한 번만 관리자에게 메일(누군가 상태를 읽을 때 감지)
-    if (cur && String(cur.status) === "active" && cur.pending_since && Date.now() - new Date(cur.pending_since as string).getTime() > SAFETY_OVERDUE_MIN * 60_000) {
-      const flag = await db()`update safety_sessions set overdue_mailed_at = now() where id = ${cur.id} and overdue_mailed_at is null returning id`;
-      if (flag.length) after(() => notifySafetyAlert("overdue", String(cur.id)).catch(() => {}));
-    }
-    // 예상 도착 시각에서 SAFETY_LATE_MIN분이 지나도 [도착했어요]가 없으면 한 번만 '도착 지연' — 탑승자에게 묻고 운영팀에 알린다
-    if (cur && String(cur.status) === "active" && cur.eta_at && !cur.late_at && Date.now() - new Date(cur.eta_at as string).getTime() > SAFETY_LATE_MIN * 60_000) {
-      const flag = await db()`update safety_sessions set late_at = now() where id = ${cur.id} and late_at is null returning id, rider_id, request_id`;
-      if (flag.length) {
-        const f = flag[0];
-        after(() => sendPush(String(f.rider_id), { title: "도착하셨나요?", body: "예상 도착 시각이 지났어요. 도착했으면 [도착했어요]를 눌러 주세요.", url: `/?room=${f.request_id}`, tag: `safety-late-${f.id}` }).catch(() => {}));
-        after(() => notifySafetyAlert("late", String(f.id)).catch(() => {}));
-      }
-    }
     return json({ accepted: p.accepted, post: p.post, open: safetyOpen(), ...(await photos(me, p.other)), canStart: String(g[0]?.gender ?? "") === "female", session: rows[0] ? shape(rows[0], me) : null });
   } catch (e) {
     return fail(e);
@@ -131,6 +119,11 @@ export async function POST(req: Request) {
       // 신청하는 여성 회원은 본인 사진이 있어야 한다. 상대(운전자) 사진은 동의할 때 등록하게 한다.
       const ph = await photos(me, p.other);
       if (!ph.myPhoto) return json({ error: SAFETY_PHOTO_ME, code: "photo-me" }, 400);
+      // 안심 체크는 푸시로 묻기 때문에 알림이 켜진 기기가 하나는 있어야 신청할 수 있다(2026-11-06 사용자 지시)
+      if (pushEnabled()) {
+        const ps = await sql`select 1 from push_subs where user_id = ${me} and paused_at is null limit 1`;
+        if (!ps.length) return json({ error: SAFETY_PUSH_ME, code: "push-off" }, 400);
+      }
       const busy = await sql`select 1 from safety_sessions where request_id = ${requestId} and status <> 'closed' limit 1`;
       if (busy.length) return json({ error: "이미 진행 중인 안심동행이 있어요." }, 409);
       const rows = await sql`insert into safety_sessions (request_id, requester_id, partner_id, rider_id, requester_phone, requester_consent_at)
@@ -192,7 +185,7 @@ export async function POST(req: Request) {
     if (b.action === "ask") {
       const id = String(b.id ?? "");
       if (!isUuid(id)) return json({ error: "잘못된 요청입니다." }, 400);
-      const rows = await sql`update safety_sessions set pending_since = now()
+      const rows = await sql`update safety_sessions set pending_since = now(), last_ask_at = now(), reminded_at = null
         where id = ${id} and rider_id = ${me} and status = 'active' and pending_since is null returning *`;
       if (!rows.length) return json({ error: "이미 확인 질문이 떠 있거나 지금은 확인할 수 없어요." }, 409);
       await sendPush(me, { title: "이동 중 확인", body: "이동하는 데 불편함은 없으신가요?", url: `/?room=${rows[0].request_id}`, tag: `safety-ask-${id}` });

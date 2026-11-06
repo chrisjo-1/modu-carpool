@@ -1,9 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, Avatar, btnGhost, field, Sheet } from "@/components/ui";
-import { SAFETY_CLOSE_HOUR, SAFETY_DISCLAIMER, SAFETY_DRIVER_CONSENT, SAFETY_HOURS_TEXT, SAFETY_INTERVAL_MIN, SAFETY_NIGHT_TEXT, SAFETY_PHOTO_DRIVER, SAFETY_PHOTO_ME, SAFETY_WATCH_TEXT } from "@/lib/safety";
+import { pushHint, usePush } from "@/components/Push";
+import { SAFETY_FEEDBACK, SAFETY_RATINGS } from "@/lib/feedback";
+import { SAFETY_CLOSE_HOUR, SAFETY_DISCLAIMER, SAFETY_DRIVER_CONSENT, SAFETY_HOURS_TEXT, SAFETY_INTERVAL_MIN, SAFETY_NIGHT_TEXT, SAFETY_PHOTO_DRIVER, SAFETY_PHOTO_ME, SAFETY_PUSH_ME, SAFETY_WATCH_TEXT } from "@/lib/safety";
 
 const PhotoGateSheet = dynamic(() => import("./PhotoGate"), { ssr: false });
 
@@ -35,7 +37,8 @@ const POLL_MS = 8000;
 /** 대화방 안의 안심동행 블록. 수락된 카풀에서만 보인다. */
 export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m: string) => void }) {
   const [data, setData] = useState<Data | null>(null);
-  const [sheet, setSheet] = useState<"start" | "consent" | "photo" | "photoConsent" | null>(null);
+  const [sheet, setSheet] = useState<"start" | "consent" | "photo" | "photoConsent" | "push" | "review" | null>(null);
+  const push = usePush(true);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -67,6 +70,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
     setBusy(false);
     if (!r.ok) return toast(r.error || "종료하지 못했어요.");
     toast(arrived ? "도착을 확인했어요. 안심동행을 마쳤어요." : "안심동행을 종료했어요.");
+    if (arrived) setSheet("review");
     load();
   };
 
@@ -115,6 +119,27 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
           </div>
         </div>
       )}
+      {sheet === "review" && <ReviewSheet onClose={() => setSheet(null)} toast={toast} />}
+      {sheet === "push" && (
+        <Sheet onClose={() => setSheet(null)} title="알림 켜기" blockId="S431">
+          <div data-block-id="C432" data-block-name="안심동행 알림 켜기" className="space-y-3">
+            <p className="text-[15px] text-ink">{SAFETY_PUSH_ME}</p>
+            <p className="text-[13px] text-sub">이동 중 {SAFETY_INTERVAL_MIN}분마다 &quot;불편함은 없으신가요?&quot; 알림이 가요. 알림을 누르면 이 대화방이 열리고, 답하면 확인이 끝나요.</p>
+            {pushHint[push.state] ? (
+              <p className="rounded-lg bg-bg p-3 text-[14px] text-ink">{pushHint[push.state]}</p>
+            ) : (
+              <button type="button" data-block-id="B486" disabled={busy} onClick={async () => {
+                setBusy(true);
+                const err = await push.turnOn();
+                setBusy(false);
+                if (err) return toast(err);
+                toast("알림을 켰어요.");
+                setSheet("start");
+              }} className="w-full rounded-xl bg-mint px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-50">알림 켜기</button>
+            )}
+          </div>
+        </Sheet>
+      )}
       {sheet === "photo" && <PhotoGateSheet text={SAFETY_PHOTO_ME} button="프로필 사진 등록하기" onClose={() => setSheet(null)} onSaved={load} toast={toast} />}
       {sheet === "photoConsent" && <PhotoGateSheet text={SAFETY_PHOTO_DRIVER} button="프로필 사진 등록하기" onClose={() => setSheet(null)} onSaved={load} toast={toast} />}
 
@@ -122,11 +147,10 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
         <div data-block-id="C429" data-block-name="안심동행 운영 시간 아님" className="mt-2 rounded-xl border border-line bg-white p-3">
           <p className="text-[14px] font-semibold text-ink">{SAFETY_HOURS_TEXT}</p>
           <p className="mt-1 text-[13px] text-sub">{SAFETY_NIGHT_TEXT}</p>
-          <a href="tel:112" className="mt-2 block rounded-xl border border-warn bg-white px-4 py-2.5 text-center text-[15px] font-bold text-warn">112 전화 걸기</a>
         </div>
       )}
       {!s && data.canStart && data.open !== false && (
-        <button type="button" data-block-id="B484" onClick={() => setSheet(data.myPhoto === false ? "photo" : "start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안심동행 신청하기</button>
+        <button type="button" data-block-id="B484" onClick={() => setSheet(data.myPhoto === false ? "photo" : push.state !== "on" ? "push" : "start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안심동행 신청하기</button>
       )}
 
       {s?.status === "pending" && s.iRequested && (
@@ -141,9 +165,9 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
 
       {s?.status === "active" && (
         <>
-          <p className="mt-2 text-[14px] text-sub">진행 중이에요. {s.isRider ? "이동 중에 몇 번 가볍게 여쭤볼게요." : s.boardedAt ? `탑승자가 탑승했어요${s.etaAt ? ` · 도착 예정 ${hm(s.etaAt)}` : ""}.` : "탑승자가 탑승하면 알려 드려요."}</p>
+          <p className="mt-2 text-[14px] text-sub">진행 중이에요. {s.isRider ? `이동 중 ${SAFETY_INTERVAL_MIN}분마다 알림으로 가볍게 여쭤볼게요. 알림을 눌러 답해 주세요.` : s.boardedAt ? `탑승자가 탑승했어요${s.etaAt ? ` · 도착 예정 ${hm(s.etaAt)}` : ""}.` : "탑승자가 탑승하면 알려 드려요."}</p>
           <p className="mt-1 text-[13px] font-semibold text-warn">{SAFETY_WATCH_TEXT}</p>
-          {data.open === false && <p className="mt-1 rounded-lg bg-white p-2 text-[13px] text-ink">운영 시간(밤 {SAFETY_CLOSE_HOUR - 12}시까지)이 지나 운영팀 확인이 늦을 수 있어요. 위급하면 바로 112에 연락해 주세요.</p>}
+          {data.open === false && <p className="mt-1 rounded-lg bg-white p-2 text-[13px] text-ink">운영 시간(밤 {SAFETY_CLOSE_HOUR - 12}시까지)이 지나 운영팀 확인이 늦을 수 있어요.</p>}
           {s.isRider && !s.boardedAt && <BoardCard session={s} post={data.post} onDone={load} toast={toast} />}
           {s.isRider && s.boardedAt && (
             <div className={`mt-2 rounded-xl border p-3 ${s.lateAt ? "border-warn bg-white" : "border-line bg-white"}`}>
@@ -154,13 +178,13 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
           )}
           {s.urgentAt ? (
             <div className="mt-2 rounded-xl bg-warn p-3 text-white">
-              <p className="text-[15px] font-semibold">위급 신호를 보냈어요. 바로 112에 전화해 주세요.</p>
-              <a href="tel:112" className="mt-2 block rounded-xl bg-white px-4 py-3 text-center text-[16px] font-bold text-warn">112 전화 걸기</a>
+              <p className="text-[15px] font-semibold">위급 신호를 보냈어요. 운영팀이 바로 확인하고 연락드릴게요.</p>
+              <p className="mt-1 text-[13px] opacity-90">급할 땐 112로도 연락할 수 있어요.</p>
             </div>
           ) : (
             <button type="button" onClick={urgent} disabled={busy} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-bold text-white disabled:opacity-50">🚨 위급해요 · 운영팀에 바로 알리기</button>
           )}
-          {s.isRider && s.boardedAt && <RiderChecks session={s} post={data.post} onChanged={load} toast={toast} />}
+          {s.isRider && s.boardedAt && <RiderChecks session={s} onChanged={load} toast={toast} />}
         </>
       )}
 
@@ -171,6 +195,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
           onClose={() => setSheet(null)}
           onSubmit={async (phone) => {
             const r = await api("/api/safety", "POST", { action: "start", requestId, phone });
+            if (!r.ok && /알림을 켜야/.test(r.error || "")) return setSheet("push");
             if (!r.ok) return toast(r.error || "신청하지 못했어요.");
             toast("신청했어요. 상대분이 동의하면 시작돼요.");
             setSheet(null);
@@ -194,6 +219,39 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
         />
       )}
     </div>
+  );
+}
+
+/** [도착했어요] 뒤 안심동행 후기(관리자 '의견' 탭에 '안심동행 후기'로 쌓인다). 건너뛸 수 있다. */
+function ReviewSheet({ onClose, toast }: { onClose: () => void; toast: (m: string) => void }) {
+  const [rating, setRating] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    if (!rating) return toast("어떠셨는지 하나를 골라 주세요.");
+    setBusy(true);
+    const r = await api("/api/feedback", "POST", { category: SAFETY_FEEDBACK, rating, body: note });
+    setBusy(false);
+    if (!r.ok) return toast(r.error || "보내지 못했어요.");
+    toast("소중한 의견 고마워요. 안심동행을 더 좋게 만들게요.");
+    onClose();
+  };
+  return (
+    <Sheet title="안심동행은 어떠셨나요?" onClose={onClose} blockId="S432">
+      <div data-block-id="C433" data-block-name="안심동행 후기" className="space-y-3">
+        <p className="text-[14px] text-sub">무사히 도착하셔서 다행이에요. 남겨 주신 의견으로 안심동행을 더 보완할게요.</p>
+        <div className="grid grid-cols-3 gap-2">
+          {SAFETY_RATINGS.map(([k, l]) => (
+            <button key={k} type="button" data-block-id={`B487-${k}`} onClick={() => setRating(k)} className={`rounded-xl border px-2 py-3 text-[15px] font-semibold ${rating === k ? "border-mint bg-mintSoft text-mint" : "border-line bg-white text-ink"}`}>{l}</button>
+          ))}
+        </div>
+        <textarea data-block-id="F444" className={field} rows={3} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder={rating === "bad" ? "어떤 점이 아쉬웠는지 알려 주세요." : "더 있었으면 하는 점이나 불편했던 점을 적어 주세요. (선택)"} />
+        <div className="flex gap-2">
+          <button type="button" onClick={onClose} className={`${btnGhost} w-full`}>건너뛰기</button>
+          <button type="button" data-block-id="B488" disabled={busy} onClick={send} className="w-full rounded-xl bg-mint px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-50">보내기</button>
+        </div>
+      </div>
+    </Sheet>
   );
 }
 
@@ -326,58 +384,9 @@ function EtaEdit({ session, onDone, toast }: { session: Session; onDone: () => v
 }
 
 /**
- * 탑승자 앱에서만 동작: 출발 뒤 SAFETY_INTERVAL_MIN분마다, 도착 예정(경로 시간) 전까지 확인 질문을 보낸다.
- * 질문은 앱이 열려 있을 때만 떠요(예약 장치는 아직 없음).
+ * 탑승자의 안심 체크: 질문은 서버가 10분마다 푸시로 보낸다(lib/safetyJob.ts). 질문이 떠 있으면 답 카드를 보여 주고, 답하면 체크 완료.
  */
-function RiderChecks({ session, post, onChanged, toast }: { session: Session; post: Post; onChanged: () => void; toast: (m: string) => void }) {
-  const [endMs, setEndMs] = useState<number | null>(null);
-  const lastSlot = useRef<number>(-1);
-  // 부모가 매번 새 함수를 넘기므로 최신 것만 ref로 든다(효과를 다시 돌리지 않게)
-  const changed = useRef(onChanged);
-  changed.current = onChanged;
-  const startedAt = session.boardedAt ?? session.startedAt ?? Date.now();
-  const intervalMs = SAFETY_INTERVAL_MIN * 60_000;
-
-  // 탑승자가 정한 예상 도착 시각이 있으면 그때까지, 없으면 경로 시간으로
-  useEffect(() => {
-    if (session.etaAt) {
-      setEndMs(session.etaAt);
-      return;
-    }
-    let alive = true;
-    const minutes = (sec: number) => Math.max(sec * 1000, 10 * 60_000);
-    if (post.originLat == null || post.originLng == null || post.destLat == null || post.destLng == null) {
-      setEndMs(startedAt + FALLBACK_MIN * 60_000);
-      return;
-    }
-    fetch(`/api/route?olat=${post.originLat}&olng=${post.originLng}&dlat=${post.destLat}&dlng=${post.destLng}`)
-      .then((r) => r.json())
-      .then((j: { seconds?: number }) => { if (alive) setEndMs(startedAt + (j.seconds ? minutes(j.seconds) : FALLBACK_MIN * 60_000)); })
-      .catch(() => { if (alive) setEndMs(startedAt + FALLBACK_MIN * 60_000); });
-    return () => { alive = false; };
-  }, [post.originLat, post.originLng, post.destLat, post.destLng, startedAt, session.etaAt]);
-
-  // 앱을 연 시점의 칸은 건너뛰고, 다음 칸 경계부터 질문한다
-  useEffect(() => {
-    if (lastSlot.current < 0) lastSlot.current = Math.floor((Date.now() - startedAt) / intervalMs);
-  }, [startedAt, intervalMs]);
-
-  useEffect(() => {
-    if (endMs == null) return;
-    const tick = async () => {
-      const now = Date.now();
-      if (now > endMs || session.pendingSince) return;
-      const slot = Math.floor((now - startedAt) / intervalMs);
-      if (slot <= lastSlot.current || slot < 1) return;
-      lastSlot.current = slot;
-      const r = await api("/api/safety", "POST", { action: "ask", id: session.id });
-      if (r.ok) changed.current();
-    };
-    tick();
-    const timer = setInterval(tick, 15_000);
-    return () => clearInterval(timer);
-  }, [endMs, session.id, session.pendingSince, startedAt, intervalMs]);
-
+function RiderChecks({ session, onChanged, toast }: { session: Session; onChanged: () => void; toast: (m: string) => void }) {
   if (!session.pendingSince) return null;
   return <AnswerCard session={session} onChanged={onChanged} toast={toast} />;
 }
@@ -390,7 +399,7 @@ function AnswerCard({ session, onChanged, toast }: { session: Session; onChanged
     const r = await api("/api/safety", "POST", { action: "answer", id: session.id, answer: a });
     setBusy(false);
     if (!r.ok) return toast(r.error || "답을 보내지 못했어요.");
-    if (a === "no") toast("불편하신 점이 있으면 바로 상대분이나 112에 연락해 주세요.");
+    if (a === "no") toast("알려 주셔서 고마워요. 운영팀이 바로 확인하고 연락드릴게요.");
     onChanged();
   };
   return (

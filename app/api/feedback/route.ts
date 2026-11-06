@@ -1,4 +1,4 @@
-import { FEEDBACK_CATS, WARP_CREDIT_MAX, catLabel } from "@/lib/feedback";
+import { FEEDBACK_CATS, SAFETY_FEEDBACK, SAFETY_RATINGS, WARP_CREDIT_MAX, catLabel } from "@/lib/feedback";
 import { alertAdmin } from "@/lib/adminAlert";
 import { body, clientIp, currentUserId, db, ensureSchema, fail, json, text } from "@/lib/server";
 
@@ -21,7 +21,12 @@ export async function GET() {
 export async function POST(req: Request) {
   const me = await currentUserId();
   const b = await body(req);
-  const category = FEEDBACK_CATS.some(([k]) => k === b.category) ? String(b.category) : "etc";
+  const category = FEEDBACK_CATS.some(([k]) => k === b.category) || b.category === SAFETY_FEEDBACK ? String(b.category) : "etc";
+  // 안심동행 후기: 로그인한 회원, 세 가지 중 하나 + 한 줄 의견(선택)
+  const safety = category === SAFETY_FEEDBACK;
+  const rating = safety ? SAFETY_RATINGS.find(([k]) => k === b.rating)?.[1] ?? "" : "";
+  if (safety && !me) return json({ error: "로그인한 뒤에 보낼 수 있어요." }, 401);
+  if (safety && !rating) return json({ error: "어떠셨는지 하나를 골라 주세요." }, 400);
   // 크레딧 이관 신청: 워프 고유번호·워프 메일·보유 크레딧. 로그인한 회원만(크레딧은 그 계정으로 지급)
   const credit = category === "credit";
   const warpCode = credit ? text(b.warpCode, 20).toUpperCase().replace(/\s/g, "") : "";
@@ -34,8 +39,8 @@ export async function POST(req: Request) {
     if (!(warpCredits >= 1 && warpCredits <= WARP_CREDIT_MAX)) return json({ error: "워프에서 보유한 크레딧을 숫자로 적어 주세요." }, 400);
   }
   const note = typeof b.body === "string" ? b.body.trim().slice(0, 2000) : "";
-  const msg = credit ? `워프 크레딧 이관 신청 · 고유번호 ${warpCode} · 보유 크레딧 ${warpCredits.toLocaleString("ko-KR")}${note ? `\n${note}` : ""}` : note;
-  if (!credit && msg.length < 5) return json({ error: "내용을 5자 이상 적어 주세요." }, 400);
+  const msg = credit ? `워프 크레딧 이관 신청 · 고유번호 ${warpCode} · 보유 크레딧 ${warpCredits.toLocaleString("ko-KR")}${note ? `\n${note}` : ""}` : safety ? `[${rating}]${note ? ` ${note.slice(0, 500)}` : ""}` : note;
+  if (!credit && !safety && msg.length < 5) return json({ error: "내용을 5자 이상 적어 주세요." }, 400);
   const email = text(b.email, 120).toLowerCase();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "이메일 형식을 확인해 주세요." }, 400);
   const ip = clientIp(req);

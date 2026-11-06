@@ -2,6 +2,7 @@ import { maybeRunWarpSync } from "@/lib/warpSync";
 import { maybeRunAutoMail } from "@/lib/mailAuto";
 import { maybeRunKakaoJob } from "@/lib/kakao";
 import { maybeRunPoolJob } from "@/lib/poolJob";
+import { maybeRunSafetyChecks } from "@/lib/safetyJob";
 import { driverTier } from "@/lib/types";
 import { notifyRouteAlerts } from "@/lib/alerts";
 import { notifyDrivers } from "@/lib/drivers";
@@ -135,6 +136,8 @@ export async function GET(req: Request) {
     // 정기 매칭 일괄 게시·안내 메일(켜져 있을 때만, 3분에 한 번)
     after(() => maybeRunPoolJob().catch((e) => console.error("[pool-job]", e)));
     // 알림톡 발송 작업(관리자가 시작했을 때만, 3분에 한 번)
+    // 안심동행 안심 체크 푸시·무응답·도착 지연(진행 중인 건이 있을 때만, 1분에 한 번)
+    after(() => maybeRunSafetyChecks().catch((e) => console.error("[safety-job]", e)));
     after(() => maybeRunKakaoJob().catch((e) => console.error("[kakao]", e)));
     if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });
