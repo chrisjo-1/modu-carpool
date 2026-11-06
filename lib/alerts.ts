@@ -2,6 +2,8 @@ import { distanceKm } from "./geo";
 import { pushText, sendPush } from "./push";
 import { db } from "./server";
 import { boundingBox, getRadius } from "./radius";
+import { after } from "next/server";
+import { notifyMatches } from "./matchServer";
 
 export const ALERT_MAX = 3;
 const DAILY_CAP = 10;
@@ -12,6 +14,12 @@ const kstDay = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 1
  * 글쓴이 본인, 서로 차단한 사이, 테스트 회원 글은 빼고, 경로마다 하루 10건까지.
  */
 export async function notifyRouteAlerts(postId: string) {
+  // 매칭 가능성 높은 기존 글쓴이에게도 알림(응답 뒤에, lib/matchServer.ts). 새 글·수정한 글이 모두 이 길을 지난다.
+  try {
+    after(() => notifyMatches(postId).catch((e) => console.error("[match-notify]", e)));
+  } catch {
+    /* 요청 밖에서 불린 경우는 건너뛴다 */
+  }
   try {
     const sql = db();
     const p = await sql`select p.id, p.user_id, p.role, p.origin, p.dest, p.origin_lat, p.origin_lng, p.dest_lat, p.dest_lng, u.test

@@ -21,6 +21,7 @@ export const REASON_LABEL: Record<string, string> = {
   admin: "운영자 지급·회수",
   refund: "환불",
   call: "주변 호출",
+  match: "매칭 회원 열람",
 };
 
 export async function getRules(): Promise<Rules> {

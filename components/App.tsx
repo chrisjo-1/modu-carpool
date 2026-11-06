@@ -11,6 +11,7 @@ import { ConsentSheet, VerifyBanner } from "./Account";
 import Splash from "./Splash";
 import TopLoading from "./TopLoading";
 import NoticeTicker from "./NoticeTicker";
+import AlertBell from "./AlertBell";
 import { creditText } from "./Credits";
 import { usePush } from "./Push";
 import { setPushGateState } from "@/lib/pushGate";
@@ -606,6 +607,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
             <p className="text-xl font-bold leading-tight">{t("모두의카풀")}</p>
             <p className="text-[13px] leading-tight text-sub">{t(slogan)}</p>
           </div>
+          {user && <AlertBell toast={setToastMsg} />}
           {(tab === "home" || tab === "post") && <RoleSwitch user={user ?? null} onUser={setUser} toast={setToastMsg} onGoProfile={() => { setOpen(null); setTab("me"); }} />}
         </header>
         {tab === "home" && !!user && (

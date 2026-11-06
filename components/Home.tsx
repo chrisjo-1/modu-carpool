@@ -1,5 +1,6 @@
 "use client";
 import { needPush } from "@/lib/pushGate";
+const MatchButton = dynamic(() => import("./MatchSheet").then((m) => m.MatchButton), { ssr: false });
 import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { useEffect, useMemo, useState } from "react";
@@ -618,6 +619,7 @@ export function PostDetail({
                 {th.status === "accepted" && <button className={`${btnGhost} py-3 text-[15px]`} onClick={() => openChat(th)}>{t("대화하기")}</button>}
               </div>
             ))}
+            <MatchButton post={post} toast={toast} />
             {post.hidden && <p data-block-id="C014" data-block-name="노출 안 됨 안내" className="rounded-xl bg-warnSoft px-4 py-3 text-[14px] text-warn">{t(HIDDEN_TEXT[post.hidden])}</p>}
             {!post.regular && onRepost && (
               <button data-block-id="B401" data-block-name="다시 올리기" className={`${post.ended || post.status === "closed" ? btnRole(post.role) : btnGhost} py-3 text-[15px]`} onClick={() => onRepost(post)}>{t("같은 요일·시간으로 다시 올리기")}</button>

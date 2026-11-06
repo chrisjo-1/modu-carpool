@@ -626,6 +626,20 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   // CALL 출발 시각(2026-11-06: 카풀은 택시가 아니라 최소 30분 뒤부터)과 끝난 시각(출발 15분 전까지 수락 없으면 자동 마감)
   await sql`alter table calls add column if not exists depart_at timestamptz`;
   await sql`alter table calls add column if not exists ended_at timestamptz`;
+  // 앱 안 알림함(2026-11-06): 보낸 푸시를 받는 사람별로 남긴다(기기가 못 받아도 남음). 30일·사람당 200개까지(maintainData)
+  await sql`create table if not exists user_alerts (
+    id bigserial primary key,
+    user_id uuid not null references users(id) on delete cascade,
+    title text not null, body text not null default '', url text not null default '/', tag text not null default '',
+    created_at timestamptz not null default now(), read_at timestamptz)`;
+  await sql`create index if not exists user_alerts_user_idx on user_alerts (user_id, created_at desc)`;
+  await sql`create index if not exists user_alerts_unread_idx on user_alerts (user_id) where read_at is null`;
+  // 매칭 가능성 있는 회원 열람(2026-11-06): 크레딧을 받게 되면(settings match_view_cost) 같은 글은 한 번만 낸다
+  await sql`create table if not exists match_views (
+    user_id uuid not null references users(id) on delete cascade,
+    post_id uuid not null references posts(id) on delete cascade,
+    paid int not null default 0, created_at timestamptz not null default now(),
+    primary key (user_id, post_id))`;
   await sql`create index if not exists calls_post_idx on calls (post_id)`;
   await sql`create index if not exists calls_source_idx on calls (source_post_id)`;
   // 도움말(튜토리얼·자주 묻는 질문·의견 안내). 관리자 화면에서 고친다.
@@ -747,6 +761,10 @@ async function buildSchema(sql: ReturnType<typeof db>) {
 
 /** 매번 가볍게 확인하는 자료 정리(고유코드 없는 회원 채우기, 표시 이름을 고유코드로). 할 일이 없으면 쿼리 2번. */
 async function maintainData(sql: ReturnType<typeof db>) {
+  // 알림함: 30일 지난 것, 사람당 최근 200개 밖의 것은 지운다
+  await sql`delete from user_alerts where created_at < now() - interval '30 days'`;
+  await sql`delete from user_alerts a using (select id, row_number() over (partition by user_id order by created_at desc) as n from user_alerts) x
+    where a.id = x.id and x.n > 200`;
   // 이메일 대기열 워프 글: 30일 안에 계정 이메일이 안 채워지면 지운다(사용자 지시 2026-11-04).
   await sql`delete from warp_pools where post_id is null and wait_since is not null and wait_since < now() - interval '30 days'`;
   // 운전자 연락처 안전망: 신청이 취소·거절됐거나, 일회성 카풀이 출발한 지 2일 지나면 지운다.

@@ -222,6 +222,9 @@ export const Icon = {
   train: (w = 1.5) => (
     <svg {...base} strokeWidth={w}><rect x="6" y="3.5" width="12" height="13" rx="3" /><path d="M6 11.5h12M9 20.5l-2 1.5M15 20.5l2 1.5M9.5 7h.01M14.5 7h.01" /></svg>
   ),
+  bell: (w = 1.5) => (
+    <svg {...base} strokeWidth={w}><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></svg>
+  ),
   close: (w = 1.5) => (
     <svg {...base} strokeWidth={w}><path d="M6 6l12 12M18 6L6 18" /></svg>
   ),

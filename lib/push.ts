@@ -15,6 +15,8 @@ export type PushPayload = { title: string; body: string; url: string; tag?: stri
 
 /** 회원의 모든 기기로 푸시를 보낸다. 만료된 구독은 지운다. 실패해도 본래 동작은 계속된다. */
 export async function sendPush(userId: string, payload: PushPayload) {
+  // 앱 안 알림함에 먼저 남긴다(기기가 받지 못해도 놓친 알림을 볼 수 있게). 같은 tag의 안 읽은 알림은 새 내용으로 바꾼다.
+  await saveAlert(userId, payload).catch(() => {});
   if (!pushEnabled()) return 0;
   try {
     setup();
@@ -44,6 +46,18 @@ export async function sendPush(userId: string, payload: PushPayload) {
     console.error("[push]", e);
     return 0;
   }
+}
+
+async function saveAlert(userId: string, p: PushPayload) {
+  const sql = db();
+  const url = typeof p.url === "string" && p.url.startsWith("/") ? p.url.slice(0, 300) : "/";
+  const tag = String(p.tag ?? "").slice(0, 120);
+  if (tag) {
+    const up = await sql`update user_alerts set title = ${p.title.slice(0, 120)}, body = ${String(p.body ?? "").slice(0, 300)}, url = ${url}, created_at = now()
+      where user_id = ${userId} and tag = ${tag} and read_at is null returning id`;
+    if (up.length) return;
+  }
+  await sql`insert into user_alerts (user_id, title, body, url, tag) values (${userId}, ${p.title.slice(0, 120)}, ${String(p.body ?? "").slice(0, 300)}, ${url}, ${tag})`;
 }
 
 const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
