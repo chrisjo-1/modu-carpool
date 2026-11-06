@@ -436,6 +436,18 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   // 반송 시각(웹훅·Resend 목록 정리). 대량 메일 자동 발송의 반송률 안전장치에 쓴다.
   await sql`alter table mail_log add column if not exists bounced_at timestamptz`;
   await sql`create index if not exists mail_log_provider_idx on mail_log (provider_id) where provider_id <> ''`;
+  // 문자·알림톡 대상 계산(lib/smsTargets.ts)이 주소마다 메일 기록을 찾는다
+  await sql`create index if not exists mail_log_to_lower_idx on mail_log (lower(to_email))`;
+  // 알림톡(lib/kakao.ts): 발송 기록(전화번호 없음)과 회원별 짧은 주소 /s/<code>
+  await sql`create table if not exists kakao_log (
+    id bigserial primary key, warp_id text not null, user_id uuid, template_key text not null, grp text not null default '',
+    status text not null, error text not null default '', provider_id text not null default '', created_at timestamptz not null default now())`;
+  await sql`create unique index if not exists kakao_log_once_uniq on kakao_log (warp_id, template_key) where status in ('sent', 'skip')`;
+  await sql`create index if not exists kakao_log_created_idx on kakao_log (created_at)`;
+  await sql`create table if not exists kakao_links (
+    code text primary key, user_id uuid not null references users(id) on delete cascade, warp_id text not null default '',
+    template_key text not null default '', expires_at timestamptz not null, clicks integer not null default 0,
+    clicked_at timestamptz, created_at timestamptz not null default now())`;
   await sql`alter table mail_campaigns add column if not exists followup_of uuid`;
   // 앱 설치 여부: 마지막으로 연 방식(app = 홈 화면 앱, browser = 인터넷 창)과 시각, 앱으로 처음 연 시각
   await sql`alter table users add column if not exists app_mode text not null default ''`;

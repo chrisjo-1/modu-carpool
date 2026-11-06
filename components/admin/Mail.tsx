@@ -1,5 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import Kakao from "./Kakao";
+import SmsTargets from "./SmsTargets";
 
 type Policy = { dailyCap: number; monthlyCap: number; cycleDay: number; quietOn: boolean; quietFrom: number; quietTo: number; marketingOn: boolean; requireConsent: boolean };
 type Log = { id: string; created_at: number; kind: string; category: string; to_email: string; subject: string; status: string; error: string; provider_id: string; user_name: string | null };
@@ -109,6 +111,9 @@ export default function AdminMail() {
               </section>
             );
           })()}
+
+          <SmsTargets />
+          <Kakao />
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {tile("오늘 발송", `${d.today.sent.toLocaleString("ko-KR")}통`)}
