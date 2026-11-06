@@ -158,6 +158,8 @@ function regionOf(area?: string | null): string {
 }
 const postRegions = (p: Post) => [...new Set([regionOf(p.originArea), regionOf(p.destArea)].filter(Boolean))];
 const REGION_KEY = "modu.regions";
+/** 지역 필터 켜기(2026-11-06 사용자 지시: 회원이 적은 동안은 끄고, 누르면 '준비 중입니다' 팝업). 회원이 늘면 true로 */
+const REGION_FILTER_ON = false;
 
 export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost, onSubway, onSubwaySetup, driverMode }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; driverMode?: boolean; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void; onSubway?: (view: "seat" | "match" | "edit") => void; onSubwaySetup?: () => void }) {
   const t = useT();
@@ -167,7 +169,9 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   // 지역 필터: 고른 지역(여러 곳) 중 출발·도착 한 곳이라도 맞는 글만. 이 기기에 기억한다.
   const [regions, setRegions] = useState<Set<string>>(new Set());
   const [regionOpen, setRegionOpen] = useState(false);
+  const [regionSoon, setRegionSoon] = useState(false);
   useEffect(() => {
+    if (!REGION_FILTER_ON) return; // 꺼져 있는 동안은 예전에 골라 둔 지역도 적용하지 않는다
     try {
       const saved = JSON.parse(localStorage.getItem(REGION_KEY) ?? "[]");
       if (Array.isArray(saved) && saved.length) setRegions(new Set(saved.map(String)));
@@ -317,7 +321,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         </div>
         {/* [지역] + [운전자만]·[탑승자만](켜고 끄기, 둘 다 꺼짐 = 전체). 2026-11-05 사용자 요청으로 [전체] 버튼을 지역 필터로 바꿈 */}
         <div className="flex items-center gap-1.5">
-          <button type="button" data-block-id="B009" data-block-name="지역 필터" aria-expanded={regionOpen} onClick={() => setRegionOpen((v) => !v)}
+          <button type="button" data-block-id="B009" data-block-name="지역 필터" aria-expanded={regionOpen} onClick={() => (REGION_FILTER_ON ? setRegionOpen((v) => !v) : setRegionSoon(true))}
             className={`inline-flex min-h-[44px] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl border px-3.5 py-2 text-[14px] ${regions.size ? "border-ink bg-white font-semibold text-ink" : "border-line bg-white text-sub"}`}>
             {regions.size ? `${t("지역")} ${regions.size}${t("곳")}` : t("지역")}
             <span aria-hidden className="text-[11px]">{regionOpen ? "▲" : "▼"}</span>
@@ -331,6 +335,15 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
             {t("탑승자만")}
           </button>
         </div>
+        {regionSoon && (
+          <div role="dialog" aria-modal="true" aria-label={t("지역 필터")} className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6" onClick={() => setRegionSoon(false)}>
+            <div data-block-id="C434" data-block-name="지역 필터 준비 중" className="w-full max-w-xs rounded-2xl bg-white p-5 text-center shadow-lg" onClick={(e) => e.stopPropagation()}>
+              <p className="text-[16px] font-semibold text-ink">{t("준비 중입니다")}</p>
+              <p className="mt-1.5 text-[14px] text-sub">{t("회원이 더 모이면 지역별로 골라 볼 수 있게 열어 드릴게요.")}</p>
+              <button type="button" data-block-id="B489" onClick={() => setRegionSoon(false)} className="mt-4 min-h-[44px] w-full rounded-xl bg-accent text-[15px] font-semibold text-white">{t("확인")}</button>
+            </div>
+          </div>
+        )}
         {regionOpen && (
           <div data-block-id="C012" data-block-name="지역 고르기" className="rounded-2xl border border-line bg-white p-3">
             <p className="text-[13px] text-sub">{t("보고 싶은 지역을 고르세요. 출발지나 도착지가 그 지역인 글만 보여요.")}</p>
