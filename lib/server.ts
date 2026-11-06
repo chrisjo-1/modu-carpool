@@ -623,6 +623,9 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table calls add column if not exists caller_lng double precision`;
   // CALL을 보낸 원래 글(내 글 호출일 때). 원래 글에도 CALL 표시를 남기려고 쓴다. 빠른 호출은 비어 있다.
   await sql`alter table calls add column if not exists source_post_id uuid`;
+  // CALL 출발 시각(2026-11-06: 카풀은 택시가 아니라 최소 30분 뒤부터)과 끝난 시각(출발 15분 전까지 수락 없으면 자동 마감)
+  await sql`alter table calls add column if not exists depart_at timestamptz`;
+  await sql`alter table calls add column if not exists ended_at timestamptz`;
   await sql`create index if not exists calls_post_idx on calls (post_id)`;
   await sql`create index if not exists calls_source_idx on calls (source_post_id)`;
   // 도움말(튜토리얼·자주 묻는 질문·의견 안내). 관리자 화면에서 고친다.

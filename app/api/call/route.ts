@@ -1,4 +1,4 @@
-import { acceptCall, callDrivers, callStatus, callerReady, getCallCost, getCallRadiusKm, incomingCall, nearbyBand, quickCall } from "@/lib/call";
+import { acceptCall, callDepart, callDrivers, callStatus, callerReady, getCallCost, getCallRadiusKm, incomingCall, nearbyBand, quickCall } from "@/lib/call";
 import { contactLabel } from "@/lib/types";
 import { PHOTO_REQUIRED, hasPhoto } from "@/lib/verify";
 import { body, currentUserId, ensureSchema, fail, isUuid, json, needLogin } from "@/lib/server";
@@ -46,6 +46,9 @@ export async function POST(req: Request) {
       if ("error" in r) return json({ error: r.error }, 400);
       return json(r);
     }
+    // 출발 시각(최소 30분 뒤 ~ 24시간 안)
+    const departAt = callDepart(b.departAt);
+    if (!(departAt instanceof Date)) return json({ error: departAt.error }, 400);
     // 빠른 호출: 내 글 없이 현재 위치 → 도착지 + 감사 표시
     if (b.quick === true) {
       const num = (x: unknown) => (x == null || x === "" ? null : Number.isFinite(Number(x)) ? Number(x) : null);
@@ -62,6 +65,7 @@ export async function POST(req: Request) {
         gift: String(b.gift ?? ""),
         lat,
         lng,
+        departAt,
       });
       if ("error" in r) return json({ error: r.error }, 400);
       return json(r);
@@ -72,7 +76,7 @@ export async function POST(req: Request) {
     if (b.lat == null || b.lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
       return json({ error: "현재 위치를 확인하지 못했어요. 위치 권한을 허용하고 다시 시도해 주세요." }, 400);
     }
-    const r = await callDrivers(me, String(b.postId), lat, lng);
+    const r = await callDrivers(me, String(b.postId), lat, lng, departAt);
     if ("error" in r) return json({ error: r.error }, 400);
     return json(r);
   } catch (e) {

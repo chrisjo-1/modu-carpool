@@ -13,6 +13,44 @@ function toLocalInput(ms: number) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * CALL 출발 시각 고르기(2026-11-06 사용자 지시: 카풀은 택시가 아니라 시간 여유가 필요 — 최소 30분 뒤).
+ * [30분 뒤][1시간 뒤][2시간 뒤][직접 고르기]. 고른 시각(ms)을 돌려준다.
+ */
+const CALL_LEADS: [number, string][] = [[30, "30분 뒤"], [60, "1시간 뒤"], [120, "2시간 뒤"]];
+function CallTime({ value, onChange }: { value: number; onChange: (ms: number) => void }) {
+  const t = useT();
+  const lang = useLang();
+  const [lead, setLead] = useState<number>(30);
+  const [custom, setCustom] = useState("");
+  const pick = (m: number) => { setLead(m); onChange(Date.now() + m * 60_000); };
+  // '30분 뒤'처럼 고른 경우, 창을 열어 둔 사이 시간이 흘러도 늘 지금부터 그만큼 뒤가 되게 맞춘다
+  useEffect(() => {
+    if (!lead) return;
+    const id = setInterval(() => onChange(Date.now() + lead * 60_000), 20_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead]);
+  return (
+    <div data-block-id="F445" data-block-name="CALL 출발 시각" className="space-y-2">
+      <p className="text-[14px] font-semibold text-ink">{t("언제 출발할까요?")}</p>
+      <div role="radiogroup" aria-label={t("출발 시각")} className="grid grid-cols-4 gap-1.5">
+        {CALL_LEADS.map(([m, l]) => (
+          <button key={m} type="button" role="radio" aria-checked={lead === m} onClick={() => pick(m)}
+            className={`min-h-[44px] rounded-xl border px-1 text-[14px] ${lead === m ? "border-mint bg-mintSoft font-semibold text-mint" : "border-line bg-white text-sub"}`}>{t(l)}</button>
+        ))}
+        <button type="button" role="radio" aria-checked={lead === 0} onClick={() => { setLead(0); const v = custom || toLocalInput(Date.now() + 60 * 60_000); setCustom(v); onChange(new Date(v).getTime()); }}
+          className={`min-h-[44px] rounded-xl border px-1 text-[14px] ${lead === 0 ? "border-mint bg-mintSoft font-semibold text-mint" : "border-line bg-white text-sub"}`}>{t("직접 고르기")}</button>
+      </div>
+      {lead === 0 && (
+        <input type="datetime-local" className="num w-full rounded-xl border border-line bg-white px-3 py-3 text-[16px] text-ink outline-none focus:border-mint"
+          min={toLocalInput(Date.now() + 30 * 60_000)} value={custom} onChange={(e) => { setCustom(e.target.value); onChange(new Date(e.target.value).getTime()); }} />
+      )}
+      <p className="text-[13px] text-sub">{t("카풀은 운전자도 일정이 있어 최소 30분 뒤부터 부를 수 있어요.")} {t("출발")} {when(value, lang)} · {t("출발 15분 전까지 수락하는 분이 없으면 호출이 저절로 끝나요.")}</p>
+    </div>
+  );
+}
+
 /** 연락 방법·아이디가 없을 때 안내하고, 프로필(내 정보)의 입력란으로 바로 이동시킨다. */
 function RegisterContact({ onGoProfile }: { onGoProfile?: () => void }) {
   const t = useT();
@@ -114,6 +152,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
   const [step, setStep] = useState<Step>("choose");
   const [mine, setMine] = useState<Post[] | null>(null);
   const [picked, setPicked] = useState<Post | null>(null);
+  const [departAt, setDepartAt] = useState(() => Date.now() + 30 * 60_000);
   const [radius, setRadius] = useState<number | null>(null);
   const [cost, setCost] = useState<number>(0);
   const [ready, setReady] = useState<boolean | null>(null);
@@ -203,7 +242,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
     setBusy(true);
     const here = await locate();
     if (!here) return setBusy(false);
-    const r = await api<{ notified: number; radiusKm: number }>("/api/call", "POST", { postId: picked.id, lat: here.lat, lng: here.lng });
+    const r = await api<{ notified: number; radiusKm: number }>("/api/call", "POST", { postId: picked.id, lat: here.lat, lng: here.lng, departAt });
     setBusy(false);
     if (!r.ok) {
       setErr(t(r.error));
@@ -311,9 +350,10 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
             ) : (
               <p className="text-sm font-semibold text-mint">{t("CALL은 지금 무료예요.")}</p>
             )}
-            <p className="text-sm text-sub">{t("이 글은 지금 시간으로 다시 올라갑니다.")}</p>
+            <p className="text-sm text-sub">{t("이 글은 고른 출발 시각으로 다시 올라갑니다.")}</p>
             <p className="text-sm text-sub">{t("수락한 운전자에게 내 연락 방법과 아이디가 보여요.")} ({contactType})</p>
           </Card>
+          <CallTime value={departAt} onChange={setDepartAt} />
           {err && <p role="alert" className="rounded-2xl bg-warnSoft px-4 py-3 text-[14px] leading-relaxed text-warn">{err}</p>}
           <button type="button" data-block-id="B221" data-block-name="호출 보내기" className={btnRider} disabled={busy || callsLeft === 0} onClick={send}>{busy ? t("처리 중…") : `${t("호출 보내기")} (${cost > 0 ? `${cost.toLocaleString("ko-KR")} ${t("크레딧")}` : t("무료")})`}</button>
           <button type="button" className={btnGhost} onClick={() => setStep("pick")}>{t("뒤로")}</button>
@@ -330,6 +370,7 @@ function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: n
   const [dest, setDest] = useState<Place>({ name: "", lat: null, lng: null });
   const [gifts, setGifts] = useState<{ id: string; label: string }[]>([]);
   const [gift, setGift] = useState("");
+  const [departAt, setDepartAt] = useState(() => Date.now() + 30 * 60_000);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -360,6 +401,7 @@ function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: n
       gift,
       lat: here.lat,
       lng: here.lng,
+      departAt,
     });
     setBusy(false);
     if (!r.ok) return setErr(t(r.error));
@@ -369,7 +411,7 @@ function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: n
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-sub">{t("등록된 카풀이 없어도 바로 부를 수 있어요. 출발지는 현재 위치가 기본이고, 도착지만 고르면 돼요.")}</p>
+      <p className="text-sm text-sub">{t("등록된 카풀이 없어도 부를 수 있어요. 출발지는 현재 위치가 기본이고, 도착지와 출발 시각만 고르면 돼요.")}</p>
       <PlaceField blockId="F105" label={t("출발지")} placeholder={t("현재 위치 (직접 입력도 가능)")} value={origin} onChange={setOrigin} locate toast={toast} />
       <PlaceField blockId="F106" label={t("도착지")} placeholder={t("예: 여의도역 2번 출구")} value={dest} onChange={setDest} toast={toast} />
       <div className="space-y-2">
@@ -389,6 +431,7 @@ function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: n
           ))}
         </div>
       </div>
+      <CallTime value={departAt} onChange={setDepartAt} />
       <Card className="space-y-1 p-4">
         <p className="text-sm text-sub">
           {radius !== null ? `${t("현재 위치 기준")} ${t("반경")} ${radius}km ${t("안의 운전자에게 알림을 보냅니다.")}` : t("현재 위치 주변의 운전자에게 알림을 보냅니다.")}
@@ -409,13 +452,14 @@ function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: n
 /** 받은 호출(알림을 누르면 열린다). 수락하면 호출한 회원의 연락 방법과 아이디를 보여 준다. */
 export function IncomingCall({ callId, onClose, toast }: { callId: string; onClose: () => void; toast: (m: string) => void }) {
   const t = useT();
-  const [info, setInfo] = useState<{ origin: string; dest: string; callerCode: string; accepted: boolean } | null>(null);
+  const lang = useLang();
+  const [info, setInfo] = useState<{ origin: string; dest: string; callerCode: string; accepted: boolean; departAt: number | null; ended: boolean } | null>(null);
   const [err, setErr] = useState("");
   const [contact, setContact] = useState<{ contactType: string; contact: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<{ origin: string; dest: string; callerCode: string; accepted: boolean }>(`/api/call?callId=${encodeURIComponent(callId)}`).then((r) => {
+    api<{ origin: string; dest: string; callerCode: string; accepted: boolean; departAt: number | null; ended: boolean }>(`/api/call?callId=${encodeURIComponent(callId)}`).then((r) => {
       if (!r.ok) return setErr(t(r.error));
       setInfo(r.data);
     });
@@ -437,10 +481,12 @@ export function IncomingCall({ callId, onClose, toast }: { callId: string; onClo
         {info && (
           <Card className="space-y-1 p-4">
             <p className="font-semibold">{info.origin} → {info.dest}</p>
+            {info.departAt && <p className="text-[15px] font-semibold text-ink">{when(info.departAt, lang)} {t("출발")}</p>}
             <p className="text-sm text-sub">{t("호출한 회원")} {info.callerCode}</p>
           </Card>
         )}
-        {info && !contact && (
+        {info && info.ended && !contact && <p className="rounded-2xl bg-bg p-4 text-[14px] text-sub">{t("이미 끝난 호출이에요.")}</p>}
+        {info && !info.ended && !contact && (
           <>
             <p className="text-sm text-sub">{t("수락하면 호출한 회원의 연락 방법과 아이디가 보여요.")}</p>
             <button type="button" data-block-id="B275" data-block-name="호출 수락" className={btnPrimary} disabled={busy} onClick={accept}>{busy ? t("처리 중…") : t("수락하고 연락처 보기")}</button>
