@@ -13,6 +13,10 @@ const BLUE = "#2F6BFF", GREEN = "#00754A"; // 토큰 accent·mint와 같은 값(
 type Refs = { map: import("leaflet").Map; layer: import("leaflet").LayerGroup; line: import("leaflet").LayerGroup; L: typeof import("leaflet") };
 const SEOUL: [number, number] = [37.5665, 126.978];
 
+const CORAL = "#FF5A3C"; // 토큰 coral과 같은 값
+/** 내 글 핀: 코랄색 + '내 출발지' 말풍선(2026-11-08 사용자 "내 출발지가 어디인지 찾기 어려워") */
+const minePin = (on: boolean) =>
+  `<div style="display:flex;flex-direction:column;align-items:center"><div style="background:${CORAL};color:#fff;border-radius:999px;font:700 12px/20px Pretendard,sans-serif;padding:0 8px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)">내 출발지</div><svg width="${on ? 38 : 34}" height="${on ? 46 : 42}" viewBox="0 0 32 40"><path d="M16 38s12-11.5 12-21A12 12 0 0 0 4 17c0 9.5 12 21 12 21z" fill="${CORAL}" stroke="#fff" stroke-width="2"/><circle cx="16" cy="17" r="5" fill="#fff"/></svg></div>`;
 const pin = (rider: boolean, on: boolean) =>
   `<svg width="${on ? 34 : 28}" height="${on ? 42 : 35}" viewBox="0 0 32 40"><path d="M16 38s12-11.5 12-21A12 12 0 0 0 4 17c0 9.5 12 21 12 21z" fill="${rider ? "#fff" : "#2F6BFF"}" stroke="${rider ? "#2F6BFF" : "#fff"}" stroke-width="${rider ? 3 : 2}"/><circle cx="16" cy="17" r="4.5" fill="${rider ? "#2F6BFF" : "#fff"}"/></svg>`;
 
@@ -25,6 +29,14 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
   const [ready, setReady] = useState(false);
   const [sel, setSel] = useState<Post | null>(null);
   const [match, setMatch] = useState<Lines | null>(null);
+  const [touch, setTouch] = useState(false);
+  const [move, setMove] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const m = refs.current?.map;
+    if (!m || !touch) return;
+    if (move) m.dragging.enable(); else m.dragging.disable();
+  }, [move, touch, ready]);
   const placed = posts.filter((p) => p.originLat != null && p.originLng != null && !p.ended);
   const missing = posts.filter((p) => !p.ended).length - placed.length;
 
@@ -32,7 +44,10 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
     let alive = true;
     import("leaflet").then((L) => {
       if (!alive || !box.current || refs.current) return;
-      const map = L.map(box.current, { zoomControl: true }).setView(SEOUL, 11);
+      // 휴대폰: 화면을 내리다 지도가 끌려가지 않게 한 손가락 끌기는 끈다(두 손가락 확대·[지도 움직이기]로 켬)
+      const touch = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+      const map = L.map(box.current, { zoomControl: true, dragging: !touch }).setView(SEOUL, 11);
+      setTouch(touch);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
       refs.current = { map, layer: L.layerGroup().addTo(map), line: L.layerGroup().addTo(map), L };
       setReady(true);
@@ -52,8 +67,10 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
     r.layer.clearLayers();
     for (const p of placed) {
       const on = sel?.id === p.id;
-      const icon = r.L.divIcon({ className: "", iconSize: on ? [34, 42] : [28, 35], iconAnchor: on ? [17, 40] : [14, 33], html: pin(p.role === "rider", on) });
-      r.L.marker([p.originLat as number, p.originLng as number], { icon, title: `${p.origin} → ${p.dest}`, keyboard: true, zIndexOffset: on ? 1000 : 0 })
+      const icon = p.mine
+        ? r.L.divIcon({ className: "", iconSize: [80, 68], iconAnchor: [40, 66], html: minePin(on) })
+        : r.L.divIcon({ className: "", iconSize: on ? [34, 42] : [28, 35], iconAnchor: on ? [17, 40] : [14, 33], html: pin(p.role === "rider", on) });
+      r.L.marker([p.originLat as number, p.originLng as number], { icon, title: `${p.origin} → ${p.dest}`, keyboard: true, zIndexOffset: p.mine ? 2000 : on ? 1000 : 0 })
         .on("click", () => setSel(p))
         .addTo(r.layer);
     }
@@ -68,7 +85,7 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
     fitted.current = true;
     // 내 글(도착지 있는 것)이 있으면 먼저 골라 둔다 — 바로 내 출퇴근길 분석이 보이게
     const own = placed.find((p) => p.mine && p.destLat != null);
-    if (own && !sel) setSel(own);
+    if (own && !sel) { setSel(own); return; } // 내 글 경로에 맞춰 아래에서 확대한다
     if (here) r.map.setView([here.lat, here.lng], 13);
     else if (placed.length) r.map.fitBounds(r.L.latLngBounds(placed.map((p) => [p.originLat as number, p.originLng as number] as [number, number])), { padding: [30, 30], maxZoom: 14 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,7 +131,8 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
     r.L.polyline([a, b], { color: "#1B2433", weight: 6, opacity: 0.25 }).addTo(r.line);
     r.L.polyline([a, b], { color: mc, weight: 4 }).addTo(r.line);
     r.L.circleMarker(b, { radius: 7, color: "#fff", weight: 2, fillColor: "#1B2433", fillOpacity: 1 }).addTo(r.line);
-    if (match?.lines.length || match?.insights?.spots.length) r.map.fitBounds(r.L.latLngBounds(pts), { padding: [30, 30], maxZoom: 14 });
+    // 고르면 늘 그 글의 경로(와 같은 길 회원)가 다 보이게 맞춘다
+    r.map.fitBounds(r.L.latLngBounds(pts), { padding: [40, 40], maxZoom: 14 });
   }, [ready, sel, match]);
 
   useEffect(() => {
@@ -125,20 +143,32 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
   return (
     <div data-block-id="C209" data-block-name="카풀 지도" className="space-y-3">
       <div className="relative isolate z-0 overflow-hidden rounded-3xl border border-line">
-        <div ref={box} className="h-[420px] w-full bg-bg" role="application" aria-label={t("카풀 지도")} />
-        <div data-block-id="C440" data-block-name="분석 띠" className="pointer-events-none absolute right-3 top-3 z-[500] flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-[13px] font-semibold text-white shadow-lg">
-          <Sparkle className="h-4 w-4" />{sel ? t("같은 길 분석 중") : t("핀을 누르면 같은 길 분석")}
-        </div>
+        <div ref={box} className="h-[340px] w-full bg-bg" role="application" aria-label={t("카풀 지도")} />
+        <button type="button" data-block-id="B496" data-block-name="분석 띠" disabled={!sel}
+          onClick={() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="absolute right-3 top-3 z-[500] flex min-h-0 items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-[13px] font-semibold text-white shadow-lg disabled:cursor-default">
+          <Sparkle className="h-4 w-4" />
+          {!sel ? t("핀을 누르면 같은 길 분석") : !match ? t("같은 길 분석 중…") : match.total < 0 ? t("로그인하면 분석을 볼 수 있어요") : `${t("분석 결과 보기")} ↓`}
+        </button>
+        {touch && (
+          <button type="button" data-block-id="B495" data-block-name="지도 움직이기" onClick={() => setMove((v) => !v)} aria-pressed={move}
+            className={`absolute bottom-3 left-3 z-[500] min-h-0 rounded-full px-3 py-1.5 text-[13px] font-semibold shadow ${move ? "bg-brand text-white" : "bg-white text-ink"}`}>
+            {move ? t("움직이기 끄기") : t("지도 움직이기")}
+          </button>
+        )}
       </div>
       <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[13px] text-sub">
         <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full bg-accent" />{t("운전자입니다")}</span>
         <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full border-2 border-accent bg-white" />{t("탑승자입니다")}</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full bg-coral" />{t("내 출발지")}</span>
         <span>{t("핀은 출발지예요.")}</span>
+        {touch && <span>{t("두 손가락으로 확대·축소, [지도 움직이기]를 누르면 끌어서 옮길 수 있어요.")}</span>}
         {missing > 0 && <span>{t("위치 정보가 없는 글")} {missing}{t("개는 목록에서 볼 수 있어요.")}</span>}
       </p>
       {sel ? (
         <Card className="space-y-3 p-5">
-          <div className="flex items-center gap-2">
+          <div ref={cardRef} className="flex scroll-mt-24 items-center gap-2">
+            {sel.mine && <Tag tone="warn">{t("내 글")}</Tag>}
             <Tag tone="accent">{sel.role === "driver" ? t("운전자") : t("탑승자")}</Tag>
             {sel.regular && <Tag>{t("정기카풀")}</Tag>}
             {sel.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}
