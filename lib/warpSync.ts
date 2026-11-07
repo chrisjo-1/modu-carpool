@@ -57,8 +57,8 @@ export async function runWarpSync(budgetMs = 25_000) {
     const userId = String(user.id);
     const home = String(it.home);
     const work = String(it.work);
-    const h = await geocodeAddress(home).catch(() => null);
-    const w = work ? await geocodeAddress(work).catch(() => null) : null;
+    const h = (await geocodeAddress(home).catch(() => null)) as { lat: number; lng: number } | null;
+    const w = work ? (await geocodeAddress(work).catch(() => null)) as { lat: number; lng: number } | null : null;
     const regular = String(it.kind) === "regular";
     const timeGo = String(it.time_go || "");
     const timeBack = String(it.time_back || "");

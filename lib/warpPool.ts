@@ -149,7 +149,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * 주소 → 좌표. 카카오(켜져 있으면) → OSM 원래 주소 → 번지 뺀 도로명 → 읍·면·동까지 순서로 줄여 가며 찾는다.
  * OSM은 결과 주소에 시·군·구 이름이 들어 있을 때만 쓴다(엉뚱한 곳 방지). OSM은 1초에 1번만 묻는다.
  */
-export async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
+export async function geocodeAddress(addr: string, deadline = Infinity): Promise<{ lat: number; lng: number } | null | "late"> {
+  const late = () => Date.now() > deadline;
   const a = addr.replace(/\s*지하\s*/g, " ").replace(/\s+/g, " ").trim();
   if (a.length < 4) return null;
   const k = await kakaoAddress(a);
@@ -159,19 +160,24 @@ export async function geocodeAddress(addr: string): Promise<{ lat: number; lng: 
   const tries = [a, parts.filter((p) => !/^\d/.test(p)).join(" "), parts.slice(0, Math.min(parts.length, 3)).join(" ")];
   const qs = [...new Set(tries)].filter((q) => q.split(" ").length >= 2);
   // Photon은 여러 개를 동시에 물어도 된다(먼저), OSM은 1초에 1번씩 줄 세운다
+  // deadline: 위치 채우기 한 번이 서버 제한(60초)을 넘지 않게, 시간이 지나면 묻지 않고 "late"(다음 실행 때 다시)
   for (const q of qs.slice(0, 2)) {
+    if (late()) return "late";
     const r = await photonAddress(q, must).catch(() => null);
     if (r) return r;
   }
   for (const q of qs) {
-    const r = await osmThrottled(q, must);
+    if (late()) return "late";
+    const r = await osmThrottled(q, must, deadline);
+    if (r === "late") return "late";
     if (r) return r;
   }
   return null;
 }
 let osmChain: Promise<unknown> = Promise.resolve();
-function osmThrottled(q: string, must: string) {
-  const run = osmChain.then(() => osmAddress(q, must).catch(() => null));
+function osmThrottled(q: string, must: string, deadline = Infinity) {
+  type R = { lat: number; lng: number } | null | "late";
+  const run: Promise<R> = osmChain.then((): R | Promise<R> => (Date.now() > deadline ? "late" : osmAddress(q, must).catch(() => null)));
   osmChain = run.then(() => sleep(1100));
   return run;
 }
@@ -188,12 +194,14 @@ export async function fillWarpGeo(budgetMs = 20_000, only?: string[]): Promise<{
   const start = Date.now();
   let done = 0;
   let found = 0;
-  const known = async (addr: string) => {
+  // 주소 찾기 안쪽까지 마감 시각을 넘긴다(묶음 하나가 늦어져 60초를 넘기던 문제, 2026-11-07)
+  const deadline = start + budgetMs;
+  const known = async (addr: string): Promise<{ lat: number; lng: number } | null | "late"> => {
     if (!addr) return null;
     const k = await sql`select lat, lng from (
         select home_lat as lat, home_lng as lng from warp_pools where home = ${addr} and home_lat is not null
         union all select work_lat, work_lng from warp_pools where work = ${addr} and work_lat is not null) t limit 1`;
-    return k.length ? { lat: Number(k[0].lat), lng: Number(k[0].lng) } : geocodeAddress(addr);
+    return k.length ? { lat: Number(k[0].lat), lng: Number(k[0].lng) } : geocodeAddress(addr, deadline);
   };
   while (Date.now() - start < budgetMs - 8000) {
     const rows = await sql`select code, home, work, home_lat, work_lat from warp_pools
@@ -203,6 +211,16 @@ export async function fillWarpGeo(budgetMs = 20_000, only?: string[]): Promise<{
     await Promise.all(rows.map(async (x) => {
       const h = x.home_lat == null ? await known(String(x.home)) : null;
       const w = x.work_lat == null && String(x.work) ? (String(x.work) === String(x.home) && h ? h : await known(String(x.work))) : null;
+      // 시간이 모자라 못 물어본 글은 '시도함'으로 남기지 않고 다음 실행 때 다시(찾은 좌표는 먼저 저장)
+      if (h === "late" || w === "late") {
+        const hh = h === "late" ? null : h;
+        const ww = w === "late" ? null : w;
+        if (hh || ww) await sql`update warp_pools set
+            home_lat = coalesce(home_lat, ${hh?.lat ?? null}), home_lng = coalesce(home_lng, ${hh?.lng ?? null}),
+            work_lat = coalesce(work_lat, ${ww?.lat ?? null}), work_lng = coalesce(work_lng, ${ww?.lng ?? null})
+          where code = ${x.code}`;
+        return;
+      }
       await sql`update warp_pools set geo_tried_at = now(),
           home_lat = coalesce(home_lat, ${h?.lat ?? null}), home_lng = coalesce(home_lng, ${h?.lng ?? null}),
           work_lat = coalesce(work_lat, ${w?.lat ?? null}), work_lng = coalesce(work_lng, ${w?.lng ?? null})
