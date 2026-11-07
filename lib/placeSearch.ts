@@ -135,7 +135,8 @@ const STATION_RE = /^([가-힣]{1,10})역$/;
  * 카카오는 지하철역 분류(SW8)로, 무료 지도는 철도 역(railway=station) 표시로 고른다.
  */
 async function stationSearch(base: string, lang: string): Promise<Item[]> {
-  const isName = (n: string) => n.replace(/역$/, "") === base;
+  // 카카오 지하철역 이름은 "구의역 2호선"처럼 노선이 붙는다(2026-11-07 "구의역 없음" 문의) — 첫 낱말·괄호 앞만 비교
+  const isName = (n: string) => n.replace(/\(.*?\)/g, "").trim().split(/\s+/)[0].replace(/역$/, "") === base;
   const out: Item[] = [];
   const key = process.env.KAKAO_REST_KEY;
   if (key && kakaoOn()) {
