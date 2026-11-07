@@ -136,7 +136,7 @@ export async function GET(req: Request) {
     after(() => maybeRunRepostReminders().catch((e) => console.error("[repost-remind]", e)));
     // 워프동기화: 대신 올릴 워프 글 처리(3분에 한 번, 응답 뒤)
     after(() => maybeRunWarpSync().catch((e) => console.error("[warp-sync]", e)));
-    // 대량 메일 자동 이어 보내기(안전장치: 9~20시, 하루 몫, 반송률 4% 넘으면 멈춤). 10분에 한 번
+    // 대량 메일 자동 이어 보내기(안전장치: 9~20시, 하루 몫, 반송률 2% 넘으면 멈춤). 10분에 한 번
     after(() => maybeRunAutoMail().catch((e) => console.error("[mail-auto]", e)));
     // 정기 매칭 일괄 게시·안내 메일(켜져 있을 때만, 3분에 한 번)
     after(() => maybeRunPoolJob().catch((e) => console.error("[pool-job]", e)));

@@ -7,12 +7,12 @@ import { suppress } from "./unsub";
  * 대량 메일 자동 이어 보내기(안전장치판, 2026-11-05 사용자 선택 '나'):
  * - 관리자가 [발송]으로 시작하고 '자동 이어 보내기'를 켠 캠페인만, 하루 몫(campaignAllowance) 안에서 이어 보낸다.
  * - 오전 9시~오후 8시(한국 시각)에만. 밤 9시~아침 8시 금지는 runCampaignBatch에도 있다.
- * - 최근 3일 대량 메일 반송률이 4%를 넘으면 자동 발송을 멈추고 관리자에게 메일로 알린다(Resend는 4%를 넘으면 발송을 일시 정지할 수 있음).
+ * - 최근 3일 대량 메일 반송률이 2%를 넘으면 자동 발송을 멈추고 관리자에게 메일로 알린다(Resend는 4%를 넘으면 발송을 일시 정지할 수 있음).
  * - 사이트 접속 응답 뒤 10분에 한 번 실행(첫 화면을 막지 않음). 한 번에 캠페인 하나, 최대 300통.
  * 또 반송 정리: Resend 발송 목록에서 반송된 메일을 찾아 발송 제외 목록·mail_log.bounced_at에 넣는다(이어서 조금씩, 끝나면 멈춤).
  */
 
-const BOUNCE_LIMIT = 0.04;
+const BOUNCE_LIMIT = 0.02;
 const CYCLE_START = Date.parse("2026-10-23T04:32:00Z");
 const kstHour = () => new Date(Date.now() + 9 * 3600_000).getUTCHours();
 const readKey = () => process.env.RESEND_READ_KEY || "";
@@ -116,7 +116,7 @@ export async function maybeRunAutoMail() {
   if (await getSetting("mail_auto_paused")) return;
   const br = await recentBounceRate();
   if (br.rate !== null && br.rate > BOUNCE_LIMIT) {
-    await pause(`최근 3일 대량 메일 반송률이 ${(br.rate * 100).toFixed(1)}%(보낸 ${br.sent}통 중 반송 ${br.bounced}통)로 기준 4%를 넘었어요. Resend가 발송을 멈출 수 있어 자동 발송을 멈췄어요.`);
+    await pause(`최근 3일 대량 메일 반송률이 ${(br.rate * 100).toFixed(1)}%(보낸 ${br.sent}통 중 반송 ${br.bounced}통)로 기준 2%를 넘었어요. Resend가 발송을 멈출 수 있어 자동 발송을 멈췄어요.`);
     return;
   }
 
