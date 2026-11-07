@@ -6,6 +6,7 @@ import FareCard from "./Fare";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import CarInput from "./CarInput";
+import { Sparkle } from "./MapSparkle";
 import { areaLabel } from "@/lib/areaLabel";
 import { matchesFor, type PostMatch } from "@/lib/postMatch";
 import { HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
@@ -210,6 +211,10 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
+  // [지도 분석] 버튼의 깜빡이는 점: 한 번 열어 보면 끈다(localStorage modu.mapSeen)
+  const [mapSeen, setMapSeen] = useState(true);
+  useEffect(() => { try { setMapSeen(localStorage.getItem("modu.mapSeen") === "1"); } catch { /* 저장소 없음 */ } }, []);
+  const markMapSeen = () => { setMapSeen(true); try { localStorage.setItem("modu.mapSeen", "1"); } catch { /* 저장소 없음 */ } };
   // 호출 알림을 누르고 들어오면(?call=ID) 받은 호출 창을 연다.
   const [incomingId, setIncomingId] = useState<string | null>(null);
   // 택시동승 호출 알림(?taxicall=ID)도 같은 방식으로 연다.
@@ -314,12 +319,13 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         <div data-block-id="C070" data-block-name="검색 박스" className="space-y-2 rounded-2xl border border-line bg-white p-2.5">
           <div className="flex items-center gap-2">
             <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("출발지, 도착지, 키워드(예: 음료) 등 검색")} aria-label={t("출발지, 도착지, 키워드(예: 음료) 등 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
-            <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => { if (view === "list" && hintTap("C931")) return; setView((v) => (v === "map" ? "list" : "map")); }}
-              className={`min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
-              {view === "map" ? t("목록") : t("지도")}
+            <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => { if (view === "list" && hintTap("C931")) return; markMapSeen(); setView((v) => (v === "map" ? "list" : "map")); }}
+              className={`relative min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-brand bg-brand font-semibold text-white"}`}>
+              {view === "map" ? t("목록") : <span className="flex items-center gap-1"><Sparkle className="h-4 w-4" />{t("지도 분석")}</span>}
+              {view === "list" && !mapSeen && <span className="absolute -right-1 -top-1 h-3 w-3 animate-ping rounded-full bg-coral" aria-hidden />}
             </button>
           </div>
-          {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 글의 출발지 위치를 볼 수 있어요.")}</Bubble></div>}
+          {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 같은 길 회원 수, 모이는 곳, 한 달 실비까지 분석해 드려요.")}</Bubble></div>}
         </div>
         {/* [지역] + [운전자만]·[탑승자만](켜고 끄기, 둘 다 꺼짐 = 전체). 2026-11-05 사용자 요청으로 [전체] 버튼을 지역 필터로 바꿈 */}
         <div className="flex items-center gap-1.5">

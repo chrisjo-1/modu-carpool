@@ -7,6 +7,7 @@ type Item = {
   postId: string; code: string; photo: string; role: "driver" | "rider"; regular: boolean;
   origin: string; dest: string; oArea: string; dArea: string; departAt: number; days: string; timeGo: string;
   chance: number; homeKm: number; workKm: number; onRoute: boolean; timeDiff: number | null;
+  warp: boolean; dayOk: boolean | null; timeFit: boolean;
 };
 type Data = { locked: boolean; cost: number; count: number; needDest: boolean; items?: Item[] };
 
@@ -53,29 +54,40 @@ function MatchSheet({ items, onClose }: { items: Item[]; onClose: () => void }) 
   return (
     <Sheet title={t("매칭 가능성 있는 회원")} onClose={onClose} blockId="S435">
       <div className="space-y-3">
-        <p className="text-[13px] text-sub">{t("출발지·도착지 거리와 가는 길이 겹치는 정도로 계산했어요(시간은 따로 표시). 누르면 그 글을 볼 수 있어요.")}</p>
+        <p className="text-[13px] text-sub">{t("출발지·도착지 거리와 가는 길이 겹치는 정도로 계산했어요. 요일·시간까지 맞는 회원이 위에 있어요. 누르면 그 글을 볼 수 있어요.")}</p>
         <ul data-block-id="C438" data-block-name="매칭 회원 목록" className="space-y-2">
-          {items.map((m) => (
-            <li key={m.postId}>
-              <button type="button" onClick={() => { onClose(); window.dispatchEvent(new CustomEvent("modu:open-post", { detail: m.postId })); }} className="flex w-full items-start gap-3 rounded-2xl border border-line bg-white p-3 text-left active:bg-bg">
-                <Avatar src={m.photo} name={m.code} role={m.role} size={40} />
+          {items.map((m, i) => {
+            const body = (
+              <>
+                <Avatar src={m.photo} name={m.warp ? "워프" : m.code} role={m.role} size={40} />
                 <span className="min-w-0 flex-1 space-y-1">
-                  <span className="flex items-center gap-2">
-                    <span className="font-semibold">{m.code}</span>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-semibold">{m.warp ? t("워프 회원") : m.code}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[12px] font-semibold ${m.role === "driver" ? "bg-accentSoft text-accent" : "bg-mintSoft text-mint"}`}>{t(m.role === "driver" ? "운전자" : "탑승자")}</span>
+                    {m.timeFit && <span className="rounded-full bg-mintSoft px-2 py-0.5 text-[12px] font-semibold text-mint">{t("요일·시간 맞음")}</span>}
                     {m.onRoute && <span className="rounded-full bg-bg px-2 py-0.5 text-[12px] text-sub">{t("가는 길 위")}</span>}
                   </span>
                   <span className="block truncate text-[14px] text-ink">{m.origin} → {m.dest}</span>
                   <span className="block text-[12px] text-sub">
                     {m.regular ? `${t("정기")} ${daysText(m.days)} ${m.timeGo}` : when(m.departAt, lang)}
-                    {m.timeDiff != null && ` · ${m.timeDiff <= 30 ? t("시간 맞음") : `${t("시간")} ${m.timeDiff}${t("분 차")}`}`}
+                    {m.dayOk === false ? ` · ${t("요일 다름")}` : m.timeDiff != null && !m.timeFit ? ` · ${t("시간")} ${m.timeDiff}${t("분 차")}` : ""}
                     {` · ${t("출발")} ${m.homeKm}km · ${t("도착")} ${m.workKm}km`}
                   </span>
+                  {m.warp && <span className="block text-[12px] text-sub">{t("워프에서 옮겨 온 정기카풀이에요. 아직 앱에 들어오지 않아 대화는 할 수 없고, 운영팀이 안내해 드려요.")}</span>}
                 </span>
                 <span className="num shrink-0 text-right"><span className="block text-[20px] font-bold text-ink">{m.chance}%</span><span className="block text-[11px] text-sub">{t("매칭")}</span></span>
-              </button>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={m.postId || `w${i}`}>
+                {m.warp ? (
+                  <div className="flex w-full items-start gap-3 rounded-2xl border border-dashed border-line bg-bg/60 p-3">{body}</div>
+                ) : (
+                  <button type="button" onClick={() => { onClose(); window.dispatchEvent(new CustomEvent("modu:open-post", { detail: m.postId })); }} className="flex w-full items-start gap-3 rounded-2xl border border-line bg-white p-3 text-left active:bg-bg">{body}</button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </Sheet>
