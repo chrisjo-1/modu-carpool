@@ -347,6 +347,10 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table warp_pools add column if not exists publish_tried_at timestamptz`;
   await sql`alter table warp_pools add column if not exists mailed_at timestamptz`;
   await sql`alter table warp_pools add column if not exists last_dup_at timestamptz`;
+  // 위치 출처(kakao·osm, 비면 예전 것)와 카카오로 다시 찾아본 시각(2026-11-07 카카오 키 교체 뒤 정확도 보강)
+  await sql`alter table warp_pools add column if not exists home_src text`;
+  await sql`alter table warp_pools add column if not exists work_src text`;
+  await sql`alter table warp_pools add column if not exists geo_rechk_at timestamptz`;
   await sql`create table if not exists phone_view_log (
     id bigserial primary key, kind text not null, ref text not null, ip text not null default '', at timestamptz not null default now())`;
   await sql`create table if not exists admin_notify_log (

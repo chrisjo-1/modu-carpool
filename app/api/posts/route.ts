@@ -4,6 +4,7 @@ import { maybeRunKakaoJob } from "@/lib/kakao";
 import { maybeRunPoolJob } from "@/lib/poolJob";
 import { maybeRunSafetyChecks } from "@/lib/safetyJob";
 import { maybeExpireCalls } from "@/lib/call";
+import { maybeFillWarpGeo } from "@/lib/warpPool";
 import { driverTier } from "@/lib/types";
 import { notifyRouteAlerts } from "@/lib/alerts";
 import { notifyDrivers } from "@/lib/drivers";
@@ -145,6 +146,7 @@ export async function GET(req: Request) {
     // CALL 자동 마감(출발 15분 전까지 수락 없으면 끝내고 알림)
     after(() => maybeExpireCalls().catch((e) => console.error("[call-expire]", e)));
     after(() => maybeRunSafetyChecks().catch((e) => console.error("[safety-job]", e)));
+    after(() => maybeFillWarpGeo().catch((e) => console.error("[warp-geo-job]", e)));
     after(() => maybeRunKakaoJob().catch((e) => console.error("[kakao]", e)));
     if (!mine) posts.sort((a, b) => (a.ended === b.ended ? (a.ended ? b.departAt - a.departAt : a.departAt - b.departAt) : a.ended ? 1 : -1));
     return json({ sample: false, posts });

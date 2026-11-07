@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { nextOccurrence } from "./time";
-import { kakaoAddress, osmAddress, photonAddress } from "./placeSearch";
+import { kakaoAddress, kakaoOn, osmAddress, photonAddress } from "./placeSearch";
 import { db } from "./server";
 import { km, routeMatch, detourOf } from "./match";
 
@@ -149,12 +149,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * 주소 → 좌표. 카카오(켜져 있으면) → OSM 원래 주소 → 번지 뺀 도로명 → 읍·면·동까지 순서로 줄여 가며 찾는다.
  * OSM은 결과 주소에 시·군·구 이름이 들어 있을 때만 쓴다(엉뚱한 곳 방지). OSM은 1초에 1번만 묻는다.
  */
-export async function geocodeAddress(addr: string, deadline = Infinity): Promise<{ lat: number; lng: number } | null | "late"> {
+export type Geo = { lat: number; lng: number; src?: "kakao" | "osm" };
+export async function geocodeAddress(addr: string, deadline = Infinity): Promise<Geo | null | "late"> {
   const late = () => Date.now() > deadline;
   const a = addr.replace(/\s*지하\s*/g, " ").replace(/\s+/g, " ").trim();
   if (a.length < 4) return null;
   const k = await kakaoAddress(a);
-  if (k) return k;
+  if (k) return { ...k, src: "kakao" };
   const parts = a.split(" ");
   const must = (parts.find((p, i) => i > 0 && /(시|군|구)$/.test(p)) ?? "").replace(/(특별|광역|특별자치)?시$|군$|구$/, "");
   const tries = [a, parts.filter((p) => !/^\d/.test(p)).join(" "), parts.slice(0, Math.min(parts.length, 3)).join(" ")];
@@ -164,13 +165,13 @@ export async function geocodeAddress(addr: string, deadline = Infinity): Promise
   for (const q of qs.slice(0, 2)) {
     if (late()) return "late";
     const r = await photonAddress(q, must).catch(() => null);
-    if (r) return r;
+    if (r) return { ...r, src: "osm" };
   }
   for (const q of qs) {
     if (late()) return "late";
     const r = await osmThrottled(q, must, deadline);
     if (r === "late") return "late";
-    if (r) return r;
+    if (r) return { ...r, src: "osm" };
   }
   return null;
 }
@@ -196,12 +197,17 @@ export async function fillWarpGeo(budgetMs = 20_000, only?: string[]): Promise<{
   let found = 0;
   // 주소 찾기 안쪽까지 마감 시각을 넘긴다(묶음 하나가 늦어져 60초를 넘기던 문제, 2026-11-07)
   const deadline = start + budgetMs;
-  const known = async (addr: string): Promise<{ lat: number; lng: number } | null | "late"> => {
+  const known = async (addr: string): Promise<Geo | null | "late"> => {
     if (!addr) return null;
-    const k = await sql`select lat, lng from (
-        select home_lat as lat, home_lng as lng from warp_pools where home = ${addr} and home_lat is not null
-        union all select work_lat, work_lng from warp_pools where work = ${addr} and work_lat is not null) t limit 1`;
-    return k.length ? { lat: Number(k[0].lat), lng: Number(k[0].lng) } : geocodeAddress(addr, deadline);
+    // 같은 주소를 이미 찾았으면 그 좌표를 쓴다(카카오로 찾은 것 먼저)
+    const k = await sql`select lat, lng, src from (
+        select home_lat as lat, home_lng as lng, home_src as src from warp_pools where home = ${addr} and home_lat is not null
+        union all select work_lat, work_lng, work_src from warp_pools where work = ${addr} and work_lat is not null) t
+      order by (src = 'kakao') desc nulls last limit 1`;
+    if (k.length && (k[0].src === "kakao" || !kakaoOn())) return { lat: Number(k[0].lat), lng: Number(k[0].lng), src: (k[0].src as Geo["src"]) ?? undefined };
+    const g = await geocodeAddress(addr, deadline);
+    if (!g && k.length) return { lat: Number(k[0].lat), lng: Number(k[0].lng), src: (k[0].src as Geo["src"]) ?? undefined };
+    return g;
   };
   while (Date.now() - start < budgetMs - 8000) {
     const rows = await sql`select code, home, work, home_lat, work_lat from warp_pools
@@ -216,12 +222,16 @@ export async function fillWarpGeo(budgetMs = 20_000, only?: string[]): Promise<{
         const hh = h === "late" ? null : h;
         const ww = w === "late" ? null : w;
         if (hh || ww) await sql`update warp_pools set
+            home_src = case when home_lat is null then ${hh?.src ?? null} else home_src end,
+            work_src = case when work_lat is null then ${ww?.src ?? null} else work_src end,
             home_lat = coalesce(home_lat, ${hh?.lat ?? null}), home_lng = coalesce(home_lng, ${hh?.lng ?? null}),
             work_lat = coalesce(work_lat, ${ww?.lat ?? null}), work_lng = coalesce(work_lng, ${ww?.lng ?? null})
           where code = ${x.code}`;
         return;
       }
       await sql`update warp_pools set geo_tried_at = now(),
+          home_src = case when home_lat is null then ${h?.src ?? null} else home_src end,
+          work_src = case when work_lat is null then ${w?.src ?? null} else work_src end,
           home_lat = coalesce(home_lat, ${h?.lat ?? null}), home_lng = coalesce(home_lng, ${h?.lng ?? null}),
           work_lat = coalesce(work_lat, ${w?.lat ?? null}), work_lng = coalesce(work_lng, ${w?.lng ?? null})
         where code = ${x.code}`;
@@ -610,4 +620,68 @@ export async function unpublishWarpPools(codes: string[]) {
     await sql`update warp_pools set post_id = null where code = ${r.code}`;
   }
   return { removed, closed };
+}
+
+let geoJobTry = 0;
+/**
+ * 정기 매칭 위치를 저절로(2026-11-07 사용자 지시 "알아서 계속 돌아가게", "필요한 곳에 모두 카카오로").
+ * GET /api/posts 응답 뒤(after)에 부른다. 인스턴스마다 3분에 한 번, 전체로도 3분에 한 번(settings warp_geo_job_at), 한 번에 25초.
+ * 1) 아직 못 찾은 글 채우기 2) 시간이 남으면 예전에 무료 지도로 찾은 위치·못 찾은 위치를 카카오로 다시 찾기
+ */
+export async function maybeFillWarpGeo() {
+  if (Date.now() - geoJobTry < 180_000) return;
+  geoJobTry = Date.now();
+  const sql = db();
+  const claim = await sql`insert into settings (key, value) values ('warp_geo_job_at', ${String(Date.now())})
+    on conflict (key) do update set value = excluded.value
+    where settings.value::bigint < ${Date.now() - 170_000} returning value`;
+  if (!claim.length) return;
+  const start = Date.now();
+  // 카카오가 켜진 뒤 한 번: 카풀 글 지역 글씨를 카카오(법정동) 기준으로 다시 계산하게 한다(fillPostAreas가 조금씩 채움)
+  if (process.env.KAKAO_REST_KEY && kakaoOn()) {
+    const once = await sql`insert into settings (key, value) values ('area_kakao_redo', ${new Date().toISOString()}) on conflict (key) do nothing returning key`;
+    if (once.length) await sql`update posts set origin_area_key = null, dest_area_key = null where origin_area_key is not null or dest_area_key is not null`;
+  }
+  const wait = await sql`select 1 from warp_pools where geo_tried_at is null and (home_lat is null or (work_lat is null and work <> '')) limit 1`;
+  if (wait.length) await fillWarpGeo(25_000);
+  const left = 25_000 - (Date.now() - start);
+  if (left > 5_000) await recheckWarpGeoKakao(left);
+}
+
+const cleanAddr = (addr: string) => addr.replace(/\s*지하\s*/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * 카카오로 다시 찾기: 출처가 카카오가 아닌 좌표(예전 OSM·동 단위로 줄여 찾은 것)와 한 번 못 찾은 주소를 카카오 주소 검색으로 다시 찾는다.
+ * 찾으면 좌표를 바꾸고 출처 kakao, 못 찾으면 원래 좌표를 그대로 둔다. 글마다 한 번(geo_rechk_at). 카카오가 꺼져 있으면 하지 않는다.
+ */
+export async function recheckWarpGeoKakao(budgetMs = 20_000): Promise<{ checked: number; improved: number }> {
+  if (!process.env.KAKAO_REST_KEY || !kakaoOn()) return { checked: 0, improved: 0 };
+  const sql = db();
+  const start = Date.now();
+  let checked = 0;
+  let improved = 0;
+  while (Date.now() - start < budgetMs - 4000 && kakaoOn()) {
+    const rows = await sql`select code, home, work, home_src, work_src, home_lat, work_lat from warp_pools
+      where geo_rechk_at is null and geo_tried_at is not null
+        and ((home <> '' and (home_lat is null or coalesce(home_src, '') <> 'kakao'))
+          or (work <> '' and (work_lat is null or coalesce(work_src, '') <> 'kakao')))
+      order by reg_date desc, code limit 8`;
+    if (!rows.length) break;
+    await Promise.all(rows.map(async (x) => {
+      const needH = !!String(x.home) && (x.home_lat == null || x.home_src !== "kakao");
+      const needW = !!String(x.work) && (x.work_lat == null || x.work_src !== "kakao");
+      const h = needH ? await kakaoAddress(cleanAddr(String(x.home))).catch(() => null) : null;
+      const w = needW ? (String(x.work) === String(x.home) && h ? h : await kakaoAddress(cleanAddr(String(x.work))).catch(() => null)) : null;
+      if (!kakaoOn()) return; // 도중에 카카오가 막히면 표시하지 않고 다음에 다시
+      await sql`update warp_pools set geo_rechk_at = now(),
+          home_lat = coalesce(${h?.lat ?? null}, home_lat), home_lng = coalesce(${h?.lng ?? null}, home_lng),
+          home_src = case when ${h ? "kakao" : null}::text is not null then 'kakao' else home_src end,
+          work_lat = coalesce(${w?.lat ?? null}, work_lat), work_lng = coalesce(${w?.lng ?? null}, work_lng),
+          work_src = case when ${w ? "kakao" : null}::text is not null then 'kakao' else work_src end
+        where code = ${x.code}`;
+      checked += 1;
+      if (h || w) improved += 1;
+    }));
+  }
+  return { checked, improved };
 }
