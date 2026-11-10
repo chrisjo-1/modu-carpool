@@ -1,4 +1,4 @@
-import { RETENTION_TEXT, audienceRows, renderHtml, type Audience, type Segment } from "./campaign";
+import { RETENTION_TEXT, audienceRows, personalize, renderHtml, type Audience, type Segment } from "./campaign";
 import { campaignAllowance, campaignQuietNow, deliverCampaignBatch, reconcileFailed, type MailCategory } from "./mail";
 import { db, ensureSchema } from "./server";
 
@@ -15,6 +15,7 @@ export function campaignAudience(c: Record<string, unknown>): Audience {
     followUpOf: c.followup_of ? String(c.followup_of) : null,
     followUpMode: c.followup_mode === "click" ? "click" : c.followup_mode === "open" ? "open" : "",
     exceptCampaigns: Array.isArray(c.except_ids) ? (c.except_ids as unknown[]).map(String) : [],
+    resendAll: !!c.resend_all,
   };
 }
 
@@ -75,7 +76,8 @@ export async function runCampaignBatch(id: string, limit: number): Promise<Batch
 
   const html = renderHtml(c.body as string);
   const text = `${String(c.body).replace(/\{\{img:(?:[0-9a-f-]{36}|\/mail\/[a-z0-9-]+\.(?:png|jpg))\}\}/g, "[이미지]")}\n\n${RETENTION_TEXT}`;
-  const r = await deliverCampaignBatch(rows.map((x) => ({ kind: "campaign", category, to: x.email, userId: x.user_id, subject: c.subject as string, html, text, campaignId: id })));
+  // 받는 사람마다 {{코드님}}을 고유코드로 바꾼다(스팸 판정을 줄이려고 개인 호칭을 넣음, 2026-11-10 사용자 지시)
+  const r = await deliverCampaignBatch(rows.map((x) => ({ kind: "campaign", category, to: x.email, userId: x.user_id, subject: personalize(c.subject as string, x.code), html: personalize(html, x.code), text: personalize(text, x.code), campaignId: id })));
   const sent = r.sent;
   const held = r.held === "off" || r.held === "quiet" || r.held === "cap" || r.held === "quota" ? r.held : null;
   // 아직 남은 대상이 있는지만 확인한다 (이번 배치에서 기록된 주소는 제외됨)

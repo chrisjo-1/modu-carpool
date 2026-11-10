@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Segment = { key: string; label: string };
-type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean; followup_of?: string | null; followup_mode?: string; opened?: number; clicked?: number; except_ids?: string[] | null };
+type Campaign = { id: string; created_at: number; title: string; category: string; segment: string; only_consent: boolean; only_driver: boolean; subject: string; body: string | null; status: string; started_at: number | null; finished_at: number | null; sent: number; failed: number; retry: number; auto?: boolean; resend_all?: boolean; followup_of?: string | null; followup_mode?: string; opened?: number; clicked?: number; except_ids?: string[] | null };
 type Summary = { count: number; pool: number; excludedBySubject: number; excludedByCampaigns: number; groups: Record<string, number> };
 type Hist = { created_at: number; to_email: string; subject: string; status: string; kind: string; campaign_id: string | null };
 type Run = { id: number; created_at: number; source: string; campaign_title: string; sent: number; held: string | null; done: boolean; ms: number; note: string };
@@ -39,6 +39,7 @@ export default function AdminSend() {
   const [summary, setSummary] = useState<Summary | null>(null);
   // 제외할 이전 캠페인: 그 캠페인을 받은 적이 있으면 제목과 상관없이 빼요(2026-11-01)
   const [exceptIds, setExceptIds] = useState<string[]>([]);
+  const [resendAll, setResendAll] = useState(false);
   // 테스트 받는 주소: 최대 5개 저장(관리자 공용), 체크한 주소로만 보낸다.
   const [testList, setTestList] = useState<string[]>([]);
   const [testPick, setTestPick] = useState<string[]>([]);
@@ -90,7 +91,7 @@ export default function AdminSend() {
   };
 
 
-  const form = () => ({ segments: segs, onlyConsent, onlyDriver, title, subject, body: bodyText, category, followUpOf: followOf || null, followUpMode: followOf ? followMode : "", exceptCampaigns: exceptIds });
+  const form = () => ({ segments: segs, onlyConsent, onlyDriver, title, subject, body: bodyText, category, followUpOf: followOf || null, followUpMode: followOf ? followMode : "", exceptCampaigns: exceptIds, resendAll });
   /** 저장된 대상(쉼표로 이어 쓴 키)을 사람이 읽는 이름으로 */
   const labelOf = (seg: string) => seg.split(",").filter(Boolean).map((k) => d?.segmentLabels?.[k] ?? k).join(" + ");
   const segLabel = labelOf(segs.join(","));
@@ -209,13 +210,14 @@ export default function AdminSend() {
     setCount(null);
     setSummary(null);
     setExceptIds(c.except_ids ?? []);
+    setResendAll(!!c.resend_all);
     setMsg(`"${c.title}" 초안을 불러왔어요. 고친 뒤 [저장]을 누르면 이 초안이 바뀝니다.`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const newDraft = () => {
     setDraftId("");
-    setTitle(""); setSubject(""); setBodyText("");  setCount(null); setSummary(null); setFollowOf(""); setExceptIds([]);
+    setTitle(""); setSubject(""); setBodyText("");  setCount(null); setSummary(null); setFollowOf(""); setExceptIds([]); setResendAll(false);
     setMsg("새 글을 시작합니다.");
   };
 
@@ -311,6 +313,11 @@ export default function AdminSend() {
           )}
           <span className="text-[12px] leading-relaxed text-sub">고른 캠페인을 받은 사람 중에서 위 대상 조건에도 맞는 사람에게만 보내요. 열람은 메일 앱이 그림을 막으면 기록되지 않아 '안 연 사람'에 조금 더 들어갈 수 있어요. 2026-10-29 열람 추적을 켜기 전에 보낸 메일은 모두 '안 연 것'으로 보입니다.</span>
         </div>
+
+        <label data-block-id="F446" data-block-name="잘 받던 주소에만 다시 보내기" className="flex items-start gap-2 rounded-xl border border-line bg-bg p-3 text-[14px]">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#2F6BFF]" checked={resendAll} onChange={(e) => { setResendAll(e.target.checked); setCount(null); setSummary(null); }} />
+          <span><span className="font-semibold">잘 받던 주소에만 다시 보내기</span><br /><span className="text-[12px] leading-relaxed text-sub">이미 메일을 받은 적 있고 반송된 적 없는 주소에만 보내요(중복돼도 보냄). 한 번도 안 보낸 주소는 반송 위험이 있어 빼요. 본문·제목에 {"{{코드님}}"}을 쓰면 받는 사람 고유코드로 바뀌어요(예: 1234567A님, 코드 없으면 회원님).</span></span>
+        </label>
 
         <div data-block-id="F440" data-block-name="이미 받은 캠페인 제외" className="grid gap-2 rounded-xl border border-line bg-bg p-3 text-[14px]">
           <span className="font-semibold">이미 받은 캠페인 제외 (선택) <span className="font-normal text-sub">{exceptIds.length ? `${exceptIds.length}개 고름` : ""}</span></span>

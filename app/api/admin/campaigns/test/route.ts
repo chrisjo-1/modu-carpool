@@ -1,4 +1,4 @@
-import { RETENTION_TEXT, renderHtml } from "@/lib/campaign";
+import { RETENTION_TEXT, personalize, renderHtml } from "@/lib/campaign";
 import { deliverWithStatus, type MailCategory } from "@/lib/mail";
 import { body, db, ensureSchema, fail, isAdmin, json, text } from "@/lib/server";
 
@@ -52,9 +52,10 @@ export async function POST(req: Request) {
   if (!to.length) return json({ error: "테스트 받을 이메일을 골라 주세요." }, 400);
   if (!subject || !bodyText) return json({ error: "메일 제목과 본문을 입력해 주세요." }, 400);
   try {
-    const html = renderHtml(bodyText);
+    // 테스트에는 {{코드님}} 자리에 예시 코드를 넣는다
+    const html = personalize(renderHtml(bodyText), "1234567A");
     // 텍스트 버전에는 이미지 표시 대신 안내 문구를 넣는다.
-    const plain = `${bodyText.replace(/\{\{img:(?:[0-9a-f-]{36}|\/mail\/[a-z0-9-]+\.(?:png|jpg))\}\}/g, "[이미지]")}\n\n${RETENTION_TEXT}`;
+    const plain = personalize(`${bodyText.replace(/\{\{img:(?:[0-9a-f-]{36}|\/mail\/[a-z0-9-]+\.(?:png|jpg))\}\}/g, "[이미지]")}\n\n${RETENTION_TEXT}`, "1234567A");
     const results = await Promise.all(
       to.map(async (addr) => ({
         to: addr,
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
           kind: "campaign-test",
           category,
           to: addr,
-          subject: category === "marketing" && !subject.startsWith("(광고)") ? `(광고) ${subject}` : subject,
+          subject: personalize(category === "marketing" && !subject.startsWith("(광고)") ? `(광고) ${subject}` : subject, "1234567A"),
           html,
           text: plain,
           testOnly: true,

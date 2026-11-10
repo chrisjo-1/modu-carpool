@@ -29,7 +29,16 @@ export type Audience = {
   followUpMode?: "open" | "click" | "";
   /** 이 캠페인들 중 하나라도 보낸 적이 있는 주소는 제목과 상관없이 뺀다 */
   exceptCampaigns?: string[];
+  /** 잘 받던 주소에만 다시 보내기: 캠페인 메일을 받은 적 있고 반송된 적 없는 주소만(한 번도 안 보낸 주소는 반송 위험이라 뺀다). 2026-11-10 안심동행 안내 */
+  resendAll?: boolean;
 };
+
+/** 받는 사람 호칭: 제목·본문의 {{코드님}}을 고유코드 + "님"(코드가 없으면 "회원님")으로 바꾼다 */
+export const CODE_TOKEN = "{{코드님}}";
+export function personalize(s: string, code: string | null | undefined): string {
+  const c = (code ?? "").trim();
+  return s.split(CODE_TOKEN).join(c ? `${c}님` : "회원님");
+}
 export const FOLLOWUP_LABEL: Record<string, string> = { open: "안 연 사람만", click: "링크 안 누른 사람만" };
 
 /** 광고성 메일은 같은 회원에게 이 기간(일) 안에 한 번만 보낸다 */
@@ -40,7 +49,7 @@ export const MARKETING_GAP_DAYS = 7;
  * 아이폰 메일(APPLE_MAIL_DOMAINS)은 메일이 닿지 않아 뺀다. 캠페인 생성 시각 이전에 만들어진 회원만 포함하고,
  * 이미 이 캠페인으로 처리한 주소는 뺀다. 단, 발송 한도(429)로 실패한 주소는 다시 대상이 된다(실패분 재발송).
  */
-export async function audienceRows(a: Audience, opt: { campaignId?: string | null; before?: string | null; limit?: number } = {}): Promise<{ user_id: string | null; email: string }[]> {
+export async function audienceRows(a: Audience, opt: { campaignId?: string | null; before?: string | null; limit?: number } = {}): Promise<{ user_id: string | null; email: string; code?: string | null }[]> {
   const sql = db();
   const cid = opt.campaignId ?? null;
   const before = opt.before ?? null;
@@ -48,20 +57,23 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
   // 다시 보내기는 같은 제목이어도 보내야 하므로 '같은 제목 이미 받음' 확인을 건너뛴다.
   const fof: string | null = a.followUpOf && a.followUpMode ? a.followUpOf : null;
   const fmode = a.followUpMode === "click" ? "click" : "open";
+  // 잘 받던 주소에만(resendAll): 받은 적 있고 반송된 적 없는 주소만. 한 번도 안 보낸 주소는 뺀다(반송률 때문, 2026-11-10 사용자 지시).
+  const again = !!a.resendAll;
   const subj: string | null = fof ? null : (a.subject ?? "").trim() || null;
   const mk = a.marketing === true;
   const exc: string[] = a.exceptCampaigns ?? [];
   const has = (s: Segment) => a.segments.includes(s);
   const inUsers = has("members") || has("pw_unset") || has("new_warp") || has("legacy_joined");
   const inLegacy = has("warp_unjoined") || has("legacy_unjoined");
-  const byEmail = new Map<string, { user_id: string | null; email: string }>();
-  const put = (r: { user_id: string | null; email: string }) => {
+  type Row = { user_id: string | null; email: string; code?: string | null };
+  const byEmail = new Map<string, Row>();
+  const put = (r: Row) => {
     if (!byEmail.has(r.email) || r.user_id) byEmail.set(r.email, r);
   };
 
   // 명부 쪽(구워프 명단): 동의 정보가 없어 광고성·운전자 조건과 맞지 않으므로 안내 메일에서만 쓴다.
   if (inLegacy && !a.onlyConsent && !a.onlyDriver) {
-    const rows = (await sql`select null::uuid as user_id, lower(l.email_norm) as email from legacy_members l
+    const rows = (await sql`select null::uuid as user_id, lower(l.email_norm) as email, case when l.src_no like '신워프%' then nullif(trim(l.warp_id), '') end as code from legacy_members l
       where not l.withdrawn and coalesce(l.email_norm, '') <> ''
         and split_part(lower(l.email_norm), '@', 2) <> all(${APPLE_MAIL_DOMAINS}::text[])
         and (${before}::timestamptz is null or l.imported_at <= ${before}::timestamptz)
@@ -70,18 +82,20 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         )
         and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(l.email_norm) and not (g.status = 'failed' and g.error like '429%')))
         and (${subj}::text is null or not exists (select 1 from mail_log g3 where g3.to_email = lower(l.email_norm) and g3.subject = ${subj}::text and g3.status = 'sent'))
-        and (${fof}::uuid is not null or not exists (select 1 from mail_log g5 where g5.to_email = lower(l.email_norm) and g5.status = 'sent' and g5.campaign_id is not null))
+        and (${fof}::uuid is not null or ${again} or not exists (select 1 from mail_log g5 where g5.to_email = lower(l.email_norm) and g5.status = 'sent' and g5.campaign_id is not null))
+        and (not ${again} or (exists (select 1 from mail_log r5 where r5.to_email = lower(l.email_norm) and r5.status = 'sent' and r5.campaign_id is not null)
+          and not exists (select 1 from mail_log b5 where b5.to_email = lower(l.email_norm) and b5.bounced_at is not null)))
         and (${fof}::uuid is null or (exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm) and f.status = 'sent')
           and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm)
             and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))
         and not exists (select 1 from mail_log x where x.to_email = lower(l.email_norm) and x.status = 'sent' and x.campaign_id::text = any(${exc}::text[]))
-      order by email limit ${lim}`) as { user_id: string | null; email: string }[];
+      order by email limit ${lim}`) as { user_id: string | null; email: string; code: string | null }[];
     rows.forEach(put);
   }
 
   // 가입 회원 쪽
   if (inUsers) {
-    const rows = (await sql`select u.id as user_id, lower(u.email) as email from users u
+    const rows = (await sql`select u.id as user_id, lower(u.email) as email, u.member_code as code from users u
       where not u.test and not u.blocked and u.withdrawn_at is null and coalesce(u.email, '') <> ''
         and split_part(lower(u.email), '@', 2) <> all(${APPLE_MAIL_DOMAINS}::text[])
         and (${before}::timestamptz is null or u.created_at <= ${before}::timestamptz)
@@ -95,13 +109,15 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
         and (${a.onlyDriver} = false or (u.car_no <> '' and u.car_v > 0))
         and (${cid}::uuid is null or not exists (select 1 from mail_log g where g.campaign_id = ${cid}::uuid and g.to_email = lower(u.email) and not (g.status = 'failed' and g.error like '429%')))
         and (${subj}::text is null or not exists (select 1 from mail_log g2 where g2.to_email = lower(u.email) and g2.subject = ${subj}::text and g2.status = 'sent'))
-        and (${fof}::uuid is not null or not exists (select 1 from mail_log g6 where g6.to_email = lower(u.email) and g6.status = 'sent' and g6.campaign_id is not null))
+        and (${fof}::uuid is not null or ${again} or not exists (select 1 from mail_log g6 where g6.to_email = lower(u.email) and g6.status = 'sent' and g6.campaign_id is not null))
+        and (not ${again} or (exists (select 1 from mail_log r6 where r6.to_email = lower(u.email) and r6.status = 'sent' and r6.campaign_id is not null)
+          and not exists (select 1 from mail_log b6 where b6.to_email = lower(u.email) and b6.bounced_at is not null)))
         and (${fof}::uuid is null or (exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(u.email) and f.status = 'sent')
           and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(u.email)
             and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))
         and (${mk} = false or not exists (select 1 from mail_log g4 where g4.to_email = lower(u.email) and g4.category = 'marketing' and g4.status = 'sent' and g4.created_at > now() - make_interval(days => ${MARKETING_GAP_DAYS}::int)))
         and not exists (select 1 from mail_log x where x.to_email = lower(u.email) and x.status = 'sent' and x.campaign_id::text = any(${exc}::text[]))
-      order by email limit ${lim}`) as { user_id: string | null; email: string }[];
+      order by email limit ${lim}`) as Row[];
     rows.forEach(put);
   }
 
@@ -169,5 +185,6 @@ export function parseAudience(b: Record<string, unknown>): Audience | null {
     subject: typeof b.subject === "string" ? b.subject.trim() : "",
     followUpOf: fof && fmode ? fof : null,
     followUpMode: fof ? fmode : "",
+    resendAll: b.resendAll === true,
   };
 }

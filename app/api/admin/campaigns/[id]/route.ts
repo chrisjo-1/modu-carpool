@@ -55,7 +55,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     await ensureSchema();
     const rows = await db()`update mail_campaigns set title = ${title}, category = ${category}, segment = ${a.segments.join(",")},
         only_consent = ${a.onlyConsent}, only_driver = ${a.onlyDriver}, subject = ${subject}, body = ${bodyText},
-        followup_of = ${a.followUpOf ?? null}, followup_mode = ${a.followUpMode ?? ""}, except_ids = ${a.exceptCampaigns ?? []}::text[]
+        followup_of = ${a.followUpOf ?? null}, followup_mode = ${a.followUpMode ?? ""}, except_ids = ${a.exceptCampaigns ?? []}::text[], resend_all = ${!!a.resendAll}
       where id = ${id} and status = 'draft' returning id`;
     if (!rows.length) return json({ error: "발송 전 초안만 고칠 수 있어요. 이미 발송했거나 취소된 캠페인입니다." }, 409);
     return json({ ok: true, id });
