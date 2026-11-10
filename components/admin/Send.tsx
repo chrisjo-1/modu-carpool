@@ -413,7 +413,7 @@ export default function AdminSend() {
         {autoInfo && (
           <div data-block-id="C450" data-block-name="자동 이어 보내기 상태" className={`rounded-2xl border p-4 text-sm ${autoInfo.paused ? "border-warn bg-warnSoft" : "border-line bg-white"}`}>
             <p className="font-semibold">자동 이어 보내기 (안전장치) {autoInfo.paused ? "· 멈춤" : "· 켜짐"}</p>
-            <p className="mt-1 text-sub">'자동'을 켠 발송 중 캠페인만 오전 9시~오후 8시에 하루 몫 안에서 10분마다 이어서 보내요. 최근 3일 반송률이 2%를 넘으면 스스로 멈추고 관리자에게 메일을 보내요.</p>
+            <p className="mt-1 text-sub">'자동'을 켠 발송 중 캠페인만 오전 9시~오후 8시에 하루 몫 안에서 10분마다 이어서 보내요. 최근 3일 반송률이 3%를 넘으면 스스로 멈추고 관리자에게 메일을 보내요.</p>
             <p className="mt-1">최근 3일 반송률: {autoInfo.bounce.rate === null ? `판단 전(보낸 ${autoInfo.bounce.sent}통, 300통부터 판단)` : `${(autoInfo.bounce.rate * 100).toFixed(1)}% (보낸 ${autoInfo.bounce.sent}통 중 반송 ${autoInfo.bounce.bounced}통)`}</p>
             <p className="mt-0.5 text-sub">반송 주소 정리: {autoInfo.backfill.done ? `끝남 (반송 ${autoInfo.backfill.found}건을 제외 목록에 넣음)` : `진행 중 (지금까지 ${autoInfo.backfill.found}건)`}</p>
             {autoInfo.paused && (
