@@ -185,8 +185,18 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
   );
 }
 
-const FUEL_KM_L = 12; // 연비(km/L) — 화면에 함께 적는다
+const FUEL_KM_L = 12; // 연비(km/L)
 const WORK_DAYS = 21;
+const FUEL_PRICE = 1700; // 기준 유가(원/L) — 간략 화면이라 입력칸 없이 고정(추후 보완)
+/** 차 금융 종류(2026-11-10 사용자 지시: 한 달 실비 대신 월 납입금 기준으로, 간략하게) */
+const FIN_TYPES = ["할부", "리스", "장기렌트"] as const;
+type FinType = (typeof FIN_TYPES)[number];
+function readFin(): FinType {
+  try { const v = localStorage.getItem("modu.finType"); return (FIN_TYPES as readonly string[]).includes(v ?? "") ? (v as FinType) : "할부"; } catch { return "할부"; }
+}
+function saveStr(k: string, v: string) {
+  try { localStorage.setItem(k, v); } catch { /* 저장 못 해도 계산은 된다 */ }
+}
 function readNum(k: string, d: number) {
   try { const v = Number(localStorage.getItem(k)); return Number.isFinite(v) && v > 0 ? v : d; } catch { return d; }
 }
@@ -194,12 +204,13 @@ function saveNum(k: string, v: number) {
   try { localStorage.setItem(k, String(v)); } catch { /* 저장 못 해도 계산은 된다 */ }
 }
 
-/** 핀을 고른 글의 같은 길 분석 카드(C439): ① 같은 길 수요·시간대 ③ 한 달 실비 ④ 모이는 곳 ⑤ 같은 도착지 */
+/** 핀을 고른 글의 같은 길 분석 카드(C439): ① 같은 길 수요·시간대 ③ 월 납입금 줄이기(C440) ④ 모이는 곳 ⑤ 같은 도착지 */
 function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider" }) {
   const t = useT();
   const [n, setN] = useState(2);
-  const [price, setPrice] = useState(() => readNum("modu.fuelPrice", 1700));
+  const price = FUEL_PRICE;
   const [loan, setLoan] = useState(() => readNum("modu.loan", 0));
+  const [fin, setFin] = useState<FinType>(() => readFin());
   if (!match) return <p className="rounded-2xl bg-bg px-4 py-3 text-[13px] text-sub">{t("같은 길을 분석하는 중…")}</p>;
   if (match.total < 0) return <p className="rounded-2xl bg-bg px-4 py-3 text-[13px] text-sub">{t("로그인하면 같은 길 분석을 볼 수 있어요")}</p>;
   const ins = match.insights;
@@ -210,6 +221,7 @@ function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider
   const each = Math.round(month / (n + 1) / 1000) * 1000;
   const save = each * n;
   const won = (v: number) => `${v.toLocaleString("ko-KR")}${t("원")}`;
+  const pct = loan > 0 ? Math.min(100, Math.round((save / loan) * 100)) : 0;
   return (
     <div data-block-id="C439" data-block-name="같은 길 분석" className="space-y-3">
       <div className="space-y-2 rounded-2xl bg-bg px-4 py-3 text-[13px]">
@@ -257,9 +269,17 @@ function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider
       )}
 
       {ins && ins.km > 0 && (
-        <div className="space-y-2 rounded-2xl border border-line bg-white px-4 py-3 text-[13px]">
-          <p className="text-[14px] font-bold text-ink">{t("이 길로 카풀하면 한 달 실비")}</p>
-          <p className="text-sub">{t("예상 거리")} {ins.km}km · {t("왕복")} × {t("월")} {WORK_DAYS}{t("일")} · {t("연비")} {FUEL_KM_L}km/L</p>
+        <div data-block-id="C440" data-block-name="월 납입금 줄이기" className="space-y-2.5 rounded-2xl border border-line bg-white px-4 py-3 text-[13px]">
+          <p className="text-[14px] font-bold text-ink">{t("카풀로 내 차 월 납입금 줄이기")}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {FIN_TYPES.map((k) => (
+              <button key={k} type="button" onClick={() => { setFin(k); saveStr("modu.finType", k); }} aria-pressed={fin === k}
+                className={`min-h-0 rounded-full border px-3 py-1 text-[13px] ${fin === k ? "border-brand bg-brand font-semibold text-white" : "border-line bg-white text-sub"}`}>{t(k)}</button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-sub">{t("월 납입금")}
+            <input type="number" inputMode="numeric" value={loan || ""} placeholder="0" onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setLoan(v); saveNum("modu.loan", v); }}
+              className="w-32 rounded-lg border border-line px-2 py-1 text-[16px] font-semibold text-ink" />{t("원")}</label>
           <div className="flex items-center gap-2">
             <span className="text-sub">{t("함께 탈 탑승자")}</span>
             {[1, 2, 3].map((k) => (
@@ -267,18 +287,15 @@ function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider
                 className={`min-h-0 rounded-full border px-3 py-1 text-[13px] ${n === k ? "border-brand bg-brand font-semibold text-white" : "border-line bg-white text-sub"}`}>{k}{t("명")}</button>
             ))}
           </div>
-          <p className="text-ink">{t("한 달 기름값 약")} <b>{won(month)}</b> → {t("1인 분담")} <b className="text-mint">{won(each)}</b></p>
-          <p className="text-ink">{t("운전자는 한 달")} <b className="text-accent">{won(save)}</b> {t("실비를 나눠요")}</p>
-          <div className="flex flex-wrap items-center gap-2 text-sub">
-            <label className="flex items-center gap-1">{t("기준 유가")}
-              <input type="number" inputMode="numeric" value={price} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPrice(v); saveNum("modu.fuelPrice", v); }}
-                className="w-20 rounded-lg border border-line px-2 py-1 text-[16px] text-ink" />{t("원/L")}</label>
-            <label className="flex items-center gap-1">{t("월 할부금")}
-              <input type="number" inputMode="numeric" value={loan || ""} placeholder="0" onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setLoan(v); saveNum("modu.loan", v); }}
-                className="w-24 rounded-lg border border-line px-2 py-1 text-[16px] text-ink" />{t("원")}</label>
-          </div>
-          {loan > 0 && save > 0 && <p className="font-semibold text-brand">{t("차 할부금의")} {Math.min(100, Math.round((save / loan) * 100))}% {t("를 카풀 실비 분담으로 덜 수 있어요")}</p>}
-          <p className="text-[12px] text-sub">{t("통행료·주차비는 빠진 예상치예요. 영업이 아니라 실제 든 비용을 나누는 금액이에요.")}</p>
+          {loan > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-[15px] text-ink">{t(fin)} {t("월 납입금")} <b>{won(loan)}</b> {t("중")} <b className="text-mint">{won(save)}</b>({pct}%){t("을 카풀로 덜어요")}</p>
+              <div className="h-2.5 overflow-hidden rounded-full bg-bg" aria-hidden><div className="h-full rounded-full bg-mint" style={{ width: `${pct}%` }} /></div>
+            </div>
+          ) : (
+            <p className="text-ink">{t("카풀로 한 달 약")} <b className="text-mint">{won(save)}</b>{t("을 덜 수 있어요. 월 납입금을 넣으면 몇 %인지 보여 드려요.")}</p>
+          )}
+          <p className="text-[12px] text-sub">{t("기름값을 나눈 실비 기준 예상치예요(영업 아님).")}</p>
         </div>
       )}
     </div>
