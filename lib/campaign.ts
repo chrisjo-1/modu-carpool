@@ -137,7 +137,9 @@ export function retentionBlock(): string {
 
 export function renderHtml(text: string): string {
   const paras = text.trim().split(/\n\s*\n/).map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.7">${esc(p).replace(/\n/g, "<br>")}</p>`).join("")
-    .replace(/\{\{img:([0-9a-f-]{36})\}\}/g, (_m, id: string) => `<img src="${SITE}/api/mail/image/${id}" alt="" style="display:block;max-width:100%;height:auto;margin:0 0 16px;border-radius:12px" />`);
+    .replace(/\{\{img:([0-9a-f-]{36})\}\}/g, (_m, id: string) => `<img src="${SITE}/api/mail/image/${id}" alt="" style="display:block;max-width:100%;height:auto;margin:0 0 16px;border-radius:12px" />`)
+    // 사이트에 함께 배포한 메일용 그림(public/mail/*.png|jpg): {{img:/mail/파일이름}}
+    .replace(/\{\{img:(\/mail\/[a-z0-9-]+\.(?:png|jpg))\}\}/g, (_m, path: string) => `<img src="${SITE}${path}" alt="" width="432" style="display:block;width:100%;max-width:432px;height:auto;margin:0 0 16px;border-radius:12px;border:1px solid #E5E8EB" />`);
   return `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
 <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>

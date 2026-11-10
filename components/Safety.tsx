@@ -113,7 +113,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
             {data.myPhoto === false && s && !s.iRequested && (
               <div data-block-id="C431" data-block-name="운전자 사진 등록 권유" className="mt-2 rounded-lg border border-warn/40 bg-warnSoft p-2">
                 <p className="text-[13px] font-semibold text-ink">{SAFETY_PHOTO_DRIVER}</p>
-                <button type="button" data-block-id="B485" onClick={() => setSheet("photoConsent")} className="mt-1.5 w-full rounded-lg bg-warn px-3 py-2 text-[14px] font-semibold text-white">프로필 사진 등록하기</button>
+                <button type="button" data-block-id="B485" onClick={() => setSheet("photoConsent")} className="mt-1.5 w-full rounded-lg bg-brand px-3 py-2 text-[14px] font-semibold text-white">프로필 사진 등록하기</button>
               </div>
             )}
           </div>
@@ -150,7 +150,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
         </div>
       )}
       {!s && data.canStart && data.open !== false && (
-        <button type="button" data-block-id="B484" onClick={() => setSheet(data.myPhoto === false ? "photo" : push.state !== "on" ? "push" : "start")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안심동행 신청하기</button>
+        <button type="button" data-block-id="B484" onClick={() => setSheet(data.myPhoto === false ? "photo" : push.state !== "on" ? "push" : "start")} className="mt-2 w-full rounded-xl bg-brand px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">안심동행 신청하기</button>
       )}
 
       {s?.status === "pending" && s.iRequested && (
@@ -160,7 +160,7 @@ export function SafetyBlock({ requestId, toast }: { requestId: string; toast: (m
         <p className="mt-2 text-[14px] text-sub">{SAFETY_NIGHT_TEXT}</p>
       )}
       {s?.status === "pending" && !s.iRequested && data.open !== false && (
-        <button type="button" onClick={() => setSheet("consent")} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">상대분이 신청했어요 · 동의하고 시작</button>
+        <button type="button" onClick={() => setSheet("consent")} className="mt-2 w-full rounded-xl bg-brand px-4 py-3 text-[16px] font-semibold text-white active:opacity-90">상대분이 신청했어요 · 동의하고 시작</button>
       )}
 
       {s?.status === "active" && (
@@ -280,7 +280,7 @@ function PhoneSheet({ title, button, consentText, onClose, onSubmit }: { title: 
         </label>
         <div className="flex gap-2">
           <button type="button" onClick={onClose} className={btnGhost}>취소</button>
-          <button type="button" disabled={!ok || busy} onClick={async () => { setBusy(true); await onSubmit(phone); setBusy(false); }} className="w-full rounded-2xl bg-warn px-5 py-4 text-[17px] font-semibold text-white disabled:opacity-40">{button}</button>
+          <button type="button" disabled={!ok || busy} onClick={async () => { setBusy(true); await onSubmit(phone); setBusy(false); }} className="w-full rounded-2xl bg-brand px-5 py-4 text-[17px] font-semibold text-white disabled:opacity-40">{button}</button>
         </div>
       </div>
     </Sheet>
@@ -354,7 +354,7 @@ function BoardCard({ session, post, onDone, toast }: { session: Session; post: P
         예상 도착 시각 {routeMin != null && <span>(경로 약 {routeMin}분)</span>}
         <input type="time" value={eta} onChange={(e) => setEta(e.target.value)} className={`${field} mt-1`} />
       </label>
-      <button type="button" data-block-id="B481" data-block-name="탑승했어요" disabled={busy || !eta || !face} onClick={submit} className="w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-50">탑승했어요</button>
+      <button type="button" data-block-id="B481" data-block-name="탑승했어요" disabled={busy || !eta || !face} onClick={submit} className="w-full rounded-xl bg-brand px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-50">탑승했어요</button>
     </div>
   );
 }
@@ -479,7 +479,7 @@ export function DriverPhoneBlock({ requestId, toast }: { requestId: string; toas
         <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1" />
         <span>도착할 때까지 운영팀이 함께 지켜보는 데 동의하고, 안전 확인을 위해 번호를 남겨요. 카풀이 끝나면 삭제되는 것을 알고 있어요.</span>
       </label>
-      <button type="button" disabled={!ok || busy} onClick={register} className="mt-2 w-full rounded-xl bg-warn px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-40">동의하고 번호 남기기</button>
+      <button type="button" disabled={!ok || busy} onClick={register} className="mt-2 w-full rounded-xl bg-brand px-4 py-3 text-[16px] font-semibold text-white disabled:opacity-40">동의하고 번호 남기기</button>
     </div>
   );
 }

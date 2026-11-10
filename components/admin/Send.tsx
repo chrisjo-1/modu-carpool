@@ -347,7 +347,7 @@ export default function AdminSend() {
         </div>
         <div className="grid gap-2 rounded-xl bg-bg p-4 text-[14px]">
           <span className="font-semibold">미리보기 (텍스트)</span>
-          <div className="whitespace-pre-wrap leading-relaxed">{bodyText ? bodyText.replace(/\{\{img:[0-9a-f-]{36}\}\}/g, "[이미지]") : "본문을 입력하면 여기 보입니다."}</div>
+          <div className="whitespace-pre-wrap leading-relaxed">{bodyText ? bodyText.replace(/\{\{img:(?:[0-9a-f-]{36}|\/mail\/[a-z0-9-]+\.(?:png|jpg))\}\}/g, "[이미지]") : "본문을 입력하면 여기 보입니다."}</div>
           {[...bodyText.matchAll(/\{\{img:([0-9a-f-]{36})\}\}/g)].length > 0 && (
             <div className="flex flex-wrap gap-2">
               {[...bodyText.matchAll(/\{\{img:([0-9a-f-]{36})\}\}/g)].map((m, i) => (

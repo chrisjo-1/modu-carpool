@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   try {
     const html = renderHtml(bodyText);
     // 텍스트 버전에는 이미지 표시 대신 안내 문구를 넣는다.
-    const plain = `${bodyText.replace(/\{\{img:[0-9a-f-]{36}\}\}/g, "[이미지]")}\n\n${RETENTION_TEXT}`;
+    const plain = `${bodyText.replace(/\{\{img:(?:[0-9a-f-]{36}|\/mail\/[a-z0-9-]+\.(?:png|jpg))\}\}/g, "[이미지]")}\n\n${RETENTION_TEXT}`;
     const results = await Promise.all(
       to.map(async (addr) => ({
         to: addr,

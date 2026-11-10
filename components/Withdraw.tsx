@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Sheet, api, btnGhost, btnPrimary, field } from "./ui";
 
-/** 개인정보만 삭제 버튼(주황). 탈퇴 버튼(파랑)과 구분한다. */
-const btnOrange = "w-full rounded-2xl bg-warn px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
+/** 개인정보만 삭제 버튼(로고 색 남색 bg-brand, 2026-11-10 사용자 지시). 탈퇴 버튼(파랑, 맨 아래)과 구분한다. */
+const btnOrange = "w-full rounded-2xl bg-brand px-5 py-4 text-[17px] font-semibold text-white active:opacity-90 disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
 
 type State = "active" | "withdrawn" | "none";
 type Kind = "withdraw" | "purge";
@@ -105,16 +105,16 @@ export default function Withdraw({ token = "", initialEmail = "", onClose }: { t
         {state === "active" && !sent && (
           <div className="space-y-4">
             <p className="rounded-xl bg-bg px-4 py-3 text-[15px] leading-relaxed text-ink">아직 탈퇴가 처리되지 않았어요. 아래에서 골라 주세요. 확인 링크는 이 메일 주소로 보내 드려요.</p>
-            <div className="space-y-2">
-              <button data-block-id="B067" data-block-name="탈퇴 신청하기" className={btnPrimary} disabled={busy} onClick={() => request("withdraw")}>탈퇴 신청하기</button>
-              <p className="text-[13px] leading-relaxed text-sub">탈퇴하면 로그인과 글 노출이 중단되고, 이름·전화번호 등 개인정보는 삭제돼요. 이메일 주소만 남아요.</p>
-            </div>
             {account && (
               <div className="space-y-2">
                 <button data-block-id="B068" data-block-name="개인정보만 삭제하기" className={btnOrange} disabled={busy} onClick={() => request("purge")}>계속 이용하며 개인정보만 삭제</button>
                 <p className="text-[13px] leading-relaxed text-sub">계정은 그대로 두고 이름·전화번호·연락처 등 개인정보만 삭제해요. 이메일 주소는 남아요. 삭제 뒤에는 비밀번호를 다시 정해야 로그인할 수 있고, 글을 올릴 때 연락처를 다시 입력해야 해요.</p>
               </div>
             )}
+            <div className="space-y-2">
+              <button data-block-id="B067" data-block-name="탈퇴 신청하기" className={btnPrimary} disabled={busy} onClick={() => request("withdraw")}>탈퇴 신청하기</button>
+              <p className="text-[13px] leading-relaxed text-sub">탈퇴하면 로그인과 글 노출이 중단되고, 이름·전화번호 등 개인정보는 삭제돼요. 이메일 주소만 남아요.</p>
+            </div>
           </div>
         )}
         {sent && (

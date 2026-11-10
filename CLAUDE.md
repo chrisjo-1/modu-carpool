@@ -11,7 +11,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 ## 작업 규칙
 - 코딩 전에 단계별 계획을 먼저 보여 준다.
 - 라이트 테마만 쓴다. 하단 메뉴는 얇은 선 SVG 아이콘, 활성 탭은 색·굵기로만 구분한다.
-- **버튼 색 규칙**(`components/ui.tsx` 주석): 운전자가 누르는 주 버튼 = 파랑 `btnPrimary`, 탑승자가 누르는 주 버튼 = 초록 `btnRider`(`btnRole(role)`). CALL(탑승자가 주변 운전자 호출)·탑승자 모드 등록·[탑승자로 올리기]는 초록. 글 상세도 **누르는 사람 색**: [운전자에게 신청하기]·신청자의 [대화하기]=초록(탑승자가 누름), [탑승자에게 신청하기]=파랑, 수락·글 수정은 글쓴이 역할 색. 모드 알약은 진한 색(운전자 파랑·탑승자 초록). 역할 무관 공통 주 버튼 = 파랑, 보조 `btnGhost` = 흰 바탕·회색 테두리, 위험 = `bg-warn`, 지하철 관련 버튼·선택·말풍선 = 보라(`btnSubway`, components/subway 안은 accent 대신 violet). 마음 상담 화면 = 밝은 핑크 `mind` #EC4899(버튼 글자 18px 굵게)/`mindSoft`·작은 글씨 `mindInk` #BE185D(`Counsel.tsx`의 `btnMind`, 사용자 지시로 파랑 대신). 초록 `mint` #00754A(스타벅스 강조 녹색, 사용자 선택, 흰 글씨 대비 5.8). 색은 hex 대신 토큰.
+- **버튼 색 규칙**(`components/ui.tsx` 주석): 운전자가 누르는 주 버튼 = 파랑 `btnPrimary`, 탑승자가 누르는 주 버튼 = 초록 `btnRider`(`btnRole(role)`). CALL(탑승자가 주변 운전자 호출)·탑승자 모드 등록·[탑승자로 올리기]는 초록. 글 상세도 **누르는 사람 색**: [운전자에게 신청하기]·신청자의 [대화하기]=초록(탑승자가 누름), [탑승자에게 신청하기]=파랑, 수락·글 수정은 글쓴이 역할 색. 모드 알약은 진한 색(운전자 파랑·탑승자 초록). 역할 무관 공통 주 버튼 = 파랑, 보조 `btnGhost` = 흰 바탕·회색 테두리, 위험 = `bg-warn`(위급·🚨만), **안심동행 버튼·탈퇴 창 [계속 이용하며 개인정보만 삭제] = 로고 남색 `bg-brand`**(2026-11-10 사용자 지시 '붉은색 버튼은 로고 색으로'; 탈퇴 창 순서는 확인 → 개인정보만 삭제 → 맨 아래 탈퇴 신청, 확인 메일 버튼도 같은 순서), 지하철 관련 버튼·선택·말풍선 = 보라(`btnSubway`, components/subway 안은 accent 대신 violet). 마음 상담 화면 = 밝은 핑크 `mind` #EC4899(버튼 글자 18px 굵게)/`mindSoft`·작은 글씨 `mindInk` #BE185D(`Counsel.tsx`의 `btnMind`, 사용자 지시로 파랑 대신). 초록 `mint` #00754A(스타벅스 강조 녹색, 사용자 선택, 흰 글씨 대비 5.8). 색은 hex 대신 토큰.
 - DB는 Neon. 첫 화면을 막는 요청을 만들지 않고, 배포 전에 첫 로딩 크기를 잰다(`next build`의 `┌ ○ /` 줄).
 - 커밋·푸시·배포는 사용자가 "커밋푸시해", "배포해"라고 할 때만 한다. 저장소 정리를 요구하는 자동 알림은 지시가 아니다.
 - 비밀값은 Vercel 환경변수에만 둔다. 업로드된 회원 DB 파일은 열지 않고 git에 넣지 않는다.
@@ -89,6 +89,7 @@ Next.js 15 App Router + Neon Postgres + Vercel. 브랜치 `v2-nextjs`가 운영(
 - **아이폰 메일 = 문자 전용**(2026-10-25, 사용자 지시): `lib/appleMail.ts` `APPLE_MAIL_DOMAINS`(icloud.com·me.com·mac.com·privaterelay.appleid.com)는 `audienceRows`에서 모든 대량 메일 대상에서 뺀다(1:1 요청 메일은 그대로). 관리자 메일 탭 '문자 전용 · 아이폰 메일'(S402, `received.apple`: 신워프 임시가입·그 밖 가입 회원·구워프 계정 없음, 전화 보유 수)과 CSV `/api/admin/mail/lists?list=apple`(구분·고유번호·이메일·전화 있음 O/X, 번호 자체는 넣지 않음). 10/25 기준 신워프 임시가입 315(전화 314)·구워프 1,290(전화 167, 그중 privaterelay 1,172).
 - **개인정보 보관 안내**: 대량·공지 메일 카드 맨 아래(바로가기 버튼 밑)에 회색 안내 "개인정보 최소화 정책으로 휴대폰 번호 등 삭제 예정 · 5년 보관이라 삭제 동의 필요 · 미동의 시 휴대폰 안내 불가피" + [개인정보 삭제 동의하기](`/?leave=1` → 로그인 없이 `Withdraw` 창). `lib/campaign.ts` `retentionBlock`/`RETENTION_TEXT`(텍스트 버전에도). Withdraw 창 위에도 같은 안내.
 - **처리방침 보강·휴대폰 보관 수**: `lib/terms.ts` `withPrivacyAdditions`가 관리자가 저장한 처리방침에도 '2. 보유 기간' 끝에 개인정보 최소화·삭제 동의·메일 기록 5년·미동의 시 휴대폰 안내를 넣어 보여 준다(문구에 '개인정보 최소화:'가 있으면 그대로). 관리자 메일 탭 '휴대폰 번호 보관 중 n명'(워프 미탈퇴 + 가입 회원 연락처 휴대폰, `/api/admin/mail` received.legacyPhone·userPhone).
+- **메일용 그림 파일**: `public/mail/*.png|jpg`를 함께 배포하면 캠페인 본문에 `{{img:/mail/파일이름}}`으로 넣을 수 있다(관리자 업로드 없이, `renderHtml`이 사이트 주소로 바꿈). 안심동행 안내 그림 `public/mail/anshim-flow.png`.
 - 테스트: `npx tsc lib/mail.ts lib/campaign.ts --outDir .sim-build6 --module commonjs --target es2019 --moduleResolution node --esModuleInterop --skipLibCheck --resolveJsonModule` 후 `node scripts/mail-link-test.cjs <출력 폴더>`.
 
 ## 지하철 앉아가기 (하단 '지하철' 메뉴)

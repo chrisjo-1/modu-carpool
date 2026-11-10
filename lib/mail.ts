@@ -501,7 +501,7 @@ export async function sendWithdrawConfirmMail(to: string, links: { withdraw: str
   const note = "본인이 요청하지 않았다면 이 메일을 무시해 주세요. 링크는 72시간 동안 쓸 수 있어요.";
   const btnBase = "display:inline-block;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 18px;border-radius:12px";
   const buttons = links.purge
-    ? `<a href="${esc(links.withdraw)}" style="${btnBase};background:#2F6BFF;margin:0 8px 8px 0">탈퇴 확인하기</a><a href="${esc(links.purge)}" style="${btnBase};background:#E8590C;margin:0 0 8px 0">개인정보만 삭제</a>`
+    ? `<a href="${esc(links.purge)}" style="${btnBase};background:#101B33;margin:0 8px 8px 0">개인정보만 삭제</a><a href="${esc(links.withdraw)}" style="${btnBase};background:#2F6BFF;margin:0 0 8px 0">탈퇴 확인하기</a>`
     : `<a href="${esc(links.withdraw)}" style="${btnBase};background:#2F6BFF">탈퇴 확인하기</a>`;
   const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
 <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
@@ -511,7 +511,7 @@ export async function sendWithdrawConfirmMail(to: string, links: { withdraw: str
 <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${note}</p>
 </div></div>`;
   const text = links.purge
-    ? `${lead}\n\n탈퇴 확인: ${links.withdraw}\n개인정보만 삭제: ${links.purge}\n\n${note}`
+    ? `${lead}\n\n개인정보만 삭제: ${links.purge}\n탈퇴 확인: ${links.withdraw}\n\n${note}`
     : `${lead}\n\n${links.withdraw}\n\n${note}`;
   return deliver({ kind, category: "transactional", to, subject, html, text });
 }
