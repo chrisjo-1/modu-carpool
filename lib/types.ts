@@ -5,6 +5,8 @@ export type Post = {
   /** 작성자 회원 id (차단할 때 쓴다) */
   ownerId?: string;
   owner: string;
+  /** 글쓴이 고유코드(검색용) */
+  ownerCode?: string;
   ownerBio: string;
   role: "driver" | "rider";
   /** 워프 고유코드로 관리자가 대신 올린 글 */

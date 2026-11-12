@@ -56,7 +56,7 @@ export async function GET(req: Request) {
     const one = isUuid(oneRaw) ? oneRaw : null;
     const sql = db();
     const rows = mine
-      ? await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, u.blocked as owner_blocked,
+      ? await sql`select p.*, u.name as owner, u.member_code as owner_code, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, u.blocked as owner_blocked,
                          (not p.regular and p.depart_at <= now() - interval '7 days') as expired,
                          (not p.regular and p.depart_at <= now()) as ended,
                          (select count(*)::int from calls c where c.post_id = p.id or c.source_post_id = p.id) as call_count,
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
                          (select max(c.created_at) from calls c where c.post_id = p.id or c.source_post_id = p.id) as call_at
                   from posts p join users u on u.id = p.user_id
                   where p.user_id = ${me} order by p.regular desc, p.depart_at desc limit 100`
-      : await sql`select p.*, u.name as owner, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, false as owner_blocked, false as expired,
+      : await sql`select p.*, u.name as owner, u.member_code as owner_code, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, false as owner_blocked, false as expired,
                          (not p.regular and p.depart_at <= now()) as ended,
                          (select count(*)::int from calls c where c.post_id = p.id or c.source_post_id = p.id) as call_count,
                          (select count(*)::int from call_recipients r join calls c on c.id = r.call_id where c.post_id = p.id or c.source_post_id = p.id) as call_notified,
@@ -89,6 +89,7 @@ export async function GET(req: Request) {
       ownerId: r.user_id,
       taxiShare: r.taxi_share === true,
       owner: r.owner || "회원",
+      ownerCode: r.owner_code || "",
       ownerBio: r.owner_bio,
       ownerPhoto: photoUrl(r.user_id, r.photo_v),
       carPhoto: r.role === "driver" ? carPhotoUrl(r.user_id, r.car_v) : "",

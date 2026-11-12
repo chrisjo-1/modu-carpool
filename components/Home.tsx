@@ -3,7 +3,7 @@ import { needPush } from "@/lib/pushGate";
 const MatchButton = dynamic(() => import("./MatchSheet").then((m) => m.MatchButton), { ssr: false });
 import dynamic from "next/dynamic";
 import FareCard from "./Fare";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CarInput from "./CarInput";
 import { Sparkle } from "./MapSparkle";
@@ -204,6 +204,8 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   // 키워드 필터: 고른 키워드 중 하나라도 붙은 글만 (여러 개 고르면 OR)
   const [q, setQ] = useState("");
   const [regularOnly, setRegularOnly] = useState(false);
+  // [정기카풀]을 눌렀을 때 결과 수를 알림으로 보여 준다(목록이 거의 안 바뀌어 검색이 안 된 줄 아는 일을 막음, 2026-11-12 사용자 지시)
+  const regularTapped = useRef(false);
   // 내 글만 모아 보기. 켜면 각 내 글 아래에 매칭률 높은 상대 글을 보여 준다(2026-11-02).
   const [mineOnly, setMineOnly] = useState(false);
   // 정렬: 최신순(기본) · 가까운 순(내 위치 필요) · 출발 임박순
@@ -211,7 +213,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
-  // [지도 분석] 버튼의 깜빡이는 점: 한 번 열어 보면 끈다(localStorage modu.mapSeen)
+  // [경로 분석] 버튼의 깜빡이는 점: 한 번 열어 보면 끈다(localStorage modu.mapSeen)
   const [mapSeen, setMapSeen] = useState(true);
   useEffect(() => { try { setMapSeen(localStorage.getItem("modu.mapSeen") === "1"); } catch { /* 저장소 없음 */ } }, []);
   const markMapSeen = () => { setMapSeen(true); try { localStorage.setItem("modu.mapSeen", "1"); } catch { /* 저장소 없음 */ } };
@@ -277,7 +279,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         (!mineOnly || p.mine) &&
         (regions.size === 0 || postRegions(p).some((r) => regions.has(r))) &&
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
-        (!k || `${p.origin} ${p.dest} ${p.note} ${(p.tags ?? []).map((x) => x.label).join(" ")} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
+        (!k || `${p.owner} ${p.ownerCode ?? ""} ${p.origin} ${p.dest} ${p.note} ${(p.tags ?? []).map((x) => x.label).join(" ")} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
     );
     // 최신순: 마감·종료된 글도 등록 순서대로 섞어 보여 준다(회원이 적은 동안 실사용자 글이 위에 보이도록).
     // 실사용자 글을 임시글·테스트 계정 글보다 먼저, 그 안에서는 최근 등록 순.
@@ -298,6 +300,12 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [posts, role, q, regularOnly, mineOnly, lang, here, sort, regions]);
+  useEffect(() => {
+    if (!regularTapped.current) return;
+    regularTapped.current = false;
+    toast(regularOnly ? t(`정기카풀 ${list.length}건을 보여 드려요`) : t(`정기카풀 필터를 껐어요 · 전체 ${list.length}건`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list]);
 
   // 내 글마다 매칭률 높은 상대 글 3개(내 글 모아 보기일 때만 계산). 상대는 전체 글에서 찾는다.
   const matchMap = useMemo(() => {
@@ -318,14 +326,14 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼). 키워드 필터는 검색창 박스 안에 둔다 */}
         <div data-block-id="C070" data-block-name="검색 박스" className="space-y-2 rounded-2xl border border-line bg-white p-2.5">
           <div className="flex items-center gap-2">
-            <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("출발지, 도착지, 키워드(예: 음료) 등 검색")} aria-label={t("출발지, 도착지, 키워드(예: 음료) 등 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
+            <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("장소, 고유코드, 키워드 등 검색")} aria-label={t("장소, 고유코드, 키워드 등 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
             <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => { if (view === "list" && hintTap("C931")) return; markMapSeen(); setView((v) => (v === "map" ? "list" : "map")); }}
               className={`relative min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-brand bg-brand font-semibold text-white"}`}>
-              {view === "map" ? t("목록") : <span className="flex items-center gap-1"><Sparkle className="h-4 w-4" />{t("지도 분석")}</span>}
+              {view === "map" ? t("목록") : <span className="flex items-center gap-1"><Sparkle className="h-4 w-4" />{t("경로 분석")}</span>}
               {view === "list" && !mapSeen && <span className="absolute -right-1 -top-1 h-3 w-3 animate-ping rounded-full bg-coral" aria-hidden />}
             </button>
           </div>
-          {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 같은 길 회원 수, 모이는 곳, 한 달 실비까지 분석해 드려요.")}</Bubble></div>}
+          {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 같은 길 회원 수, 모이는 곳, 카풀로 줄이는 월 납입금까지 분석해 드려요.")}</Bubble></div>}
         </div>
         {/* [지역] + [운전자만]·[탑승자만](켜고 끄기, 둘 다 꺼짐 = 전체). 2026-11-05 사용자 요청으로 [전체] 버튼을 지역 필터로 바꿈 */}
         <div className="flex items-center gap-1.5">
@@ -393,7 +401,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
               <CheckBox on={mineOnly} />
               {t("내 글")}
             </button>
-            <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => setRegularOnly((v) => !v)} className={`inline-flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-2 text-[14px] max-[380px]:px-2 max-[380px]:text-[13px] ${regularOnly ? "border-ink bg-white font-semibold text-ink" : "border-line bg-white text-sub"}`}>
+            <button type="button" data-block-id="B002" data-block-name="정기카풀 필터" role="switch" aria-checked={regularOnly} onClick={() => { regularTapped.current = true; setRegularOnly((v) => !v); }} className={`inline-flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-2 text-[14px] max-[380px]:px-2 max-[380px]:text-[13px] ${regularOnly ? "border-ink bg-white font-semibold text-ink" : "border-line bg-white text-sub"}`}>
               <CheckBox on={regularOnly} />
               {t("정기카풀")}
             </button>
