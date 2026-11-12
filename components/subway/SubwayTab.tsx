@@ -15,7 +15,6 @@ import RidePing from "./RidePing";
 
 // 안내 사진은 시트를 열 때만 불러온다.
 const LocationHelp = dynamic(() => import("./LocationHelp"), { ssr: false });
-const TrainPick = dynamic(() => import("./TrainPick"), { ssr: false });
 
 /**
  * 하단 '지하철' 메뉴. 오늘 탑승(시각에 맞춘 방면 자동, 선택 가능) 아래에 두 기능: ① 앉을 칸 찾기(추천 칸·앉았어요)
@@ -282,8 +281,6 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
                 <>
                   {/* [앉았어요]는 칸 안내 안의 버튼 하나만 둔다(2026-10-30: 중복 제거). 누르면 칸 기록 + 같은 방향 분께 알림·적립. */}
                   <CarSection line={lineNow} board={board} alight={alight} next={heading?.next ?? ""} timeNow={timeNow} kind={kind} onSeated={sitNow} />
-                  {/* 내가 탄 열차(선택): 서울시 실시간 정보로 열차번호를 남겨 같은 열차 회원과 먼저 매칭 */}
-                  {board && <TrainPick line={lineNow} station={board} next={heading?.next} />}
                   {/* 앉은 뒤에만: 자리 위치·힌트(선택), 이동 중 현재역 다시 알리기(선택) */}
                   {posture === "sit" && (
                     <>

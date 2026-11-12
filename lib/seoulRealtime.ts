@@ -1,4 +1,6 @@
 import IDS from "./data/subway-ids.json";
+import { routePath } from "./subwayRoute";
+import { etaOf } from "./trainTiming";
 
 /**
  * 서울시 실시간 지하철 정보(서울 열린데이터광장 swopenapi, 인증키 SEOUL_SUBWAY_KEY). 서버에서만 부른다.
@@ -23,6 +25,8 @@ export type Arrival = {
   code: number;
   /** 도착까지 남은 초(모르면 0) */
   sec: number;
+  /** 도착까지 남은 초 어림값(lib/trainTiming etaOf, 받아 온 뒤 지난 시간 반영). 막 출발이면 음수, 모르면 null */
+  eta: number | null;
   express: boolean;
   last: boolean;
 };
@@ -70,8 +74,10 @@ export async function arrivalsAt(line: string, station: string, next?: string): 
   const plain = apiName.replace(/\(.*\)$/, "");
   const names = [...new Set([goodName.get(sid), plain, apiName, station].filter(Boolean) as string[])];
   let rows: Raw[] = [];
+  let age = 0;
   for (const n of names) {
     const all = await call("realtimeStationArrival", n);
+    age = Math.max(0, Math.round((Date.now() - (cache.get(`realtimeStationArrival|${n}`)?.at ?? Date.now())) / 1000));
     rows = all.filter((r) => str(r.subwayId) === subwayId && str(r.statnId) === sid);
     if (rows.length) {
       goodName.set(sid, n);
@@ -83,10 +89,21 @@ export async function arrivalsAt(line: string, station: string, next?: string): 
     const toward = rows.filter((r) => str(r.statnTid) === nextId);
     if (toward.length) rows = toward;
   }
+  // 열차가 지금 있는 역(arvlMsg3, API 역 이름) → 앱 역 이름 → 내 역까지 정거장 수
+  const byApi = new Map(Object.entries(MAP.st[line] ?? {}).map(([name, v]) => [v[1].replace(/\(.*\)$/, ""), name]));
+  const stopsAway = (cur: string) => {
+    const name = byApi.get(cur.replace(/\(.*\)$/, "")) ?? cur;
+    const p = routePath(line, name, station);
+    return p ? p.length - 1 : null;
+  };
   const out: Arrival[] = rows.map((r) => {
     const code = Number(r.arvlCd ?? 99);
     const sec = Number(r.barvlDt ?? 0) || 0;
+    const msg = str(r.arvlMsg2);
+    const c = Number.isFinite(code) ? code : 99;
+    const e = etaOf({ code: c, sec, msg, stopsAway: stopsAway(str(r.arvlMsg3)) });
     return {
+      eta: e == null ? null : e - (e > 0 ? age : 0),
       trainNo: str(r.btrainNo).replace(/^0+(?=\d)/, ""),
       terminal: str(r.bstatnNm).replace(/행$/, ""),
       msg: str(r.arvlMsg2),
@@ -96,13 +113,13 @@ export async function arrivalsAt(line: string, station: string, next?: string): 
       last: str(r.lstcarAt) === "1",
     };
   });
-  // 막 출발·도착·진입한 열차 먼저, 그다음 도착이 가까운 순
-  const rank = (a: Arrival) => (a.code === 2 ? 0 : a.code === 1 ? 1 : a.code === 0 ? 2 : 3);
+  // 도착 순(막 출발한 열차가 맨 앞). 막 출발은 가장 최근 1대만 — 다음 열차의 앞차 간격 계산용.
   const seen = new Set<string>();
-  return out
+  const sorted = out
     .filter((a) => a.trainNo && !seen.has(a.trainNo) && seen.add(a.trainNo))
-    .sort((a, b) => rank(a) - rank(b) || a.sec - b.sec)
-    .slice(0, 4);
+    .sort((a, b) => (a.eta ?? 9e9) - (b.eta ?? 9e9));
+  const departed = sorted.filter((a) => a.eta != null && a.eta < 0).slice(-1);
+  return [...departed, ...sorted.filter((a) => a.eta == null || a.eta >= 0)].slice(0, 5);
 }
 
 export type TrainPos = { trainNo: string; station: string; status: number; terminal: string; at: string };

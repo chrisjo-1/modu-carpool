@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { MIN_SAMPLE, slotOf, type CarRank, type Estimate, type GuideResult } from "@/lib/seatCar";
 import type { Congestion, CongestionLevel } from "@/lib/congestion";
 import { carNumbersOf, type LineId } from "@/lib/subway";
 import { positionLabel } from "@/lib/subwayPosition";
 import { headingFor, headingsAt } from "@/lib/subwayRoute";
 import { api, useT } from "../ui";
+
+// 열차별 앉을 확률·내가 탄 열차(서울시 실시간 정보, 2026-11-12)
+const TrainPick = dynamic(() => import("./TrainPick"), { ssr: false });
 
 type Dir = "up" | "down";
 type Guide = GuideResult & { congestion: Congestion | null; estimate?: Estimate };
@@ -106,6 +110,16 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
       ) : data?.estimate ? (
         <EstimateAnswer e={data.estimate} carCount={carNumbersOf(line).length} pick={pick} onPick={setPick} />
       ) : null}
+
+      {/* 들어오는 열차 3대의 도착·앞차 간격으로 1순위 칸-문의 열차별 앉을 확률(실시간 정보 있는 노선만) */}
+      {data && (top || data.estimate?.cars[0]) && (
+        <TrainPick
+          line={line}
+          station={station}
+          next={heading?.next}
+          best={top ? { car: top.car, door: top.entrance, prob: top.rate } : { car: data.estimate!.cars[0].car, door: data.estimate!.cars[0].door, prob: data.estimate!.cars[0].prob }}
+        />
+      )}
 
       {data && options.length > 0 && (
         <SeatResult key={`${line}-${station}-${dir}-${slot}`} onSeated={onSeated} seatKey={{ line, station, dir, dow: day, slot }} carCount={carNumbersOf(line).length} chosen={options[Math.min(pick, options.length - 1)]} />
