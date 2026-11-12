@@ -102,6 +102,17 @@ async function buildSeatSchema(sql: ReturnType<typeof seatSql>) {
     body text not null,
     created_at timestamptz not null default now())`;
   await sql`create index if not exists seat_messages_req on seat_messages (request_id, id)`;
+  // 오늘 탄 열차(서울시 실시간 정보의 열차번호, 2026-11-12). 같은 열차 매칭용, 이틀 지나면 지운다.
+  await sql`create table if not exists seat_trains (
+    user_id text not null,
+    day text not null,
+    line text not null,
+    train_no text not null,
+    terminal text not null default '',
+    station text not null default '',
+    created_at timestamptz not null default now(),
+    primary key (user_id, day))`;
+  await sql`create index if not exists seat_trains_day on seat_trains (day, line, train_no)`;
 }
 
 function textHash(s: string) {
@@ -480,4 +491,35 @@ export async function listSeatMessages(requestId: string, userId: string): Promi
 
 export async function addSeatMessage(requestId: string, userId: string, body: string): Promise<void> {
   await seatSql()`insert into seat_messages (request_id, user_id, body) values (${requestId}, ${userId}, ${body})`;
+}
+
+/* ---------- 오늘 탄 열차(같은 열차 매칭) ---------- */
+
+export type MyTrain = { line: string; trainNo: string; terminal: string; station: string };
+
+export async function getMyTrain(userId: string): Promise<MyTrain | null> {
+  await ensureSeatSchema();
+  const r = await seatSql()`select line, train_no, terminal, station from seat_trains where user_id = ${userId} and day = ${seatDay()}`;
+  return r.length ? { line: String(r[0].line), trainNo: String(r[0].train_no), terminal: String(r[0].terminal), station: String(r[0].station) } : null;
+}
+
+export async function saveMyTrain(userId: string, t: MyTrain): Promise<void> {
+  await ensureSeatSchema();
+  const sql = seatSql();
+  await sql`delete from seat_trains where day < ${seatDay(Date.now() - 2 * 86400_000)}`;
+  await sql`insert into seat_trains (user_id, day, line, train_no, terminal, station) values (${userId}, ${seatDay()}, ${t.line}, ${t.trainNo}, ${t.terminal}, ${t.station})
+    on conflict (user_id, day) do update set line = excluded.line, train_no = excluded.train_no, terminal = excluded.terminal, station = excluded.station, created_at = now()`;
+}
+
+export async function clearMyTrain(userId: string): Promise<void> {
+  await ensureSeatSchema();
+  await seatSql()`delete from seat_trains where user_id = ${userId} and day = ${seatDay()}`;
+}
+
+/** 오늘 나와 같은 열차에 탄 회원 id(나 제외). */
+export async function sameTrainUsers(userId: string): Promise<string[]> {
+  const mine = await getMyTrain(userId);
+  if (!mine) return [];
+  const r = await seatSql()`select user_id from seat_trains where day = ${seatDay()} and line = ${mine.line} and train_no = ${mine.trainNo} and user_id <> ${userId}`;
+  return r.map((x) => String(x.user_id));
 }

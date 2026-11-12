@@ -11,7 +11,7 @@ import type { Posture, TodayRide } from "./SubwayCall";
 type Pair = { role: "take" | "give"; stops: number; seatStation: string; meetStation: string; gapMin: number; car: string; gate: string };
 type Spot = { car: string; door: string; side: "left" | "right" | ""; seat?: string; memo: string; photo?: boolean };
 type Contact = { type: string; id: string };
-type Cand = Pair & { planId: number; timeGo: string; name: string; trip?: "go" | "back" };
+type Cand = Pair & { planId: number; timeGo: string; name: string; trip?: "go" | "back"; sameTrain?: boolean };
 type Req = { id: string; status: string; incoming: boolean; otherPlanId: number; otherTime: string; pair: Pair | null; spot: Spot | null; contact: Contact | null };
 
 const smallBtn = "shrink-0 rounded-xl bg-violet px-4 py-2 text-[14px] font-semibold text-white active:opacity-90 disabled:opacity-40";
@@ -240,6 +240,7 @@ function ProfileRow({ c, busy, onRequest }: { c: Cand; busy: boolean; onRequest:
         <div className="flex flex-wrap items-center gap-1.5">
           <p className="truncate text-[15px] font-semibold text-ink">{c.name || t("회원")}</p>
           <span className="rounded-full bg-violetSoft px-2 py-0.5 text-[11px] font-semibold text-violet">{take ? t("자리 희망") : t("자리 양보")}</span>
+          {c.sameTrain && <span className="rounded-full bg-violet px-2 py-0.5 text-[11px] font-semibold text-white">{t("같은 열차")}</span>}
         </div>
         <p className="text-[13px] text-sub">
           <span className="font-semibold text-ink">{c.stops}{t("정거장")}</span> {take ? t("뒤 자리가 나요") : t("뒤 내 자리를 드려요")}

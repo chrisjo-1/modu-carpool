@@ -1,11 +1,11 @@
 import { currentUserId, db, fail, json, needLogin } from "@/lib/server";
-import { getMyPlan, listAhead, listBefore, listCandidates, parseTodayRide, seatDbReady, todayPlan } from "@/lib/seatDb";
+import { getMyPlan, listAhead, listBefore, listCandidates, parseTodayRide, sameTrainUsers, seatDbReady, todayPlan } from "@/lib/seatDb";
 import type { Candidate } from "@/lib/seatMatch";
 
 export const dynamic = "force-dynamic";
 
 /** 상대 목록 한 줄. 회원 번호·사진은 주지 않는다. 수락 전이라 정거장 수·타는 역·시각만 준다. */
-async function view(list: Candidate[]) {
+async function view(list: Candidate[], sameTrain: Set<string> = new Set()) {
   const ids = [...new Set(list.map((c) => c.userId))];
   const names = new Map<string, string>();
   if (ids.length) {
@@ -24,7 +24,9 @@ async function view(list: Candidate[]) {
     gapMin: c.gapMin,
     trip: c.trip === "back" ? "back" : "go",
     name: names.get(c.userId) || "",
-  }));
+    // 오늘 같은 열차번호를 고른 상대(서울시 실시간 정보, 2026-11-12) — 맨 위로
+    sameTrain: sameTrain.has(c.userId),
+  })).sort((a, b) => Number(b.sameTrain) - Number(a.sameTrain));
 }
 
 /**
@@ -48,7 +50,8 @@ export async function GET(req: Request) {
     // 그 방향 정보가 없으면 빈 목록(요일은 내 쪽에서 따지지 않는다).
     if (!me) return json({ candidates: [], needPlan: false, offDay: false });
     const list = kind === "before" ? await listBefore(me) : kind === "ahead" ? await listAhead(me) : await listCandidates(me);
-    return json({ needPlan: false, offDay: false, candidates: await view(list) });
+    const same = new Set(await sameTrainUsers(uid).catch(() => [] as string[]));
+    return json({ needPlan: false, offDay: false, candidates: await view(list, same) });
   } catch (e) {
     return fail(e);
   }
