@@ -18,6 +18,9 @@ export const ALL_LINES: { id: LineId; name: string }[] = [
   { id: "gyeongchun", name: "경춘선" },
   { id: "ui", name: "우이신설선" },
   { id: "sillim", name: "신림선" },
+  { id: "seohae", name: "서해선" },
+  { id: "gyeonggang", name: "경강선" },
+  { id: "gtxa", name: "GTX-A" },
   { id: "incheon1", name: "인천1호선" },
   { id: "incheon2", name: "인천2호선" },
 ];
@@ -40,6 +43,9 @@ export const LINE_COLORS: Record<LineId, { bg: string; text: string }> = {
   gyeongchun: { bg: "#0C8E72", text: "#FFFFFF" },
   ui: { bg: "#B0CE18", text: "#2E3A00" },
   sillim: { bg: "#6789CA", text: "#FFFFFF" },
+  seohae: { bg: "#8FC31F", text: "#253300" },
+  gyeonggang: { bg: "#003DA5", text: "#FFFFFF" },
+  gtxa: { bg: "#9A6292", text: "#FFFFFF" },
   incheon1: { bg: "#7CA8D5", text: "#FFFFFF" },
   incheon2: { bg: "#ED8B00", text: "#FFFFFF" },
 };
