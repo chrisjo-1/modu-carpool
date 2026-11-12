@@ -7,8 +7,10 @@ import { carNumbersOf, type LineId } from "@/lib/subway";
 import { positionLabel } from "@/lib/subwayPosition";
 import { headingFor, headingsAt } from "@/lib/subwayRoute";
 import { api, useT } from "../ui";
+import { StepTitle } from "./StepTitle";
+import { etaLabel, type TrainChance } from "@/lib/trainTiming";
 
-// 열차별 앉을 확률·내가 탄 열차(서울시 실시간 정보, 2026-11-12)
+// ① 들어오는 열차 고르기(서울시 실시간 정보, 2026-11-12)
 const TrainPick = dynamic(() => import("./TrainPick"), { ssr: false });
 
 type Dir = "up" | "down";
@@ -70,6 +72,13 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
   const [pick, setPick] = useState(0);
   const options: { car: string; door: string }[] = top && data ? data.ranked.map((r) => ({ car: r.car, door: r.entrance })) : data?.estimate ? data.estimate.cars.map((c) => ({ car: c.car, door: c.door })) : [];
   useEffect(() => setPick(0), [line, station, dir, slot]);
+  // ①에서 고른 열차(없으면 추천 열차). ② 칸-문 카드의 앉을 확률이 이 열차 기준으로 바뀐다.
+  const [train, setTrain] = useState<TrainChance | null>(null);
+  const ranks: { car: string; door: string; prob: number }[] = top && data ? data.ranked.map((r) => ({ car: r.car, door: r.entrance, prob: r.rate })) : data?.estimate ? data.estimate.cars.map((c) => ({ car: c.car, door: c.door, prob: c.prob })) : [];
+  const base = ranks[0];
+  const chosen = ranks[Math.min(pick, Math.max(0, ranks.length - 1))];
+  // 1순위 칸-문은 고른 열차 기준 확률, 다른 후보는 열차 간격 비율만큼 같이 조정
+  const chosenProb = chosen ? (train && base ? Math.min(0.95, chosen.prob * (train.prob / Math.max(0.01, base.prob))) : chosen.prob) : 0;
 
   if (!ready) {
     return <p className="text-[13px] leading-relaxed text-sub">{t("탑승역을 고르면 혼잡도와 칸 안내를 바로 보여 드려요.")}</p>;
@@ -84,45 +93,55 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
       {loading && !data && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
       {err && <p className="text-[14px] text-warn">{err}</p>}
 
-      {/* 칸 3개 — 기록이 30건 이상이면 기록 순위, 아니면 현재 기준 추정. 둘 다 적중확률(%)로 보여 준다. */}
-      {data?.status === "ready" && top ? (
-        <div className="space-y-3">
-          <p className="text-sm font-semibold text-ink">{t("앉을 가능성이 높은 위치")}</p>
-          <ul className="space-y-2">
-            {data.ranked.map((r, i) => (
-              <li key={`${r.car}-${r.entrance}`} role="radio" aria-checked={pick === i} tabIndex={0} onClick={() => setPick(i)} onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && setPick(i)} className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 ${pick === i ? "border-violet bg-violetSoft" : "border-line"}`}>
-                <div className="min-w-0">
-                  <p className="text-[15px] font-semibold text-ink">
-                    {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
-                    <span className="num text-[22px] font-bold">{positionLabel(r.car, r.entrance)}</span>
-                    <span className="ml-1.5 text-[13px] font-normal text-sub">
-                      {r.car}{t("번째 칸")} {r.entrance}{t("번 문")}
-                    </span>
-                  </p>
-                  <p className="num text-[12px] text-sub">{t("착석 기록")} {r.seated}/{r.n}{t("건")}</p>
-                </div>
-                <Chance p={r.rate} />
-              </li>
-            ))}
-          </ul>
-          <p className="text-[12px] leading-relaxed text-sub">{t("승강장 바닥의 삼각형 표시(칸-문)를 찾아 그 앞에서 기다리세요.")}</p>
-        </div>
-      ) : data?.estimate ? (
-        <EstimateAnswer e={data.estimate} carCount={carNumbersOf(line).length} pick={pick} onPick={setPick} />
-      ) : null}
+      {/* ① 들어오는 열차 고르기(실시간 정보 있는 노선만 — 없으면 그리지 않고 ②부터) */}
+      {data && base && <TrainPick line={line} station={station} next={heading?.next} best={base} onSelect={setTrain} />}
 
-      {/* 들어오는 열차 3대의 도착·앞차 간격으로 1순위 칸-문의 열차별 앉을 확률(실시간 정보 있는 노선만) */}
-      {data && (top || data.estimate?.cars[0]) && (
-        <TrainPick
-          line={line}
-          station={station}
-          next={heading?.next}
-          best={top ? { car: top.car, door: top.entrance, prob: top.rate } : { car: data.estimate!.cars[0].car, door: data.estimate!.cars[0].door, prob: data.estimate!.cars[0].prob }}
-        />
+      {/* ② 이 칸-문 앞에서 기다리세요: 고른 열차 + 칸 그림(추천 칸 = 노선 색) + 큰 칸-문 + 후보 목록 */}
+      {data && chosen && (
+        <div data-block-id="C443" data-block-name="기다릴 칸-문" className="space-y-3 rounded-2xl border-2 border-lc bg-white p-4">
+          <StepTitle n={2} title={t("이 칸-문 앞에서 기다리세요")} />
+          {train && (
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="num text-[19px] font-extrabold text-ink">{train.trainNo} · {t(etaLabel(train.eta))}</p>
+              <p className="truncate text-[13px] text-sub">{train.terminal}{t("행")}</p>
+            </div>
+          )}
+          <CarStrip count={carNumbersOf(line).length} on={chosen.car} />
+          <div className="flex items-center gap-3">
+            <span className="num rounded-xl bg-bg px-3.5 py-0.5 text-[34px] font-black leading-tight text-brand">{positionLabel(chosen.car, chosen.door)}</span>
+            <p className="min-w-0 text-[13px] leading-snug text-sub">
+              {chosen.car}{t("번째 칸")} · {chosen.door}{t("번 문")}
+              <br />
+              {t("앉을 확률")} <b className="num text-ink">{t(probLabel(chosenProb))} {Math.round(chosenProb * 100)}%</b>
+              {train?.gap != null && pick === 0 && <span className="block text-[12px]">{train.gap < 240 ? t("앞차에 붙어와서 덜 붐벼요") : t("앞차와 간격이 길어 붐빌 수 있어요")}</span>}
+            </p>
+          </div>
+          {/* 다른 후보(기록 순위 또는 현재 기준 추정) — 누르면 위 칸 그림·칸-문이 바뀐다 */}
+          {data.status === "ready" && top ? (
+            <ul className="space-y-1.5">
+              {data.ranked.map((r, i) => (
+                <li key={`${r.car}-${r.entrance}`} role="radio" aria-checked={pick === i} tabIndex={0} onClick={() => setPick(i)} onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && setPick(i)} className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 ${pick === i ? "border-lc bg-lcSoft" : "border-line"}`}>
+                  <span className="text-[14px] text-ink">
+                    {i === 0 && <span className="mr-1 text-[12px] font-bold text-brand">{t("추천")}</span>}
+                    <b className="num text-[17px]">{positionLabel(r.car, r.entrance)}</b>
+                    <span className="num ml-1.5 text-[12px] text-sub">{t("착석 기록")} {r.seated}/{r.n}{t("건")}</span>
+                  </span>
+                  <Chance p={r.rate} />
+                </li>
+              ))}
+            </ul>
+          ) : data.estimate ? (
+            <EstimateAnswer e={data.estimate} carCount={carNumbersOf(line).length} pick={pick} onPick={setPick} />
+          ) : null}
+        </div>
       )}
 
+      {/* ③ 탔나요? */}
       {data && options.length > 0 && (
-        <SeatResult key={`${line}-${station}-${dir}-${slot}`} onSeated={onSeated} seatKey={{ line, station, dir, dow: day, slot }} carCount={carNumbersOf(line).length} chosen={options[Math.min(pick, options.length - 1)]} />
+        <div className="space-y-2">
+          <StepTitle n={3} title={t("탔나요?")} />
+          <SeatResult key={`${line}-${station}-${dir}-${slot}`} onSeated={onSeated} seatKey={{ line, station, dir, dow: day, slot }} carCount={carNumbersOf(line).length} chosen={options[Math.min(pick, options.length - 1)]} />
+        </div>
       )}
 
       {/* 혼잡도 자료가 없으면 추정 아래 안내 한 줄로 충분하다(같은 말을 두 번 하지 않는다). */}
@@ -130,6 +149,22 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
 
       <Tips carCount={carNumbersOf(line).length} />
     </section>
+  );
+}
+
+const probLabel = (p: number) => (p >= 0.6 ? "높음" : p >= 0.4 ? "보통" : "낮음");
+
+/** 칸 그림: 1~n칸 중 추천 칸을 노선 색으로 칠하고 아래에 남색 삼각형. */
+function CarStrip({ count, on }: { count: number; on: string }) {
+  return (
+    <div className="flex gap-[3px]" aria-hidden>
+      {Array.from({ length: count }, (_, i) => String(i + 1)).map((c) => (
+        <span key={c} className={`num relative grid h-[30px] flex-1 place-items-center rounded-md border text-[11px] font-bold ${c === on ? "border-lc bg-lc text-lcInk" : "border-line bg-bg text-sub"}`}>
+          {c}
+          {c === on && <span className="absolute -bottom-[8px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[6px] border-b-[7px] border-x-transparent border-b-brand" />}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -158,11 +193,11 @@ function CongestionAnswer({ c }: { c: Congestion }) {
           <p className="text-[13px] text-sub">{t("혼잡도")}</p>
           <p className="num text-[32px] font-semibold leading-none text-ink">{c.pct}%</p>
         </div>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold ${c.level === "low" ? "bg-white text-sub" : "bg-violetSoft text-violet"}`}>{t(c.label)}</span>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-semibold ${c.level === "low" ? "bg-white text-sub" : "bg-lcSoft text-brand"}`}>{t(c.label)}</span>
       </div>
       <p className="text-[15px] text-ink">{t(HINT[c.level])}</p>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-line" aria-hidden>
-        <div className="h-full rounded-full bg-violet" style={{ width: `${Math.min(100, c.pct)}%` }} />
+        <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, c.pct)}%` }} />
       </div>
       <p className="text-[12px] leading-relaxed text-sub">{t("서울교통공사 2026년 6월 자료 · 이 역·방향·시간대 기준")}</p>
     </div>
@@ -174,7 +209,7 @@ function Chance({ p }: { p: number }) {
   const t = useT();
   const pct = Math.round(p * 100);
   return (
-    <span className={`num shrink-0 rounded-full px-3 py-1 text-right text-[13px] font-semibold ${pct >= 60 ? "bg-violetSoft text-violet" : pct >= 35 ? "bg-bg text-ink" : "bg-bg text-sub"}`}>
+    <span className={`num shrink-0 rounded-full px-3 py-1 text-right text-[13px] font-semibold ${pct >= 60 ? "bg-lcSoft text-brand" : pct >= 35 ? "bg-bg text-ink" : "bg-bg text-sub"}`}>
       <span className="block text-[10px] font-normal text-sub">{t("적중확률")}</span>
       {pct}%
     </span>
@@ -192,10 +227,10 @@ function EstimateAnswer({ e, carCount, pick, onPick }: { e: Estimate; carCount: 
       </div>
       <ul className="space-y-2">
         {e.cars.map((c, i) => (
-          <li key={c.car} role="radio" aria-checked={pick === i} tabIndex={0} onClick={() => onPick(i)} onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && onPick(i)} className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 ${pick === i ? "border-violet bg-violetSoft" : "border-line"}`}>
+          <li key={c.car} role="radio" aria-checked={pick === i} tabIndex={0} onClick={() => onPick(i)} onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && onPick(i)} className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 ${pick === i ? "border-lc bg-lcSoft" : "border-line"}`}>
             <div className="min-w-0">
               <p className="text-[15px] font-semibold text-ink">
-                {i === 0 && <span className="mr-1.5 text-violet">{t("추천")}</span>}
+                {i === 0 && <span className="mr-1.5 text-brand">{t("추천")}</span>}
                 <span className="num text-[22px] font-bold">{positionLabel(c.car, c.door)}</span>
                 <span className="ml-1.5 text-[13px] font-normal text-sub">{c.car}{t("번째 칸")} {c.door}{t("번 문")} · {t("또는")} <span className="num">{positionLabel(c.car, c.alt)}</span></span>
               </p>
@@ -257,14 +292,14 @@ function SeatResult({ seatKey, carCount, chosen, onSeated }: { seatKey: { line: 
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("탄 칸")}>
             {Array.from({ length: carCount }, (_, i) => String(i + 1)).map((c) => (
-              <button key={c} type="button" role="radio" aria-checked={car === c} onClick={() => setCar(c)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${car === c ? "border-violet bg-violetSoft font-semibold text-violet" : "border-line bg-white text-sub"}`}>
+              <button key={c} type="button" role="radio" aria-checked={car === c} onClick={() => setCar(c)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${car === c ? "border-lc bg-lcSoft font-semibold text-brand" : "border-line bg-white text-sub"}`}>
                 {c}{t("칸")}
               </button>
             ))}
           </div>
           <div className="flex gap-1.5" role="radiogroup" aria-label={t("문")}>
             {["1", "2", "3", "4"].map((d) => (
-              <button key={d} type="button" role="radio" aria-checked={door === d} onClick={() => setDoor(d)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${door === d ? "border-violet bg-violetSoft font-semibold text-violet" : "border-line bg-white text-sub"}`}>
+              <button key={d} type="button" role="radio" aria-checked={door === d} onClick={() => setDoor(d)} className={`min-h-[36px] min-w-[44px] rounded-xl border px-2.5 text-[13px] ${door === d ? "border-lc bg-lcSoft font-semibold text-brand" : "border-line bg-white text-sub"}`}>
                 {d}{t("번 문")}
               </button>
             ))}
@@ -273,8 +308,8 @@ function SeatResult({ seatKey, carCount, chosen, onSeated }: { seatKey: { line: 
       )}
       {err && <p className="text-[13px] text-warn">{err}</p>}
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" data-block-id="B432" data-block-name="앉았어요 기록" disabled={busy} onClick={() => save(true)} className="rounded-2xl bg-violet py-3.5 text-[16px] font-semibold text-white active:opacity-90 disabled:opacity-50">{t("앉았어요")}</button>
-        <button type="button" data-block-id="B430" data-block-name="앉지 못함" disabled={busy} onClick={() => save(false)} className="rounded-2xl bg-ink py-3.5 text-[16px] font-semibold text-white active:opacity-90 disabled:opacity-50">{t("앉지 못함")}</button>
+        <button type="button" data-block-id="B432" data-block-name="앉았어요 기록" disabled={busy} onClick={() => save(true)} className="rounded-2xl bg-brand py-3.5 text-[16px] font-semibold text-white active:opacity-90 disabled:opacity-50">{t("앉았어요")}</button>
+        <button type="button" data-block-id="B430" data-block-name="앉지 못함" disabled={busy} onClick={() => save(false)} className="rounded-2xl border border-line bg-white py-3.5 text-[16px] font-semibold text-ink active:opacity-90 disabled:opacity-50">{t("못 앉았어요")}</button>
       </div>
       <button type="button" data-block-id="B431" data-block-name="다른 칸-문 고르기" onClick={() => setOther((v) => !v)} className="min-h-0 text-[13px] text-sub underline">
         {other ? t("위 목록에서 고르기") : t("목록에 없는 칸-문에서 탔어요")}

@@ -52,3 +52,13 @@ export const LINE_COLORS: Record<LineId, { bg: string; text: string }> = {
 
 export const lineColor = (id: LineId) => LINE_COLORS[id] ?? { bg: "#2F6BFF", text: "#FFFFFF" };
 
+
+/** 노선 색을 화면 강조색으로 쓰기 위한 CSS 변수(--lc 띠·추천 칸, --lc-soft 옅은 바탕, --lc-ink 띠 위 글자). */
+export function lineTheme(id: LineId): Record<string, string> {
+  const c = lineColor(id);
+  const hex = c.bg.replace("#", "");
+  const n = parseInt(hex.length === 3 ? hex.split("").map((x) => x + x).join("") : hex, 16);
+  const mix = (v: number) => Math.round(v + (255 - v) * 0.88);
+  const soft = `rgb(${mix((n >> 16) & 255)}, ${mix((n >> 8) & 255)}, ${mix(n & 255)})`;
+  return { "--lc": c.bg, "--lc-soft": soft, "--lc-ink": c.text };
+}

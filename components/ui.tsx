@@ -294,12 +294,14 @@ export function RoleTag({ role }: { role?: string }) {
 
 /** 여러 선택지 중 하나를 고르는 버튼 줄 */
 /** accents: 고른 항목을 진하게 강조할 색. accent = 파랑, mint = 초록 (운전자·탑승자 구분용) */
-export function Segment<T extends string>({ value, options, onChange, label, compact, accents }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string; compact?: boolean; accents?: Partial<Record<T, "accent" | "mint" | "violet">> }) {
+export function Segment<T extends string>({ value, options, onChange, label, compact, accents }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string; compact?: boolean; accents?: Partial<Record<T, "accent" | "mint" | "violet" | "line">> }) {
   const onStyle = (v: T) => {
     const a = accents?.[v];
     if (a === "accent") return "bg-accentSoft font-bold text-accent shadow-sm";
     if (a === "mint") return "bg-mintSoft font-bold text-mint shadow-sm";
     if (a === "violet") return "bg-violetSoft font-bold text-violet shadow-sm";
+    // 지하철: 고른 노선 색 옅은 바탕(--lc-soft, 없으면 로고 남색 옅은 바탕)
+    if (a === "line") return "bg-lcSoft font-bold text-ink shadow-sm";
     return "bg-white font-semibold text-ink shadow-sm";
   };
   return (
@@ -383,7 +385,8 @@ export const btnPrimary = "w-full rounded-2xl bg-accent px-5 py-4 text-[17px] fo
 // 글 상세도 누르는 사람 색: [운전자에게 신청하기]=초록(탑승자가 누름), [탑승자에게 신청하기]=파랑, 수락·수정은 글쓴이 역할 색. 역할과 무관한 공통 주 버튼 = 파랑. 지하철 관련 = 보라(btnSubway).
 // 보조 = 흰 바탕·회색 테두리·검정 글씨(btnGhost), 작은 부가 동작 = 글자색만, 위험(탈퇴·삭제) = bg-warn, 지하철 = 보라. 색은 hex 대신 토큰.
 export const btnRider = btnPrimary.replace("bg-accent", "bg-mint");
-export const btnSubway = btnPrimary.replace("bg-accent", "bg-violet");
+// 지하철 주 버튼 = 로고 남색(2026-11-12 사용자 지시: 지하철 앉아가기 기본색은 로고 색, 강조는 고른 노선 색)
+export const btnSubway = btnPrimary.replace("bg-accent", "bg-brand");
 export const btnRole = (role: string | null | undefined) => (role === "rider" ? btnRider : btnPrimary);
 export const btnGhost = "w-full rounded-2xl border border-line bg-white px-5 py-4 text-[17px] font-semibold text-ink active:bg-bg disabled:opacity-40 motion-safe:transition-transform motion-safe:duration-150 motion-safe:active:scale-[0.97]";
 export const field = "w-full rounded-xl border border-line bg-white px-3 py-3 text-[16px] text-ink outline-none focus:border-accent";

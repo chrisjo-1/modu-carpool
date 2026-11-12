@@ -7,8 +7,8 @@
 export type LineId = string;
 
 // 노선 이름·색은 첫 화면(CALL 창)에서도 쓰므로 역 목록 없이 가벼운 파일에 둔다.
-import { ALL_LINES, LINE_COLORS, lineColor } from "./lineMeta";
-export { ALL_LINES, LINE_COLORS, lineColor };
+import { ALL_LINES, LINE_COLORS, lineColor, lineTheme } from "./lineMeta";
+export { ALL_LINES, LINE_COLORS, lineColor, lineTheme };
 
 /** 시범 노선. 관리자 설정 기본값이며 현재 2·5·6·7·9호선이다. */
 export const DEFAULT_PILOT_LINES: LineId[] = ["2", "5", "6", "7", "9"];

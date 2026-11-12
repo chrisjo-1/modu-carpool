@@ -195,7 +195,7 @@ export default function CommuteSheet({
             value={mode}
             onChange={pickMode}
             options={[["driver", t("운전자")], ["rider", t("탑승자")], ["subway", t("지하철")]]}
-            accents={{ driver: "accent", rider: "mint", subway: "violet" }}
+            accents={{ driver: "accent", rider: "mint", subway: "line" }}
           />
           <p className="text-[13px] leading-relaxed text-sub">
             {mode === "driver" && t("운전자 모드: 차량으로 태워 주는 글이에요. 차량 등록이 필요해요.")}
