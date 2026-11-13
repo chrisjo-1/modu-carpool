@@ -9,7 +9,7 @@ const description =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: "모두의카풀",
-  alternates: { canonical: "/" },
+  alternates: { canonical: "/", types: { "application/rss+xml": [{ url: "/rss.xml", title: "모두의카풀 새 카풀" }] } },
   // 네이버 서치어드바이저 소유확인 메타 태그(공개 값, 비밀 아님)
   verification: {
     google: "eLd5SsUGNzcSx7NFQkSXCKxO2F4nhRVbdqWemv0Wvbo",

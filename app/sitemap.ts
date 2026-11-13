@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
 import { db, ensureSchema, hasDb } from "@/lib/server";
 import { keyStations, SEO_LINES } from "@/lib/seoSubway";
+import { AREA_MIN_POSTS, areaCounts, areaSlug } from "@/lib/seoArea";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/faq`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     { url: `${SITE_URL}/warp`, lastModified: fixed, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/subway`, lastModified: fixed, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/carpool`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
     ...SEO_LINES.map((l) => ({ url: `${SITE_URL}/subway/${l}`, lastModified: fixed, changeFrequency: "weekly" as const, priority: 0.7 })),
     // 역 페이지는 출근 시간 붐비는 주요 역만(색인 대상과 같게).
     ...SEO_LINES.flatMap((l) => keyStations(l).map((s) => ({ url: `${SITE_URL}/subway/${l}/${encodeURIComponent(s)}`, lastModified: fixed, changeFrequency: "monthly" as const, priority: 0.6 }))),
@@ -28,8 +30,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select p.id, p.created_at from posts p join users u on u.id = p.user_id
       where p.status = 'open' and not p.demo and not u.test and not u.blocked and (p.regular or p.depart_at > now())
       order by p.created_at desc limit 1000`;
+    // 지역 카풀 페이지(글 3건 이상인 구만, 색인 대상과 같게)
+    const areas = (await areaCounts().catch(() => [])).filter((x) => x.n >= AREA_MIN_POSTS);
     return [
       ...base,
+      ...areas.map((x) => ({ url: `${SITE_URL}/carpool/${encodeURIComponent(areaSlug(x.key))}`, lastModified: now, changeFrequency: "daily" as const, priority: 0.7 })),
       ...rows.map((r) => ({ url: `${SITE_URL}/post/${String(r.id)}`, lastModified: new Date(r.created_at as string), changeFrequency: "daily" as const, priority: 0.6 })),
     ];
   } catch {
