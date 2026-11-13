@@ -73,5 +73,9 @@ export const roleWord = (role: string) => (role === "driver" ? "운전자" : "�
 /** 검색 제목용 경로: 지역이 있으면 "강남구 → 분당구", 없으면 장소 이름 */
 export const routeTitle = (p: { origin: string; dest: string; originArea: string; destArea: string }) => {
   const a = areaKey(p.originArea), b = areaKey(p.destArea);
-  return a && b && a !== b ? `${shortArea(a)} → ${shortArea(b)}` : `${p.origin} → ${p.dest}`;
+  if (a && b && a !== b) return `${shortArea(a)} → ${shortArea(b)}`;
+  // 같은 구 안: "강남구 압구정동 → 청담동"
+  const dong = (s: string) => s.trim().split(/\s+/)[2] ?? "";
+  if (a && a === b && dong(p.originArea) && dong(p.destArea)) return `${shortArea(a)} ${dong(p.originArea)} → ${dong(p.destArea)}`;
+  return `${p.origin} → ${p.dest}`;
 };
