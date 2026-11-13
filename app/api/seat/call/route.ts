@@ -1,7 +1,7 @@
-import { currentUserId, fail, json, needLogin } from "@/lib/server";
+import { currentUserId, db, fail, json, needLogin } from "@/lib/server";
 import { callAll, parseTodayRide, seatDbReady } from "@/lib/seatDb";
 import { seatPush } from "@/lib/seatNotify";
-import { grant } from "@/lib/credits";
+import { getRules, grant, kstDay } from "@/lib/credits";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,14 @@ export async function POST(req: Request) {
     );
     // 하루 1회(같은 날 두 번째부터는 0). 자리 유무와 무관하다.
     const credit = await grant(uid, "sit").catch(() => 0);
-    return json({ sent: r.sent.length, credit });
+    // 이어서 '내 자리'에 앉은 좌석을 남기면 받을 수 있는 크레딧(오늘 이미 받았으면 0)
+    const spotBonus = await (async () => {
+      const amount = (await getRules()).spot;
+      if (!amount) return 0;
+      const done = await db()`select 1 from credit_ledger where user_id = ${uid} and reason = 'spot' and day = ${kstDay()} limit 1`;
+      return done.length ? 0 : amount;
+    })().catch(() => 0);
+    return json({ sent: r.sent.length, credit, spotBonus });
   } catch (e) {
     return fail(e);
   }

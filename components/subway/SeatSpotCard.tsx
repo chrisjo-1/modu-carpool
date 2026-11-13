@@ -34,7 +34,7 @@ async function shrink(file: File): Promise<string> {
  * 오늘 앉은 자리: 칸을 고르고 차량 그림에서 좌석을 누른다. 오늘의 힌트(옷 색깔·소지품)를 함께 남긴다.
  * 수락된 상대에게만 보이고, 저장하면 상대에게 알린다. 하루만 쓰고 다음 날에는 다시 입력한다.
  */
-export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onSaved, presetCar = "", hideCar = false, station = "" }: { line: LineId; next?: string; station?: string; onChat?: () => void; autoEdit?: boolean; onSaved?: () => void; presetCar?: string; hideCar?: boolean }) {
+export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onSaved, presetCar = "", hideCar = false, station = "" }: { line: LineId; next?: string; station?: string; onChat?: () => void; autoEdit?: boolean; onSaved?: (credit?: number) => void; presetCar?: string; hideCar?: boolean }) {
   const t = useT();
   const [spot, setSpot] = useState<Spot | null>(null);
   const [edit, setEdit] = useState(false);
@@ -97,15 +97,16 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
     if (!car) return setMsg(t("칸 번호를 골라 주세요."));
     // 좌석은 선택: 그림으로 짚기 어려우면 칸만 저장하고 대화로 알린다.
     setBusy(true);
-    const r = await api<{ spot: Spot }>("/api/seat/spot", "PUT", { car, seat, memo, ...(photo !== undefined ? { photo } : {}) });
+    const r = await api<{ spot: Spot; credit?: number }>("/api/seat/spot", "PUT", { car, seat, memo, ...(photo !== undefined ? { photo } : {}) });
     setBusy(false);
     if (!r.ok) return setMsg(t(r.error));
     setSpot(r.data.spot);
     setPhoto(undefined);
     setPhotoVer((v) => v + 1);
     setEdit(false);
-    setMsg(seat ? t("저장했어요. 매칭된 상대에게 알렸어요.") : t("칸만 저장했어요. 자세한 자리는 대화로 알려 주세요."));
-    onSaved?.();
+    const bonus = r.data.credit ? ` +${r.data.credit.toLocaleString("ko-KR")}${t("크레딧 적립")}` : "";
+    setMsg(seat ? `${t("저장했어요. 매칭된 상대에게 알렸어요.")}${bonus}` : t("칸만 저장했어요. 자세한 자리는 대화로 알려 주세요."));
+    onSaved?.(r.data.credit ?? 0);
   };
 
   const clear = async () => {

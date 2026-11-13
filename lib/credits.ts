@@ -1,7 +1,7 @@
 import { db } from "./server";
 
 /** 크레딧 기준(관리자 화면에서 바꿀 수 있다). nudge 는 '메일로 알리기' 1회에 차감하는 양. */
-export const DEFAULT_RULES = { signup: 1000, attend: 100, post: 1000, nudge: 500, legacy: 2000, car: 1000, photo: 1000, firstpost: 2000, subway: 2000, sit: 200, karrot: 1000 };
+export const DEFAULT_RULES = { signup: 1000, attend: 100, post: 1000, nudge: 500, legacy: 2000, car: 1000, photo: 1000, firstpost: 2000, subway: 2000, sit: 200, spot: 200, karrot: 1000 };
 export type Rules = typeof DEFAULT_RULES;
 export const REASON_LABEL: Record<string, string> = {
   signup: "가입 축하",
@@ -14,6 +14,7 @@ export const REASON_LABEL: Record<string, string> = {
   karrot: "당근함 첫 물건 등록 축하",
   warp_credit: "워프 크레딧 이관",
   sit: "지하철 앉아가기(하루 1회)",
+  spot: "지하철 자리 위치 남기기(하루 1회)",
   photo_del: "프로필 사진 삭제 차감",
   attend: "출석",
   post: "카풀 게시",
@@ -42,15 +43,18 @@ export const kstDay = (t = Date.now()) => new Date(t + 9 * 3600_000).toISOString
 /**
  * 적립. 같은 날 같은 사유(출석·게시)나 가입 축하가 이미 있으면 아무것도 하지 않고 0을 돌려준다.
  * 장부 기록과 잔액 변경을 한 문장으로 처리해 중복 지급을 막는다.
+ * 고유 색인이 없는 사유(sit 등)도 같은 날(한 번만 주는 사유는 day '') 기록이 있으면 주지 않는다(2026-11-13, sit 하루 여러 번 적립되던 문제).
  */
-export async function grant(userId: string, reason: "signup" | "attend" | "post" | "legacy" | "car" | "photo" | "firstpost" | "subway" | "sit" | "karrot", memo = ""): Promise<number> {
+export async function grant(userId: string, reason: "signup" | "attend" | "post" | "legacy" | "car" | "photo" | "firstpost" | "subway" | "sit" | "spot" | "karrot", memo = ""): Promise<number> {
   const rules = await getRules();
   const amount = rules[reason];
   if (!amount) return 0;
   const day = reason === "signup" || reason === "legacy" || reason === "car" || reason === "photo" || reason === "firstpost" || reason === "subway" || reason === "karrot" ? "" : kstDay();
   const rows = await db()`
     with ins as (
-      insert into credit_ledger (user_id, amount, reason, memo, day) values (${userId}, ${amount}, ${reason}, ${memo}, ${day})
+      insert into credit_ledger (user_id, amount, reason, memo, day)
+      select ${userId}, ${amount}, ${reason}, ${memo}, ${day}
+      where not exists (select 1 from credit_ledger where user_id = ${userId} and reason = ${reason} and day = ${day})
       on conflict do nothing returning amount)
     update users set credits = credits + coalesce((select sum(amount) from ins), 0) where id = ${userId}
     returning (select coalesce(sum(amount), 0) from ins)::int as added`;

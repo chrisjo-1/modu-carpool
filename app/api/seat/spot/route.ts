@@ -1,6 +1,7 @@
 import { body, currentUserId, fail, json, needLogin, text } from "@/lib/server";
 import { acceptedPartners, clearSpot, getMyPlan, getSpot, seatDbReady, setSpot, type Spot } from "@/lib/seatDb";import { parseKarrotPhoto } from "@/lib/karrot";
 import { seatPush } from "@/lib/seatNotify";
+import { grant } from "@/lib/credits";
 import { carCountOf } from "@/lib/subway";
 import { doorOfSeat, parseSeat, seatId, seatLabel } from "@/lib/subwayPosition";
 
@@ -56,7 +57,9 @@ export async function PUT(req: Request) {
     const partners = await acceptedPartners(uid);
     const where = seatPos ? `${car}번째 칸 · ${seatLabel(seatPos)}` : `${car}-${door}`;
     await Promise.all(partners.map((p) => seatPush(p, "상대가 자리 위치를 알려 줬어요", `${where}${memo ? ` · 힌트: ${memo}` : ""}`, "seat-spot")));
-    return json({ spot: await getSpot(uid) });
+    // 좌석까지 그림에서 고르면 하루 1회 적립(2026-11-13 사용자 지시: 앉았어요 → 내 자리 기재 시 추가 크레딧)
+    const credit = seatPos ? await grant(uid, "spot").catch(() => 0) : 0;
+    return json({ spot: await getSpot(uid), credit });
   } catch (e) {
     return fail(e);
   }

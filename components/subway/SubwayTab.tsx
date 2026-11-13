@@ -107,6 +107,8 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
   // 메뉴 안의 화면: 빈 값 = 두 기능 메뉴, seat = 앉을 칸 찾기, match = 매칭
   // 위쪽 탭(2026-11-12 재구성): 앉아가기 | 매칭 | 내 자리. 메뉴 화면 없이 바로 앉아가기.
   const [view, setView] = useState<"seat" | "match" | "spot">(start && start.view !== "edit" ? start.view : "seat");
+  /** [앉았어요] 직후 '내 자리' 맨 위 안내(적립 결과 + 자리 남기면 받을 추가 크레딧) */
+  const [sitNote, setSitNote] = useState<{ done: string; bonus: number } | null>(null);
   // CALL에서 들어오면 그 화면을 바로 연다. edit은 "오늘 노선·역 바꾸기"를 펼친 메뉴.
   useEffect(() => {
     if (!start) return;
@@ -188,12 +190,17 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
   const sitNow = async (car: string): Promise<string> => {
     setSpotCar(car);
     if (!plan) return t("설정에서 지하철 정보를 등록하면 같은 방향 분께도 알릴 수 있어요.");
-    const r = await api<{ sent: number; credit: number }>("/api/seat/call", "POST", { trip: kind, today: ride });
+    const r = await api<{ sent: number; credit: number; spotBonus?: number }>("/api/seat/call", "POST", { trip: kind, today: ride });
     if (!r.ok) return t(r.error);
     if (today) setToday({ ...today, posture: "sit" });
     setReloadKey((k) => k + 1);
     const who = r.data.sent > 0 ? `${r.data.sent}${t("명에게 알렸어요.")}` : t("지금은 자리를 받을 분이 없어요.");
-    return r.data.credit > 0 ? `${who} +${r.data.credit}${t("크레딧 적립")}` : who;
+    const done = r.data.credit > 0 ? `${who} +${r.data.credit.toLocaleString("ko-KR")}${t("크레딧 적립")}` : who;
+    // 2026-11-13 사용자 지시: [앉았어요] 뒤 바로 '내 자리'로 옮겨 앉은 자리를 남기게 하고, 추가 크레딧을 알린다.
+    setSitNote({ done, bonus: r.data.spotBonus ?? 0 });
+    setView("spot");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    return done;
   };
   const switchKind = (k: Kind) => {
     if (plan) setToday(freshToday(plan, k, null));
@@ -277,8 +284,19 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
           ) : view === "spot" ? (
             /* 내 자리: 자리 위치·힌트, 이동 중 현재역 다시 알리기 */
             <div className="space-y-4">
+              {sitNote && (
+                <div data-block-id="C445" data-block-name="앉았어요 → 자리 남기기 안내" className="rounded-2xl border-2 border-lc bg-white px-4 py-3">
+                  <p className="text-[15px] font-bold text-ink">✓ {t("앉았어요 저장")}</p>
+                  <p className="mt-0.5 text-[13px] text-sub">{sitNote.done}</p>
+                  {sitNote.bonus > 0 && (
+                    <p className="mt-2 rounded-xl bg-lcSoft px-3 py-2 text-[14px] font-semibold text-ink">
+                      {t("앉은 자리를 아래 그림에서 골라 남기면")} <b className="text-brand">+{sitNote.bonus.toLocaleString("ko-KR")} {t("크레딧")}</b>{t("을 더 받아요.")}
+                    </p>
+                  )}
+                </div>
+              )}
               <p className="text-[13px] text-sub">{posture === "sit" ? t("내 자리 위치와 힌트 (선택) · 매칭된 상대에게만 보여요") : t("앉은 뒤 자리 위치를 남기면 매칭된 상대가 찾아올 수 있어요.")}</p>
-              <SeatSpotCard line={lineNow} station={board} next={heading?.next} presetCar={spotCar} hideCar={!!spotCar} onChat={() => setChatAsk((k) => k + 1)} />
+              <SeatSpotCard line={lineNow} station={board} next={heading?.next} presetCar={spotCar} hideCar={!!spotCar} autoEdit={!!sitNote} onSaved={(c) => { if (c) setSitNote((n) => (n ? { ...n, bonus: 0, done: `${n.done} · ${t("자리 남기기")} +${c.toLocaleString("ko-KR")}${t("크레딧 적립")}` } : n)); }} onChat={() => setChatAsk((k) => k + 1)} />
               <details className="group" data-block-id="C133" data-block-name="현재역 다시 알리기 (선택)">
                 <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 text-[14px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
                   {t("이동 중 현재역 다시 알리기 (선택)")}
