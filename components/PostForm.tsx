@@ -1,6 +1,6 @@
 "use client";
 import { nextSameSlot, slotLabel } from "@/lib/repost";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { priceAllowedAt } from "@/lib/time";
 import { defaultRoleFor, type Place, type Post, type User } from "@/lib/types";
 import CarGateSheet from "./CarGate";
@@ -9,7 +9,7 @@ import { PHOTO_REQUIRED } from "@/lib/photoRequired";
 import { CostField } from "./Commute";
 import { TagPicker } from "./Keywords";
 import PlaceField from "./PlaceField";
-import { Card, Segment, api, btnPrimary, btnRole, currentHere, field, useT } from "./ui";
+import { Card, Segment, Sheet, api, btnPrimary, btnRole, currentHere, field, useT } from "./ui";
 
 /** 시각(ms)을 datetime-local 입력 값(기기 현지 시간)으로 */
 function toLocalInput(ms: number) {
@@ -39,6 +39,7 @@ export default function PostForm({
   onRegular,
   initial,
   copy,
+  onCopy,
 }: {
   user: User | null;
   enabled: boolean;
@@ -50,6 +51,8 @@ export default function PostForm({
   initial?: Post;
   /** 다시 올리기: 이 글 내용을 채우고 날짜만 다음 같은 요일·같은 시각으로 바꾼 새 글 */
   copy?: Post;
+  /** 간편등록: 지난 이동을 골라 그 내용으로 채운다(App이 copy로 다시 그림). */
+  onCopy?: (p: Post) => void;
 }) {
   const t = useT();
   const empty: Place = { name: "", lat: null, lng: null };
@@ -65,6 +68,7 @@ export default function PostForm({
   const [note, setNote] = useState(src?.note ?? "");
   const [tags, setTags] = useState<string[]>(src?.tagIds ?? []);
   const [busy, setBusy] = useState(false);
+  const [pastOpen, setPastOpen] = useState(false);
   // 운전자 글은 차량번호와 차량 사진이 있어야 올릴 수 있다.
   const [carGate, setCarGate] = useState(false);
   const carOk = !!user?.carNo && !!user?.carPhoto;
@@ -121,6 +125,17 @@ export default function PostForm({
       {carGate && <CarGateSheet onClose={() => setCarGate(false)} user={user} toast={toast} />}
       {photoGate && <PhotoGateSheet onClose={() => setPhotoGate(false)} onSaved={() => formRef.current?.requestSubmit()} toast={toast} />}
       <Card className="space-y-4 p-5">
+        {/* 간편등록(2026-11-13 사용자 지시): 지난 이동을 그대로 불러와 채운다 */}
+        {!initial && !copy && onCopy && (
+          <button type="button" data-block-id="B499" data-block-name="간편등록" onClick={() => setPastOpen(true)} className="flex w-full items-center justify-between gap-2 rounded-xl border border-line bg-bg px-4 py-3 text-left">
+            <span>
+              <b className="block text-[15px] text-ink">{t("간편등록 · 지난 이동 불러오기")}</b>
+              <span className="text-[13px] text-sub">{t("예전에 올린 경로·시간·금액을 그대로 채워요")}</span>
+            </span>
+            <span className="text-[18px] text-sub" aria-hidden>›</span>
+          </button>
+        )}
+        {pastOpen && onCopy && <PastTrips role={role} onClose={() => setPastOpen(false)} onPick={(p) => { setPastOpen(false); onCopy(p); }} />}
         {copy && !initial && (
           <p data-block-id="C401" data-block-name="다시 올리기 안내" className={`rounded-xl px-4 py-3 text-[14px] leading-relaxed ${copy.role === "driver" ? "bg-accentSoft text-accent" : "bg-mintSoft text-mint"}`}>
             <b>{t("지난 글을 그대로 채웠어요.")}</b> {t("출발 일시가 다음")} {slotLabel(nextSameSlot(copy.departAt))}{t("(으)로 맞춰져 있어요. 확인하고 등록만 누르세요.")}
@@ -198,5 +213,60 @@ export default function PostForm({
         form
       )}
     </section>
+  );
+}
+
+/** 간편등록 목록: 내가 올린 1회 카풀(정기 제외), 최근 순, 같은 경로(출발→도착)는 최근 1건만, 최대 12개. */
+function PastTrips({ role, onClose, onPick }: { role: "driver" | "rider"; onClose: () => void; onPick: (p: Post) => void }) {
+  const t = useT();
+  const [list, setList] = useState<Post[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api<{ posts: Post[] }>("/api/posts?mine=1").then((r) => {
+      if (!alive) return;
+      const seen = new Set<string>();
+      const one = (r.ok ? r.data.posts : [])
+        .filter((p) => !p.regular && !p.days && p.departAt)
+        // 같은 경로(출발→도착)는 가장 최근 1건만(2026-11-13 사용자 지시)
+        .sort((a, b) => b.departAt - a.departAt)
+        .filter((p) => {
+          const k = `${p.origin.trim()}|${p.dest.trim()}`;
+          return seen.has(k) ? false : (seen.add(k), true);
+        })
+        .slice(0, 12);
+      setList(one);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [role]);
+  const when = (ms: number) => {
+    const d = new Date(ms + 9 * 3600_000);
+    const day = "일월화수목금토"[d.getUTCDay()];
+    return `${day} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  };
+  return (
+    <Sheet title={t("지난 이동 불러오기")} onClose={onClose} blockId="S436">
+      {list === null ? (
+        <p className="py-6 text-center text-sub">{t("불러오는 중…")}</p>
+      ) : list.length === 0 ? (
+        <p className="py-6 text-center text-sub">{t("아직 올린 1회 카풀이 없어요. 한 번 올리면 다음부터 여기서 바로 불러올 수 있어요.")}</p>
+      ) : (
+        <ul data-block-id="C444" className="space-y-2">
+          {list.map((p) => (
+            <li key={p.id}>
+              <button type="button" onClick={() => onPick(p)} className="w-full rounded-xl border border-line bg-white px-4 py-3 text-left active:bg-bg">
+                <span className="flex items-center gap-2">
+                  <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${p.role === "driver" ? "bg-accentSoft text-accent" : "bg-mintSoft text-mint"}`}>{p.role === "driver" ? t("운전자") : t("탑승자")}</span>
+                  <span className="num text-[13px] text-sub">{t(when(p.departAt))}{p.cost === "fixed" && p.price ? ` · ${p.price.toLocaleString("ko-KR")}${t("원")}` : ` · ${t("무료")}`}</span>
+                </span>
+                <span className="mt-1 block truncate text-[15px] font-semibold text-ink">{p.origin} → {p.dest}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-3 text-[12px] text-sub">{t("고르면 출발 일시는 다음 같은 요일·같은 시각으로 맞춰져요. 확인하고 등록만 누르세요.")}</p>
+    </Sheet>
   );
 }
