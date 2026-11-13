@@ -1,5 +1,6 @@
 import { currentUserId, db, fail, json, needLogin } from "@/lib/server";
-import { callAll, parseTodayRide, seatDbReady } from "@/lib/seatDb";
+import { callAll, parseTodayRide, seatDbReady, todayPlan } from "@/lib/seatDb";
+import { setupAlightAlert } from "@/lib/seatAlight";
 import { seatPush } from "@/lib/seatNotify";
 import { getRules, grant, kstDay } from "@/lib/credits";
 
@@ -18,7 +19,8 @@ export async function POST(req: Request) {
     const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const trip = b.trip === "back" ? "back" : "go";
     // 지하철 화면에서 오늘 바꾼 노선·역(없으면 등록 정보)
-    const r = await callAll(uid, trip, parseTodayRide(b.today));
+    const ride = parseTodayRide(b.today);
+    const r = await callAll(uid, trip, ride);
     if (!r.ok) return json({ error: r.error }, 400);
     await Promise.all(
       r.sent.map((x) => seatPush(x.toUser, "자리 양보 가능 알림", `${x.stops}정거장 뒤 내리는 분이 자리를 양보할 수 있어요. 수락하면 대화할 수 있어요.`, "seat-call"))
@@ -32,7 +34,10 @@ export async function POST(req: Request) {
       const done = await db()`select 1 from credit_ledger where user_id = ${uid} and reason = 'spot' and day = ${kstDay()} limit 1`;
       return done.length ? 0 : amount;
     })().catch(() => 0);
-    return json({ sent: r.sent.length, credit, spotBonus });
+    // 하차 알림(내릴 역 바로 전 역에서 한 번, 2026-11-13)
+    const plan = await todayPlan(uid, trip, ride).catch(() => null);
+    const alight = plan ? await setupAlightAlert(uid, { line: plan.boardLine, board: plan.boardStation, alight: plan.alightStation, next: plan.boardNext }).catch(() => null) : null;
+    return json({ sent: r.sent.length, credit, spotBonus, alight });
   } catch (e) {
     return fail(e);
   }

@@ -113,6 +113,19 @@ async function buildSeatSchema(sql: ReturnType<typeof seatSql>) {
     created_at timestamptz not null default now(),
     primary key (user_id, day))`;
   await sql`create index if not exists seat_trains_day on seat_trains (day, line, train_no)`;
+  // 하차 알림(2026-11-13): [앉았어요] 때 저장, 내릴 역 바로 전 역에서 푸시 한 번. 이틀 지나면 지운다.
+  await sql`create table if not exists seat_alight_alerts (
+    user_id text not null,
+    day text not null,
+    line text not null,
+    train_no text not null default '',
+    alight text not null,
+    prev text not null,
+    due_at timestamptz not null,
+    sent_at timestamptz,
+    off boolean not null default false,
+    created_at timestamptz not null default now(),
+    primary key (user_id, day))`;
 }
 
 function textHash(s: string) {
@@ -522,4 +535,35 @@ export async function sameTrainUsers(userId: string): Promise<string[]> {
   if (!mine) return [];
   const r = await seatSql()`select user_id from seat_trains where day = ${seatDay()} and line = ${mine.line} and train_no = ${mine.trainNo} and user_id <> ${userId}`;
   return r.map((x) => String(x.user_id));
+}
+
+
+/** 하차 알림(내릴 역 바로 전 역에서 한 번). */
+export type AlightAlert = { userId: string; line: string; trainNo: string; alight: string; prev: string; dueAt: number };
+
+export async function saveAlightAlert(a: Omit<AlightAlert, "dueAt"> & { dueAt: number }): Promise<void> {
+  await ensureSeatSchema();
+  const sql = seatSql();
+  await sql`delete from seat_alight_alerts where day < ${seatDay(Date.now() - 2 * 86400_000)}`;
+  await sql`insert into seat_alight_alerts (user_id, day, line, train_no, alight, prev, due_at)
+    values (${a.userId}, ${seatDay()}, ${a.line}, ${a.trainNo}, ${a.alight}, ${a.prev}, ${new Date(a.dueAt).toISOString()})
+    on conflict (user_id, day) do update set line = excluded.line, train_no = excluded.train_no, alight = excluded.alight, prev = excluded.prev,
+      due_at = excluded.due_at, sent_at = null, off = false, created_at = now()`;
+}
+
+export async function offAlightAlert(userId: string): Promise<void> {
+  await ensureSeatSchema();
+  await seatSql()`update seat_alight_alerts set off = true where user_id = ${userId} and day = ${seatDay()}`;
+}
+
+/** 보낼 차례를 기다리는 알림(오늘, 2시간 안에 만든 것). */
+export async function pendingAlightAlerts(): Promise<AlightAlert[]> {
+  await ensureSeatSchema();
+  const r = await seatSql()`select user_id, line, train_no, alight, prev, due_at from seat_alight_alerts
+    where day = ${seatDay()} and sent_at is null and not off and created_at > now() - interval '2 hours'`;
+  return r.map((x) => ({ userId: String(x.user_id), line: String(x.line), trainNo: String(x.train_no), alight: String(x.alight), prev: String(x.prev), dueAt: new Date(x.due_at as string).getTime() }));
+}
+
+export async function markAlightSent(userId: string): Promise<void> {
+  await seatSql()`update seat_alight_alerts set sent_at = now() where user_id = ${userId} and day = ${seatDay()}`;
 }
