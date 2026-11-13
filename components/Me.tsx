@@ -403,7 +403,8 @@ export default function Me({
                           <p className="truncate font-semibold">{p.origin} → {p.dest}</p>
                           <p className="num text-[13px] text-sub">{p.regular ? `${t("정기카풀")} · ` : ""}{scheduleText(p, lang)}</p>
                         </div>
-                        <Tag tone={p.status === "closed" ? "plain" : "accent"}>{p.status === "open" ? t("모집 중") : p.status === "progress" ? t("카풀 진행 중") : t("마감")}</Tag>
+                        {/* 상태(2026-11-13 사용자 지시: 지난 글이 '모집 중'으로 보이던 것 고침) — 종료(출발 지남)·마감·진행 중·정기카풀·게시 중 */}
+                        <Tag tone={p.ended || p.status === "closed" ? "plain" : p.regular ? "mint" : "accent"}>{p.ended ? t("종료") : p.status === "closed" ? t("마감") : p.status === "progress" ? t("카풀 진행 중") : p.regular ? t("정기카풀 게시 중") : t("게시 중")}</Tag>
                       </button>
                       {p.hidden && <p data-block-id="C051" data-block-name="노출 안 됨 안내" className="mx-5 mb-2 rounded-lg bg-warnSoft px-3 py-2 text-[13px] text-warn">{t(HIDDEN_TEXT[p.hidden])}</p>}
                       <div className="flex gap-4 px-5 pb-3 text-[14px]">
