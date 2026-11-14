@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import CarInput from "./CarInput";
 import { Sparkle } from "./MapSparkle";
 import { areaLabel } from "@/lib/areaLabel";
+import { SITE_URL } from "@/lib/site";
 import { matchesFor, type PostMatch } from "@/lib/postMatch";
 import { HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
@@ -605,7 +606,9 @@ export function PostDetail({
   };
 
   const share = async () => {
-    const url = `${location.origin}/?p=${post.id}`;
+    // 공유 주소는 늘 대표 도메인의 글 페이지(2026-11-14 사용자 지시: vercel.app 주소·옛 미리보기가 나가던 문제).
+    // 글 페이지는 제목이 "강남구 → 분당구 출퇴근 정기카풀"처럼 나오고 [앱에서 신청하기]로 앱의 그 글을 연다.
+    const url = `${SITE_URL}/post/${post.id}`;
     const text = `${post.origin} → ${post.dest} · ${scheduleText(post, lang)}`;
     try {
       if (navigator.share) await navigator.share({ title: t("모두의카풀"), text, url });

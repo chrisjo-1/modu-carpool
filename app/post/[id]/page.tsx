@@ -55,7 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     description,
     alternates: { canonical: `/post/${r.id}` },
     robots: r.upcoming && r.status === "open" ? { index: true, follow: true } : { index: false, follow: true },
-    openGraph: { type: "article", url: `/post/${r.id}`, title, description, images: [{ url: "/og.png", width: 1200, height: 630 }] },
+    openGraph: { type: "article", url: `/post/${r.id}`, title, description, images: [{ url: "/og-v2.png", width: 1200, height: 630 }] },
   };
 }
 

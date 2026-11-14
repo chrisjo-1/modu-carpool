@@ -4,7 +4,7 @@ import { SITE_URL } from "@/lib/site";
 
 const title = "모두의카풀 — 출퇴근 카풀·지하철 앉아가기";
 const description =
-  "방향이 같은 사람과 함께 타는 출퇴근 카풀, 앉을 칸을 알려 주는 지하철 앉아가기. 무료 운행을 원칙으로 하는 모두의카풀(구 워프)입니다.";
+  "방향이 같은 사람과 함께 타는 출퇴근 카풀, 앉을 칸을 알려 주는 지하철 앉아가기, 도착까지 함께 지켜보는 여성 안심동행. 무료 운행을 원칙으로 하는 모두의카풀(구 워프)입니다.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -20,8 +20,8 @@ export const metadata: Metadata = {
   keywords: ["모두의카풀", "출퇴근 카풀", "카풀", "지하철 앉아가기", "워프 카풀", "모카"],
   authors: [{ name: "모두의카풀" }],
   robots: { index: true, follow: true },
-  openGraph: { type: "website", locale: "ko_KR", url: "/", title, description, siteName: "모두의카풀", images: [{ url: "/og.png", width: 1200, height: 630, alt: "모두의카풀 — 출퇴근 카풀·지하철 앉아가기" }] },
-  twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
+  openGraph: { type: "website", locale: "ko_KR", url: "/", title, description, siteName: "모두의카풀", images: [{ url: "/og-v2.png", width: 1200, height: 630, alt: "모두의카풀 — 출퇴근 카풀·지하철 앉아가기·여성 안심동행" }] },
+  twitter: { card: "summary_large_image", title, description, images: ["/og-v2.png"] },
   formatDetection: { telephone: false },
   appleWebApp: { capable: true, title: "모두의카풀", statusBarStyle: "default" },
 };
