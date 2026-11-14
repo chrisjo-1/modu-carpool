@@ -76,14 +76,46 @@ export default function PostMap({ posts, onOpen, here, pinQuery = null }: { post
     };
   }, []);
 
-  // 핀 다시 그리기(목록·선택이 바뀔 때)
+  // 숫자 묶음(2026-11-14 사용자 지시 '1번으로 하자'): 받아 둔 글(핀)과 그 밖의 글(점)을 함께 supercluster로 묶는다.
+  // 멀리 보면 남색 동그라미에 건수, 누르면 풀리는 만큼 확대. 가까이 보면 받아 둔 글은 핀, 나머지는 캔버스 작은 점.
+  // 내 글 핀과 고른 글 핀은 묶지 않고 늘 보인다. 지도를 옮기거나 확대할 때마다 보이는 범위만 다시 그린다.
   const key = placed.map((p) => p.id).join(",");
+  const dotKey = `${dots.length}:${dots[0]?.[0] ?? ""}:${dots[dots.length - 1]?.[0] ?? ""}`;
+  type Feat = { type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: { i: number; r: number; id: string } };
+  const index = useRef<import("supercluster")<Feat["properties"]> | null>(null);
+  const [indexVer, setIndexVer] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    import("supercluster").then(({ default: Supercluster }) => {
+      if (!alive) return;
+      const feats: Feat[] = [];
+      placed.forEach((p, i) => { if (!p.mine) feats.push({ type: "Feature", geometry: { type: "Point", coordinates: [p.originLng as number, p.originLat as number] }, properties: { i, r: p.role === "rider" ? 1 : 0, id: p.id } }); });
+      for (const [id, rider, lat, lng] of dots) feats.push({ type: "Feature", geometry: { type: "Point", coordinates: [lng, lat] }, properties: { i: -1, r: rider, id } });
+      const sc = new Supercluster<Feat["properties"]>({ radius: 80, maxZoom: 13, minPoints: 3 });
+      sc.load(feats);
+      index.current = sc;
+      setIndexVer((v) => v + 1);
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, dotKey]);
+
+  const [view, setView] = useState(0);
+  useEffect(() => {
+    const m = refs.current?.map;
+    if (!ready || !m) return;
+    const on = () => setView((v) => v + 1);
+    m.on("moveend", on);
+    return () => { m.off("moveend", on); };
+  }, [ready]);
+
   useEffect(() => {
     const r = refs.current;
+    const sc = index.current;
     if (!ready || !r) return;
     r.layer.clearLayers();
-    const list = sel && !placed.some((p) => p.id === sel.id) && sel.originLat != null ? [...placed, sel] : placed;
-    for (const p of list) {
+    r.dots.clearLayers();
+    const pinOf = (p: Post) => {
       const on = sel?.id === p.id;
       const icon = p.mine
         ? r.L.divIcon({ className: "", iconSize: [80, 68], iconAnchor: [40, 66], html: minePin(on) })
@@ -91,18 +123,34 @@ export default function PostMap({ posts, onOpen, here, pinQuery = null }: { post
       r.L.marker([p.originLat as number, p.originLng as number], { icon, title: `${p.origin} → ${p.dest}`, keyboard: true, zIndexOffset: p.mine ? 2000 : on ? 1000 : 0 })
         .on("click", () => setSel(p))
         .addTo(r.layer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, key, sel?.id]);
-
-  // 받아 두지 않은 글은 작은 점으로(캔버스). 누르면 그 글을 받아 와 고른다.
-  const dotKey = `${dots.length}:${dots[0]?.[0] ?? ""}:${dots[dots.length - 1]?.[0] ?? ""}`;
-  useEffect(() => {
-    const r = refs.current;
-    if (!ready || !r) return;
-    r.dots.clearLayers();
-    for (const [id, rider, lat, lng] of dots) {
-      r.L.circleMarker([lat, lng], { renderer: r.canvas, radius: 5, weight: rider ? 2 : 1.5, color: rider ? BLUE : "#fff", fillColor: rider ? "#fff" : BLUE, fillOpacity: 0.9 })
+    };
+    // 늘 보이는 핀: 내 글, 고른 글
+    for (const p of placed) if (p.mine) pinOf(p);
+    if (sel && sel.originLat != null && !sel.mine) pinOf(sel);
+    if (!sc) return;
+    const b = r.map.getBounds();
+    const z = Math.round(r.map.getZoom());
+    for (const f of sc.getClusters([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], z)) {
+      const [lng, lat] = f.geometry.coordinates;
+      const pr = f.properties as Feat["properties"] & { cluster?: boolean; cluster_id?: number; point_count?: number };
+      if (pr.cluster) {
+        const n = pr.point_count ?? 0;
+        const d = n < 50 ? 30 : n < 300 ? 36 : 44;
+        r.L.marker([lat, lng], {
+          icon: r.L.divIcon({ className: "", iconSize: [d, d], iconAnchor: [d / 2, d / 2], html: `<div style="width:${d}px;height:${d}px;border-radius:50%;background:#101B33;color:#fff;border:3px solid rgba(255,255,255,.9);box-shadow:0 2px 6px rgba(16,27,51,.35);display:flex;align-items:center;justify-content:center;font:700 ${n < 1000 ? 13 : 12}px Pretendard,sans-serif">${n.toLocaleString("ko-KR")}</div>` }),
+          title: `${n}건`,
+        })
+          .on("click", () => r.map.setView([lat, lng], Math.min(sc.getClusterExpansionZoom(pr.cluster_id as number), 16)))
+          .addTo(r.layer);
+        continue;
+      }
+      if (pr.id === sel?.id) continue;
+      if (pr.i >= 0) {
+        pinOf(placed[pr.i]);
+        continue;
+      }
+      const id = pr.id;
+      r.L.circleMarker([lat, lng], { renderer: r.canvas, radius: 5, weight: pr.r ? 2 : 1.5, color: pr.r ? BLUE : "#fff", fillColor: pr.r ? "#fff" : BLUE, fillOpacity: 0.9 })
         .on("click", async () => {
           const g = await api<{ posts: Post[] }>(`/api/posts?id=${id}`);
           if (g.ok && g.data.posts[0]) setSel(g.data.posts[0]);
@@ -110,7 +158,7 @@ export default function PostMap({ posts, onOpen, here, pinQuery = null }: { post
         .addTo(r.dots);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, dotKey]);
+  }, [ready, indexVer, view, sel?.id]);
 
   // 처음 한 번: 모든 핀(또는 내 위치)이 보이게 맞춘다.
   const fitted = useRef(false);
