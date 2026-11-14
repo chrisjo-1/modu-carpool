@@ -19,9 +19,11 @@ export async function runWarpSync(budgetMs = 25_000) {
   const out = { posted: 0, queued: 0, mailed: 0, skipped: 0 };
   await sql`delete from warp_sync_items where stage = 'queued' and queued_at < now() - interval '30 days'`;
 
-  // 대기(계정 없음) 글은 6시간에 한 번만 다시 확인한다
-  const items = await sql`select * from warp_sync_items where status = 'go' and post_id is null
-      and (stage = '' or (stage = 'queued' and updated_at < now() - interval '6 hours'))
+  // 대기(계정 없음) 글은 6시간에 한 번만 다시 확인한다.
+  // 단 그 사이 명단에 고유번호·이메일이 올라왔으면 바로 다시 처리한다(2026-11-14: 글을 먼저 붙여넣고 9분 뒤 명단을 올려 6시간 기다리던 문제).
+  const items = await sql`select * from warp_sync_items w where status = 'go' and post_id is null
+      and (stage = '' or (stage = 'queued' and (updated_at < now() - interval '6 hours'
+        or exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id) and coalesce(l.email_norm, '') <> ''))))
     order by (stage = 'queued'), updated_at limit 4`;
   for (const it of items) {
     if (Date.now() - t0 > budgetMs * 0.6) break;
