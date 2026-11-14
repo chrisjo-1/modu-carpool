@@ -10,7 +10,9 @@ type Insights = { km: number; drivers: number; riders: number; hours: Record<str
 type Lines = { lines: Line[]; total: number; warp: number; fit: number; insights?: Insights | null };
 const BLUE = "#2F6BFF", GREEN = "#00754A"; // 토큰 accent·mint와 같은 값(leaflet 선 색은 글자로 넘겨야 함)
 
-type Refs = { map: import("leaflet").Map; layer: import("leaflet").LayerGroup; line: import("leaflet").LayerGroup; L: typeof import("leaflet") };
+type Refs = { map: import("leaflet").Map; layer: import("leaflet").LayerGroup; line: import("leaflet").LayerGroup; dots: import("leaflet").LayerGroup; canvas: import("leaflet").Renderer; L: typeof import("leaflet") };
+/** 지도용 가벼운 핀 [글ID, 탑승자면 1, 위도, 경도] */
+type Pin = [string, number, number, number];
 const SEOUL: [number, number] = [37.5665, 126.978];
 
 const CORAL = "#FF5A3C"; // 토큰 coral과 같은 값
@@ -21,7 +23,11 @@ const pin = (rider: boolean, on: boolean) =>
   `<svg width="${on ? 34 : 28}" height="${on ? 42 : 35}" viewBox="0 0 32 40"><path d="M16 38s12-11.5 12-21A12 12 0 0 0 4 17c0 9.5 12 21 12 21z" fill="${rider ? "#fff" : "#2F6BFF"}" stroke="${rider ? "#2F6BFF" : "#fff"}" stroke-width="${rider ? 3 : 2}"/><circle cx="16" cy="17" r="4.5" fill="${rider ? "#2F6BFF" : "#fff"}"/></svg>`;
 
 /** 찾기 > 지도: 글의 출발지를 핀으로 보여 주고, 누르면 아래에 요약과 경로선을 보여 준다. */
-export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen: (p: Post) => void; here: { lat: number; lng: number } | null }) {
+/**
+ * pinQuery: 받아 둔 글(300건 남짓) 밖의 공개 글까지 지도에 점으로 보이게 서버에서 가벼운 핀을 받는 조건(2026-11-14 사용자 지시).
+ * null이면 받지 않는다(내 글만 보기·지역 필터일 때). 점은 캔버스에 그려 수천 개도 가볍고, 누르면 그 글을 받아 와 고른다.
+ */
+export default function PostMap({ posts, onOpen, here, pinQuery = null }: { posts: Post[]; onOpen: (p: Post) => void; here: { lat: number; lng: number } | null; pinQuery?: string | null }) {
   const t = useT();
   const lang = useLang();
   const box = useRef<HTMLDivElement>(null);
@@ -38,6 +44,16 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
     if (move) m.dragging.enable(); else m.dragging.disable();
   }, [move, touch, ready]);
   const placed = posts.filter((p) => p.originLat != null && p.originLng != null && !p.ended);
+  const [pins, setPins] = useState<Pin[]>([]);
+  useEffect(() => {
+    if (pinQuery == null) return setPins([]);
+    let alive = true;
+    api<{ pins: Pin[] }>(`/api/posts?pins=1${pinQuery ? `&${pinQuery}` : ""}`).then((r) => alive && r.ok && setPins(r.data.pins));
+    return () => { alive = false; };
+  }, [pinQuery]);
+  const placedIds = new Set(placed.map((p) => p.id));
+  const dots = pins.filter((d) => !placedIds.has(d[0]));
+  const shown = placed.length + dots.length;
   const missing = posts.filter((p) => !p.ended).length - placed.length;
 
   useEffect(() => {
@@ -49,7 +65,8 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
       const map = L.map(box.current, { zoomControl: true, dragging: !touch }).setView(SEOUL, 11);
       setTouch(touch);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
-      refs.current = { map, layer: L.layerGroup().addTo(map), line: L.layerGroup().addTo(map), L };
+      // 점(받아 두지 않은 글)은 맨 아래, 그 위에 받아 둔 글 핀, 맨 위에 경로선
+      refs.current = { map, dots: L.layerGroup().addTo(map), layer: L.layerGroup().addTo(map), line: L.layerGroup().addTo(map), canvas: L.canvas({ padding: 0.5 }), L };
       setReady(true);
     });
     return () => {
@@ -65,7 +82,8 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
     const r = refs.current;
     if (!ready || !r) return;
     r.layer.clearLayers();
-    for (const p of placed) {
+    const list = sel && !placed.some((p) => p.id === sel.id) && sel.originLat != null ? [...placed, sel] : placed;
+    for (const p of list) {
       const on = sel?.id === p.id;
       const icon = p.mine
         ? r.L.divIcon({ className: "", iconSize: [80, 68], iconAnchor: [40, 66], html: minePin(on) })
@@ -76,6 +94,23 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, key, sel?.id]);
+
+  // 받아 두지 않은 글은 작은 점으로(캔버스). 누르면 그 글을 받아 와 고른다.
+  const dotKey = `${dots.length}:${dots[0]?.[0] ?? ""}:${dots[dots.length - 1]?.[0] ?? ""}`;
+  useEffect(() => {
+    const r = refs.current;
+    if (!ready || !r) return;
+    r.dots.clearLayers();
+    for (const [id, rider, lat, lng] of dots) {
+      r.L.circleMarker([lat, lng], { renderer: r.canvas, radius: 5, weight: rider ? 2 : 1.5, color: rider ? BLUE : "#fff", fillColor: rider ? "#fff" : BLUE, fillOpacity: 0.9 })
+        .on("click", async () => {
+          const g = await api<{ posts: Post[] }>(`/api/posts?id=${id}`);
+          if (g.ok && g.data.posts[0]) setSel(g.data.posts[0]);
+        })
+        .addTo(r.dots);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, dotKey]);
 
   // 처음 한 번: 모든 핀(또는 내 위치)이 보이게 맞춘다.
   const fitted = useRef(false);
@@ -136,7 +171,7 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
   }, [ready, sel, match]);
 
   useEffect(() => {
-    if (sel && !placed.some((p) => p.id === sel.id)) setSel(null);
+    if (sel && !placed.some((p) => p.id === sel.id) && !pins.some((d) => d[0] === sel.id)) setSel(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
@@ -162,6 +197,7 @@ export default function PostMap({ posts, onOpen, here }: { posts: Post[]; onOpen
         <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full border-2 border-accent bg-white" />{t("탑승자입니다")}</span>
         <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-full bg-coral" />{t("내 출발지")}</span>
         <span>{t("핀은 출발지예요.")}</span>
+        {shown > 0 && <span className="num">{t("지도에")} {shown.toLocaleString("ko-KR")}{t("건")}{dots.length > 0 ? ` · ${t("작은 점도 누르면 볼 수 있어요")}` : ""}</span>}
         {touch && <span>{t("두 손가락으로 확대·축소, [지도 움직이기]를 누르면 끌어서 옮길 수 있어요.")}</span>}
         {missing > 0 && <span>{t("위치 정보가 없는 글")} {missing}{t("개는 목록에서 볼 수 있어요.")}</span>}
       </p>

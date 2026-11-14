@@ -61,6 +61,24 @@ export async function GET(req: Request) {
     const qw = words.length ? words : null;
     const offset = Math.max(0, Math.min(20000, Math.floor(Number(sp.get("offset")) || 0)));
     const sql = db();
+    // 지도용 가벼운 핀(2026-11-14 사용자 지시 "지도 위에 5000건 이상이 안 보임"): 위치 있는 공개 글 전체를 [id, 탑승자면 1, 위도, 경도]로만.
+    // 지도를 열 때만 받는다. 검색어(q)·역할(role)·정기(regular=1) 조건은 목록과 같게.
+    if (!mine && sp.get("pins") === "1") {
+      const role = sp.get("role") === "driver" || sp.get("role") === "rider" ? sp.get("role") : null;
+      const regularOnly = sp.get("regular") === "1";
+      const rows = await sql`select p.id, p.role, p.origin_lat, p.origin_lng from posts p join users u on u.id = p.user_id
+        where p.origin_lat is not null and p.origin_lng is not null
+          and (p.status in ('open', 'progress') or (p.status = 'closed' and not u.test and not p.demo))
+          and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown)
+          and (p.regular or p.depart_at > now())
+          and (${role}::text is null or p.role = ${role}) and (not ${regularOnly} or p.regular)
+          and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
+          and (${qw}::text[] is null or (select bool_and(case when w in ('정기', '정기카풀') then p.regular
+                else lower(concat_ws(' ', p.origin, p.dest, p.origin_area, p.dest_area, u.name, u.member_code, p.note)) like '%' || w || '%' end) from unnest(${qw}::text[]) w))
+        limit 20000`;
+      const r5 = (n: unknown) => Math.round(Number(n) * 1e5) / 1e5;
+      return json({ pins: rows.map((r) => [r.id, r.role === "rider" ? 1 : 0, r5(r.origin_lat), r5(r.origin_lng)]) });
+    }
     if (!mine && sp.get("count") === "1") {
       const c = await sql`select count(*)::int as n from posts p join users u on u.id = p.user_id
         where (p.status in ('open', 'progress') or (p.status = 'closed' and not u.test and not p.demo))
