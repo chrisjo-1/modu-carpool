@@ -54,7 +54,23 @@ export async function GET(req: Request) {
     // ?id=글ID: 그 글 하나만(목록 300개 밖의 글도 매칭·알림에서 바로 열 수 있게, 2026-11-06). 공개 조건은 목록과 같다.
     const oneRaw = new URL(req.url).searchParams.get("id");
     const one = isUuid(oneRaw) ? oneRaw : null;
+    // 검색·더 보기(2026-11-14 사용자 지시 "건수는 총 등록 건수, 검색은 전체 대상"): q = 띄어쓰기로 나눈 낱말이 모두 들어간 글(장소·지역·글쓴이·고유코드·메모, '정기'/'정기카풀'은 정기카풀 글),
+    // offset = 다음 300건, count=1 = 공개 글 전체 수만.
+    const sp = new URL(req.url).searchParams;
+    const words = (sp.get("q") ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 5).map((w) => w.slice(0, 30));
+    const qw = words.length ? words : null;
+    const offset = Math.max(0, Math.min(20000, Math.floor(Number(sp.get("offset")) || 0)));
     const sql = db();
+    if (!mine && sp.get("count") === "1") {
+      const c = await sql`select count(*)::int as n from posts p join users u on u.id = p.user_id
+        where (p.status in ('open', 'progress') or (p.status = 'closed' and not u.test and not p.demo))
+          and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown)
+          and (p.regular or p.depart_at > now() - interval '7 days' or not u.test)
+          and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
+          and (${qw}::text[] is null or (select bool_and(case when w in ('정기', '정기카풀') then p.regular
+                else lower(concat_ws(' ', p.origin, p.dest, p.origin_area, p.dest_area, u.name, u.member_code, p.note)) like '%' || w || '%' end) from unnest(${qw}::text[]) w))`;
+      return json({ total: Number(c[0]?.n ?? 0) });
+    }
     const rows = mine
       ? await sql`select p.*, u.name as owner, u.member_code as owner_code, u.bio as owner_bio, u.photo_v, u.car_v, u.car_no as owner_car_no, u.tier_set as owner_tier_set, u.test as owner_test, u.blocked as owner_blocked,
                          (not p.regular and p.depart_at <= now() - interval '7 days') as expired,
@@ -77,9 +93,11 @@ export async function GET(req: Request) {
                     and (p.regular or p.depart_at > now() - interval '7 days' or not u.test)
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                     and (${one}::uuid is null or p.id = ${one}::uuid)
+                    and (${qw}::text[] is null or (select bool_and(case when w in ('정기', '정기카풀') then p.regular
+                          else lower(concat_ws(' ', p.origin, p.dest, p.origin_area, p.dest_area, u.name, u.member_code, p.note)) like '%' || w || '%' end) from unnest(${qw}::text[]) w))
                   -- 정기 매칭(워프 명단)에서 한꺼번에 올린 글(warp_code가 영문 코드)은 뒤로(2026-11-05 사용자 요청, 약 6천 건 예정):
                   -- 최근 300건을 고를 때 실제 회원 글이 밀려나지 않게 서버에서도 먼저 실제 글을 고른다.
-                  order by (p.source = 'warp' and coalesce(p.warp_code, '') ~ '^[A-Z]{6,12}$'), p.created_at desc limit 300`;
+                  order by (p.source = 'warp' and coalesce(p.warp_code, '') ~ '^[A-Z]{6,12}$'), p.created_at desc, p.id limit 300 offset ${offset}`;
     const now = Date.now();
     const kw = await getKeywords();
     const posts = rows.map((r) => ({

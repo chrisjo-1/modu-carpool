@@ -270,16 +270,49 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   /** 내 위치에서 글의 출발지까지 거리(km). 위치가 없는 글은 null. */
   const far = (p: Post) => (here && p.originLat != null && p.originLng != null ? distanceKm(here.lat, here.lng, p.originLat, p.originLng) : null);
 
+  // 전체 글 수·검색·더 보기(2026-11-14 사용자 지시 "건수는 총 등록 건수, 검색은 전체 대상"):
+  // 앱이 처음 받는 글은 최근 300건이라, 공개 글 전체 수는 따로 받고(첫 화면 뒤 1.5초), 검색어가 있으면 서버에서 전체 글을 찾고,
+  // [더 보기]가 받아 둔 글 끝에 닿으면 다음 300건을 더 받는다.
+  const qKey = q.trim();
+  const [total, setTotal] = useState<number | null>(null);
+  const [more, setMore] = useState<Post[]>([]);
+  const [hits, setHits] = useState<{ q: string; posts: Post[]; total: number } | null>(null);
+  const loadingMore = useRef(false);
+  useEffect(() => {
+    setMore([]);
+    if (sample) return;
+    const id = setTimeout(() => {
+      void api<{ total: number }>("/api/posts?count=1").then((r) => r.ok && setTotal(r.data.total));
+    }, 1500);
+    return () => clearTimeout(id);
+  }, [posts, sample]);
+  useEffect(() => {
+    if (sample || !qKey) return setHits(null);
+    const id = setTimeout(async () => {
+      const enc = encodeURIComponent(qKey);
+      const [a, c] = await Promise.all([api<{ posts: Post[] }>(`/api/posts?q=${enc}`), api<{ total: number }>(`/api/posts?count=1&q=${enc}`)]);
+      if (a.ok) setHits({ q: qKey, posts: a.data.posts, total: c.ok ? c.data.total : a.data.posts.length });
+    }, 350);
+    return () => clearTimeout(id);
+  }, [qKey, sample]);
+  const pool = useMemo(() => {
+    const extra = qKey ? (hits?.q === qKey ? hits.posts : []) : more;
+    if (!extra.length) return posts;
+    const seen = new Set(posts.map((p) => p.id));
+    return [...posts, ...extra.filter((p) => !seen.has(p.id) && seen.add(p.id))];
+  }, [posts, more, hits, qKey]);
+
   const list = useMemo(() => {
-    const k = q.trim().toLowerCase();
-    const hit = posts.filter(
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const hit = pool.filter(
       (p) =>
         (role === "all" || p.role === role) &&
         (!regularOnly || !!p.regular) &&
         (!mineOnly || p.mine) &&
         (regions.size === 0 || postRegions(p).some((r) => regions.has(r))) &&
         // "정기카풀"이라고 검색해도 정기카풀 글이 나오게 한다.
-        (!k || `${p.owner} ${p.ownerCode ?? ""} ${p.origin} ${p.dest} ${p.note} ${(p.tags ?? []).map((x) => x.label).join(" ")} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase().includes(k)),
+        // 서버 검색과 같게: 띄어쓰기로 나눈 낱말이 모두 들어 있으면(지역 글씨 포함)
+        (!words.length || ((hay) => words.every((w) => hay.includes(w)))(`${p.owner} ${p.ownerCode ?? ""} ${p.origin} ${p.dest} ${p.originArea ?? ""} ${p.destArea ?? ""} ${p.note} ${(p.tags ?? []).map((x) => x.label).join(" ")} ${p.regular ? `정기카풀 ${t("정기카풀")}` : ""}`.toLowerCase())),
     );
     // 최신순: 마감·종료된 글도 등록 순서대로 섞어 보여 준다(회원이 적은 동안 실사용자 글이 위에 보이도록).
     // 실사용자 글을 임시글·테스트 계정 글보다 먼저, 그 안에서는 최근 등록 순.
@@ -299,7 +332,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, role, q, regularOnly, mineOnly, lang, here, sort, regions]);
+  }, [pool, role, q, regularOnly, mineOnly, lang, here, sort, regions]);
   useEffect(() => {
     if (!regularTapped.current) return;
     regularTapped.current = false;
@@ -318,6 +351,27 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   useEffect(() => {
     setShown(PAGE);
   }, [q, role, regularOnly, mineOnly, sort, here, regions]);
+  // 필터 없이 보거나 검색만 할 때는 서버 기준 전체 건수, 그 밖의 필터는 받아 둔 글 기준
+  const plain = role === "all" && !regularOnly && !mineOnly && regions.size === 0;
+  const fullCount = !plain ? list.length : qKey ? (hits?.q === qKey ? Math.max(hits.total, list.length) : list.length) : Math.max(total ?? 0, list.length);
+  const showMore = async () => {
+    const next = shown + PAGE;
+    setShown(next);
+    // 받아 둔 글이 곧 끝나면 다음 300건을 미리 받는다
+    if (!plain || next + PAGE <= list.length || list.length >= fullCount || loadingMore.current) return;
+    loadingMore.current = true;
+    try {
+      if (qKey && hits?.q === qKey) {
+        const r = await api<{ posts: Post[] }>(`/api/posts?q=${encodeURIComponent(qKey)}&offset=${hits.posts.length}`);
+        if (r.ok) setHits((h) => (h && h.q === qKey ? { ...h, posts: [...h.posts, ...r.data.posts] } : h));
+      } else if (!qKey) {
+        const r = await api<{ posts: Post[] }>(`/api/posts?offset=${posts.length + more.length}`);
+        if (r.ok) setMore((m) => [...m, ...r.data.posts]);
+      }
+    } finally {
+      loadingMore.current = false;
+    }
+  };
 
   return (
     <section data-block-id="S001" data-block-name="카풀 찾기" className="space-y-3">
@@ -447,9 +501,10 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
             </li>
           ))}
         </ul>
-        {list.length > shown && (
-          <button type="button" data-block-id="B005" data-block-name="목록 더 보기" onClick={() => setShown((n) => n + PAGE)} className={`${btnGhost} py-3 text-[15px]`}>
-            {t("더 보기")} <span className="num text-sub">({list.length - shown})</span>
+        {fullCount > shown && (
+          <button type="button" data-block-id="B005" data-block-name="목록 더 보기" onClick={() => void showMore()} className={`${btnGhost} py-3 text-[15px]`}>
+            {t("더 보기")} <span className="num text-sub">({(fullCount - Math.min(shown, list.length)).toLocaleString("ko-KR")})</span>
+            <span className="mt-0.5 block text-[12px] font-normal text-sub">{t("전체")} {fullCount.toLocaleString("ko-KR")}{t("건")}</span>
           </button>
         )}
         </>
