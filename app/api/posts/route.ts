@@ -62,6 +62,14 @@ export async function GET(req: Request) {
     const role = sp.get("role") === "driver" || sp.get("role") === "rider" ? sp.get("role") : null;
     const regularOnly = sp.get("regular") === "1";
     const offset = Math.max(0, Math.min(20000, Math.floor(Number(sp.get("offset")) || 0)));
+    // 거리순(2026-11-15 사용자 지시 "출발지·도착지·둘 다 선택"): near=위도,경도 & by=o(출발지)·d(도착지)·b(둘 중 가까운 쪽).
+    // 받아 둔 300건이 아니라 전체 글을 서버에서 거리순으로(끝난 글은 아래).
+    const nearRaw = (sp.get("near") ?? "").split(",").map(Number);
+    const near = nearRaw.length === 2 && nearRaw.every((n) => Number.isFinite(n)) && Math.abs(nearRaw[0]) <= 90 && Math.abs(nearRaw[1]) <= 180 ? nearRaw : null;
+    const nearLat = near ? near[0] : null;
+    const nearLng = near ? near[1] : null;
+    const nearCos = near ? Math.cos((near[0] * Math.PI) / 180) : 1;
+    const by = sp.get("by") === "d" ? "d" : sp.get("by") === "b" ? "b" : "o";
     const sql = db();
     // 지도용 가벼운 핀(2026-11-14 사용자 지시 "지도 위에 5000건 이상이 안 보임"): 위치 있는 공개 글 전체를 [id, 탑승자면 1, 위도, 경도]로만.
     // 지도를 열 때만 받는다. 검색어(q)·역할(role)·정기(regular=1) 조건은 목록과 같게.
@@ -117,7 +125,14 @@ export async function GET(req: Request) {
                           else lower(concat_ws(' ', p.origin, p.dest, p.origin_area, p.dest_area, u.name, u.member_code, p.note)) like '%' || w || '%' end) from unnest(${qw}::text[]) w))
                   -- 정기 매칭(워프 명단)에서 한꺼번에 올린 글(warp_code가 영문 코드)은 뒤로(2026-11-05 사용자 요청, 약 6천 건 예정):
                   -- 최근 300건을 고를 때 실제 회원 글이 밀려나지 않게 서버에서도 먼저 실제 글을 고른다.
-                  order by (p.source = 'warp' and coalesce(p.warp_code, '') ~ '^[A-Z]{6,12}$'), p.created_at desc, p.id limit 300 offset ${offset}`;
+                  order by
+                    case when ${nearLat}::float8 is null then 0 else ((p.status = 'closed' or (not p.regular and p.depart_at <= now()))::int) end,
+                    case when ${nearLat}::float8 is null then null else (
+                      with g as (select
+                        case when p.origin_lat is null then null else power(p.origin_lat - ${nearLat}::float8, 2) + power((p.origin_lng - ${nearLng}::float8) * ${nearCos}::float8, 2) end as o,
+                        case when p.dest_lat is null then null else power(p.dest_lat - ${nearLat}::float8, 2) + power((p.dest_lng - ${nearLng}::float8) * ${nearCos}::float8, 2) end as d)
+                      select case ${by}::text when 'o' then o when 'd' then d else least(o, d) end from g) end nulls last,
+                    (p.source = 'warp' and coalesce(p.warp_code, '') ~ '^[A-Z]{6,12}$'), p.created_at desc, p.id limit 300 offset ${offset}`;
     const now = Date.now();
     const kw = await getKeywords();
     const posts = rows.map((r) => ({

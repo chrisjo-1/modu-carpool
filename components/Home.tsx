@@ -212,6 +212,10 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   // 정렬: 최신순(기본) · 가까운 순(내 위치 필요) · 출발 임박순
   const [sort, setSort] = useState<"soon" | "new" | "near">("new");
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
+  // 거리순 기준(2026-11-15 사용자 지시): 출발지 · 도착지 · 둘 다(출발지·도착지 중 가까운 쪽)
+  const [nearBy, setNearBy] = useState<"o" | "d" | "b">("o");
+  // 검색창 안내: 누르거나 글자를 넣으면 "바로 찾아요" 안내(검색 버튼을 안 눌러도 됨)
+  const [qFocus, setQFocus] = useState(false);
   const [locating, setLocating] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
   // [경로 분석] 버튼의 깜빡이는 점: 한 번 열어 보면 끈다(localStorage modu.mapSeen)
@@ -268,8 +272,15 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     setSort("new");
     saveRegions(new Set());
   };
-  /** 내 위치에서 글의 출발지까지 거리(km). 위치가 없는 글은 null. */
-  const far = (p: Post) => (here && p.originLat != null && p.originLng != null ? distanceKm(here.lat, here.lng, p.originLat, p.originLng) : null);
+  /** 내 위치에서 글의 출발지·도착지(기준에 따라)까지 거리(km). 위치가 없는 글은 null. */
+  const far = (p: Post) => {
+    if (!here) return null;
+    const o = p.originLat != null && p.originLng != null ? distanceKm(here.lat, here.lng, p.originLat, p.originLng) : null;
+    const d = p.destLat != null && p.destLng != null ? distanceKm(here.lat, here.lng, p.destLat, p.destLng) : null;
+    if (nearBy === "o") return o;
+    if (nearBy === "d") return d;
+    return o == null ? d : d == null ? o : Math.min(o, d);
+  };
 
   // 전체 글 수·검색·더 보기(2026-11-14 사용자 지시 "건수는 총 등록 건수, 검색은 전체 대상"):
   // 앱이 처음 받는 글은 최근 300건이라, 공개 글 전체 수는 따로 받고(첫 화면 뒤 1.5초), 검색어가 있으면 서버에서 전체 글을 찾고,
@@ -278,7 +289,9 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   const [total, setTotal] = useState<number | null>(null);
   const [more, setMore] = useState<Post[]>([]);
   // 서버에서 전체 대상으로 거를 조건(2026-11-15 사용자 지시 "정기카풀만 보기가 200건대": 워프 정기카풀 5천여 건이 받아 둔 300건 밖에 있음)
-  const sk = [qKey ? `q=${encodeURIComponent(qKey)}` : "", role !== "all" ? `role=${role}` : "", regularOnly ? "regular=1" : ""].filter(Boolean).join("&");
+  // 거리순이면 서버도 전체 글을 그 기준으로 정렬(위치는 약 100m 단위로 반올림)
+  const nearKey = sort === "near" && here ? `near=${here.lat.toFixed(3)},${here.lng.toFixed(3)}&by=${nearBy}` : "";
+  const sk = [qKey ? `q=${encodeURIComponent(qKey)}` : "", role !== "all" ? `role=${role}` : "", regularOnly ? "regular=1" : "", nearKey].filter(Boolean).join("&");
   const [hits, setHits] = useState<{ q: string; posts: Post[]; total: number } | null>(null);
   const loadingMore = useRef(false);
   useEffect(() => {
@@ -334,7 +347,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     return [...live, ...done];
     // 검색어·필터가 바뀔 때만 다시 계산한다(t는 언어가 바뀌면 달라진다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pool, role, q, regularOnly, mineOnly, lang, here, sort, regions]);
+  }, [pool, role, q, regularOnly, mineOnly, lang, here, sort, regions, nearBy]);
   useEffect(() => {
     if (!regularTapped.current) return;
     if (sk && hits?.q !== sk) return; // 서버 건수가 올 때까지 기다린다
@@ -354,7 +367,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
 
   useEffect(() => {
     setShown(PAGE);
-  }, [q, role, regularOnly, mineOnly, sort, here, regions]);
+  }, [q, role, regularOnly, mineOnly, sort, here, regions, nearBy]);
   // 필터 없이 보거나 검색만 할 때는 서버 기준 전체 건수, 그 밖의 필터는 받아 둔 글 기준
   // 내 글만·지역 필터는 받아 둔 글 기준, 그 밖(검색어·역할·정기)은 서버 기준 전체 건수
   const plain = !mineOnly && regions.size === 0;
@@ -385,13 +398,23 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
         {/* 검색창과 목록·지도 전환을 한 줄에 둔다(지도 전환은 작은 버튼). 키워드 필터는 검색창 박스 안에 둔다 */}
         <div data-block-id="C070" data-block-name="검색 박스" className="space-y-2 rounded-2xl border border-line bg-white p-2.5">
           <div className="flex items-center gap-2">
-            <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("장소, 고유코드, 키워드 등 검색")} aria-label={t("장소, 고유코드, 키워드 등 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
+            <input data-block-id="F001" className={`${field} min-w-0 flex-1 py-2.5`} type="search" placeholder={t("장소, 고유코드, 키워드 등 검색")} aria-label={t("장소, 고유코드, 키워드 등 검색")} value={q} onChange={(e) => setQ(e.target.value)}
+              onFocus={() => setQFocus(true)} onBlur={() => setQFocus(false)}
+              // 키보드의 [검색]을 눌러도 이미 찾은 상태라 키보드만 닫는다
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
+              enterKeyHint="done" />
             <button type="button" data-block-id="B004" data-block-name="목록 지도 전환" aria-pressed={view === "map"} onClick={() => { if (view === "list" && hintTap("C931")) return; markMapSeen(); setView((v) => (v === "map" ? "list" : "map")); }}
               className={`relative min-h-0 shrink-0 rounded-xl border px-3 py-2.5 text-[14px] ${view === "map" ? "border-accent bg-accentSoft font-semibold text-accent" : "border-brand bg-brand font-semibold text-white"}`}>
               {view === "map" ? t("목록") : <span className="flex items-center gap-1"><Sparkle className="h-4 w-4" />{t("경로 분석")}</span>}
               {view === "list" && !mapSeen && <span className="absolute -right-1 -top-1 h-3 w-3 animate-ping rounded-full bg-coral" aria-hidden />}
             </button>
           </div>
+          {(qFocus || qKey) && (
+            <p data-block-id="C447" data-block-name="검색 안내" aria-live="polite" className="px-1 text-[13px] text-sub">
+              {t("입력하는 대로 바로 찾아요 · 검색 버튼은 안 눌러도 돼요")}
+              {qKey && (sk && hits?.q !== sk ? <span className="ml-1">· {t("찾는 중…")}</span> : <span className="num ml-1 font-semibold text-ink">· {fullCount.toLocaleString("ko-KR")}{t("건")}</span>)}
+            </p>
+          )}
           {view === "list" && <div className="flex justify-end"><Bubble blockId="C931" align="right">{t("지도에서 같은 길 회원 수, 모이는 곳, 카풀로 줄이는 월 납입금까지 분석해 드려요.")}</Bubble></div>}
         </div>
         {/* [지역] + [운전자만]·[탑승자만](켜고 끄기, 둘 다 꺼짐 = 전체). 2026-11-05 사용자 요청으로 [전체] 버튼을 지역 필터로 바꿈 */}
@@ -466,8 +489,24 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
             </button>
           </div>
         </div>
-        {view === "list" && <Bubble blockId="C932" align="left">{t("거리순은 내 위치를 허용하면 쓸 수 있어요. 출발지가 가까운 글부터 보여요.")}</Bubble>}
-        {sort === "near" && here && <p className="text-[13px] text-sub">{t("내 위치에서 출발지가 가까운 글부터 보여 줍니다. 출발 위치가 없는 글은 아래에 나옵니다.")}</p>}
+        {view === "list" && <Bubble blockId="C932" align="left">{t("거리순은 내 위치를 허용하면 쓸 수 있어요. 출발지·도착지·둘 다 중 기준을 고를 수 있어요.")}</Bubble>}
+        {sort === "near" && here && view === "list" && (
+          <div data-block-id="C448" data-block-name="거리순 기준" className="space-y-1.5">
+            <div role="radiogroup" aria-label={t("거리 기준")} className="flex items-center gap-1.5">
+              <span className="shrink-0 text-[13px] text-sub">{t("기준")}</span>
+              {([["o", t("출발지")], ["d", t("도착지")], ["b", t("둘 다")]] as const).map(([k, label]) => (
+                <button key={k} type="button" role="radio" aria-checked={nearBy === k} data-block-id={k === "o" ? "B501" : k === "d" ? "B502" : "B503"} onClick={() => setNearBy(k)}
+                  className={`min-h-[40px] flex-1 whitespace-nowrap rounded-lg border px-2 py-1.5 text-[14px] ${nearBy === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-sub"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[13px] text-sub">
+              {t(nearBy === "o" ? "내 위치에서 출발지가 가까운 글부터 보여 드려요." : nearBy === "d" ? "내 위치에서 도착지가 가까운 글부터 보여 드려요." : "출발지와 도착지 중 내 위치에 더 가까운 쪽 기준으로 보여 드려요.")}
+              {" "}{t("위치가 없는 글은 아래에 나와요.")}
+            </p>
+          </div>
+        )}
       </div>
 
       {sample && <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] text-ink">{t("지금 보이는 글은 화면 확인용 예시입니다.")}</p>}
