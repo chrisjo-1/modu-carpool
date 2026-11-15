@@ -277,6 +277,8 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   const qKey = q.trim();
   const [total, setTotal] = useState<number | null>(null);
   const [more, setMore] = useState<Post[]>([]);
+  // 서버에서 전체 대상으로 거를 조건(2026-11-15 사용자 지시 "정기카풀만 보기가 200건대": 워프 정기카풀 5천여 건이 받아 둔 300건 밖에 있음)
+  const sk = [qKey ? `q=${encodeURIComponent(qKey)}` : "", role !== "all" ? `role=${role}` : "", regularOnly ? "regular=1" : ""].filter(Boolean).join("&");
   const [hits, setHits] = useState<{ q: string; posts: Post[]; total: number } | null>(null);
   const loadingMore = useRef(false);
   useEffect(() => {
@@ -288,20 +290,19 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     return () => clearTimeout(id);
   }, [posts, sample]);
   useEffect(() => {
-    if (sample || !qKey) return setHits(null);
+    if (sample || !sk) return setHits(null);
     const id = setTimeout(async () => {
-      const enc = encodeURIComponent(qKey);
-      const [a, c] = await Promise.all([api<{ posts: Post[] }>(`/api/posts?q=${enc}`), api<{ total: number }>(`/api/posts?count=1&q=${enc}`)]);
-      if (a.ok) setHits({ q: qKey, posts: a.data.posts, total: c.ok ? c.data.total : a.data.posts.length });
-    }, 350);
+      const [a, c] = await Promise.all([api<{ posts: Post[] }>(`/api/posts?${sk}`), api<{ total: number }>(`/api/posts?count=1&${sk}`)]);
+      if (a.ok) setHits({ q: sk, posts: a.data.posts, total: c.ok ? c.data.total : a.data.posts.length });
+    }, qKey ? 350 : 0);
     return () => clearTimeout(id);
-  }, [qKey, sample]);
+  }, [sk, sample]);
   const pool = useMemo(() => {
-    const extra = qKey ? (hits?.q === qKey ? hits.posts : []) : more;
+    const extra = sk ? (hits?.q === sk ? hits.posts : []) : more;
     if (!extra.length) return posts;
     const seen = new Set(posts.map((p) => p.id));
     return [...posts, ...extra.filter((p) => !seen.has(p.id) && seen.add(p.id))];
-  }, [posts, more, hits, qKey]);
+  }, [posts, more, hits, sk]);
 
   const list = useMemo(() => {
     const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -336,10 +337,12 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
   }, [pool, role, q, regularOnly, mineOnly, lang, here, sort, regions]);
   useEffect(() => {
     if (!regularTapped.current) return;
+    if (sk && hits?.q !== sk) return; // 서버 건수가 올 때까지 기다린다
     regularTapped.current = false;
-    toast(regularOnly ? t(`정기카풀 ${list.length}건을 보여 드려요`) : t(`정기카풀 필터를 껐어요 · 전체 ${list.length}건`));
+    const n = sk ? Math.max(hits?.total ?? 0, list.length) : Math.max(total ?? 0, list.length);
+    toast(regularOnly ? t(`정기카풀 ${n.toLocaleString("ko-KR")}건을 보여 드려요`) : t(`정기카풀 필터를 껐어요 · 전체 ${n.toLocaleString("ko-KR")}건`));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list]);
+  }, [list, hits]);
 
   // 내 글마다 매칭률 높은 상대 글 3개(내 글 모아 보기일 때만 계산). 상대는 전체 글에서 찾는다.
   const matchMap = useMemo(() => {
@@ -353,8 +356,9 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     setShown(PAGE);
   }, [q, role, regularOnly, mineOnly, sort, here, regions]);
   // 필터 없이 보거나 검색만 할 때는 서버 기준 전체 건수, 그 밖의 필터는 받아 둔 글 기준
-  const plain = role === "all" && !regularOnly && !mineOnly && regions.size === 0;
-  const fullCount = !plain ? list.length : qKey ? (hits?.q === qKey ? Math.max(hits.total, list.length) : list.length) : Math.max(total ?? 0, list.length);
+  // 내 글만·지역 필터는 받아 둔 글 기준, 그 밖(검색어·역할·정기)은 서버 기준 전체 건수
+  const plain = !mineOnly && regions.size === 0;
+  const fullCount = !plain ? list.length : sk ? (hits?.q === sk ? Math.max(hits.total, list.length) : list.length) : Math.max(total ?? 0, list.length);
   const showMore = async () => {
     const next = shown + PAGE;
     setShown(next);
@@ -362,10 +366,10 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
     if (!plain || next + PAGE <= list.length || list.length >= fullCount || loadingMore.current) return;
     loadingMore.current = true;
     try {
-      if (qKey && hits?.q === qKey) {
-        const r = await api<{ posts: Post[] }>(`/api/posts?q=${encodeURIComponent(qKey)}&offset=${hits.posts.length}`);
-        if (r.ok) setHits((h) => (h && h.q === qKey ? { ...h, posts: [...h.posts, ...r.data.posts] } : h));
-      } else if (!qKey) {
+      if (sk && hits?.q === sk) {
+        const r = await api<{ posts: Post[] }>(`/api/posts?${sk}&offset=${hits.posts.length}`);
+        if (r.ok) setHits((h) => (h && h.q === sk ? { ...h, posts: [...h.posts, ...r.data.posts] } : h));
+      } else if (!sk) {
         const r = await api<{ posts: Post[] }>(`/api/posts?offset=${posts.length + more.length}`);
         if (r.ok) setMore((m) => [...m, ...r.data.posts]);
       }

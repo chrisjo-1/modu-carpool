@@ -59,13 +59,13 @@ export async function GET(req: Request) {
     const sp = new URL(req.url).searchParams;
     const words = (sp.get("q") ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 5).map((w) => w.slice(0, 30));
     const qw = words.length ? words : null;
+    const role = sp.get("role") === "driver" || sp.get("role") === "rider" ? sp.get("role") : null;
+    const regularOnly = sp.get("regular") === "1";
     const offset = Math.max(0, Math.min(20000, Math.floor(Number(sp.get("offset")) || 0)));
     const sql = db();
     // 지도용 가벼운 핀(2026-11-14 사용자 지시 "지도 위에 5000건 이상이 안 보임"): 위치 있는 공개 글 전체를 [id, 탑승자면 1, 위도, 경도]로만.
     // 지도를 열 때만 받는다. 검색어(q)·역할(role)·정기(regular=1) 조건은 목록과 같게.
     if (!mine && sp.get("pins") === "1") {
-      const role = sp.get("role") === "driver" || sp.get("role") === "rider" ? sp.get("role") : null;
-      const regularOnly = sp.get("regular") === "1";
       const rows = await sql`select p.id, p.role, p.origin_lat, p.origin_lng from posts p join users u on u.id = p.user_id
         where p.origin_lat is not null and p.origin_lng is not null
           and (p.status in ('open', 'progress') or (p.status = 'closed' and not u.test and not p.demo))
@@ -85,6 +85,7 @@ export async function GET(req: Request) {
           and not u.blocked and u.withdrawn_at is null and (not p.demo or p.demo_shown)
           and (p.regular or p.depart_at > now() - interval '7 days' or not u.test)
           and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
+          and (${role}::text is null or p.role = ${role}) and (not ${regularOnly} or p.regular)
           and (${qw}::text[] is null or (select bool_and(case when w in ('정기', '정기카풀') then p.regular
                 else lower(concat_ws(' ', p.origin, p.dest, p.origin_area, p.dest_area, u.name, u.member_code, p.note)) like '%' || w || '%' end) from unnest(${qw}::text[]) w))`;
       return json({ total: Number(c[0]?.n ?? 0) });
@@ -111,7 +112,8 @@ export async function GET(req: Request) {
                     and (p.regular or p.depart_at > now() - interval '7 days' or not u.test)
                     and not exists (select 1 from blocks k where (k.blocker = ${me} and k.blocked = p.user_id) or (k.blocker = p.user_id and k.blocked = ${me}))
                     and (${one}::uuid is null or p.id = ${one}::uuid)
-                    and (${qw}::text[] is null or (select bool_and(case when w in ('정기', '정기카풀') then p.regular
+                    and (${role}::text is null or p.role = ${role}) and (not ${regularOnly} or p.regular)
+          and (${qw}::text[] is null or (select bool_and(case when w in ('정기', '정기카풀') then p.regular
                           else lower(concat_ws(' ', p.origin, p.dest, p.origin_area, p.dest_area, u.name, u.member_code, p.note)) like '%' || w || '%' end) from unnest(${qw}::text[]) w))
                   -- 정기 매칭(워프 명단)에서 한꺼번에 올린 글(warp_code가 영문 코드)은 뒤로(2026-11-05 사용자 요청, 약 6천 건 예정):
                   -- 최근 300건을 고를 때 실제 회원 글이 밀려나지 않게 서버에서도 먼저 실제 글을 고른다.
