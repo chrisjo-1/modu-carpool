@@ -512,7 +512,7 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
       {sample && <p className="rounded-2xl bg-accentSoft px-4 py-3 text-[14px] text-ink">{t("지금 보이는 글은 화면 확인용 예시입니다.")}</p>}
 
       {view === "map" ? (
-        <PostMap posts={list} onOpen={onOpen} here={here}
+        <PostMap posts={list} onOpen={onOpen} here={here} driverView={!!driverMode}
           pinQuery={sample || mineOnly || regions.size > 0 ? null : [qKey ? `q=${encodeURIComponent(qKey)}` : "", role !== "all" ? `role=${role}` : "", regularOnly ? "regular=1" : ""].filter(Boolean).join("&")} />
       ) : list.length === 0 ? (
         <Card className="space-y-3 px-6 py-10 text-center">

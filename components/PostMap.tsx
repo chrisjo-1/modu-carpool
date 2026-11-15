@@ -27,7 +27,7 @@ const pin = (rider: boolean, on: boolean) =>
  * pinQuery: 받아 둔 글(300건 남짓) 밖의 공개 글까지 지도에 점으로 보이게 서버에서 가벼운 핀을 받는 조건(2026-11-14 사용자 지시).
  * null이면 받지 않는다(내 글만 보기·지역 필터일 때). 점은 캔버스에 그려 수천 개도 가볍고, 누르면 그 글을 받아 와 고른다.
  */
-export default function PostMap({ posts, onOpen, here, pinQuery = null }: { posts: Post[]; onOpen: (p: Post) => void; here: { lat: number; lng: number } | null; pinQuery?: string | null }) {
+export default function PostMap({ posts, onOpen, here, pinQuery = null, driverView = true }: { posts: Post[]; onOpen: (p: Post) => void; here: { lat: number; lng: number } | null; pinQuery?: string | null; driverView?: boolean }) {
   const t = useT();
   const lang = useLang();
   const box = useRef<HTMLDivElement>(null);
@@ -259,7 +259,7 @@ export default function PostMap({ posts, onOpen, here, pinQuery = null }: { post
           </div>
           <p className="text-[17px] font-semibold">{sel.origin} → {sel.dest}</p>
           <p className="num text-[14px] text-sub">{scheduleText(sel, lang)} · {sel.owner}</p>
-          {sel.destLat != null && <Insight match={match} role={sel.role} />}
+          {sel.destLat != null && <Insight match={match} role={sel.role} driverView={driverView} />}
           <button data-block-id="B209" data-block-name="지도에서 글 보기" className={btnPrimary} onClick={() => onOpen(sel)}>{t("자세히 보기")}</button>
         </Card>
       ) : (
@@ -299,7 +299,7 @@ function saveNum(k: string, v: number) {
 }
 
 /** 핀을 고른 글의 같은 길 분석 카드(C439): ① 같은 길 수요·시간대 ③ 월 납입금 줄이기(C440) ④ 모이는 곳 ⑤ 같은 도착지 */
-function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider" }) {
+function Insight({ match, role, driverView }: { match: Lines | null; role: "driver" | "rider"; driverView: boolean }) {
   const t = useT();
   // 함께 탈 탑승자: 같은 길 탑승자 수에 맞춰 처음 값을 둔다(1~3명)
   const riders0 = match?.insights?.riders ?? 0;
@@ -367,7 +367,8 @@ function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider
         </div>
       )}
 
-      {ins && ins.km > 0 && (
+      {/* 내 차 납입금 이야기라 탑승자 모드에서는 숨긴다(2026-11-16 사용자 지시) */}
+      {driverView && ins && ins.km > 0 && (
         <div data-block-id="C440" data-block-name="월 납입금 줄이기" className="space-y-2.5 rounded-2xl border border-line bg-white px-4 py-3 text-[13px]">
           <p className="text-[14px] font-bold text-ink">{t("카풀로 내 차 월 납입금 줄이기")}</p>
           <div className="flex flex-wrap items-center gap-1.5">
