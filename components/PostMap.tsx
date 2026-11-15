@@ -269,9 +269,19 @@ export default function PostMap({ posts, onOpen, here, pinQuery = null }: { post
   );
 }
 
-const FUEL_KM_L = 12; // 연비(km/L)
 const WORK_DAYS = 21;
-const FUEL_PRICE = 1700; // 기준 유가(원/L) — 간략 화면이라 입력칸 없이 고정(추후 보완)
+/**
+ * 탑승 요금 기준(2026-11-16 사용자 지시 "기름값 실비 나누기는 너무 적게 나와 — 거리로, 택시비의 30% 수준, 같은 방향 탑승자가 많으면 가중"):
+ * 편도 1회 1명 = 낮 중형택시 거리 요금 × 비율. 비율은 30%에서 같은 길 탑승자 수에 따라 최대 40%.
+ */
+const TAXI_RATE = 0.3;
+function demandRate(riders: number) {
+  return riders >= 20 ? 0.4 : riders >= 10 ? 0.36 : riders >= 5 ? 0.33 : TAXI_RATE;
+}
+/** 낮 중형택시 거리 요금(기본 1.6km 4,800원, 이후 131m당 100원) — lib/fare.ts와 같은 규칙, 정체 할증은 넣지 않음 */
+function dayTaxi(km: number) {
+  return Math.round((4800 + Math.max(0, Math.ceil((km * 1000 - 1600) / 131)) * 100) / 100) * 100;
+}
 /** 차 금융 종류(2026-11-10 사용자 지시: 한 달 실비 대신 월 납입금 기준으로, 간략하게) */
 const FIN_TYPES = ["할부", "리스", "장기렌트"] as const;
 type FinType = (typeof FIN_TYPES)[number];
@@ -291,8 +301,11 @@ function saveNum(k: string, v: number) {
 /** 핀을 고른 글의 같은 길 분석 카드(C439): ① 같은 길 수요·시간대 ③ 월 납입금 줄이기(C440) ④ 모이는 곳 ⑤ 같은 도착지 */
 function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider" }) {
   const t = useT();
-  const [n, setN] = useState(2);
-  const price = FUEL_PRICE;
+  // 함께 탈 탑승자: 같은 길 탑승자 수에 맞춰 처음 값을 둔다(1~3명)
+  const riders0 = match?.insights?.riders ?? 0;
+  const [n, setN] = useState(() => Math.min(3, Math.max(1, riders0 || 2)));
+  const nTouched = useRef(false);
+  useEffect(() => { if (!nTouched.current && riders0 > 0) setN(Math.min(3, riders0)); }, [riders0]);
   const [loan, setLoan] = useState(() => readNum("modu.loan", 0));
   const [fin, setFin] = useState<FinType>(() => readFin());
   if (!match) return <p className="rounded-2xl bg-bg px-4 py-3 text-[13px] text-sub">{t("같은 길을 분석하는 중…")}</p>;
@@ -301,9 +314,11 @@ function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider
   const other = role === "driver" ? t("탑승자") : t("운전자");
   const hours = ins ? Object.entries(ins.hours).map(([h, c]) => [Number(h), c] as const).sort((a, b) => a[0] - b[0]) : [];
   const maxH = Math.max(1, ...hours.map(([, c]) => c));
-  const month = ins ? Math.round((ins.km * 2 * WORK_DAYS / FUEL_KM_L) * price / 1000) * 1000 : 0;
-  const each = Math.round(month / (n + 1) / 1000) * 1000;
-  const save = each * n;
+  const taxi = ins ? dayTaxi(ins.km) : 0;
+  const rate = demandRate(ins?.riders ?? 0);
+  const bonus = Math.round((rate - TAXI_RATE) * 100);
+  const perRide = Math.round((taxi * rate) / 100) * 100;
+  const save = Math.round((perRide * 2 * WORK_DAYS * n) / 1000) * 1000;
   const won = (v: number) => `${v.toLocaleString("ko-KR")}${t("원")}`;
   const pct = loan > 0 ? Math.min(100, Math.round((save / loan) * 100)) : 0;
   return (
@@ -367,7 +382,7 @@ function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider
           <div className="flex items-center gap-2">
             <span className="text-sub">{t("함께 탈 탑승자")}</span>
             {[1, 2, 3].map((k) => (
-              <button key={k} type="button" onClick={() => setN(k)} aria-pressed={n === k}
+              <button key={k} type="button" onClick={() => { nTouched.current = true; setN(k); }} aria-pressed={n === k}
                 className={`min-h-0 rounded-full border px-3 py-1 text-[13px] ${n === k ? "border-brand bg-brand font-semibold text-white" : "border-line bg-white text-sub"}`}>{k}{t("명")}</button>
             ))}
           </div>
@@ -377,9 +392,17 @@ function Insight({ match, role }: { match: Lines | null; role: "driver" | "rider
               <div className="h-2.5 overflow-hidden rounded-full bg-bg" aria-hidden><div className="h-full rounded-full bg-mint" style={{ width: `${pct}%` }} /></div>
             </div>
           ) : (
-            <p className="text-ink">{t("카풀로 한 달 약")} <b className="text-mint">{won(save)}</b>{t("을 덜 수 있어요. 월 납입금을 넣으면 몇 %인지 보여 드려요.")}</p>
+            <p className="text-[15px] text-ink">{t("카풀로 한 달 약")} <b className="text-mint">{won(save)}</b>{t("을 덜 수 있어요.")} <span className="block text-[13px] text-sub">{t("월 납입금을 넣으면 몇 %인지 보여 드려요.")}</span></p>
           )}
-          <p className="text-[12px] text-sub">{t("기름값을 나눈 실비 기준 예상치예요(영업 아님).")}</p>
+          <div data-block-id="C449" data-block-name="계산 근거" className="space-y-1 rounded-xl bg-bg px-3 py-2 text-[12px] text-sub">
+            <p>
+              {t("편도 택시비 약")} <b className="text-ink">{won(taxi)}</b>({ins.km.toFixed(1)}km) → {t("1명 1회")} <b className="text-ink">{won(perRide)}</b>
+              <span> ({t("택시비의")} {Math.round(rate * 100)}%)</span>
+              {bonus > 0 && <span className="ml-1 rounded-full bg-mintSoft px-1.5 py-0.5 font-semibold text-mint">{t("수요 많은 길")} +{bonus}%p</span>}
+            </p>
+            <p>× {t("왕복")} 2{t("회")} × {WORK_DAYS}{t("일")} × {n}{t("명")} = <b className="text-ink">{won(save)}</b></p>
+          </div>
+          <p className="text-[12px] text-sub">{t("평일 출퇴근 시간 카풀 기준이에요. 택시보다 훨씬 싸게 타고, 할부·유지비 같은 차량 실비를 함께 나눠 내는 예상치예요(같은 길 탑승자가 많을수록 조금 더 받아요).")}</p>
         </div>
       )}
     </div>
