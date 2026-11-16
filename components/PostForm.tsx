@@ -146,20 +146,14 @@ export default function PostForm({
             <p className="text-sm text-sub">{t("나는")}</p>
             <Segment label={t("역할")} value={roleEdit} onChange={setRoleEdit} options={[["driver", t("운전자")], ["rider", t("탑승자")]]} accents={{ driver: "accent", rider: "mint" }} />
           </div>
-        ) : copy ? null : (
-          <p data-block-id="C023" data-block-name="등록 역할 안내" className="text-[13px] leading-relaxed text-sub">
-            <b className={role === "driver" ? "text-accent" : "text-mint"}>{role === "driver" ? t("운전자 모드") : t("탑승자 모드")}</b>
-            {role === "driver" ? t("로 올려요 · 태워 주는 글") : t("로 올려요 · 같이 탈 차를 찾는 글")}
-            <span className="block">{t("역할은 오른쪽 위 모드 버튼에서 바꿔요.")}</span>
-          </p>
-        )}
+        ) : null}
         <div className="space-y-1.5">
           <p className="text-sm text-sub">{t("종류")}</p>
           {initial ? (
             <Segment label={t("종류")} value={kind} onChange={setKind} options={[["commute", t("1회 출퇴근")], ["trip", t("나들이·관광")]]} />
           ) : (
             // 정기카풀(출퇴근)을 고르면 출퇴근 정보 창이 바로 열리고, 거기서 저장하면 곧바로 게시된다.
-            <Segment<"regular" | "commute" | "trip"> label={t("종류")} value={kind} onChange={(v) => (v === "regular" ? onRegular() : setKind(v))} options={[["regular", t("정기카풀(출퇴근)")], ["commute", t("1회 출퇴근")], ["trip", t("나들이·관광")]]} />
+            <Segment<"regular" | "commute" | "trip"> label={t("종류")} value={kind} onChange={(v) => (v === "regular" ? onRegular() : setKind(v))} options={[["regular", t("정기카풀")], ["commute", t("1회 출퇴근")], ["trip", t("나들이·관광")]]} />
           )}
         </div>
         <PlaceField blockId={initial ? "F070" : "F020"} label={t("출발지")} placeholder={t("예: 수원 영통역")} value={origin} onChange={setOrigin} locate toast={toast} />
@@ -201,7 +195,6 @@ export default function PostForm({
     <section data-block-id="S002" data-block-name="카풀 등록" className="space-y-4">
       <header>
         <h1 className="text-[28px] font-bold">{t("카풀 등록")}</h1>
-        <p className="mt-1 text-sub">{t("태워 줄 수도, 태워 달라고 할 수도 있어요.")}</p>
       </header>
 
       {!user ? (
