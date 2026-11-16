@@ -299,6 +299,13 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
               </li>
             ))}
           </ul>
+          {/* 목록에 원하는 경로가 없으면 직접 입력해서 호출(2026-11-16 사용자 지시) */}
+          {mine !== null && mine.length > 0 && (
+            <button type="button" data-block-id="B504" data-block-name="목록에 없는 경로로 호출" className="w-full rounded-2xl border border-dashed border-mint bg-mintSoft px-4 py-3 text-left text-[15px] font-semibold text-mint" onClick={() => setStep("quick")}>
+              + {t("목록에 없는 경로로 호출하기")}
+              <span className="mt-0.5 block text-[13px] font-normal text-sub">{t("출발지·도착지·출발 시각을 직접 넣어 바로 불러요")}</span>
+            </button>
+          )}
           <button type="button" className={btnGhost} onClick={() => setStep("choose")}>{t("뒤로")}</button>
         </div>
       )}
@@ -307,8 +314,9 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
           cost={cost}
           radius={radius}
           callsLeft={callsLeft}
-          onBack={() => setStep("choose")}
+          onBack={() => setStep(mine && mine.length > 0 ? "pick" : "choose")}
           onDone={onClose}
+          fromPick={!!mine && mine.length > 0}
           toast={toast}
         />
       )}
@@ -364,7 +372,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
 }
 
 /** 빠른 호출: 내 글 없이 출발지(기본 현재 위치)·도착지를 고르고, 감사 표시를 정해 바로 호출한다. */
-function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: number; radius: number | null; callsLeft: number | null; onBack: () => void; onDone: () => void; toast: (m: string) => void }) {
+function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast, fromPick = false }: { cost: number; radius: number | null; callsLeft: number | null; onBack: () => void; onDone: () => void; toast: (m: string) => void; fromPick?: boolean }) {
   const t = useT();
   const [origin, setOrigin] = useState<Place>({ name: "", lat: null, lng: null });
   const [dest, setDest] = useState<Place>({ name: "", lat: null, lng: null });
@@ -411,7 +419,7 @@ function QuickCall({ cost, radius, callsLeft, onBack, onDone, toast }: { cost: n
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-sub">{t("등록된 카풀이 없어도 부를 수 있어요. 출발지는 현재 위치가 기본이고, 도착지와 출발 시각만 고르면 돼요.")}</p>
+      <p className="text-sm text-sub">{fromPick ? t("목록에 없는 경로도 바로 부를 수 있어요. 출발지는 현재 위치가 기본이고, 도착지와 출발 시각만 고르면 돼요.") : t("등록된 카풀이 없어도 부를 수 있어요. 출발지는 현재 위치가 기본이고, 도착지와 출발 시각만 고르면 돼요.")}</p>
       <PlaceField blockId="F105" label={t("출발지")} placeholder={t("현재 위치 (직접 입력도 가능)")} value={origin} onChange={setOrigin} locate toast={toast} />
       <PlaceField blockId="F106" label={t("도착지")} placeholder={t("예: 여의도역 2번 출구")} value={dest} onChange={setDest} toast={toast} />
       <div className="space-y-2">
