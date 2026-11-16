@@ -1,3 +1,4 @@
+import { sameSchool } from "./schools";
 import { sendPush } from "./push";
 import { db } from "./server";
 import { detourOf, km, routeMatch } from "./match";
@@ -21,6 +22,8 @@ type P = {
   origin: string; dest: string; oArea: string; dArea: string; code: string; photoV: number;
   homeLat: number; homeLng: number; workLat: number | null; workLng: number | null;
   warp?: boolean;
+  /** 대학(원)생의 학교 열쇠·캠퍼스(lib/schools.ts). 화면에 보내지 않고 같은 학교인지만 본다 */
+  schoolKey?: string; campus?: string;
 };
 export type Match = {
   postId: string; userId: string; code: string; photoV: number; role: "driver" | "rider"; regular: boolean;
@@ -29,6 +32,7 @@ export type Match = {
   /** 워프 정기카풀(앱 가입 전, 글 없음) */ warp: boolean;
   /** 요일이 겹치는지(알 수 없으면 null) */ dayOk: boolean | null;
   /** 요일이 맞고 시각 차 30분 이내 */ timeFit: boolean;
+  /** 둘 다 대학(원)생이고 같은 학교(학교 이름은 보내지 않음) */ sameSchool: boolean;
   /** 지도에 경로를 그리기 위한 출발·도착 좌표 */ oLat: number; oLng: number; dLat: number | null; dLng: number | null;
 };
 const TIME_FIT_MIN = 30;
@@ -43,6 +47,7 @@ function toP(r: Record<string, unknown>): P | null {
     origin: String(r.origin), dest: String(r.dest), oArea: String(r.origin_area ?? ""), dArea: String(r.dest_area ?? ""),
     code: String(r.member_code ?? ""), photoV: Number(r.photo_v) || 0,
     homeLat: oLat, homeLng: oLng, workLat: n(r.dest_lat), workLng: n(r.dest_lng),
+    schoolKey: r.occupation === "student" ? String(r.school_key ?? "") : "", campus: String(r.school_campus ?? ""),
   };
 }
 
@@ -122,7 +127,7 @@ function score(d: P, r: P, radiusKm: number) {
 /** 진행 중인 공개 글(정기 글, 또는 아직 출발 전인 1회 글). 임시글·테스트·탈퇴·차단 회원 제외 */
 async function openPosts(exceptUser: string) {
   const rows = await db()`select p.id, p.user_id, p.role, p.regular, p.days, p.time_go, p.depart_at, p.origin, p.dest, p.origin_area, p.dest_area,
-      p.origin_lat, p.origin_lng, p.dest_lat, p.dest_lng, u.member_code, u.photo_v
+      p.origin_lat, p.origin_lng, p.dest_lat, p.dest_lng, u.member_code, u.photo_v, u.occupation, u.school_key, u.school_campus
     from posts p join users u on u.id = p.user_id
     where p.status = 'open' and not coalesce(p.demo, false) and not u.test and not u.blocked and u.withdrawn_at is null
       and p.user_id <> ${exceptUser} and (p.regular or p.depart_at > now())
@@ -134,7 +139,7 @@ async function openPosts(exceptUser: string) {
 
 async function loadPost(postId: string) {
   const r = await db()`select p.id, p.user_id, p.role, p.regular, p.days, p.time_go, p.depart_at, p.origin, p.dest, p.origin_area, p.dest_area,
-      p.origin_lat, p.origin_lng, p.dest_lat, p.dest_lng, u.member_code, u.photo_v
+      p.origin_lat, p.origin_lng, p.dest_lat, p.dest_lng, u.member_code, u.photo_v, u.occupation, u.school_key, u.school_campus
     from posts p join users u on u.id = p.user_id where p.id = ${postId}`;
   return r.length ? toP(r[0]) : null;
 }
@@ -155,6 +160,7 @@ export async function matchesFor(postId: string): Promise<{ mine: P | null; item
       postId: o.warp ? "" : o.id, userId: o.userId, code: o.code, photoV: o.photoV, role: o.role, regular: o.regular,
       origin: o.origin, dest: o.dest, oArea: o.oArea, dArea: o.dArea, departAt: o.departAt, days: o.days, timeGo: o.timeGo,
       ...s, timeDiff: td, warp: !!o.warp, dayOk: dk, timeFit: td != null && td <= TIME_FIT_MIN && dk !== false,
+      sameSchool: !o.warp && sameSchool({ key: mine.schoolKey ?? "", campus: mine.campus ?? "" }, { key: o.schoolKey ?? "", campus: o.campus ?? "" }),
       oLat: o.homeLat, oLng: o.homeLng, dLat: o.workLat, dLng: o.workLng,
     };
     // 같은 회원(워프는 같은 코드)의 여러 글·방향 중 가장 맞는 것 하나
@@ -165,8 +171,8 @@ export async function matchesFor(postId: string): Promise<{ mine: P | null; item
   const items = [...best.values()].sort((a, b) => rank(b) - rank(a) || (a.timeDiff ?? 999) - (b.timeDiff ?? 999)).slice(0, MAX_ITEMS);
   return { mine, items };
 }
-/** 정렬: 시간·요일 맞는 것 먼저, 앱 회원(바로 연락 가능)을 워프 회원보다 조금 위, 그다음 점수 */
-const rank = (m: Match) => (m.timeFit ? 1000 : 0) + (m.dayOk === false ? -500 : 0) + (m.warp ? 0 : 5) + m.chance;
+/** 정렬: 시간·요일 맞는 것 먼저, 같은 학교(2026-11-16), 앱 회원(바로 연락 가능)을 워프 회원보다 조금 위, 그다음 점수 */
+const rank = (m: Match) => (m.timeFit ? 1000 : 0) + (m.dayOk === false ? -500 : 0) + (m.sameSchool ? 300 : 0) + (m.warp ? 0 : 5) + m.chance;
 
 /** 열람 비용(크레딧). 0이면 무료. 관리자가 settings `match_view_cost`로 바꾼다. */
 export async function matchViewCost() {

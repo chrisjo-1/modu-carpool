@@ -172,6 +172,11 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`alter table feedback add column if not exists warp_credits integer not null default 0`;
   await sql`create unique index if not exists feedback_warp_paid_uniq on feedback (upper(warp_code)) where category = 'credit' and rewarded_at is not null and warp_code <> ''`;
   await sql`alter table users add column if not exists role_pref text not null default ''`;
+  // 하는 일·소속 학교(2026-11-16): 매칭에만 쓰고 다른 회원에게 보이지 않음(관리자만 확인). school_key = 비교용 열쇠
+  await sql`alter table users add column if not exists occupation text not null default ''`;
+  await sql`alter table users add column if not exists school text not null default ''`;
+  await sql`alter table users add column if not exists school_campus text not null default ''`;
+  await sql`alter table users add column if not exists school_key text not null default ''`;
   // 역할은 운전자·탑승자 둘 중 하나만 쓴다(운전자는 탑승도 하므로 "둘 다"는 운전자로 옮긴다).
   await sql`update users set role_pref = 'driver' where role_pref = 'both'`;
   // 가입 뒤 희망 선택(복수): carpool · taxi · other. null이면 아직 고르지 않음.

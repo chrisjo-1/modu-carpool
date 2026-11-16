@@ -1,4 +1,5 @@
 "use client";
+import { OCCUPATION_LABEL } from "@/lib/schools";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReportChat from "@/components/admin/ReportChat";
@@ -52,7 +53,7 @@ const AdminCounsel = dynamic(() => import("@/components/admin/Counsel"), { ssr: 
 type PostRow = { id: string; origin: string; dest: string; depart_at: number; role: string; kind: string; cost: string; price: number; regular: boolean; days: string; time_go: string; status: string; note: string; email: string; name: string; blocked: boolean; test: boolean };
 type UserRow = {
   id: string; email: string; name: string; member_code: string; blocked: boolean; test: boolean; credits: number; created_at: number; lastSeen: number | null; lastPost: number | null; posts: number; tier: string; tier_set: string; legacy_stars: number; legacy_reviews: number; legacy_rides: number; is_warp: boolean; is_new_warp: boolean;
-  bio: string; contact: string; contact_type: string; gender: string; role_pref: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
+  bio: string; contact: string; contact_type: string; gender: string; role_pref: string; occupation?: string; school?: string; school_campus?: string; join_source: string; car_no: string; car_v: number; photo: string; carPhoto: string;
   interests: string[] | null; driver_posts: number; rider_posts: number;
   withdrawn: boolean; pw_reset_required: boolean;
   commute_kind: string; commute_origin: string; commute_dest: string; commute_time: string; commute_price: number;
@@ -422,6 +423,7 @@ export default function Admin() {
                   <dt className="text-sub">출퇴근 정보</dt><dd className="break-words">{member.commute_kind === "commute" ? `${member.commute_origin} → ${member.commute_dest} · ${member.commute_time} · ${member.commute_price.toLocaleString("ko-KR")}원` : member.commute_kind === "other" ? `기타 · ${member.commute_origin} → ${member.commute_dest}` : "미입력"}</dd>
                   <dt className="text-sub">글 기준</dt><dd>운전자 글 {member.driver_posts} · 탑승자 글 {member.rider_posts}</dd>
                   <dt className="text-sub">성별</dt><dd>{GENDER_LABEL[member.gender] ?? "미입력"}</dd>
+                  <dt className="text-sub">하는 일</dt><dd>{OCCUPATION_LABEL[member.occupation ?? ""] ?? "미입력"}{member.school ? ` · ${member.school}${member.school_campus ? ` ${member.school_campus}` : ""}` : ""}</dd>
                   <dt className="text-sub">차량번호</dt><dd>{member.car_no || "미등록"}</dd>
                   <dt className="text-sub">연락처</dt><dd>{member.contact ? `${member.contact_type || ""} ${member.contact}`.trim() : "없음"}</dd>
                   <dt className="text-sub">소개</dt><dd className="break-words">{member.bio || "없음"}</dd>
@@ -476,7 +478,7 @@ export default function Admin() {
                       <span className="block">희망 {ROLE_LABEL[u.role_pref] ?? "미입력"}</span>
                       <span className="block text-xs text-sub">운전자 {u.driver_posts} · 탑승자 {u.rider_posts}</span>
                     </td>
-                    <td className="px-2 py-2">{GENDER_LABEL[u.gender] ?? "미입력"}</td>
+                    <td className="px-2 py-2">{GENDER_LABEL[u.gender] ?? "미입력"}{u.occupation && <span className="block text-xs text-sub">{OCCUPATION_LABEL[u.occupation] ?? ""}{u.school ? ` · ${u.school}` : ""}</span>}</td>
                     <td className="whitespace-nowrap px-2 py-2">
                       <span className="block">{u.tier ? <span className="font-semibold text-accent">{TIER_NAME[u.tier] ?? u.tier}</span> : <span className="text-sub">미부여</span>}</span>
                       <select

@@ -10,6 +10,7 @@ import { sendResetMail, siteUrl } from "@/lib/mail";
 import { findLegacyByKey, maskEmail, normEmail } from "@/lib/legacy";
 import { logConsent, suppressedNow } from "@/lib/unsub";
 import { CONTACT_TYPES, JOIN_SOURCES, driverTier } from "@/lib/types";
+import { OCCUPATION_LABEL, SCHOOL_CAMPUSES, schoolKey } from "@/lib/schools";
 import { authEnabled, body, clearCookie, clientIp, overLimit, recordAttempt, currentUserId, db, ensureSchema, fail, json, needLogin, carPhotoUrl, photoUrl, setUserSession, text } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +22,8 @@ function isAdminEmail(email: unknown) {
 }
 
 async function profile(id: string) {
-  const rows = await db()`select email, member_code, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, tier_set, gender, role_pref, email_verified, terms_at, marketing, interests from users where id = ${id}`;
-  return rows.length ? { id, email: rows[0].email, memberCode: rows[0].member_code ?? "", name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), tier: driverTier({ carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), photo: photoUrl(id, rows[0].photo_v), tierSet: rows[0].tier_set }), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true, interests: rows[0].interests ?? null, photoZoom: isAdminEmail(rows[0].email) } : null;
+  const rows = await db()`select email, member_code, name, bio, contact, contact_type, photo_v, test, notify, car_no, car_v, tier_set, gender, role_pref, email_verified, terms_at, marketing, interests, occupation, school, school_campus from users where id = ${id}`;
+  return rows.length ? { id, email: rows[0].email, memberCode: rows[0].member_code ?? "", name: rows[0].name, bio: rows[0].bio, contact: rows[0].contact, contactType: rows[0].contact_type, photo: photoUrl(id, rows[0].photo_v), test: rows[0].test === true, notify: rows[0].notify !== false, carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), tier: driverTier({ carNo: rows[0].car_no ?? "", carPhoto: carPhotoUrl(id, rows[0].car_v), photo: photoUrl(id, rows[0].photo_v), tierSet: rows[0].tier_set }), gender: rows[0].gender ?? "", rolePref: rows[0].role_pref ?? "", verified: rows[0].email_verified !== false, consented: !!rows[0].terms_at, marketing: rows[0].marketing === true, interests: rows[0].interests ?? null, photoZoom: isAdminEmail(rows[0].email), occupation: rows[0].occupation ?? "", school: rows[0].school ?? "", schoolCampus: rows[0].school_campus ?? "" } : null;
 }
 
 export async function GET() {
@@ -455,7 +456,14 @@ export async function PATCH(req: Request) {
     if (!rolePref) return json({ error: "역할(운전자 또는 탑승자)을 선택해 주세요." }, 400);
     // 연락 방법과 아이디는 필수다(신청이 수락된 상대에게만 보인다).
     if (!contactType || !text(b.contact, 60)) return json({ error: "연락 방법과 아이디를 입력해 주세요." }, 400);
-    await db()`update users set bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType}, gender = ${gender}, role_pref = ${rolePref} where id = ${id}`;
+    // 하는 일·소속 학교(선택): 매칭에만 쓴다. 학교는 대학(원)생일 때만 저장, 캠퍼스는 목록에 있는 학교면 그 목록 안에서만.
+    const occupation = OCCUPATION_LABEL[String(b.occupation ?? "")] ? String(b.occupation) : "";
+    const school = occupation === "student" ? text(b.school, 40) : "";
+    const campuses = SCHOOL_CAMPUSES[school];
+    const campusIn = text(b.schoolCampus, 30);
+    const schoolCampus = !school ? "" : campuses ? (campuses.includes(campusIn) ? campusIn : "") : "";
+    await db()`update users set bio = ${text(b.bio, 200)}, contact = ${text(b.contact, 60)}, contact_type = ${contactType}, gender = ${gender}, role_pref = ${rolePref},
+      occupation = ${occupation}, school = ${school}, school_campus = ${schoolCampus}, school_key = ${schoolKey(school)} where id = ${id}`;
     return json({ user: await profile(id) });
   } catch (e) {
     return fail(e);

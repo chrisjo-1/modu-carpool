@@ -31,7 +31,8 @@ async function clearPersonal(email: string) {
   const sql = db();
   await sql`update users set old_name = null, bio = '', contact = '', contact_type = '', photo = '', photo_v = 0,
     car_no = '', car_photo = '', car_v = 0, gender = '', loc_lat = null, loc_lng = null, loc_at = null,
-    commute_origin = '', commute_dest = '', commute_olat = null, commute_olng = null, commute_dlat = null, commute_dlng = null, commute_time = ''
+    commute_origin = '', commute_dest = '', commute_olat = null, commute_olng = null, commute_dlat = null, commute_dlng = null, commute_time = '',
+    occupation = '', school = '', school_campus = '', school_key = ''
     where email = ${email}`;
   await sql`update legacy_members set name = null, nickname = null, gender = null, phone = null, phone_norm = null, phone_h = null,
     naver_id = null, kakao_id = null, memo = ''

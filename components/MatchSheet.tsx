@@ -7,7 +7,7 @@ type Item = {
   postId: string; code: string; photo: string; role: "driver" | "rider"; regular: boolean;
   origin: string; dest: string; oArea: string; dArea: string; departAt: number; days: string; timeGo: string;
   chance: number; homeKm: number; workKm: number; onRoute: boolean; timeDiff: number | null;
-  warp: boolean; dayOk: boolean | null; timeFit: boolean;
+  warp: boolean; dayOk: boolean | null; timeFit: boolean; sameSchool?: boolean;
 };
 type Data = { locked: boolean; cost: number; count: number; needDest: boolean; items?: Item[] };
 
@@ -65,6 +65,7 @@ function MatchSheet({ items, onClose }: { items: Item[]; onClose: () => void }) 
                     <span className="font-semibold">{m.warp ? t("워프 회원") : m.code}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[12px] font-semibold ${m.role === "driver" ? "bg-accentSoft text-accent" : "bg-mintSoft text-mint"}`}>{t(m.role === "driver" ? "운전자" : "탑승자")}</span>
                     {m.timeFit && <span className="rounded-full bg-mintSoft px-2 py-0.5 text-[12px] font-semibold text-mint">{t("요일·시간 맞음")}</span>}
+                    {m.sameSchool && <span className="rounded-full bg-accentSoft px-2 py-0.5 text-[12px] font-semibold text-accent">{t("같은 학교")}</span>}
                     {m.onRoute && <span className="rounded-full bg-bg px-2 py-0.5 text-[12px] text-sub">{t("가는 길 위")}</span>}
                   </span>
                   <span className="block truncate text-[14px] text-ink">{m.origin} → {m.dest}</span>

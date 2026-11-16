@@ -74,7 +74,7 @@ export async function GET(req: Request) {
       from posts p join users u on u.id = p.user_id order by p.created_at desc limit 200`;
     const users = await sql`
       select u.id, u.email, u.name, u.member_code, u.blocked, u.test, u.credits, u.created_at, u.last_seen, u.bio, u.contact, u.contact_type,
-             u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.tier_set, u.interests, u.legacy_stars, u.legacy_reviews, u.legacy_rides,
+             u.gender, u.role_pref, u.join_source, u.photo_v, u.car_v, u.car_no, u.tier_set, u.interests, u.legacy_stars, u.legacy_reviews, u.legacy_rides, u.occupation, u.school, u.school_campus,
              exists (select 1 from legacy_members l where l.matched_user = u.id) as is_warp,
              exists (select 1 from legacy_members l where l.matched_user = u.id and l.src_no like '신워프%') as is_new_warp,
              u.commute_kind, u.commute_origin, u.commute_dest, u.commute_time, u.commute_price,

@@ -115,6 +115,8 @@ const PRIVACY_COUNSEL = `- 마음 상담: 상담을 예약한 회원에 한해 �
 /** 관리자 채팅 열람(2026-10-29) — 처리방침 '2. 보유 기간' 끝에 붙인다 */
 const PRIVACY_SAFETY = `- 안심동행·운전자 연락처: 여성 탑승자의 카풀 안전을 위해 신청자의 휴대폰 번호와 운전자의 연락 가능한 번호를 받습니다. 번호는 안전 확인 목적으로만 쓰며 상대에게 공개하지 않고, 안심동행 종료(도착), 카풀 종료, 정기 계약 해지 시 또는 출발 2일 뒤 삭제합니다. 탑승 확인(뒷자리 여부)·예상 도착 시각·응답·위급 신호의 시각과 동의 시각은 안전 확인 목적으로만 보관하며, 운영팀은 안전 확인이 필요할 때에만 연락처를 열람하고 그 기록을 남깁니다.`;
 const PRIVACY_CHAT = `- 채팅 확인: 카풀 대화 내용은 회원의 안전과 매너 점검, 분쟁·신고 확인을 위해 운영팀이 수시로 확인할 수 있습니다. 열람할 때마다 사유와 일시를 기록으로 남기며, 그 목적 외에는 열람하거나 이용하지 않습니다.`;
+/** 하는 일·소속 학교(2026-11-16) — 처리방침 '2. 보유 기간' 끝에 붙인다 */
+const PRIVACY_SCHOOL = `- 하는 일·소속 학교: 회원이 선택해 입력한 하는 일과 소속 학교(캠퍼스)는 같은 학교·같은 길 카풀을 찾아 연결하는 데에만 쓰며, 다른 회원에게 공개하지 않고 운영팀만 확인합니다. 회원은 프로필 수정에서 언제든 지울 수 있고, 탈퇴하면 지체 없이 삭제합니다.`;
 function insertBefore3(body: string, add: string) {
   const at = body.search(/\n## 3\./);
   return at >= 0 ? `${body.slice(0, at).trimEnd()}\n${add}\n${body.slice(at)}` : `${body.trimEnd()}\n\n${add}\n`;
@@ -125,6 +127,7 @@ function withPrivacyAdditions(key: DocKey, body: string): string {
   if (!out.includes("개인정보 최소화:")) out = insertBefore3(out, PRIVACY_2026_10);
   if (!out.includes("마음 상담:")) out = insertBefore3(out, PRIVACY_COUNSEL);
   if (!out.includes("채팅 확인:")) out = insertBefore3(out, PRIVACY_CHAT);
+  if (!out.includes("하는 일·소속 학교:")) out = insertBefore3(out, PRIVACY_SCHOOL);
   if (!out.includes("안전지킴·운전자 연락처:") && !out.includes("안심동행·운전자 연락처:")) out = insertBefore3(out, PRIVACY_SAFETY);
   return out;
 }

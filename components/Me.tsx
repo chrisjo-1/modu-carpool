@@ -1,5 +1,6 @@
 "use client";
 import { SAFETY_DISCLAIMER } from "@/lib/safety";
+import { OCCUPATIONS, SCHOOLS, SCHOOL_CAMPUSES } from "@/lib/schools";
 import { PUSH_LOCK_TEXT, PUSH_PAUSE_ALLOWED } from "@/lib/pushPolicy";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -122,6 +123,10 @@ export default function Me({
   const [contactType, setContactType] = useState("");
   const [gender, setGender] = useState("");
   const [rolePref, setRolePref] = useState("");
+  // 하는 일·소속 학교(2026-11-16): 매칭에만 쓰고 다른 회원에게 보이지 않음
+  const [occupation, setOccupation] = useState("");
+  const [school, setSchool] = useState("");
+  const [schoolCampus, setSchoolCampus] = useState("");
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(feedbackFirst);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -193,6 +198,9 @@ export default function Me({
     setContactType(user?.contactType ?? "");
     setGender(user?.gender ?? "");
     setRolePref(user?.rolePref || defaultRoleFor(user));
+    setOccupation(user?.occupation ?? "");
+    setSchool(user?.school ?? "");
+    setSchoolCampus(user?.schoolCampus ?? "");
   }, [user]);
 
   useEffect(() => {
@@ -224,7 +232,7 @@ export default function Me({
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const r = await api<{ user: User }>("/api/auth", "PATCH", { bio, contact, contactType, gender, rolePref });
+    const r = await api<{ user: User }>("/api/auth", "PATCH", { bio, contact, contactType, gender, rolePref, occupation, school, schoolCampus });
     setBusy(false);
     if (!r.ok) return toast(t(r.error));
     setUser(r.data.user);
@@ -317,6 +325,38 @@ export default function Me({
                   </label>
                 </div>
                 <p className="text-[13px] leading-relaxed text-sub">{t("운전과 탑승을 모두 하신다면 운전자를 선택해 주세요.")} {t("성별과 이용 역할은 공개되지 않고, 맞춤 공지를 보낼 때만 써요.")}</p>
+                <fieldset data-block-id="F447" data-block-name="하는 일" className="space-y-2">
+                  <legend className="text-sm text-sub">{t("하는 일 (선택)")}</legend>
+                  <div className="flex flex-wrap gap-1.5">
+                    {OCCUPATIONS.map(([k, label]) => (
+                      <button key={k} type="button" aria-pressed={occupation === k} onClick={() => setOccupation(occupation === k ? "" : k)}
+                        className={`min-h-[40px] rounded-full border px-3 text-[14px] ${occupation === k ? "border-accent bg-accentSoft font-semibold text-accent" : "border-line bg-white text-ink"}`}>
+                        {t(label)}
+                      </button>
+                    ))}
+                  </div>
+                  {occupation === "student" && (
+                    <div data-block-id="F448" data-block-name="소속 학교" className="space-y-2 rounded-xl bg-bg p-3">
+                      <label className="block text-sm text-sub">
+                        {t("소속 학교")}
+                        <input className={`${field} mt-1`} list="school-list" maxLength={40} placeholder={t("학교 이름을 입력해 고르세요")} value={school}
+                          onChange={(e) => { setSchool(e.target.value); setSchoolCampus(""); }} />
+                        <datalist id="school-list">{SCHOOLS.map((n) => <option key={n} value={n} />)}</datalist>
+                      </label>
+                      {SCHOOL_CAMPUSES[school] && (
+                        <label className="block text-sm text-sub">
+                          {t("캠퍼스")}
+                          <select className={`${field} mt-1`} value={schoolCampus} onChange={(e) => setSchoolCampus(e.target.value)}>
+                            <option value="">{t("선택해 주세요")}</option>
+                            {SCHOOL_CAMPUSES[school].map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </label>
+                      )}
+                      <p className="text-[13px] font-semibold text-mint">{t("같은 학교 학생과 카풀할 수 있게 연결해요.")}</p>
+                    </div>
+                  )}
+                  <p className="text-[13px] leading-relaxed text-sub">{t("하는 일과 학교는 다른 회원에게 보이지 않고, 같은 길 카풀을 찾아 연결할 때만 써요.")}</p>
+                </fieldset>
                 {gender === "female" && (
                   <div className="rounded-xl border border-warn/30 bg-warnSoft p-3 text-[14px] leading-relaxed text-ink">
                     <p className="font-semibold text-warn">{t("🛡 안심동행 안내")}</p>
