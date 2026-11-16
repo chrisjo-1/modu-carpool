@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { CarMatch } from "@/lib/subwayPosition";
-import { needsMemoPopup, parseSeat, positionLabel, seatLabel } from "@/lib/subwayPosition";
+import { doorOfSeat, needsMemoPopup, parseSeat, positionLabel, seatLabel } from "@/lib/subwayPosition";
 import type { LineId } from "@/lib/subway";
 import SeatMap from "./SeatMap";
 import SeatSpotCard from "./SeatSpotCard";
@@ -22,14 +22,15 @@ const toMin = (hhmm: string) => {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
 
-/** 자리 위치를 한 줄로: "6번째 칸 · 2~3번 문 사이 4번째 좌석 · 힌트: 네이비 패딩" */
+/** 자리 위치를 한 줄로: "6-2 · 2~3번 문 사이 4번째 좌석 · 힌트: 네이비 패딩"(칸-가까운 문) */
 /** 같은 노선 목록 표시 여부. 목록은 추후 개발 전까지 숨긴다. */
 const SHOW_LIST = false;
 
 export function spotText(s: Spot): string {
   const p = s.seat ? parseSeat(s.seat) : null;
   const side = s.side === "left" ? " 왼쪽" : s.side === "right" ? " 오른쪽" : "";
-  const where = !s.car ? "" : p ? `${s.car}번째 칸 · ${seatLabel(p)}` : `${s.car}-${s.door}${side}`;
+  // 바닥 표시와 같은 "칸-문"(예: 5-3)을 먼저 보여 준다(2026-11-16 사용자 지시)
+  const where = !s.car ? "" : p ? `${s.car}-${doorOfSeat(p)} · ${seatLabel(p)}` : `${s.car}-${s.door}${side}`;
   return [where, s.memo ? `힌트: ${s.memo}` : ""].filter(Boolean).join(" · ");
 }
 

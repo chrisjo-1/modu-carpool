@@ -124,7 +124,7 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
     <div className="space-y-3 rounded-2xl border border-line bg-white p-4" data-block-id="S073" data-block-name="내 자리 위치">
       {!edit && spot && (
         <div className="space-y-3">
-          {spot.seat && <SeatMap value={spot.seat} car={spot.car} next={next} line={line} station={station} readOnly />}
+          {spot.seat && <SeatMap value={spot.seat} car={spot.car} next={next} readOnly />}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[13px] text-sub">{t("오늘 내 자리")}</p>
@@ -163,7 +163,7 @@ export default function SeatSpotCard({ line, next, onChat, autoEdit = false, onS
           )}
           <div className="space-y-1.5">
             <p className="text-sm text-sub">{t("그림에서 앉은 좌석 누르기 (선택)")}</p>
-            {car || !hideCar ? <SeatMap value={seat} onChange={setSeat} car={car} next={next} line={line} station={station} /> : <p className="text-[13px] text-sub">{t("위에서 앉은 칸을 고르면 좌석을 표시할 수 있어요.")}</p>}
+            {car || !hideCar ? <SeatMap value={seat} onChange={setSeat} car={car} next={next} /> : <p className="text-[13px] text-sub">{t("위에서 앉은 칸을 고르면 좌석을 표시할 수 있어요.")}</p>}
           </div>
           {onChat && <ChatInstead onChat={onChat} />}
           <div className="space-y-2">

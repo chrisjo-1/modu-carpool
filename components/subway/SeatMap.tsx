@@ -1,7 +1,7 @@
 "use client";
 import StationSign from "./StationSign";
 import { useState } from "react";
-import { SEAT_BENCHES, parseSeat, seatId, seatLabel, type SeatPos } from "@/lib/subwayPosition";
+import { SEAT_BENCHES, doorOfSeat, parseSeat, seatId, seatLabel, type SeatPos } from "@/lib/subwayPosition";
 import { useT } from "../ui";
 
 /**
@@ -124,10 +124,12 @@ export default function SeatMap({ value, onChange, readOnly = false, car, next, 
           </div>
         </div>
       )}
-      <figcaption className="text-center text-[12px] text-sub">
-        {car ? `${car}${t("번째 칸")} · ` : ""}
-        {sel ? seatLabel(sel) : readOnly ? t("좌석을 아직 고르지 않았어요") : t("앉은 자리 근처를 누르면 아래에 크게 펼쳐져요. 숫자는 문 번호, 주황색은 노약자석이에요.")}
-      </figcaption>
+      {/* 표시만 할 때는 바로 옆에 같은 자리 글(spotText)이 있어 겹치므로 숨긴다(2026-11-16 사용자 지시) */}
+      {!readOnly && (
+        <figcaption className="text-center text-[12px] text-sub">
+          {sel ? <><b className="num text-[14px] text-ink">{car ? `${car}-${doorOfSeat(sel)}` : `${doorOfSeat(sel)}${t("번 문")}`}</b> · {seatLabel(sel)}</> : t("앉은 자리 근처를 누르면 아래에 크게 펼쳐져요. 숫자는 문 번호, 주황색은 노약자석이에요.")}
+        </figcaption>
+      )}
     </figure>
   );
 }
