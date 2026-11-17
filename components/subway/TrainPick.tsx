@@ -18,7 +18,7 @@ const mins = (s: number) => `${Math.max(1, Math.round(s / 60))}분`;
  * 2분 안에 오는 열차는 흐리게(놓칠 수 있음). 누르면 그 열차를 고르고(onSelect) 오늘 탄 열차로 저장(같은 열차 매칭).
  * 실시간 정보가 없는 노선이면 아무것도 그리지 않는다.
  */
-export default function TrainPick({ line, station, next, best, onSelect }: { line: LineId; station: string; next?: string; best?: { car: string; door: string; prob: number }; onSelect?: (t: TrainChance | null) => void }) {
+export default function TrainPick({ line, station, next, best, onSelect, onLoaded }: { line: LineId; station: string; next?: string; best?: { car: string; door: string; prob: number }; onSelect?: (t: TrainChance | null) => void; onLoaded?: () => void }) {
   const t = useT();
   const [data, setData] = useState<Resp | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,6 +32,9 @@ export default function TrainPick({ line, station, next, best, onSelect }: { lin
     setBusy(false);
     if (!r.ok) return setMsg(r.error);
     setData(r.data);
+    // 실시간 정보를 받은 시각을 위(칸 안내의 'n시 n분 기준')에 알린다
+    onLoaded?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [line, station, next]);
 
   useEffect(() => {

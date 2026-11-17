@@ -29,6 +29,9 @@ const HINT: Record<CongestionLevel, string> = {
  * 방향은 위 '오늘 탑승' 카드에서 고른 값을 받는다(여기서 다시 묻지 않는다). 요일은 나누지 않는다.
  * 앉은 칸 기록은 '앉았어요' 뒤에 한 번만 묻는다.
  */
+/** 지금 한국 시각 "HH:MM" */
+const kstHM = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(11, 16);
+
 export default function SubwayCarGuide({ line, station, alight = "", timeGo, prefer = "", onSeated }: { line: LineId; station: string; alight?: string; timeGo: string; prefer?: string; onSeated?: (car: string) => Promise<string> }) {
   const t = useT();
   const headings = useMemo(() => headingsAt(line, station), [line, station]);
@@ -41,7 +44,10 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
 
   // 혼잡도 자료(평일·토·일)를 고르는 데만 오늘 요일을 쓴다. 화면에는 보이지 않는다.
   const day = String(new Date(Date.now() + 9 * 3600_000).getUTCDay());
-  const slot = slotOf(timeGo);
+  // 기준 시각 = 지금(한국 시간). 처음 열 때와 [실시간 · 새로고침] 때 다시 맞춘다(2026-11-17 사용자 지시 '새로고침 시 현재 시간 반영').
+  // 혼잡도 자료도 이 시각의 30분 칸으로 고른다. 등록한 출퇴근 시각(timeGo)은 지금 시각을 못 읽을 때만 쓴다.
+  const [nowAt, setNowAt] = useState(kstHM);
+  const slot = slotOf(nowAt) || slotOf(timeGo);
   const ready = !!station && !!slot;
 
   // 역·방향·시간대가 바뀔 때만 다시 불러온다. 이전 요청은 취소한다.
@@ -87,14 +93,14 @@ export default function SubwayCarGuide({ line, station, alight = "", timeGo, pre
   return (
     <section className="space-y-4" data-block-id="S062" data-block-name="탑승 칸 안내">
       <p className="text-[13px] text-sub">
-        {station} · {slot} {t("기준")}
+        {station} · {nowAt} {t("기준")}
       </p>
 
       {loading && !data && <p className="text-[14px] text-sub">{t("불러오는 중…")}</p>}
       {err && <p className="text-[14px] text-warn">{err}</p>}
 
       {/* ① 들어오는 열차 고르기(실시간 정보 있는 노선만 — 없으면 그리지 않고 ②부터) */}
-      {data && base && <TrainPick line={line} station={station} next={heading?.next} best={base} onSelect={setTrain} />}
+      {data && base && <TrainPick line={line} station={station} next={heading?.next} best={base} onSelect={setTrain} onLoaded={() => setNowAt(kstHM())} />}
 
       {/* ② 이 칸-문 앞에서 기다리세요: 고른 열차 + 칸 그림(추천 칸 = 노선 색) + 큰 칸-문 + 후보 목록 */}
       {data && chosen && (
