@@ -164,13 +164,12 @@ export default function PostForm({
         </label>
       </Card>
 
-      <Card className="space-y-3 p-5">
-        {kind === "commute" ? (
+      {/* 나들이·관광은 무료 운행만이라 비용 칸 자체를 두지 않는다(2026-11-17 사용자 지시로 안내 상자 삭제) */}
+      {kind === "commute" && (
+        <Card className="space-y-3 p-5">
           <CostField cost={cost} price={price} setPrice={setPrice} allowed={allowed} />
-        ) : (
-          <p className="text-[15px] leading-relaxed text-sub">{t("나들이·관광 카풀은 무료 운행만 등록할 수 있어요.")}</p>
-        )}
-      </Card>
+        </Card>
+      )}
       <Card data-block-id="C060" data-block-name="키워드" className="p-5">
         <TagPicker role={role} cost={kind === "commute" && !(cost === "fixed" && !allowed) ? cost : "free"} value={tags} onChange={setTags} />
       </Card>
