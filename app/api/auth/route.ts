@@ -6,7 +6,8 @@ import { charge, getRules, grant, grantLegacy } from "@/lib/credits";
 import { finishVerify, startVerify } from "@/lib/verify";
 import { sendLegacyConfirmMail, sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
-import { sendResetMail, siteUrl } from "@/lib/mail";
+import { sendEmailChangeMail, sendEmailChangedNotice, sendResetMail, siteUrl } from "@/lib/mail";
+import { isAppleMail } from "@/lib/appleMail";
 import { findLegacyByKey, maskEmail, normEmail } from "@/lib/legacy";
 import { logConsent, suppressedNow } from "@/lib/unsub";
 import { CONTACT_TYPES, JOIN_SOURCES, driverTier } from "@/lib/types";
@@ -44,6 +45,8 @@ export async function POST(req: Request) {
   const b = await body(req);
   if (b.action === "reset") return resetPassword(b);
   if (b.action === "changePassword") return changePassword(b);
+  if (b.action === "changeEmail") return changeEmail(b);
+  if (b.action === "confirmEmailChange") return confirmEmailChange(b);
   if (b.action === "verify") return verifyEmail(b);
   if (b.action === "legacyConfirm") return legacyConfirm(b);
   if (b.action === "legacyChange") return legacyChange(b);
@@ -511,4 +514,67 @@ export async function PUT(req: Request) {
 export async function DELETE() {
   await clearCookie("user");
   return json({ ok: true });
+}
+
+/**
+ * 로그인 메일 바꾸기(2026-11-17 사용자 지시 '이미 등록된 메일을 수정할 수 있는 시스템').
+ * 로그인한 회원이 현재 비밀번호를 확인하고 새 주소를 적으면, 새 주소로 30분짜리 확인 링크(/?emailchange=)를 보낸다.
+ * 다른 계정이 쓰는 주소는 막는다. 애플 '메일 가리기' 주소로는 메일이 닿지 않아 바꿀 수 없다고 알린다.
+ */
+async function changeEmail(b: Record<string, unknown>) {
+  const me = await currentUserId();
+  if (!me) return needLogin();
+  const current = typeof b.current === "string" ? b.current : "";
+  const next = normEmail(typeof b.email === "string" ? b.email : "");
+  if (!next || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) return json({ error: "새 메일 주소를 확인해 주세요." }, 400);
+  if (/@privaterelay\.appleid\.com$/i.test(next)) return json({ error: "애플 '메일 가리기' 주소로는 메일이 가지 않아요. 평소 쓰는 메일 주소를 적어 주세요." }, 400);
+  if (!current) return json({ error: "현재 비밀번호를 입력해 주세요." }, 400);
+  try {
+    await ensureSchema();
+    const sql = db();
+    if (await overLimit("email-change", me, 5, 60)) return json({ error: "요청이 너무 많아요. 한 시간 뒤에 다시 해 주세요." }, 429);
+    const rows = await sql`select email, pw from users where id = ${me} and not blocked and withdrawn_at is null`;
+    if (!rows.length) return needLogin();
+    if (!(await bcrypt.compare(current, String(rows[0].pw)))) {
+      await recordAttempt("email-change", me);
+      return json({ error: "현재 비밀번호가 맞지 않아요." }, 400);
+    }
+    if (String(rows[0].email).toLowerCase() === next) return json({ error: "지금 쓰는 메일과 같아요." }, 400);
+    const taken = await sql`select 1 from users where lower(email) = ${next} and id <> ${me}`;
+    if (taken.length) return json({ error: "이미 다른 계정이 쓰는 메일이에요. 그 계정으로 로그인하거나 다른 메일을 적어 주세요." }, 409);
+    await recordAttempt("email-change", me);
+    const token = randomBytes(32).toString("hex");
+    await sql`insert into email_changes (token_hash, user_id, new_email, expires_at) values (${hashToken(token)}, ${me}, ${next}, now() + interval '30 minutes')`;
+    const sent = await sendEmailChangeMail(next, `${siteUrl()}/?emailchange=${token}`);
+    if (!sent) return json({ error: "확인 메일을 보내지 못했어요. 잠시 뒤 다시 해 주세요." }, 502);
+    return json({ ok: true });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 새 주소로 간 확인 링크를 누르면 로그인 메일을 바꾸고 인증된 것으로 본다. 예전 주소에는 바뀌었다는 알림(애플 가리기 주소 제외). */
+async function confirmEmailChange(b: Record<string, unknown>) {
+  const token = typeof b.token === "string" ? b.token : "";
+  if (!/^[0-9a-f]{64}$/.test(token)) return json({ error: "링크가 올바르지 않아요." }, 400);
+  try {
+    await ensureSchema();
+    const sql = db();
+    const c = await sql`update email_changes set used = true where token_hash = ${hashToken(token)} and not used and expires_at > now() returning user_id, new_email`;
+    if (!c.length) return json({ error: "링크가 만료되었거나 이미 사용되었어요. 설정 › 로그인 메일 바꾸기에서 다시 해 주세요." }, 400);
+    const id = String(c[0].user_id);
+    const next = String(c[0].new_email);
+    const old = await sql`select email from users where id = ${id} and withdrawn_at is null and not blocked`;
+    if (!old.length) return json({ error: "계정을 찾을 수 없어요." }, 404);
+    const taken = await sql`select 1 from users where lower(email) = ${next} and id <> ${id}`;
+    if (taken.length) return json({ error: "그 사이 다른 계정이 이 메일을 쓰게 되었어요. 다른 메일로 다시 해 주세요." }, 409);
+    await sql`update users set email = ${next}, email_verified = true where id = ${id}`;
+    await sql`insert into email_change_log (user_id, old_email, new_email, by) values (${id}, ${String(old[0].email)}, ${next}, 'self')`;
+    if (!isAppleMail(String(old[0].email))) await sendEmailChangedNotice(String(old[0].email), next).catch(() => false);
+    const me = await currentUserId();
+    if (!me) await setUserSession(id);
+    return json({ ok: true, user: await profile(id) });
+  } catch (e) {
+    return fail(e);
+  }
 }

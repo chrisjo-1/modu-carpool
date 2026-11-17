@@ -473,7 +473,24 @@ export default function Admin() {
                     <td className="px-2 py-2 font-medium">{u.name || "—"}{u.test && <span className="ml-2 rounded-full bg-accentSoft px-2 py-0.5 text-xs font-semibold text-accent">테스트</span>}</td>
                     <td className="px-2 py-2">{u.car_no ? <span className="text-accent">{u.car_no}</span> : <span className="text-sub">미등록</span>}</td>
                     <td className="px-2 py-2">{u.carPhoto ? <img src={u.carPhoto} alt="" loading="lazy" onClick={() => setZoom({ src: u.carPhoto, alt: `${u.name} 차량` })} className="h-9 w-12 cursor-zoom-in rounded-lg border border-line object-cover" /> : <span className="grid h-9 w-12 place-items-center rounded-lg bg-bg text-xs text-sub">없음</span>}</td>
-                    <td className="px-2 py-2">{u.email}</td>
+                    <td className="px-2 py-2">
+                      <span className="break-all">{u.email}</span>
+                      <button
+                        type="button"
+                        data-block-id="B509"
+                        data-block-name="회원 로그인 메일 수정"
+                        className="mt-1 block text-xs font-semibold text-accent"
+                        onClick={() => {
+                          const next = window.prompt(`${u.name || u.email} 회원의 새 로그인 메일 (본인 확인을 마친 경우만)`, "");
+                          if (!next) return;
+                          const memo = window.prompt("확인 근거 메모 (예: 문자로 고유코드·전화 확인)", "");
+                          if (!memo) return;
+                          act(call("PATCH", "/api/admin", { userId: u.id, newEmail: next.trim(), memo }), "로그인 메일을 바꿨습니다.");
+                        }}
+                      >
+                        메일 수정
+                      </button>
+                    </td>
                     <td className="px-2 py-2">
                       <span className="block">희망 {ROLE_LABEL[u.role_pref] ?? "미입력"}</span>
                       <span className="block text-xs text-sub">운전자 {u.driver_posts} · 탑승자 {u.rider_posts}</span>

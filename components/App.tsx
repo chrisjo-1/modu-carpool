@@ -360,6 +360,18 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
           setTab("me");
         });
       }
+      // 로그인 메일 바꾸기 확인 링크(2026-11-17)
+      const emailChange = q.get("emailchange");
+      if (emailChange) {
+        history.replaceState(null, "", location.pathname);
+        api<{ user: User }>("/api/auth", "POST", { action: "confirmEmailChange", token: emailChange }).then((r) => {
+          if (!r.ok) return setToastMsg(translate(langNow(), r.error));
+          setUser(r.data.user);
+          setPreview(false);
+          setTab("me");
+          setToastMsg(`${translate(langNow(), "로그인 메일을 바꿨어요.")} ${r.data.user.email}`);
+        });
+      }
       const verify = q.get("verify");
       if (verify) {
         history.replaceState(null, "", location.pathname);
@@ -417,7 +429,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       /* 무시 */
     }
     setSharedPost(new URLSearchParams(location.search).get("p") ?? "");
-    if (/[?&](reset|verify|withdraw|leave|legacy|counsel|unsub)=/.test(location.search)) setLinkVisit(true);
+    if (/[?&](reset|verify|withdraw|leave|legacy|counsel|unsub|emailchange)=/.test(location.search)) setLinkVisit(true);
     api<{ enabled: boolean; user: User | null; repostOn?: boolean; installGate?: "off" | "nudge" | "require" }>("/api/auth").then((r) => {
       setEnabled(!!r.data.enabled);
       setRepostOn(r.data.repostOn === true);

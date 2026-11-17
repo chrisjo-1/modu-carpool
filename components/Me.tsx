@@ -17,6 +17,7 @@ import { pushHint, UnsupportedNotice, type usePush } from "./Push";
 import RouteAlerts from "./RouteAlerts";
 import { DocLinks } from "./Account";
 import ChangePassword from "./ChangePassword";
+import ChangeEmail from "./ChangeEmail";
 const Withdraw = dynamic(() => import("./Withdraw"), { ssr: false });
 const ContractSheet = dynamic(() => import("./Contract"), { ssr: false });
 const MyContracts = dynamic(() => import("./Contract").then((m) => m.MyContracts), { ssr: false });
@@ -559,6 +560,7 @@ export default function Me({
             {user && (
               <div className="space-y-2">
               <h3 className="px-1 text-sm font-semibold text-sub">{t("계정")}</h3>
+              <ChangeEmail email={user.email} toast={toast} />
               <ChangePassword toast={toast} />
               <button type="button" data-block-id="B069" data-block-name="탈퇴 신청 열기" className="flex w-full items-center justify-between rounded-2xl bg-white px-5 py-4 text-left shadow-card" onClick={() => { setSettingsOpen(false); setWithdrawOpen(true); }}>
                 <span><b>{t("탈퇴 신청")}</b><span className="block text-[13px] text-sub">{t("탈퇴하거나, 계속 이용하며 개인정보만 지울 수 있어요.")}</span></span>

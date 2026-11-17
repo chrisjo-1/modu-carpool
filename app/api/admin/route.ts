@@ -240,6 +240,21 @@ export async function PATCH(req: Request) {
         await sql`insert into legacy_stats_log (user_id, stars, count, memo) values (${b.userId}, ${stars}, ${count}, ${memo})`;
         return json({ ok: true });
       }
+      // 로그인 메일 수정(2026-11-17): 메일을 잊었거나 애플 '메일 가리기'로 가입해 메일을 못 받는 회원 — 관리자가 본인 확인 뒤 바로 바꾼다
+      if (typeof b.newEmail === "string") {
+        const next = b.newEmail.trim().toLowerCase();
+        const memo = text(b.memo, 200);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) return json({ error: "메일 주소를 확인해 주세요." }, 400);
+        if (memo.length < 3) return json({ error: "본인 확인 근거 메모를 적어 주세요." }, 400);
+        const cur = await sql`select email from users where id = ${b.userId}`;
+        if (!cur.length) return json({ error: "회원을 찾을 수 없습니다." }, 404);
+        const taken = await sql`select 1 from users where lower(email) = ${next} and id <> ${b.userId}`;
+        if (taken.length) return json({ error: "이미 다른 계정이 쓰는 메일이에요." }, 409);
+        await sql`update users set email = ${next}, email_verified = true where id = ${b.userId}`;
+        await sql`insert into email_change_log (user_id, old_email, new_email, by) values (${b.userId}, ${String(cur[0].email)}, ${next}, ${`admin: ${memo}`})`;
+        await logOps("admin", "로그인 메일 수정", `회원 ${String(b.userId).slice(0, 8)} · ${memo}`);
+        return json({ ok: true });
+      }
       // 운전자 등급 지정('' = 자동 판정, silver, gold)
       if (typeof b.tierSet === "string") {
         const t = b.tierSet === "silver" || b.tierSet === "gold" ? b.tierSet : "";

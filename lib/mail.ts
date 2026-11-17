@@ -629,3 +629,33 @@ ${overLine ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#4E
     return false;
   }
 }
+
+/** 로그인 메일 바꾸기 확인(새 주소로). 알림 수신 설정과 관계없이 보낸다. */
+export async function sendEmailChangeMail(to: string, link: string) {
+  const subject = "[모두의카풀] 로그인 메일 변경 확인";
+  const lead = "모두의카풀 로그인 메일을 이 주소로 바꾸려고 하셨어요. 아래 버튼을 30분 안에 누르면 바뀝니다.";
+  const note = "요청하지 않으셨다면 이 메일을 무시하셔도 됩니다. 메일 주소는 바뀌지 않습니다.";
+  const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6">${lead}</p>
+<a href="${esc(link)}" style="display:inline-block;background:#2F6BFF;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px">이 메일로 바꾸기</a>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${note}</p>
+</div></div>`;
+  return deliver({ kind: "email-change", category: "transactional", to, subject, html, text: `${lead}\n\n${link}\n\n${note}` });
+}
+
+/** 로그인 메일이 바뀌었다는 알림(예전 주소로). 본인이 바꾸지 않았으면 알아챌 수 있게. */
+export async function sendEmailChangedNotice(to: string, newEmail: string) {
+  const masked = newEmail.replace(/^(.{2}).*(@.*)$/, "$1***$2");
+  const subject = "[모두의카풀] 로그인 메일이 바뀌었어요";
+  const lead = `모두의카풀 로그인 메일이 ${masked}(으)로 바뀌었어요. 다음부터는 새 메일로 로그인해 주세요.`;
+  const note = "직접 바꾸지 않으셨다면 이 메일에 답장하거나 앱의 의견 보내기로 바로 알려 주세요.";
+  const html = `<div style="background:#F5F7FA;padding:24px 12px;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #E5E8EB;border-radius:16px;padding:28px 24px">
+<p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#2F6BFF">모두의카풀</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.6">${esc(lead)}</p>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#8B95A1">${note}</p>
+</div></div>`;
+  return deliver({ kind: "email-changed", category: "transactional", to, subject, html, text: `${lead}\n\n${note}` });
+}
