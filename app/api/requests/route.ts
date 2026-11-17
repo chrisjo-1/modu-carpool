@@ -4,6 +4,8 @@ import { pushText, sendPush } from "@/lib/push";
 import { PHOTO_REQUIRED, hasPhoto, isVerified } from "@/lib/verify";
 import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { nextOccurrence } from "@/lib/time";
+import { notifyUnreachableRequest } from "@/lib/unreachableNotify";
+import { after } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -111,6 +113,9 @@ export async function POST(req: Request) {
         post[0].source === "warp" ? warpRequestMail(String(post[0].user_id), String(who[0]?.name ?? ""), route, text(b.message, 300)) : null,
         sendPush(String(post[0].user_id), { title: "카풀 신청이 왔어요", body: pushText.cut(`${who[0]?.name || "회원"}님 · ${route}`, 120), url: "/?tab=chat", tag: `req-${b.postId}` }),
       ]);
+      // 글쓴이가 가입 전·알림 기기 없음·오래 미접속이면 관리자에게 양쪽 연락처와 함께 알림(응답 뒤에)
+      const postId = String(b.postId), msg = text(b.message, 300);
+      after(() => notifyUnreachableRequest(postId, me, msg).catch((e) => console.error("[unreachable]", e)));
     }
     return json({ ok: true });
   } catch (e) {
