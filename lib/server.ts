@@ -460,6 +460,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     clicked_at timestamptz, created_at timestamptz not null default now())`;
   // 링크를 누른 뒤 열 화면(credit = 크레딧 이관 신청, 2026-11-17)
   await sql`alter table kakao_links add column if not exists next text not null default ''`;
+  // 워프 메일로 로그인이 안 돼 새 메일로 가입하며 적은 워프 고유번호(크레딧 이관 신청 창에 미리 채움, 2026-11-17)
+  await sql`alter table users add column if not exists warp_claim text not null default ''`;
   // 로그인 메일 바꾸기(2026-11-17): 새 주소로 보낸 확인 링크, 바꾼 기록(회원 본인·관리자)
   await sql`create table if not exists email_changes (
     token_hash text primary key, user_id uuid not null references users(id) on delete cascade, new_email text not null,

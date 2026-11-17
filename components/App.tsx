@@ -375,8 +375,10 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       const verify = q.get("verify");
       if (verify) {
         history.replaceState(null, "", location.pathname);
-        api<{ user: User; legacy?: number; welcome?: number; created?: boolean; legacyPending?: boolean }>("/api/auth", "POST", { action: "verify", token: verify }).then((r) => {
+        api<{ user: User; legacy?: number; welcome?: number; created?: boolean; legacyPending?: boolean; warpTransfer?: string }>("/api/auth", "POST", { action: "verify", token: verify }).then((r) => {
           if (!r.ok) return setToastMsg(translate(langNow(), r.error));
+          // 워프 고유번호를 적고 새 메일로 가입한 회원: 크레딧 이관 신청 창을 그 번호로 바로 연다(2026-11-17)
+          if (r.data.warpTransfer) setNextCredit(true);
           setUser(r.data.user);
           setPreview(false);
           setTab("me");

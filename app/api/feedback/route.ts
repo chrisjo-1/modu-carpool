@@ -14,7 +14,9 @@ export async function GET() {
     // 크레딧 이관 신청 창에 미리 채울 워프 고유번호·워프 메일(내 계정과 연결된 워프 명단, 신워프 먼저)
     const w = (await db()`select l.warp_id, l.email_norm from legacy_members l join users u on u.id = ${me}
       where (l.matched_user = u.id or lower(l.email_norm) = lower(u.email)) and not l.withdrawn
-      order by (l.matched_user = u.id) desc, (l.src_no like '신워프%') desc limit 1`)[0];
+      order by (l.matched_user = u.id) desc, (l.src_no like '신워프%') desc limit 1`)[0]
+      // 새 메일로 가입하며 적은 워프 고유번호(가린 메일은 보여 주지 않음)
+      ?? (await db()`select warp_claim as warp_id, '' as email_norm from users where id = ${me} and warp_claim <> ''`)[0];
     return json({
       items: rows.map((r) => ({ id: Number(r.id), category: r.category, body: r.body, status: r.status, reply: r.reply, at: new Date(r.created_at as string).getTime() })),
       // 구워프 명단 번호(WARP-…)는 회원이 아는 고유번호가 아니라 비워 둔다(서버가 연결된 명단으로 확인)
@@ -38,7 +40,6 @@ export async function POST(req: Request) {
   // 크레딧 이관 신청: 워프 고유번호·워프 메일·보유 크레딧. 로그인한 회원만(크레딧은 그 계정으로 지급)
   const credit = category === "credit";
   let warpCode = credit ? text(b.warpCode, 20).toUpperCase().replace(/\s/g, "") : "";
-  let needCheck = false; // 고유번호 없이 닉네임·휴대폰 번호로 신청(운영팀 확인 필요)
   const warpEmail = credit ? text(b.warpEmail, 120).toLowerCase() : "";
   const warpCredits = credit ? Math.round(Number(String(b.warpCredits ?? "").replace(/[^0-9]/g, ""))) : 0;
   if (credit) {
@@ -48,17 +49,15 @@ export async function POST(req: Request) {
       const own = (await db()`select l.warp_id from legacy_members l join users u on u.id = ${me}
         where (l.matched_user = u.id or lower(l.email_norm) = lower(u.email)) and not l.withdrawn
         order by (l.matched_user = u.id) desc limit 1`)[0];
-      if (own && (!warpCode || warpCode === String(own.warp_id).toUpperCase())) warpCode = String(own.warp_id).toUpperCase();
-      // 워프 메일을 잊었거나 애플로 가입해 새 메일로 가입한 회원(2026-11-17): 고유번호 없이 워프 닉네임·가입 휴대폰 번호를 적으면 운영팀이 확인
-      else if (!warpCode && String(b.body ?? "").trim().length >= 5) needCheck = true;
-      else return json({ error: warpCode ? "워프 고유번호를 확인해 주세요. (예: 1234567A)" : "고유번호를 모르면 아래 칸에 워프 닉네임과 가입한 휴대폰 번호를 적어 주세요." }, 400);
+      if (!own || (warpCode && warpCode !== String(own.warp_id).toUpperCase())) return json({ error: "워프 고유번호를 확인해 주세요. (예: 1234567A)" }, 400);
+      warpCode = String(own.warp_id).toUpperCase();
     }
+    // 워프 메일은 선택(워프 메일로 로그인이 안 돼 새 메일로 가입한 회원은 모를 수 있음, 2026-11-17)
     if (warpEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(warpEmail)) return json({ error: "워프에 가입한 메일 주소를 확인해 주세요." }, 400);
-    if (!warpEmail && !needCheck) return json({ error: "워프에 가입한 메일 주소를 적어 주세요." }, 400);
     if (!(warpCredits >= 1 && warpCredits <= WARP_CREDIT_MAX)) return json({ error: "워프에서 보유한 크레딧을 숫자로 적어 주세요." }, 400);
   }
   const note = typeof b.body === "string" ? b.body.trim().slice(0, 2000) : "";
-  const msg = credit ? `워프 크레딧 이관 신청 · 고유번호 ${needCheck ? "없음(운영팀 확인 필요)" : warpCode} · 보유 크레딧 ${warpCredits.toLocaleString("ko-KR")}${note ? `\n${note}` : ""}` : safety ? `[${rating}]${note ? ` ${note.slice(0, 500)}` : ""}` : note;
+  const msg = credit ? `워프 크레딧 이관 신청 · 고유번호 ${warpCode} · 보유 크레딧 ${warpCredits.toLocaleString("ko-KR")}${note ? `\n${note}` : ""}` : safety ? `[${rating}]${note ? ` ${note.slice(0, 500)}` : ""}` : note;
   if (!credit && !safety && msg.length < 5) return json({ error: "내용을 5자 이상 적어 주세요." }, 400);
   const email = text(b.email, 120).toLowerCase();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "이메일 형식을 확인해 주세요." }, 400);
@@ -69,7 +68,7 @@ export async function POST(req: Request) {
     const n = await sql`select count(*)::int as n from feedback where (ip = ${ip} or (${me}::uuid is not null and user_id = ${me}::uuid)) and created_at > now() - interval '1 hour'`;
     if ((n[0].n as number) >= 5) return json({ error: "잠시 후 다시 보내 주세요. (1시간에 5건까지)" }, 429);
     if (credit) {
-      const done = needCheck ? [] : await sql`select 1 from feedback where category = 'credit' and upper(warp_code) = ${warpCode} and rewarded_at is not null limit 1`;
+      const done = await sql`select 1 from feedback where category = 'credit' and upper(warp_code) = ${warpCode} and rewarded_at is not null limit 1`;
       if (done.length) return json({ error: "이 고유번호의 크레딧은 이미 옮겨 드렸어요." }, 409);
       const open = await sql`select 1 from feedback where category = 'credit' and user_id = ${me} and rewarded_at is null and status in ('new', 'review') limit 1`;
       if (open.length) return json({ error: "확인 중인 이관 신청이 있어요. 처리되면 알려 드릴게요." }, 409);

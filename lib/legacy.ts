@@ -89,3 +89,43 @@ export async function findLegacyByKey(key: string): Promise<{ warpId: string; by
   const r = await sql`select warp_id from legacy_members where (email_norm = ${e} or email_h = ${keyedHash(e)}) and matched_user is null and not coalesce(withdrawn, false) limit 1`;
   return r.length ? { warpId: String(r[0].warp_id), by: "이메일" } : null;
 }
+
+/**
+ * 워프 고유번호가 '한 번도 쓰지 않은 임시 계정'(비번 미설정·접속 없음)에 묶여 있으면 그 번호를 돌려준다(2026-11-17 사용자 지시:
+ * 워프 메일로 로그인이 안 되는 회원은 바로 확인할 수 있는 메일로 새로 가입하고 워프 고유번호를 넣으면, 확인 뒤 크레딧을 옮겨 준다).
+ * 번호만으로는 본인 확인이 안 되므로 가입 때 바로 잇지 않고, 크레딧 이관 신청을 관리자가 확인해 지급할 때 옮긴다(takeoverWarp).
+ */
+export async function findTempHeldCode(key: string): Promise<string | null> {
+  const raw = key.trim().toUpperCase();
+  if (!/^[0-9A-Z]{8}$/.test(raw)) return null;
+  const r = await db()`select l.warp_id from legacy_members l join users u on u.id = l.matched_user
+    where upper(l.warp_id) = ${raw} and not coalesce(l.withdrawn, false) and u.pw_reset_required and u.last_seen is null limit 1`;
+  return r.length ? String(r[0].warp_id) : null;
+}
+
+/**
+ * 크레딧 이관 지급 때: 그 고유번호의 워프 명단을 신청한 계정으로 옮긴다.
+ * 비어 있으면 연결, 쓰지 않은 임시 계정에 묶여 있으면 그 계정의 글(워프에서 옮긴 글 등)을 새 계정으로 옮기고 임시 계정은 닫는다.
+ * 실제로 쓰는 다른 계정에 묶여 있으면 옮기지 않고 conflict.
+ */
+export async function takeoverWarp(code: string, userId: string): Promise<"linked" | "moved" | "same" | "conflict" | "none"> {
+  const sql = db();
+  const c = code.trim().toUpperCase();
+  if (!c) return "none";
+  const l = await sql`select warp_id, matched_user from legacy_members where upper(warp_id) = ${c} and not coalesce(withdrawn, false) limit 1`;
+  if (!l.length) return "none";
+  const owner = l[0].matched_user ? String(l[0].matched_user) : "";
+  if (owner === userId) return "same";
+  if (!owner) {
+    await sql`update legacy_members set matched_user = ${userId}, match_status = '가입됨', matched_by = '크레딧 이관 확인' where warp_id = ${l[0].warp_id} and matched_user is null`;
+    return "linked";
+  }
+  const t = await sql`select id from users where id = ${owner} and pw_reset_required and last_seen is null`;
+  if (!t.length) return "conflict";
+  await sql`update posts set user_id = ${userId} where user_id = ${owner}`;
+  await sql`update legacy_members set matched_user = ${userId}, matched_by = '크레딧 이관 확인(임시 계정에서 옮김)' where matched_user = ${owner}`;
+  await sql`delete from kakao_links where user_id = ${owner}`;
+  // 임시 계정은 닫기만 한다(개인정보 삭제 처리 performWithdraw는 워프 명단까지 지우므로 쓰지 않음)
+  await sql`update users set withdrawn_at = now() where id = ${owner} and withdrawn_at is null`;
+  return "moved";
+}

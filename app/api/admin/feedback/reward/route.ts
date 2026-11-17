@@ -1,4 +1,5 @@
 import { warpCreditMail } from "@/lib/mail";
+import { takeoverWarp } from "@/lib/legacy";
 import { sendPush } from "@/lib/push";
 import { body, db, ensureSchema, fail, isAdmin, json } from "@/lib/server";
 
@@ -67,6 +68,13 @@ async function payWarp(id: number) {
     const amount = Number(f[0].warp_credits ?? 0);
     const code = String(f[0].warp_code ?? "");
     if (!(amount >= 1)) return json({ error: "신청한 크레딧이 없어요." }, 400);
+    // 그 고유번호가 실제로 쓰는 다른 계정에 묶여 있으면 지급 전에 멈춘다(2026-11-17: 새 메일로 가입한 워프 회원 이관)
+    if (code) {
+      const owner = (await sql`select l.matched_user, u.email, u.pw_reset_required, u.last_seen from legacy_members l left join users u on u.id = l.matched_user
+        where upper(l.warp_id) = ${code.toUpperCase()} and not coalesce(l.withdrawn, false) limit 1`)[0];
+      if (owner?.matched_user && String(owner.matched_user) !== String(f[0].user_id) && !(owner.pw_reset_required && !owner.last_seen))
+        return json({ error: `이 고유번호는 실제로 쓰고 있는 다른 계정(${String(owner.email ?? "").replace(/^(.{2}).*(@.*)$/, "$1***$2")})에 연결돼 있어요. 본인 확인 뒤 그 계정으로 신청하게 해 주세요.` }, 409);
+    }
     const reply = `워프 크레딧 ${amount.toLocaleString("ko-KR")}을 모두의카풀 크레딧으로 옮겨 드렸어요. 내 정보 › 크레딧에서 확인해 주세요.`;
     let rows;
     try {
@@ -94,8 +102,10 @@ async function payWarp(id: number) {
       url: "/?tab=me",
       tag: `warp-credit-${id}`,
     }).catch(() => 0);
+    // 워프 명단(과 쓰지 않던 임시 계정의 글)을 신청한 계정으로 옮긴다
+    const moved = code ? await takeoverWarp(code, userId).catch(() => "none") : "none";
     const mailed = await warpCreditMail(userId, amount);
-    return json({ ok: true, amount, pushed, mailed });
+    return json({ ok: true, amount, pushed, mailed, moved });
   } catch (e) {
     return fail(e);
   }

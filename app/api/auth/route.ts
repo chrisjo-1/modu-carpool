@@ -8,7 +8,7 @@ import { sendLegacyConfirmMail, sendVerifyMail } from "@/lib/mail";
 import { isUniqueViolation, makeMemberCode } from "@/lib/memberCode";
 import { sendEmailChangeMail, sendEmailChangedNotice, sendResetMail, siteUrl } from "@/lib/mail";
 import { isAppleMail } from "@/lib/appleMail";
-import { findLegacyByKey, maskEmail, normEmail } from "@/lib/legacy";
+import { findLegacyByKey, findTempHeldCode, maskEmail, normEmail } from "@/lib/legacy";
 import { logConsent, suppressedNow } from "@/lib/unsub";
 import { CONTACT_TYPES, JOIN_SOURCES, driverTier } from "@/lib/types";
 import { OCCUPATION_LABEL, SCHOOL_CAMPUSES, schoolKey } from "@/lib/schools";
@@ -51,19 +51,8 @@ export async function POST(req: Request) {
   if (b.action === "legacyConfirm") return legacyConfirm(b);
   if (b.action === "legacyChange") return legacyChange(b);
   if (b.action === "resendVerify" || b.action === "consent" || b.action === "interests") return accountAction(b);
-  if (b.action === "findEmail") return findEmail(req, b);
-  let email = text(b.email, 120).toLowerCase().trim();
+  const email = text(b.email, 120).toLowerCase();
   const password = typeof b.password === "string" ? b.password : "";
-  // 워프 회원은 이메일 대신 워프 고유코드로도 로그인(2026-11-17 사용자 지시 '고유코드는 워프 회원만')
-  if (b.action === "login" && email && !email.includes("@")) {
-    const code = email.toUpperCase().replace(/\s/g, "");
-    if (!/^[0-9A-Z]{6,12}$/.test(code)) return json({ error: "이메일 또는 워프 고유코드를 확인해 주세요." }, 400);
-    await ensureSchema();
-    const hit = await db()`select u.email from legacy_members l join users u on u.id = l.matched_user
-      where upper(l.warp_id) = ${code} and l.src_no like '신워프%' and not l.withdrawn and u.withdrawn_at is null limit 1`;
-    if (!hit.length) return json({ error: "이 고유코드로 가입된 계정을 찾지 못했어요. 아래 [메일을 잊었어요]에서 가입 메일을 확인해 주세요." }, 404);
-    email = String(hit[0].email).toLowerCase();
-  }
   if (b.action === "forgot") return forgot(req, email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "이메일 형식을 확인해 주세요." }, 400);
   if (password.length < 8 || password.length > 72) return json({ error: "비밀번호는 8자 이상이어야 합니다." }, 400);
@@ -83,7 +72,8 @@ export async function POST(req: Request) {
       const warpKey = joinSource === "warp" ? text(b.warpKey, 120) : "";
       if (joinSource === "warp") {
         if (!warpKey) return json({ error: "워프 고유번호(8자리) 또는 워프에 쓴 이메일을 입력해 주세요." }, 400);
-        if (!(await findLegacyByKey(warpKey))) return json({ error: "워프 명단에서 찾을 수 없거나 이미 사용된 번호·이메일이에요. 다시 확인해 주세요." }, 400);
+        // 쓰지 않은 임시 계정에 묶인 고유번호도 받는다(가입 뒤 크레딧 이관 신청 → 관리자 확인 때 옮김, 2026-11-17)
+        if (!(await findLegacyByKey(warpKey)) && !(await findTempHeldCode(warpKey))) return json({ error: "워프 명단에서 찾을 수 없거나 이미 사용된 번호·이메일이에요. 다시 확인해 주세요." }, 400);
       }
       // 가입 때 위치는 받지 않는다. 위치가 필요한 기능(CALL, 운전자 글)을 쓸 때 권한을 요청한다.
       const la = b.lat == null || b.lng == null ? null : Math.round(Number(b.lat) * 1e4) / 1e4;
@@ -140,7 +130,7 @@ export async function POST(req: Request) {
  * 인증 링크의 토큰으로 임시 가입 정보를 찾아 계정을 만든다.
  * 성공하면 회원 id와 지급 크레딧, 이미 가입된 이메일이면 "taken", 링크가 아니면 null.
  */
-async function createFromPending(token: string): Promise<{ id: string; welcome: number; legacy: number; legacyPending: boolean } | "taken" | null> {
+async function createFromPending(token: string): Promise<{ id: string; welcome: number; legacy: number; legacyPending: boolean; warpTransfer: string } | "taken" | null> {
   if (!/^[a-f0-9]{64}$/.test(token)) return null;
   const sql = db();
   const rows = await sql`delete from pending_signups where token_hash = ${hashToken(token)} and expires_at > now()
@@ -171,10 +161,15 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
   // 고유번호이거나 가입 이메일과 워프 이메일이 같으면 바로 연결한다. 다른 워프 이메일이면 그 주소로 확인 링크를 보내고, 눌러야 연결·지급한다.
   let legacy = 0;
   let legacyPending = false;
+  let warpTransfer = "";
   const key = String(p.legacy_key ?? "");
   const hit = String(p.join_source) === "warp" && key ? await findLegacyByKey(key) : null;
   if (hit && (hit.by === "번호입력" || normEmail(email) === normEmail(key))) {
     legacy = await claimLegacy(id, hit.warpId, hit.by);
+  } else if (!hit && String(p.join_source) === "warp" && key && (await findTempHeldCode(key))) {
+    // 임시 계정에 묶인 번호: 바로 잇지 않고, 가입 뒤 크레딧 이관 신청 창을 그 번호로 열어 관리자 확인을 받게 한다
+    warpTransfer = key.trim().toUpperCase();
+    await sql`update users set warp_claim = ${warpTransfer} where id = ${id}`;
   } else if (hit) {
     const token = randomBytes(32).toString("hex");
     await sql`insert into legacy_claims (token_hash, user_id, warp_id, expires_at) values (${hashToken(token)}, ${id}, ${hit.warpId}, now() + interval '72 hours')`;
@@ -182,7 +177,7 @@ async function createFromPending(token: string): Promise<{ id: string; welcome: 
     legacyPending = true;
   }
   await setUserSession(id);
-  return { id, welcome, legacy, legacyPending };
+  return { id, welcome, legacy, legacyPending, warpTransfer };
 }
 
 /** 워프 대조 행을 이 회원에게 연결하고, 처음이면 이전 축하 크레딧을 준다. 다른 회원이 이미 쓴 행이면 0. */
@@ -241,7 +236,7 @@ async function verifyEmail(b: Record<string, unknown>) {
     // 가입 전 인증: 임시 가입 정보로 계정을 만든다.
     const created = await createFromPending(token);
     if (created === "taken") return json({ error: "이미 가입된 이메일입니다. 로그인해 주세요." }, 409);
-    if (created) return json({ ok: true, created: true, welcome: created.welcome, legacy: created.legacy, legacyPending: created.legacyPending, user: await profile(created.id) });
+    if (created) return json({ ok: true, created: true, welcome: created.welcome, legacy: created.legacy, legacyPending: created.legacyPending, warpTransfer: created.warpTransfer, user: await profile(created.id) });
     // 예전 방식(이미 가입된 회원의 인증 메일)
     const id = await finishVerify(token);
     if (!id) return json({ error: "인증 링크가 만료되었거나 이미 사용되었습니다. 로그인 후 위쪽 안내에서 인증 메일을 다시 받아 주세요." }, 400);
@@ -585,43 +580,6 @@ async function confirmEmailChange(b: Record<string, unknown>) {
     const me = await currentUserId();
     if (!me) await setUserSession(id);
     return json({ ok: true, user: await profile(id) });
-  } catch (e) {
-    return fail(e);
-  }
-}
-
-const maskMail = (e: string) => {
-  const [id, dom] = e.split("@");
-  if (!dom) return "";
-  return `${id.slice(0, Math.min(2, Math.max(1, id.length - 1)))}${"*".repeat(Math.max(3, id.length - 2))}@${dom}`;
-};
-
-/**
- * 메일을 잊었어요(2026-11-17 사용자 지시 '메일을 잊었다면 보여 줘'): 워프 고유코드 또는 워프에 가입한 휴대폰 번호로
- * 워프 명단(탈퇴 안 함)을 찾아 로그인 메일을 가려서 보여 준다. 같은 곳 하루 5번. 애플 '메일 가리기' 주소인지, 비번을 정했는지도 알려 준다.
- */
-async function findEmail(req: Request, b: Record<string, unknown>) {
-  const raw = text(b.key, 40).trim();
-  const phone = raw.replace(/\D/g, "");
-  const code = raw.toUpperCase().replace(/\s/g, "");
-  const byPhone = /^01\d{8,9}$/.test(phone) && !/[A-Za-z]/.test(raw);
-  if (!byPhone && !/^[0-9A-Z]{6,12}$/.test(code)) return json({ error: "워프 고유코드(예: 1234567A) 또는 휴대폰 번호를 적어 주세요." }, 400);
-  const ip = clientIp(req);
-  try {
-    await ensureSchema();
-    if (await overLimit("find-email", ip, 5, 1440)) return json({ error: "오늘은 더 찾을 수 없어요. 내일 다시 해 주세요." }, 429);
-    await recordAttempt("find-email", ip);
-    const sql = db();
-    const rows = byPhone
-      ? await sql`select l.warp_id, l.email_norm, u.email as acc_email, u.pw_reset_required from legacy_members l left join users u on u.id = l.matched_user and u.withdrawn_at is null
-          where l.phone_norm = ${phone} and not l.withdrawn order by (l.src_no like '신워프%') desc limit 3`
-      : await sql`select l.warp_id, l.email_norm, u.email as acc_email, u.pw_reset_required from legacy_members l left join users u on u.id = l.matched_user and u.withdrawn_at is null
-          where upper(l.warp_id) = ${code} and l.src_no like '신워프%' and not l.withdrawn limit 1`;
-    const list = [...new Map(rows.map((r) => {
-      const mail = String(r.acc_email || r.email_norm || "").toLowerCase();
-      return [mail, { email: maskMail(mail), apple: /@privaterelay\.appleid\.com$/i.test(mail), passwordSet: !!r.acc_email && r.pw_reset_required === false }];
-    })).values()].filter((x) => x.email);
-    return json({ found: list.length > 0, list });
   } catch (e) {
     return fail(e);
   }

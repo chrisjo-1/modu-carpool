@@ -72,17 +72,17 @@ export default function FeedbackSheet({ loggedIn, onClose, toast, initialCat }: 
               <>
                 <label className="block text-sm text-sub">
                   {t("워프 고유번호")}
-                  <input data-block-id="F441" className={`${field} mt-1`} inputMode="text" autoCapitalize="characters" maxLength={12} placeholder={linked ? t("고유번호가 없으면 비워 두세요") : t("예: 1234567A (모르면 비워 두세요)")} value={warpCode} onChange={(e) => setWarpCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, ""))} />
+                  <input data-block-id="F441" className={`${field} mt-1`} required={!linked} inputMode="text" autoCapitalize="characters" maxLength={12} placeholder={linked ? t("고유번호가 없으면 비워 두세요") : t("예: 1234567A")} value={warpCode} onChange={(e) => setWarpCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, ""))} />
                 </label>
                 <label className="block text-sm text-sub">
                   {t("워프에 가입한 메일 주소")}
-                  <input data-block-id="F442" className={`${field} mt-1`} required={!!warpCode && !linked} type="email" placeholder={t("기억나지 않으면 비워 두세요")} maxLength={120} value={warpEmail} onChange={(e) => setWarpEmail(e.target.value)} />
+                  <input data-block-id="F442" className={`${field} mt-1`} type="email" placeholder={t("기억나지 않거나 메일을 못 받으면 비워 두세요")} maxLength={120} value={warpEmail} onChange={(e) => setWarpEmail(e.target.value)} />
                 </label>
                 <label className="block text-sm text-sub">
                   {t("워프에서 보유한 크레딧")}
                   <input data-block-id="F443" className={`${field} mt-1`} required inputMode="numeric" maxLength={9} placeholder={t("예: 3000")} value={warpCredits} onChange={(e) => setWarpCredits(e.target.value.replace(/[^0-9]/g, ""))} />
                 </label>
-                <textarea data-block-id="F086" className={field} rows={2} maxLength={500} placeholder={!linked && !warpCode ? t("고유번호를 모르면: 워프 닉네임, 워프에 가입한 휴대폰 번호를 적어 주세요") : t("전할 말 (선택)")} required={!linked && !warpCode} minLength={!linked && !warpCode ? 5 : undefined} value={text} onChange={(e) => setText(e.target.value)} />
+                <textarea data-block-id="F086" className={field} rows={2} maxLength={500} placeholder={t("전할 말 (선택)")} value={text} onChange={(e) => setText(e.target.value)} />
               </>
             )}
           </div>

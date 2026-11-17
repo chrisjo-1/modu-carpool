@@ -1,14 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 import { JOIN_SOURCES, type User } from "@/lib/types";
 import { creditText } from "./Credits";
 import { pushHint, type usePush } from "./Push";
 import { Segment, Sheet, api, btnPrimary, field, useLang, useT } from "./ui";
 
 export const EMAIL_KEY = "modu.email";
-// 메일을 잊었어요 창은 누를 때만 불러온다
-const FindEmail = dynamic(() => import("./FindEmail"), { ssr: false });
 
 
 export type Agree = { terms: boolean; privacy: boolean; marketing: boolean };
@@ -63,7 +60,7 @@ export default function AuthForm({
   const wantPush = true;
   const [busy, setBusy] = useState(false);
   const [forgot, setForgot] = useState(false);
-  const [findOpen, setFindOpen] = useState(false);
+  const [warpHelp, setWarpHelp] = useState(false);
   const [sentMsg, setSentMsg] = useState("");
   const [legacyBonus, setLegacyBonus] = useState(0);
   const [agree, setAgree] = useState({ terms: false, privacy: false, marketing: false });
@@ -151,8 +148,8 @@ export default function AuthForm({
           </div>
         ) : (
           <label className="block text-sm text-sub">
-            {mode === "login" ? t("이메일 (워프 회원은 고유코드도 돼요)") : t("이메일")}
-            <input data-block-id="F043" className={`${field} mt-1`} type={mode === "login" ? "text" : "email"} inputMode="email" autoCapitalize="none" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            {t("이메일")}
+            <input data-block-id="F043" className={`${field} mt-1`} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
         )}
         <label className="block text-sm text-sub">
@@ -184,18 +181,25 @@ export default function AuthForm({
         {mode === "signup" && pending && <p data-block-id="C061" data-block-name="인증 메일 안내" role="status" className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">{t("인증 메일을 보냈어요. 메일함에서 인증 링크를 눌러 가입을 마쳐 주세요.")}<br /><span className="font-semibold">{pending}</span></p>}
         <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
         {mode === "login" && (
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-wrap justify-center gap-x-4">
             <button type="button" data-block-id="B053" data-block-name="비밀번호 찾기" className="min-h-0 py-2 text-[14px] text-sub underline" onClick={() => { setForgot(true); setSentMsg(""); }}>{t("비밀번호 찾기")}</button>
-            <button type="button" data-block-id="B513" data-block-name="메일을 잊었어요" className="min-h-0 py-2 text-[14px] text-sub underline" onClick={() => setFindOpen(true)}>{t("메일을 잊었어요")}</button>
+            <button type="button" data-block-id="B513" data-block-name="워프 메일로 로그인이 안 돼요" className="min-h-0 py-2 text-[14px] text-sub underline" onClick={() => setWarpHelp(true)}>{t("워프 메일로 로그인이 안 돼요")}</button>
           </div>
         )}
       </form>
-      {findOpen && (
-        <FindEmail
-          onClose={() => setFindOpen(false)}
-          onForgot={() => { setFindOpen(false); setEmail(""); setForgot(true); setSentMsg(""); }}
-          onSignup={() => { setFindOpen(false); setMode("signup"); setEmail(""); }}
-        />
+      {warpHelp && (
+        <Sheet title={t("워프 메일로 로그인이 안 돼요")} blockId="S438" onClose={() => setWarpHelp(false)}>
+          <div data-block-id="C452" data-block-name="워프 회원 새 메일 가입 안내" className="space-y-4">
+            <p className="text-[15px] leading-relaxed text-sub">{t("워프에 가입한 메일을 잊었거나, 애플 로그인처럼 메일을 받을 수 없는 주소라면 이렇게 해 주세요.")}</p>
+            <ol className="list-decimal space-y-2 pl-5 text-[15px] leading-relaxed">
+              <li>{t("지금 바로 확인할 수 있는 메일로 신규 가입해요.")}</li>
+              <li>{t("가입 경로에서 '워프'를 고르고 워프 고유번호(8자리)를 적어요.")}</li>
+              <li>{t("가입을 마치면 크레딧 이관 신청 창이 열려요. 워프에서 보유한 크레딧을 적어 신청해 주세요.")}</li>
+              <li>{t("운영팀이 확인한 뒤 워프 크레딧과 워프 정보를 새 계정으로 옮겨 드려요.")}</li>
+            </ol>
+            <button type="button" data-block-id="B512" data-block-name="새 메일로 신규 가입" className={btnPrimary} onClick={() => { setWarpHelp(false); setMode("signup"); setJoinSource("warp"); setEmail(""); }}>{t("신규 가입하기")}</button>
+          </div>
+        </Sheet>
       )}
       {forgot && (
         <Sheet title={t("비밀번호 찾기")} blockId="S082" onClose={() => setForgot(false)}>
