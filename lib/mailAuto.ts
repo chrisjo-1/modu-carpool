@@ -1,6 +1,7 @@
 import { deliver } from "./mail";
 import { RETENTION_TEXT, personalize, renderHtml } from "./campaign";
 import { runCampaignBatch } from "./campaignRun";
+import { maybeSendMailReport } from "./mailReport";
 import { db } from "./server";
 import { suppress } from "./unsub";
 
@@ -112,6 +113,9 @@ export async function maybeRunAutoMail() {
 
   // 1) 반송 정리를 먼저(끝날 때까지 실행마다 조금씩)
   await bounceBackfill(12).catch((e) => console.error("[mail-auto] backfill", e));
+
+  // 어제 메일 결과 보고서를 관리자 메일로(하루 한 번, 아침 첫 실행 때, 2026-11-17 사용자 지시)
+  await maybeSendMailReport().catch((e) => console.error("[mail-auto] report", e));
 
   // 2) 멈춤 상태면 아무것도 안 보냄
   if (await getSetting("mail_auto_paused")) return;
