@@ -1,4 +1,5 @@
 import { db } from "./server";
+import { provinceShort } from "./areaLabel";
 
 /**
  * 좌표 → "서울 마포구 공덕동" 같은 짧은 지역 이름(시·구·동까지, 번지는 넣지 않는다).
@@ -32,7 +33,9 @@ async function osmRegion(lat: number, lng: number): Promise<string> {
   const dong = a.quarter || a.suburb || a.neighbourhood || a.village || a.town || "";
   const gu = a.borough || a.city_district || "";
   const city = a.city || a.county || "";
-  const parts = a.province ? [city, gu, dong] : [SHORT[city] ?? city, gu, dong];
+  // 도 지역은 도 짧은 이름을 앞에 붙인다(2026-11-17): "충북 청주시 상당구 ○○동"
+  const prov = provinceShort(a.province || a.state || "");
+  const parts = a.province || a.state ? [prov, city, gu, dong] : [SHORT[city] ?? city, gu, dong];
   return [...new Set(parts.filter(Boolean))].join(" ");
 }
 const keyOf = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
@@ -64,7 +67,8 @@ async function regionName(lat: number, lng: number, key: string | undefined): Pr
     const d1 = String(doc.region_1depth_name ?? "");
     const d2 = String(doc.region_2depth_name ?? "");
     const d3 = String(doc.region_3depth_name ?? "");
-    out = (SHORT[d1] ? [SHORT[d1], d2, d3] : [d2 || d1, d3]).filter(Boolean).join(" ");
+    // 특별·광역시는 "서울 마포구 공덕동", 도는 앞에 도 이름을 붙여 "경기 성남시 분당구 정자동"(2026-11-17)
+    out = (SHORT[d1] ? [SHORT[d1], d2, d3] : [provinceShort(d1), d2 || d1, d3]).filter(Boolean).join(" ");
   }
   if (cache.size > 5000) cache.clear();
   cache.set(k, out);
@@ -83,6 +87,12 @@ export async function fillPostAreas(limit = 15) {
     limit = Math.min(limit, 4);
   }
   const sql = db();
+  // 한 번만(2026-11-17): 도 이름을 붙이게 바뀌었으니 특별·광역시가 아닌 글의 지역 글씨를 다시 계산하게 한다(아래에서 조금씩 채움, 그동안은 예전 글씨 그대로 보임)
+  const once = await sql`insert into settings (key, value) values ('area_province_redo', ${new Date().toISOString()}) on conflict (key) do nothing returning key`;
+  if (once.length) {
+    await sql`update posts set origin_area_key = null where origin_area is not null and origin_area !~ '^(서울|부산|대구|인천|광주|대전|울산|세종) '`;
+    await sql`update posts set dest_area_key = null where dest_area is not null and dest_area !~ '^(서울|부산|대구|인천|광주|대전|울산|세종) '`;
+  }
   const rows = await sql`
     select id, origin_lat, origin_lng, dest_lat, dest_lng, origin_area_key, dest_area_key from posts
     where (origin_lat is not null and origin_area_key is distinct from concat(round(origin_lat::numeric, 4), ',', round(origin_lng::numeric, 4)))

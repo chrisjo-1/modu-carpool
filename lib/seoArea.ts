@@ -1,5 +1,6 @@
 import { db, ensureSchema, hasDb } from "./server";
 import { dayLabel } from "./i18n";
+import { PROVINCE_SHORT, withoutProvince } from "./areaLabel";
 
 /**
  * 네이버 SEO(2026-11-13 사용자 지시): 구 단위 지역 카풀 페이지 공용.
@@ -7,7 +8,8 @@ import { dayLabel } from "./i18n";
  * 주소 조각(slug)은 낱말 사이를 '-'로: /carpool/서울-강남구
  */
 export const areaKey = (area: string | null | undefined) => {
-  const p = String(area ?? "").trim().split(/\s+/).filter(Boolean);
+  // 도 이름이 앞에 붙은 글씨("경기 성남시 분당구 …")도 예전과 같은 열쇠("성남시 분당구")가 되게 도를 뗀다
+  const p = withoutProvince(area).split(/\s+/).filter(Boolean);
   return p.length >= 2 ? `${p[0]} ${p[1]}` : "";
 };
 export const areaSlug = (key: string) => key.replace(/\s+/g, "-");
@@ -39,11 +41,13 @@ export async function openPosts(opts: { area?: string; limit?: number } = {}): P
   await ensureSchema();
   const lim = opts.limit ?? 50;
   const like = opts.area ? `${opts.area} %` : null;
+  const likeP = opts.area ? `_% ${opts.area} %` : null; // 앞에 도 이름이 붙은 글씨
+  const likeE = opts.area ? `_% ${opts.area}` : null;
   const rows = await db()`
     select p.id, p.origin, p.dest, p.origin_area, p.dest_area, p.role, p.regular, p.days, p.time_go, p.depart_at, p.cost, p.price, p.created_at
     from posts p join users u on u.id = p.user_id
     where p.status = 'open' and not p.demo and not u.test and not u.blocked and (p.regular or p.depart_at > now())
-      and (${like}::text is null or p.origin_area like ${like} or p.dest_area like ${like} or p.origin_area = ${opts.area ?? ""} or p.dest_area = ${opts.area ?? ""})
+      and (${like}::text is null or p.origin_area like ${like} or p.dest_area like ${like} or p.origin_area like ${likeP} or p.dest_area like ${likeP} or p.origin_area like ${likeE} or p.dest_area like ${likeE} or p.origin_area = ${opts.area ?? ""} or p.dest_area = ${opts.area ?? ""})
     order by p.created_at desc limit ${lim}`;
   return rows.map(mapRow);
 }
@@ -59,8 +63,10 @@ export async function areaCounts(limit = 200): Promise<{ key: string; n: number 
       union all
       select p.dest_area from posts p join users u on u.id = p.user_id
         where p.status = 'open' and not p.demo and not u.test and not u.blocked and (p.regular or p.depart_at > now()))
+    , y as (select case when split_part(a, ' ', 1) = any(${Object.values(PROVINCE_SHORT)}::text[]) and split_part(a, ' ', 3) <> ''
+        then substr(a, position(' ' in a) + 1) else a end as a from x where a is not null)
     select split_part(a, ' ', 1) || ' ' || split_part(a, ' ', 2) as k, count(*)::int as n
-    from x where a is not null and position(' ' in a) > 0 group by 1 order by 2 desc limit ${limit}`;
+    from y where position(' ' in a) > 0 group by 1 order by 2 desc limit ${limit}`;
   return rows.map((r) => ({ key: String(r.k).trim(), n: Number(r.n) })).filter((r) => r.key.includes(" "));
 }
 
@@ -75,7 +81,7 @@ export const routeTitle = (p: { origin: string; dest: string; originArea: string
   const a = areaKey(p.originArea), b = areaKey(p.destArea);
   if (a && b && a !== b) return `${shortArea(a)} → ${shortArea(b)}`;
   // 같은 구 안: "강남구 압구정동 → 청담동"
-  const dong = (s: string) => s.trim().split(/\s+/)[2] ?? "";
+  const dong = (s: string) => withoutProvince(s).split(/\s+/)[2] ?? "";
   if (a && a === b && dong(p.originArea) && dong(p.destArea)) return `${shortArea(a)} ${dong(p.originArea)} → ${dong(p.destArea)}`;
   return `${p.origin} → ${p.dest}`;
 };
