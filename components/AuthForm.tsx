@@ -1,11 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { JOIN_SOURCES, type User } from "@/lib/types";
 import { creditText } from "./Credits";
 import { pushHint, type usePush } from "./Push";
 import { Segment, Sheet, api, btnPrimary, field, useLang, useT } from "./ui";
 
 export const EMAIL_KEY = "modu.email";
+// 메일을 잊었어요 창은 누를 때만 불러온다
+const FindEmail = dynamic(() => import("./FindEmail"), { ssr: false });
 
 
 export type Agree = { terms: boolean; privacy: boolean; marketing: boolean };
@@ -60,6 +63,7 @@ export default function AuthForm({
   const wantPush = true;
   const [busy, setBusy] = useState(false);
   const [forgot, setForgot] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
   const [sentMsg, setSentMsg] = useState("");
   const [legacyBonus, setLegacyBonus] = useState(0);
   const [agree, setAgree] = useState({ terms: false, privacy: false, marketing: false });
@@ -147,8 +151,8 @@ export default function AuthForm({
           </div>
         ) : (
           <label className="block text-sm text-sub">
-            {t("이메일")}
-            <input data-block-id="F043" className={`${field} mt-1`} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            {mode === "login" ? t("이메일 (워프 회원은 고유코드도 돼요)") : t("이메일")}
+            <input data-block-id="F043" className={`${field} mt-1`} type={mode === "login" ? "text" : "email"} inputMode="email" autoCapitalize="none" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
         )}
         <label className="block text-sm text-sub">
@@ -180,9 +184,19 @@ export default function AuthForm({
         {mode === "signup" && pending && <p data-block-id="C061" data-block-name="인증 메일 안내" role="status" className="rounded-xl bg-accentSoft px-4 py-3 text-[14px] leading-relaxed text-accent">{t("인증 메일을 보냈어요. 메일함에서 인증 링크를 눌러 가입을 마쳐 주세요.")}<br /><span className="font-semibold">{pending}</span></p>}
         <button data-block-id="B042" data-block-name="로그인 제출" className={btnPrimary} disabled={busy}>{busy ? t("처리 중…") : mode === "login" ? t("로그인") : t("가입하고 시작")}</button>
         {mode === "login" && (
-          <button type="button" data-block-id="B053" data-block-name="비밀번호 찾기" className="w-full min-h-0 py-2 text-[14px] text-sub underline" onClick={() => { setForgot(true); setSentMsg(""); }}>{t("비밀번호 찾기")}</button>
+          <div className="flex justify-center gap-4">
+            <button type="button" data-block-id="B053" data-block-name="비밀번호 찾기" className="min-h-0 py-2 text-[14px] text-sub underline" onClick={() => { setForgot(true); setSentMsg(""); }}>{t("비밀번호 찾기")}</button>
+            <button type="button" data-block-id="B513" data-block-name="메일을 잊었어요" className="min-h-0 py-2 text-[14px] text-sub underline" onClick={() => setFindOpen(true)}>{t("메일을 잊었어요")}</button>
+          </div>
         )}
       </form>
+      {findOpen && (
+        <FindEmail
+          onClose={() => setFindOpen(false)}
+          onForgot={() => { setFindOpen(false); setEmail(""); setForgot(true); setSentMsg(""); }}
+          onSignup={() => { setFindOpen(false); setMode("signup"); setEmail(""); }}
+        />
+      )}
       {forgot && (
         <Sheet title={t("비밀번호 찾기")} blockId="S082" onClose={() => setForgot(false)}>
           <form
