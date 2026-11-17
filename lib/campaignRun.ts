@@ -66,7 +66,16 @@ export async function runCampaignBatch(id: string, limit: number): Promise<Batch
   if (campaignQuietNow()) return { ok: true, sent: 0, more: true, held: "quiet", done: false };
   const { left } = await campaignAllowance();
   if (left <= 0) return { ok: true, sent: 0, more: true, held: "cap", done: false };
-  const rows = await audienceRows(a, { campaignId: id, before, limit: Math.min(limit, left) });
+  // 캠페인별 하루 상한(daily_cap, 0 = 없음): 오늘(한국 날짜) 이 캠페인으로 보낸 수를 빼고 남은 만큼만(2026-11-17, 구워프 재개 300통/일)
+  let capLeft = Infinity;
+  const cap = Number(c.daily_cap ?? 0);
+  if (cap > 0) {
+    const t = await sql`select count(*)::int as n from mail_log where campaign_id = ${id} and status = 'sent'
+      and created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
+    capLeft = cap - Number(t[0]?.n ?? 0);
+    if (capLeft <= 0) return { ok: true, sent: 0, more: true, held: "cap", done: false };
+  }
+  const rows = await audienceRows(a, { campaignId: id, before, limit: Math.min(limit, left, capLeft) });
   if (rows.length === 0) {
     if (c.status !== "done") await sql`update mail_campaigns set status = 'done', finished_at = now() where id = ${id}`;
     return { ok: true, sent: 0, more: false, held: null, done: true };

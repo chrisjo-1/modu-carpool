@@ -1,4 +1,5 @@
 import { APPLE_MAIL_DOMAINS } from "./appleMail";
+import { GOOD_DOMAINS, SKIP_DOMAINS, TYPO_LABELS } from "./mailFilter";
 import { db } from "./server";
 
 /**
@@ -8,15 +9,17 @@ import { db } from "./server";
  * 그룹(앞 순서가 우선):
  *   apple  아이폰 메일 — 대량 메일에서 빠져 한 번도 못 받음
  *   bad    반송·잘못된 메일 — 빈 주소·형식 오류·반송 기록
+ *   filtered 메일 못 보냄 — 반송이 많은 도메인·문 닫은 서비스·오타 주소라 대량 메일에서 미리 뺌(lib/mailFilter.ts, 2026-11-17)
  *   unread 메일을 받고 2일이 지났는데 열거나 누른 기록이 없음(10/29 전 메일은 열람 기록이 없어 모두 '안 열어 봄'으로 셈)
  *   none   아직 메일을 보내지 않음 — 문자보다 메일이 먼저(싸고 빠름)
  *   (최근 2일 안에 보낸 사람, 열어 본 사람은 대상 아님)
  * 전화번호 자체는 이 함수 밖으로 내보내지 않는다(있음/없음만). 문자 발송 코드가 서버에서 직접 읽는다.
  */
-export type SmsGroup = "apple" | "bad" | "unread" | "none";
+export type SmsGroup = "apple" | "bad" | "filtered" | "unread" | "none";
 export const SMS_GROUP_LABEL: Record<SmsGroup, string> = {
   apple: "아이폰 메일(메일 못 받음)",
   bad: "반송·잘못된 메일",
+  filtered: "메일 못 보냄(걸러진 주소)",
   unread: "메일 안 열어 봄",
   none: "아직 메일 안 보냄",
 };
@@ -37,6 +40,9 @@ export async function smsTargets(): Promise<SmsTarget[]> {
              coalesce(l.phone_norm, '') ~ '^01[0-9]{8,9}$' as has_phone, u.id as uid,
              split_part(coalesce(l.email_norm, ''), '@', 2) = any(${APPLE_MAIL_DOMAINS}::text[]) as apple,
              (coalesce(l.email_norm, '') !~ '^[^@[:space:]]+@[^@[:space:]]+[.][a-z]{2,}$' or sup.email is not null or coalesce(g.bounced, false)) as bad,
+             (split_part(coalesce(l.email_norm, ''), '@', 2) = any(${SKIP_DOMAINS}::text[])
+               or (split_part(split_part(coalesce(l.email_norm, ''), '@', 2), '.', 1) = any(${TYPO_LABELS}::text[])
+                   and split_part(coalesce(l.email_norm, ''), '@', 2) <> all(${GOOD_DOMAINS}::text[]))) as filtered,
              g.last_sent, coalesce(g.opened, false) as opened
       from legacy_members l
       left join users u on u.id = l.matched_user
@@ -46,7 +52,7 @@ export async function smsTargets(): Promise<SmsTarget[]> {
         and (u.id is null or (u.withdrawn_at is null and not u.blocked and not u.test and u.pw_reset_required and u.last_seen is null))
     )
     select warp_id, nw, em, has_phone, uid is not null as account, last_sent,
-      case when apple then 'apple' when bad then 'bad' when opened then '' when last_sent is null then 'none'
+      case when apple then 'apple' when bad then 'bad' when opened then '' when filtered then 'filtered' when opened then '' when last_sent is null then 'none'
            when last_sent < now() - interval '2 days' then 'unread' else '' end as grp
     from m`;
   return r

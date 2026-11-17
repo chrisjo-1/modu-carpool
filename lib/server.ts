@@ -467,6 +467,7 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   // 이 캠페인 대상에서 뺄 이전 캠페인(받은 적이 있으면 제목과 상관없이 제외, 2026-11-01 사용자 지시)
   await sql`alter table mail_campaigns add column if not exists except_ids text[] not null default '{}'`;
   await sql`alter table mail_campaigns add column if not exists resend_all boolean not null default false`;
+  await sql`alter table mail_campaigns add column if not exists daily_cap int not null default 0`;
   // 자동 발송 실행 기록(매일 09시 10분·12시 10분 실행마다 한 줄, 관리자 메일 화면에 보인다)
   await sql`create table if not exists mail_runs (
     id bigserial primary key,

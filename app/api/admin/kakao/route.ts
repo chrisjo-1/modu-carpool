@@ -5,7 +5,7 @@ import type { SmsGroup } from "@/lib/smsTargets";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const GROUPS: SmsGroup[] = ["apple", "bad", "unread", "none"];
+const GROUPS: SmsGroup[] = ["apple", "bad", "filtered", "unread", "none"];
 
 /** 관리자 알림톡(lib/kakao.ts): 설정 상태·템플릿·발송 작업·기록 */
 export async function GET() {

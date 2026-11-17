@@ -1,4 +1,5 @@
 import { db } from "./server";
+import { DOMAIN_ORDER, GOOD_DOMAINS, SKIP_DOMAINS, TYPO_LABELS } from "./mailFilter";
 import { siteLinkBlock, type MailCategory } from "./mail";
 import { SITE_URL as SITE } from "./site";
 import { APPLE_MAIL_DOMAINS } from "./appleMail";
@@ -76,6 +77,8 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
     const rows = (await sql`select null::uuid as user_id, lower(l.email_norm) as email, case when l.src_no like '신워프%' then nullif(trim(l.warp_id), '') end as code from legacy_members l
       where not l.withdrawn and coalesce(l.email_norm, '') <> ''
         and split_part(lower(l.email_norm), '@', 2) <> all(${APPLE_MAIL_DOMAINS}::text[])
+        and split_part(lower(l.email_norm), '@', 2) <> all(${SKIP_DOMAINS}::text[])
+        and (split_part(split_part(lower(l.email_norm), '@', 2), '.', 1) <> all(${TYPO_LABELS}::text[]) or split_part(lower(l.email_norm), '@', 2) = any(${GOOD_DOMAINS}::text[]))
         and (${before}::timestamptz is null or l.imported_at <= ${before}::timestamptz)
         and (
           (${has("warp_unjoined") || has("legacy_unjoined")} and l.matched_user is null and not exists (select 1 from users u where lower(u.email) = lower(l.email_norm)))
@@ -89,7 +92,7 @@ export async function audienceRows(a: Audience, opt: { campaignId?: string | nul
           and not exists (select 1 from mail_log f where f.campaign_id = ${fof}::uuid and f.to_email = lower(l.email_norm)
             and (case when ${fmode} = 'click' then f.clicked_at else coalesce(f.opened_at, f.clicked_at) end) is not null)))
         and not exists (select 1 from mail_log x where x.to_email = lower(l.email_norm) and x.status = 'sent' and x.campaign_id::text = any(${exc}::text[]))
-      order by email limit ${lim}`) as { user_id: string | null; email: string; code: string | null }[];
+      order by array_position(${DOMAIN_ORDER}::text[], split_part(lower(l.email_norm), '@', 2)) nulls last, email limit ${lim}`) as { user_id: string | null; email: string; code: string | null }[];
     rows.forEach(put);
   }
 

@@ -14,7 +14,7 @@ const kst = (t: string | null) => (t ? new Date(t).toLocaleString("ko-KR", { tim
 
 /**
  * 관리자 메일 탭 '문자·알림톡 대상'(lib/smsTargets.ts).
- * GET → 그룹별 인원. GET ?csv=all|apple|bad|unread|none → 명단 CSV(전화번호는 넣지 않고 있음 O/X만).
+ * GET → 그룹별 인원. GET ?csv=all|apple|bad|filtered|unread|none → 명단 CSV(전화번호는 넣지 않고 있음 O/X만).
  */
 export async function GET(req: Request) {
   if (!(await isAdmin())) return json({ error: "관리자 로그인이 필요합니다." }, 401);

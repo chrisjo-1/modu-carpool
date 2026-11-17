@@ -12,7 +12,7 @@ type Data = {
   stats: { rows: { template: string; group: string; status: string; n: number }[]; links: { made: number; clicked: number; pw: number } };
 };
 
-const GROUPS: [string, string][] = [["apple", "아이폰 메일"], ["bad", "반송·잘못된 메일"], ["unread", "메일 안 열어 봄"], ["none", "아직 메일 안 보냄"]];
+const GROUPS: [string, string][] = [["apple", "아이폰 메일"], ["bad", "반송·잘못된 메일"], ["filtered", "메일 못 보냄(걸러진 주소)"], ["unread", "메일 안 열어 봄"], ["none", "아직 메일 안 보냄"]];
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] outline-none focus:border-accent";
 const f = (v: number) => v.toLocaleString("ko-KR");
 
@@ -25,7 +25,7 @@ export default function Kakao() {
   const [testTo, setTestTo] = useState("");
   const [preview, setPreview] = useState("");
   const [tplKey, setTplKey] = useState("");
-  const [groups, setGroups] = useState<string[]>(["apple", "bad"]);
+  const [groups, setGroups] = useState<string[]>(["apple", "bad", "filtered"]);
   const [warp, setWarp] = useState("all");
   const [cap, setCap] = useState("200");
 
