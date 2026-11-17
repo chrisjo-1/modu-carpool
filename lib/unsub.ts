@@ -51,3 +51,26 @@ export async function suppressedNow(email: string): Promise<string> {
   if (l.length) return "워프 탈퇴 회원";
   return "";
 }
+
+/** suppressedNow를 여러 주소에 한 번에(캠페인 묶음 발송용 — 주소마다 쿼리 3개씩 하면 300통에 1분을 넘겨 예약 실행이 끊겼다, 2026-11-17). 보내면 안 되는 주소만 이유와 함께 돌려준다. */
+export async function suppressedMany(emails: string[]): Promise<Map<string, string>> {
+  const list = [...new Set(emails.map((x) => x.trim().toLowerCase()).filter(Boolean))];
+  const out = new Map<string, string>();
+  if (!list.length) return out;
+  await ensureSchema();
+  const sql = db();
+  const hashes = list.map((e) => keyedHash(e));
+  const [s, u, l] = await Promise.all([
+    sql`select email from mail_suppressions where email = any(${list}::text[])`,
+    sql`select lower(email) as email from users where lower(email) = any(${list}::text[]) and (blocked or test or withdrawn_at is not null)`,
+    sql`select email_norm, email_h from legacy_members where withdrawn and (email_norm = any(${list}::text[]) or email_h = any(${hashes}::text[]))`,
+  ]);
+  const byHash = new Map(list.map((e, i) => [hashes[i], e]));
+  for (const r of l) {
+    const e = r.email_norm && list.includes(String(r.email_norm)) ? String(r.email_norm) : byHash.get(String(r.email_h));
+    if (e) out.set(e, "워프 탈퇴 회원");
+  }
+  for (const r of u) out.set(String(r.email), "정지·테스트·탈퇴 회원");
+  for (const r of s) out.set(String(r.email), "발송 제외 주소(수신거부·반송·스팸 신고)");
+  return out;
+}

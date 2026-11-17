@@ -1,7 +1,7 @@
 import { db, ensureSchema } from "./server";
 import { isAppleMail } from "./appleMail";
 import { SITE_URL as SITE } from "./site";
-import { suppressedNow, unsubUrl } from "./unsub";
+import { suppressedMany, suppressedNow, unsubUrl } from "./unsub";
 
 /**
  * 메일 발송 공통 경로. 모든 메일은 deliver()를 거쳐 나가고, 결과(발송·실패·차단·테스트)가 mail_log에 남는다.
@@ -126,11 +126,11 @@ export async function campaignAllowance(): Promise<Allowance> {
 type Prepared = { held: Status } | { payload: { from: string; to: string[]; subject: string; html: string; text: string; headers?: Record<string, string> } };
 
 /** 정책 확인(광고성)과 본문 꾸미기. 차단은 여기서 이력을 남기고, 보류는 이력 없이 돌려준다. */
-async function prepare(m: Mail): Promise<Prepared> {
+async function prepare(m: Mail, pre?: Map<string, string>): Promise<Prepared> {
   // 대량·자동 발송(캠페인)은 '안내' 메일이어도 수신거부·탈퇴(가입 계정·구 워프)·정지·테스트 주소에는 보내지 않는다.
   // (비밀번호 재설정·인증·탈퇴 확인 같은 1:1 메일은 본인이 요청한 것이라 그대로 보낸다)
   if (m.campaignId && !m.testOnly && m.category !== "marketing") {
-    const sup = await suppressedNow(m.to);
+    const sup = pre ? (pre.get(m.to.trim().toLowerCase()) ?? "") : await suppressedNow(m.to);
     if (sup) {
       console.log(`[mail] blocked campaign ${m.kind} to=${m.to}: ${sup}`);
       await record(m, "blocked", sup);
@@ -244,8 +244,10 @@ async function sendOne(payload: unknown): Promise<{ ok: boolean; status: number;
 export async function deliverCampaignBatch(ms: Mail[]): Promise<{ sent: number; held: Status | null }> {
   let sent = 0;
   const ready: { m: Mail; payload: Extract<Prepared, { payload: unknown }>["payload"] }[] = [];
+  // 발송 제외 확인은 묶음 전체를 한 번에(주소마다 하면 300통에 1분을 넘김)
+  const pre = await suppressedMany(ms.filter((m) => m.campaignId && !m.testOnly && m.category !== "marketing").map((m) => m.to));
   for (const m of ms) {
-    const p = await prepare(m).catch(async (e) => {
+    const p = await prepare(m, pre).catch(async (e) => {
       console.error("[mail]", e);
       await record(m, "failed", String(e));
       return { held: "failed" as Status };
