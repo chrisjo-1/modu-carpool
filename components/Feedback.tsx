@@ -6,21 +6,35 @@ import { Segment, Sheet, api, btnPrimary, field, useLang, useT } from "./ui";
 type Item = { id: number; category: string; body: string; status: string; reply: string; at: number };
 
 /** 건의·불편·아이디어를 보내는 창. 로그인하지 않아도 보낼 수 있다. */
-export default function FeedbackSheet({ loggedIn, onClose, toast }: { loggedIn: boolean; onClose: () => void; toast: (m: string) => void }) {
+export default function FeedbackSheet({ loggedIn, onClose, toast, initialCat }: { loggedIn: boolean; onClose: () => void; toast: (m: string) => void; initialCat?: string }) {
   const t = useT();
   const lang = useLang();
-  const [cat, setCat] = useState("suggest");
+  const [cat, setCat] = useState(initialCat ?? "suggest");
   const [text, setText] = useState("");
   const [email, setEmail] = useState("");
   // 크레딧 이관 신청(워프 → 모두의카풀)
   const [warpCode, setWarpCode] = useState("");
   const [warpEmail, setWarpEmail] = useState("");
   const [warpCredits, setWarpCredits] = useState("");
+  // 내 계정이 워프 명단과 연결돼 있으면 고유번호가 없어도(구워프) 신청할 수 있다
+  const [linked, setLinked] = useState(false);
   const credit = cat === "credit";
   const [busy, setBusy] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
 
-  const load = () => loggedIn && api<{ items: Item[] }>("/api/feedback").then((r) => r.ok && setItems(r.data.items));
+  const load = () =>
+    loggedIn &&
+    api<{ items: Item[]; warp?: { code: string; email: string } | null }>("/api/feedback").then((r) => {
+      if (!r.ok) return;
+      setItems(r.data.items);
+      // 내 계정과 연결된 워프 고유번호·메일을 미리 채운다(크레딧 이관 안내 링크로 들어온 회원은 보유 크레딧만 적으면 됨)
+      const w = r.data.warp;
+      if (w) {
+        setLinked(true);
+        setWarpCode((v) => v || w.code);
+        setWarpEmail((v) => v || w.email);
+      }
+    });
   // 로그인 확인이 끝난 뒤(알림으로 바로 열린 경우 등)에도 내 의견을 불러온다.
   useEffect(() => {
     load();
@@ -58,7 +72,7 @@ export default function FeedbackSheet({ loggedIn, onClose, toast }: { loggedIn: 
               <>
                 <label className="block text-sm text-sub">
                   {t("워프 고유번호")}
-                  <input data-block-id="F441" className={`${field} mt-1`} required inputMode="text" autoCapitalize="characters" maxLength={12} placeholder={t("예: 1234567A")} value={warpCode} onChange={(e) => setWarpCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, ""))} />
+                  <input data-block-id="F441" className={`${field} mt-1`} required={!linked} inputMode="text" autoCapitalize="characters" maxLength={12} placeholder={linked ? t("고유번호가 없으면 비워 두세요") : t("예: 1234567A")} value={warpCode} onChange={(e) => setWarpCode(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, ""))} />
                 </label>
                 <label className="block text-sm text-sub">
                   {t("워프에 가입한 메일 주소")}

@@ -458,6 +458,8 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     code text primary key, user_id uuid not null references users(id) on delete cascade, warp_id text not null default '',
     template_key text not null default '', expires_at timestamptz not null, clicks integer not null default 0,
     clicked_at timestamptz, created_at timestamptz not null default now())`;
+  // 링크를 누른 뒤 열 화면(credit = 크레딧 이관 신청, 2026-11-17)
+  await sql`alter table kakao_links add column if not exists next text not null default ''`;
   await sql`alter table mail_campaigns add column if not exists followup_of uuid`;
   // 앱 설치 여부: 마지막으로 연 방식(app = 홈 화면 앱, browser = 인터넷 창)과 시각, 앱으로 처음 연 시각
   await sql`alter table users add column if not exists app_mode text not null default ''`;

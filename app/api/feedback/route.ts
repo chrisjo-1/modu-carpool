@@ -11,7 +11,15 @@ export async function GET() {
   try {
     await ensureSchema();
     const rows = await db()`select id, category, body, status, reply, created_at, replied_at from feedback where user_id = ${me} order by id desc limit 30`;
-    return json({ items: rows.map((r) => ({ id: Number(r.id), category: r.category, body: r.body, status: r.status, reply: r.reply, at: new Date(r.created_at as string).getTime() })) });
+    // 크레딧 이관 신청 창에 미리 채울 워프 고유번호·워프 메일(내 계정과 연결된 워프 명단, 신워프 먼저)
+    const w = (await db()`select l.warp_id, l.email_norm from legacy_members l join users u on u.id = ${me}
+      where (l.matched_user = u.id or lower(l.email_norm) = lower(u.email)) and not l.withdrawn
+      order by (l.matched_user = u.id) desc, (l.src_no like '신워프%') desc limit 1`)[0];
+    return json({
+      items: rows.map((r) => ({ id: Number(r.id), category: r.category, body: r.body, status: r.status, reply: r.reply, at: new Date(r.created_at as string).getTime() })),
+      // 구워프 명단 번호(WARP-…)는 회원이 아는 고유번호가 아니라 비워 둔다(서버가 연결된 명단으로 확인)
+      warp: w ? { code: /^[0-9A-Z]{6,12}$/i.test(String(w.warp_id ?? "")) ? String(w.warp_id) : "", email: String(w.email_norm ?? "") } : null,
+    });
   } catch (e) {
     return fail(e);
   }
@@ -29,12 +37,19 @@ export async function POST(req: Request) {
   if (safety && !rating) return json({ error: "어떠셨는지 하나를 골라 주세요." }, 400);
   // 크레딧 이관 신청: 워프 고유번호·워프 메일·보유 크레딧. 로그인한 회원만(크레딧은 그 계정으로 지급)
   const credit = category === "credit";
-  const warpCode = credit ? text(b.warpCode, 20).toUpperCase().replace(/\s/g, "") : "";
+  let warpCode = credit ? text(b.warpCode, 20).toUpperCase().replace(/\s/g, "") : "";
   const warpEmail = credit ? text(b.warpEmail, 120).toLowerCase() : "";
   const warpCredits = credit ? Math.round(Number(String(b.warpCredits ?? "").replace(/[^0-9]/g, ""))) : 0;
   if (credit) {
     if (!me) return json({ error: "크레딧 이관 신청은 로그인한 뒤에 할 수 있어요." }, 401);
-    if (!/^[0-9A-Z]{6,12}$/.test(warpCode)) return json({ error: "워프 고유번호를 확인해 주세요. (예: 1234567A)" }, 400);
+    if (!/^[0-9A-Z]{6,12}$/.test(warpCode)) {
+      // 고유번호가 없는 구워프 회원(명단 번호 WARP-…)은 내 계정과 연결된 명단 행으로 확인한다(2026-11-17 크레딧 이관 안내 링크)
+      const own = (await db()`select l.warp_id from legacy_members l join users u on u.id = ${me}
+        where (l.matched_user = u.id or lower(l.email_norm) = lower(u.email)) and not l.withdrawn
+        order by (l.matched_user = u.id) desc limit 1`)[0];
+      if (!own || (warpCode && warpCode !== String(own.warp_id).toUpperCase())) return json({ error: "워프 고유번호를 확인해 주세요. (예: 1234567A)" }, 400);
+      warpCode = String(own.warp_id).toUpperCase();
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(warpEmail)) return json({ error: "워프에 가입한 메일 주소를 확인해 주세요." }, 400);
     if (!(warpCredits >= 1 && warpCredits <= WARP_CREDIT_MAX)) return json({ error: "워프에서 보유한 크레딧을 숫자로 적어 주세요." }, 400);
   }

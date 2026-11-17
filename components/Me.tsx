@@ -110,7 +110,7 @@ export default function Me({
   push: ReturnType<typeof usePush>;
   onProfile: (id: string) => void;
   /** 답변 알림을 눌러 들어온 경우 의견 창을 바로 연다 */
-  feedbackFirst?: boolean;
+  feedbackFirst?: boolean | "credit";
   /** 마음 상담 창 열기 */
   onCounsel?: () => void;
 }) {
@@ -128,7 +128,11 @@ export default function Me({
   const [school, setSchool] = useState("");
   const [schoolCampus, setSchoolCampus] = useState("");
   const [noticesOpen, setNoticesOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(feedbackFirst);
+  const [feedbackOpen, setFeedbackOpen] = useState(!!feedbackFirst);
+  // 크레딧 이관 안내 링크로 들어와 로그인한 직후 등, 화면이 이미 열려 있을 때도 창을 연다
+  useEffect(() => {
+    if (feedbackFirst) setFeedbackOpen(true);
+  }, [feedbackFirst]);
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<Post[]>([]);
@@ -505,7 +509,7 @@ export default function Me({
       {contractReq && <ContractSheet requestId={contractReq} toast={toast} onClose={() => setContractReq(null)} />}
       {noticesOpen && <NoticeList onClose={() => setNoticesOpen(false)} />}
       {withdrawOpen && user && <Withdraw initialEmail={user.email} onClose={() => setWithdrawOpen(false)} />}
-      {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} onClose={() => setFeedbackOpen(false)} />}
+      {feedbackOpen && <FeedbackSheet loggedIn={!!user} toast={toast} initialCat={feedbackFirst === "credit" ? "credit" : undefined} onClose={() => setFeedbackOpen(false)} />}
       {helpOpen && <HelpSheet onClose={() => setHelpOpen(false)} onOpenFeedback={() => { setHelpOpen(false); setFeedbackOpen(true); }} />}
       {settingsOpen && (
         <Sheet title={t("설정")} blockId="S005" onClose={() => setSettingsOpen(false)}>

@@ -206,7 +206,15 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const [preview, setPreviewState] = useState(false);
   const [sharedPost, setSharedPost] = useState("");
   const [noticeFocus, setNoticeFocus] = useState(0);
-  const [feedbackFirst, setFeedbackFirst] = useState(false);
+  const [nextCredit, setNextCredit] = useState(false);
+  const [feedbackFirst, setFeedbackFirst] = useState<boolean | "credit">(false);
+  // 크레딧 이관 안내 링크로 들어온 회원: 로그인(또는 비번 설정)이 끝나면 내 정보 › 크레딧 이관 신청 창을 바로 연다
+  useEffect(() => {
+    if (!nextCredit || !user) return;
+    setNextCredit(false);
+    setFeedbackFirst("credit");
+    setTab("me");
+  }, [nextCredit, user]);
   const [consentLater, setConsentLater] = useState(false);
   const setPreview = (v: boolean) => {
     setPreviewState(v);
@@ -318,6 +326,11 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
       const q = new URLSearchParams(location.search);
       const reset = q.get("reset");
       if (reset) setResetToken(reset);
+      // 크레딧 이관 안내 링크(/s/코드·/credit): 비번 설정·로그인을 마치면 크레딧 이관 신청 창을 연다(2026-11-17)
+      if (q.get("next") === "credit") {
+        setNextCredit(true);
+        if (!reset) history.replaceState(null, "", location.pathname);
+      }
       // 탈퇴 확인 링크: 메일의 링크로 들어오면 탈퇴를 완료한다.
       if (q.get("leave")) {
         history.replaceState(null, "", location.pathname);

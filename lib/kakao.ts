@@ -141,7 +141,7 @@ export async function testSend(templateKey: string, to: string) {
 }
 
 /** 회원 계정이 없으면(구워프 등) 워프 명단의 메일로 임시 계정을 만든다 — 워프동기화와 같은 방식. */
-async function ensureAccount(warpId: string): Promise<{ userId: string; name: string } | null> {
+export async function ensureAccount(warpId: string): Promise<{ userId: string; name: string } | null> {
   const sql = db();
   const l = await sql`select warp_id, email_norm, nickname, name, matched_user, withdrawn from legacy_members where warp_id = ${warpId}`;
   if (!l.length || l[0].withdrawn) return null;
@@ -161,9 +161,9 @@ async function ensureAccount(warpId: string): Promise<{ userId: string; name: st
   return { userId: String(u.id), name };
 }
 
-async function makeLink(userId: string, warpId: string, templateKey: string) {
+export async function makeLink(userId: string, warpId: string, templateKey: string, next = "") {
   const code = randomBytes(6).toString("base64url").replace(/[-_]/g, "x").slice(0, 8);
-  await db()`insert into kakao_links (code, user_id, warp_id, template_key, expires_at) values (${code}, ${userId}, ${warpId}, ${templateKey}, now() + interval '14 days')`;
+  await db()`insert into kakao_links (code, user_id, warp_id, template_key, expires_at, next) values (${code}, ${userId}, ${warpId}, ${templateKey}, now() + interval '14 days', ${next})`;
   return `${SITE_URL}/s/${code}`;
 }
 

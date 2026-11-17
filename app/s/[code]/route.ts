@@ -10,6 +10,7 @@ const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 /**
  * 알림톡의 짧은 주소(lib/kakao.ts makeLink). 누를 때마다 30분짜리 비밀번호 설정 링크를 새로 만들어 보낸다.
  * 이미 비밀번호를 정한 회원은 그냥 첫 화면(로그인)으로. 카카오 링크 미리보기는 열지 않은 것으로 친다.
+ * kakao_links.next = 'credit'이면 비번 설정·로그인 뒤 크레딧 이관 신청 창을 바로 연다(?next=credit, 2026-11-17).
  */
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
@@ -21,13 +22,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     await ensureSchema();
     const sql = db();
     const r = await sql`update kakao_links set clicks = clicks + 1, clicked_at = coalesce(clicked_at, now())
-      where code = ${code} and expires_at > now() returning user_id`;
+      where code = ${code} and expires_at > now() returning user_id, next`;
     if (!r.length) return home;
+    // 링크를 누른 뒤 열 화면(크레딧 이관 신청 등). 로그인·비번 설정을 마치면 앱이 이어서 연다.
+    const next = r[0].next === "credit" ? "credit" : "";
+    const nextQ = next ? `next=${next}` : "";
     const u = await sql`select id, pw_reset_required from users where id = ${r[0].user_id} and withdrawn_at is null and not blocked`;
-    if (!u.length || !u[0].pw_reset_required) return home;
+    if (!u.length || !u[0].pw_reset_required) return NextResponse.redirect(`${SITE_URL}/${nextQ ? `?${nextQ}` : ""}`, 302);
     const token = randomBytes(32).toString("hex");
     await sql`insert into password_resets (token_hash, user_id, ip, expires_at) values (${hashToken(token)}, ${u[0].id}, 'kakao', now() + interval '30 minutes')`;
-    return NextResponse.redirect(`${SITE_URL}/?reset=${token}`, 302);
+    return NextResponse.redirect(`${SITE_URL}/?reset=${token}${nextQ ? `&${nextQ}` : ""}`, 302);
   } catch (e) {
     console.error("[s]", e);
     return home;
