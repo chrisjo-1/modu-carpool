@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { reviveRejoined } from "./legacy";
 import { campaignQuietNow, warpPostedMail } from "./mail";
 import { db } from "./server";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular } from "./time";
@@ -35,6 +36,8 @@ export async function runWarpSync(budgetMs = 25_000) {
     let user = acc.length && acc[0].matched_user
       ? (await sql`select id, withdrawn_at, blocked from users where id = ${acc[0].matched_user}`)[0]
       : email ? (await sql`select id, withdrawn_at, blocked from users where lower(email) = ${email} limit 1`)[0] : undefined;
+    // 워프에서 탈퇴했다 다시 가입한 회원이면(쓰지 않은 임시 계정이 닫혀 있을 뿐) 계정을 다시 연다
+    if (user && user.withdrawn_at && !user.blocked && acc[0]?.matched_user && (await reviveRejoined(String(user.id), warpId))) user = { ...user, withdrawn_at: null };
     if (user && (user.withdrawn_at || user.blocked)) {
       await sql`update warp_sync_items set stage = 'skip', note = '탈퇴·정지 회원', updated_at = now() where id = ${id}`;
       out.skipped += 1;

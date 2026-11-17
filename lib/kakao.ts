@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from "crypto";
+import { reviveRejoined } from "./legacy";
 import { db } from "./server";
 import { SITE_URL } from "./site";
 import { smsTargets, type SmsGroup } from "./smsTargets";
@@ -147,6 +148,7 @@ export async function ensureAccount(warpId: string): Promise<{ userId: string; n
   if (!l.length || l[0].withdrawn) return null;
   const name = String(l[0].nickname || l[0].name || "").slice(0, 40);
   if (l[0].matched_user) {
+    await reviveRejoined(String(l[0].matched_user), warpId);
     const u = await sql`select id from users where id = ${l[0].matched_user} and withdrawn_at is null and not blocked`;
     return u.length ? { userId: String(u[0].id), name } : null;
   }

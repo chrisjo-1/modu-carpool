@@ -47,7 +47,9 @@ export async function suppressedNow(email: string): Promise<string> {
   const u = await db()`select blocked, test, withdrawn_at from users where lower(email) = ${e}`;
   if (u[0] && (u[0].blocked === true || u[0].test === true || u[0].withdrawn_at)) return "정지·테스트·탈퇴 회원";
   // 구 워프에서 탈퇴한 회원(옮겨 온 명단에 탈퇴로 표시된 메일 주소)
-  const l = await db()`select 1 from legacy_members where withdrawn and (email_norm = ${e} or email_h = ${keyedHash(e)}) limit 1`;
+  // 같은 메일로 워프에 다시 가입한(탈퇴 안 한 명단 행이 있는) 회원은 막지 않는다
+  const l = await db()`select 1 from legacy_members where withdrawn and (email_norm = ${e} or email_h = ${keyedHash(e)})
+    and not exists (select 1 from legacy_members a where not coalesce(a.withdrawn, false) and a.email_norm = ${e}) limit 1`;
   if (l.length) return "워프 탈퇴 회원";
   return "";
 }
@@ -63,7 +65,8 @@ export async function suppressedMany(emails: string[]): Promise<Map<string, stri
   const [s, u, l] = await Promise.all([
     sql`select email from mail_suppressions where email = any(${list}::text[])`,
     sql`select lower(email) as email from users where lower(email) = any(${list}::text[]) and (blocked or test or withdrawn_at is not null)`,
-    sql`select email_norm, email_h from legacy_members where withdrawn and (email_norm = any(${list}::text[]) or email_h = any(${hashes}::text[]))`,
+    sql`select email_norm, email_h from legacy_members w where withdrawn and (email_norm = any(${list}::text[]) or email_h = any(${hashes}::text[]))
+      and not exists (select 1 from legacy_members a where not coalesce(a.withdrawn, false) and a.email_norm is not null and a.email_norm = w.email_norm)`,
   ]);
   const byHash = new Map(list.map((e, i) => [hashes[i], e]));
   for (const r of l) {

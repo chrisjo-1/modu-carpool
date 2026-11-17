@@ -129,3 +129,18 @@ export async function takeoverWarp(code: string, userId: string): Promise<"linke
   await sql`update users set withdrawn_at = now() where id = ${owner} and withdrawn_at is null`;
   return "moved";
 }
+
+/**
+ * 워프에서 탈퇴했다가 다시 가입한 회원(2026-11-17, 0693550C): 예전 고유번호가 워프 탈퇴로 표시될 때 같은 메일의 '한 번도 안 쓴 임시 계정'이
+ * 함께 닫혔는데, 같은 메일로 새 고유번호가 명단에 올라오면 그 닫힌 계정에 묶여 '탈퇴·정지'로 보였다.
+ * 이 명단 행이 탈퇴가 아니고, 묶인 계정이 한 번도 쓰지 않은 임시 계정(비번 미설정·접속 없음·정지 아님)이면 계정을 다시 열고 고유코드를 새 번호로 바꾼다.
+ */
+export async function reviveRejoined(userId: string, warpId: string): Promise<boolean> {
+  const code = warpId.trim().toUpperCase();
+  const r = await db()`update users u set withdrawn_at = null,
+      member_code = case when exists (select 1 from users o where o.member_code = ${code} and o.id <> u.id) then u.member_code else ${code} end
+    where u.id = ${userId} and u.withdrawn_at is not null and u.pw_reset_required and u.last_seen is null and not u.blocked
+      and exists (select 1 from legacy_members l where l.matched_user = u.id and upper(l.warp_id) = ${code} and not coalesce(l.withdrawn, false))
+    returning u.id`;
+  return r.length > 0;
+}

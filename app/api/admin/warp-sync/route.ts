@@ -27,14 +27,15 @@ export async function GET() {
     await ensureSchema();
     const sql = db();
     const rows = await sql`select s.*,
-        l.email_norm, u.id as acc_user, u.withdrawn_at, u.blocked
+        l.email_norm, u.id as acc_user, u.withdrawn_at, u.blocked, (u.pw_reset_required and u.last_seen is null) as acc_unused, l.row_withdrawn
       from warp_sync_items s
-      left join lateral (select email_norm, matched_user from legacy_members x where upper(x.warp_id) = upper(s.warp_id)
+      left join lateral (select email_norm, matched_user, coalesce(withdrawn, false) as row_withdrawn from legacy_members x where upper(x.warp_id) = upper(s.warp_id)
                          order by (x.matched_user is null) limit 1) l on true
       left join users u on u.id = l.matched_user
       order by coalesce(s.reg_at, s.created_at) desc, s.id desc limit 500`;
     const items = rows.map((r) => {
-      const gone = !!(r.withdrawn_at || r.blocked);
+      // 워프 명단 행이 탈퇴가 아니고 묶인 계정이 안 쓴 임시 계정이면(워프 재가입) 처리할 때 다시 열리므로 '탈퇴'로 보지 않는다
+      const gone = !!r.blocked || !!r.row_withdrawn || (!!r.withdrawn_at && !r.acc_unused);
       const hasAccount = !!r.acc_user || !!r.email_norm;
       const stage = String(r.stage ?? "");
       const status = String(r.status);
