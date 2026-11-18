@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clearNotifications } from "@/lib/notifyClear";
+import { sendVisit } from "@/lib/visitClient";
 import dynamic from "next/dynamic";
 import { loadDict, translate, type Lang } from "@/lib/i18n";
 import type { Post, Thread, User } from "@/lib/types";
@@ -184,17 +185,12 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
     if (tab !== "post") setRepostFrom(null);
   }, [tab]);
   // 앱(홈 화면 설치)으로 열었는지 인터넷 창인지 창마다 한 번 기록한다(관리자 통계용)
+  // 방문 기록(관리자 '방문' 탭, 2026-11-18): 창을 열 때 한 번, 로그인하면 한 번 더(회원 연결). 앱·인터넷 창·PC 기록도 함께.
   useEffect(() => {
-    if (!user) return;
-    try {
-      if (sessionStorage.getItem("modu.appmode")) return;
-      sessionStorage.setItem("modu.appmode", "1");
-    } catch {
-      /* 무시 */
-    }
-    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
-    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    void api("/api/appmode", "POST", { mode: standalone ? "app" : "browser", mobile });
+    sendVisit(false);
+  }, []);
+  useEffect(() => {
+    if (user) sendVisit(true);
   }, [user]);
   const [bubbleTexts, setBubbleTexts] = useState<Record<string, string>>({});
   useEffect(() => {

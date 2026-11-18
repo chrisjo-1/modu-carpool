@@ -460,6 +460,14 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     clicked_at timestamptz, created_at timestamptz not null default now())`;
   // 링크를 누른 뒤 열 화면(credit = 크레딧 이관 신청, 2026-11-17)
   await sql`alter table kakao_links add column if not exists next text not null default ''`;
+  // 방문 기록(2026-11-18 사용자 지시 '오늘 방문자 수·가입자·접속 경로를 볼 수 있는 관리자 데이터'): 날짜(한국)·기기 번호(무작위, 기기에만 저장)별 한 줄.
+  // IP·이름은 남기지 않는다. 90일 뒤 지운다(maintainData).
+  await sql`create table if not exists site_visits (
+    day date not null, vid text not null, user_id uuid, source text not null default '', ref_host text not null default '',
+    landing text not null default '', mode text not null default '', is_new boolean not null default false,
+    hits int not null default 1, hours int not null default 0, first_at timestamptz not null default now(), last_at timestamptz not null default now(),
+    primary key (day, vid))`;
+  await sql`create index if not exists site_visits_user_idx on site_visits (user_id, day)`;
   // 워프 메일로 로그인이 안 돼 새 메일로 가입하며 적은 워프 고유번호(크레딧 이관 신청 창에 미리 채움, 2026-11-17)
   await sql`alter table users add column if not exists warp_claim text not null default ''`;
   // 로그인 메일 바꾸기(2026-11-17): 새 주소로 보낸 확인 링크, 바꾼 기록(회원 본인·관리자)
@@ -794,6 +802,7 @@ async function maintainData(sql: ReturnType<typeof db>) {
   await sql`delete from ride_contacts rc using requests r join posts p on p.id = r.post_id
     where rc.request_id = r.id and (r.status <> 'accepted' or (not p.regular and p.depart_at < now() - interval '2 days'))`;
   await sql`delete from repost_reminds where day < current_date - 30`;
+  await sql`delete from site_visits where day < current_date - 90`;
   await backfillMemberCodes(sql);
   await sql`update users set old_name = name, name = member_code where member_code is not null and name <> member_code and old_name is null`;
   // Resend 유료 전환(2026-10-23): 대량 메일 하루 한도를 100 → 500으로 한 번만 올린다(관리자가 바꾼 값은 건드리지 않음).
