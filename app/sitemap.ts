@@ -18,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/faq`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     { url: `${SITE_URL}/warp`, lastModified: fixed, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/subway`, lastModified: fixed, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/carpool-app`, lastModified: new Date("2026-11-19T00:00:00+09:00"), changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/carpool`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
     ...SEO_LINES.map((l) => ({ url: `${SITE_URL}/subway/${l}`, lastModified: fixed, changeFrequency: "weekly" as const, priority: 0.7 })),
     // 역 페이지는 출근 시간 붐비는 주요 역만(색인 대상과 같게).

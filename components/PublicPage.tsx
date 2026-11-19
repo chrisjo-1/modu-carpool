@@ -17,6 +17,11 @@ export default function PublicPage({ blockId, name, crumbs, children }: { blockI
         <p className="text-[16px] font-bold text-ink">모두의카풀에서 같은 방향 사람과 함께 가요</p>
         <p className="text-[14px] text-sub">출퇴근 카풀과 지하철 앉아가기를 무료로 이용할 수 있어요. 지하철 정보를 등록하면 지금 시간에 맞춰 앉을 칸을 알려 드려요.</p>
         <a href="/" className="inline-block rounded-xl bg-accent px-5 py-3 text-[15px] font-semibold text-white">모두의카풀 시작하기</a>
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-[14px] text-sub">
+          <a href="/carpool-app" className="underline">카풀 앱 · 카풀 구하는 법</a>
+          <a href="/carpool" className="underline">지역별 카풀</a>
+          <a href="/subway" className="underline">지하철 앉아가기</a>
+        </p>
       </aside>
     </main>
   );

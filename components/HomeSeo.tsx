@@ -38,8 +38,8 @@ export default async function HomeSeo() {
   return (
     <section data-block-id="S300" data-block-name="서비스 소개" className="mt-10 space-y-5 border-t border-line pt-6 text-[14px] leading-relaxed text-sub">
       <div className="space-y-2">
-        <h1 className="text-[17px] font-bold text-ink">모두의카풀 — 출퇴근 카풀·지하철 앉아가기</h1>
-        <p>모두의카풀은 출퇴근길과 나들이길에 방향이 같은 사람끼리 함께 타는 카풀 매칭 서비스입니다. 운전자는 빈자리를 나누고, 탑승자는 같은 방향 차를 찾습니다. 무료 운행을 원칙으로 하며, 평일 출퇴근 시간에는 비용을 나눌 수 있습니다.</p>
+        <h1 className="text-[17px] font-bold text-ink">카풀 앱 모두의카풀 — 출퇴근 카풀 구하기·지하철 앉아가기</h1>
+        <p>모두의카풀은 무료 카풀 앱입니다. 출퇴근길과 나들이길에 방향이 같은 사람끼리 함께 타는 카풀 매칭 서비스입니다. 운전자는 빈자리를 나누고, 탑승자는 같은 방향 차를 찾습니다. 무료 운행을 원칙으로 하며, 평일 출퇴근 시간에는 비용을 나눌 수 있습니다.</p>
         <p>지하철 앉아가기는 서울교통공사 시간대별 혼잡도와 이용자 착석 기록으로 앉을 확률이 높은 칸을 알려 주고, 곧 내리는 분과 자리를 이어 줍니다. 예전 카풀 앱 워프(warp)가 모두의카풀로 이름을 바꿨습니다.</p>
       </div>
       {posts.length > 0 && (
@@ -66,6 +66,8 @@ export default async function HomeSeo() {
         </p>
       </div>
       <p className="flex flex-wrap gap-x-3 gap-y-1">
+        <a href="/carpool-app" className="underline">카풀 앱 · 카풀 구하는 법</a>
+        <a href="/carpool" className="underline">지역별 카풀</a>
         <a href="/faq" className="underline">자주 묻는 질문</a>
         <a href="/warp" className="underline">워프에서 모두의카풀로</a>
         <a href="/terms" className="underline">이용약관</a>

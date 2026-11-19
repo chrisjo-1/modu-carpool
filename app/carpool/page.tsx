@@ -7,7 +7,7 @@ import { AREA_MIN_POSTS, areaCounts, areaSlug } from "@/lib/seoArea";
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: "지역별 출퇴근 카풀 — 서울·경기·인천",
+  title: "지역별 카풀 구하기 — 서울·경기·인천 출퇴근 카풀",
   description: "강남구·분당구·영등포구 등 지역별로 지금 모집 중인 출퇴근 카풀을 모았어요. 같은 방향 이웃과 기름값을 나누고 함께 출근하세요.",
   alternates: { canonical: "/carpool" },
   openGraph: { title: "지역별 출퇴근 카풀 | 모두의카풀", url: "/carpool" },

@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SITE_URL } from "@/lib/site";
 
-const title = "모두의카풀 — 출퇴근 카풀·지하철 앉아가기";
+const title = "카풀 앱 모두의카풀 — 출퇴근 카풀 구하기·지하철 앉아가기";
 const description =
-  "방향이 같은 사람과 함께 타는 출퇴근 카풀, 앉을 칸을 알려 주는 지하철 앉아가기, 도착까지 함께 지켜보는 여성 안심동행. 무료 운행을 원칙으로 하는 모두의카풀(구 워프)입니다.";
+  "카풀 앱 모두의카풀(구 워프)에서 방향이 같은 사람과 출퇴근 카풀을 무료로 구하세요. 정기카풀·카풀 CALL·경로 분석, 여성 안심동행, 앉을 칸을 알려 주는 지하철 앉아가기까지.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   },
   title: { default: title, template: "%s | 모두의카풀" },
   description,
-  keywords: ["모두의카풀", "출퇴근 카풀", "카풀", "지하철 앉아가기", "워프 카풀", "모카"],
+  keywords: ["카풀", "카풀 앱", "카풀 어플", "카풀 앱 추천", "카풀 구하기", "모두의카풀", "출퇴근 카풀", "정기카풀", "지하철 앉아가기", "워프 카풀", "모카"],
   authors: [{ name: "모두의카풀" }],
   robots: { index: true, follow: true },
   openGraph: { type: "website", locale: "ko_KR", url: "/", title, description, siteName: "모두의카풀", images: [{ url: "/og-v2.png", width: 1200, height: 630, alt: "모두의카풀 — 출퇴근 카풀·지하철 앉아가기·여성 안심동행" }] },
@@ -33,7 +33,8 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
     { "@type": "WebApplication", name: "모두의카풀", url: SITE_URL, description, applicationCategory: "TravelApplication", operatingSystem: "Web, iOS, Android", inLanguage: ["ko", "en", "ja", "zh"], offers: { "@type": "Offer", price: "0", priceCurrency: "KRW" } },
-    { "@type": "Organization", name: "모두의카풀", url: SITE_URL, logo: `${SITE_URL}/icon-512.png` },
+    { "@type": "Organization", name: "모두의카풀", alternateName: ["모두의 카풀", "모카", "워프 카풀"], url: SITE_URL, logo: `${SITE_URL}/icon-512.png` },
+    { "@type": "WebSite", name: "모두의카풀", alternateName: "카풀 앱 모두의카풀", url: SITE_URL, inLanguage: "ko" },
   ],
 };
 
