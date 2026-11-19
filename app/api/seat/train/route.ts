@@ -1,13 +1,13 @@
 import { currentUserId, fail, json, needLogin, text } from "@/lib/server";
 import { clearMyTrain, getMyTrain, saveMyTrain, sameTrainUsers, seatDbReady } from "@/lib/seatDb";
-import { arrivalsAt, realtimeLine, realtimeReady } from "@/lib/seoulRealtime";
+import { arrivalsWithFollowing, realtimeLine, realtimeReady } from "@/lib/seoulRealtime";
 import { LINE_STATIONS } from "@/lib/subway";
 
 export const dynamic = "force-dynamic";
 
 /**
  * 오늘 탄 열차(같은 열차 매칭, 2026-11-12).
- * GET ?line=&board=&next=  내 역에 들어오거나 막 떠난 열차(최대 4) + 오늘 고른 열차·같은 열차 회원 수
+ * GET ?line=&board=&next=  내 역에 들어오거나 막 떠난 열차 + 뒤따라오는 열차(도착 예정 최대 6) + 오늘 고른 열차·같은 열차 회원 수
  * POST {line, trainNo, terminal, station}  오늘 탄 열차로 저장 / DELETE 지우기
  */
 export async function GET(req: Request) {
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     const same = mine ? (await sameTrainUsers(uid)).length : 0;
     if (!realtimeReady() || !realtimeLine(line)) return json({ supported: false, trains: [], mine, same });
     if (!(LINE_STATIONS[line] ?? []).includes(board)) return json({ supported: true, trains: [], mine, same });
-    const trains = await arrivalsAt(line, board, next || undefined).catch((e: Error) => {
+    const trains = await arrivalsWithFollowing(line, board, next || undefined).catch((e: Error) => {
       throw Object.assign(new Error(e.message), { status: 502 });
     });
     return json({ supported: true, trains, mine, same });

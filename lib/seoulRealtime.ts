@@ -1,6 +1,6 @@
 import IDS from "./data/subway-ids.json";
 import { routePath } from "./subwayRoute";
-import { etaOf } from "./trainTiming";
+import { STOP_SEC, etaOf } from "./trainTiming";
 
 /**
  * 서울시 실시간 지하철 정보(서울 열린데이터광장 swopenapi, 인증키 SEOUL_SUBWAY_KEY). 서버에서만 부른다.
@@ -18,6 +18,8 @@ export const stationIdOf = (line: string, station: string) => MAP.st[line]?.[sta
 
 export type Arrival = {
   trainNo: string;
+  /** 방향 '0' 상행·내선 / '1' 하행·외선 (뒤따라오는 열차를 노선 위치에서 찾을 때) */
+  updn?: string;
   terminal: string;
   /** 진입·도착·출발 등 화면 문구(예: "전역 출발", "3분 후") */
   msg: string;
@@ -105,6 +107,7 @@ export async function arrivalsAt(line: string, station: string, next?: string): 
     return {
       eta: e == null ? null : e - (e > 0 ? age : 0),
       trainNo: str(r.btrainNo).replace(/^0+(?=\d)/, ""),
+      updn: updnOf(r.updnLine),
       terminal: str(r.bstatnNm).replace(/행$/, ""),
       msg: str(r.arvlMsg2),
       code: Number.isFinite(code) ? code : 99,
@@ -122,7 +125,50 @@ export async function arrivalsAt(line: string, station: string, next?: string): 
   return [...departed, ...sorted.filter((a) => a.eta == null || a.eta >= 0)].slice(0, 5);
 }
 
-export type TrainPos = { trainNo: string; station: string; status: number; terminal: string; at: string };
+/** 상행·내선 → '0', 하행·외선 → '1' (도착 API는 글자, 위치 API는 숫자) */
+function updnOf(v: unknown): string {
+  const x = str(v);
+  if (x === "0" || /상행|내선/.test(x)) return "0";
+  if (x === "1" || /하행|외선/.test(x)) return "1";
+  return "";
+}
+
+/**
+ * 역 도착 정보 + 뒤따라오는 열차(2026-11-19 사용자 지시 '뒤에 들어오는 차량을 몇 개 더').
+ * 도착 API는 방향마다 2~3대만 주므로, 노선 전체 위치(realtimePosition)에서 같은 방향·내 역으로 오는 열차를
+ * 정거장 수 × 2분으로 셈해 붙인다. 내 역까지 15정거장 안, 도착 예정 열차 최대 maxNext대.
+ */
+export async function arrivalsWithFollowing(line: string, station: string, next?: string, maxNext = 6): Promise<Arrival[]> {
+  const base = await arrivalsAt(line, station, next);
+  const updn = base.find((a) => a.updn)?.updn ?? "";
+  let extra: Arrival[] = [];
+  if (updn) {
+    const pos = await trainPositions(line).catch(() => [] as TrainPos[]);
+    const have = new Set(base.map((a) => a.trainNo));
+    extra = pos
+      .filter((p) => p.updn === updn && p.trainNo && !have.has(p.trainNo) && p.station !== station)
+      .map((p) => {
+        const path = routePath(line, p.station, station);
+        if (!path || path.length < 2 || path.length - 1 > 15) return null;
+        // 다음 역 쪽에서 오는 열차(이미 지나간 열차)·내 역 앞에서 끝나는 열차는 뺀다
+        if (next && path[path.length - 2] === next) return null;
+        if (p.terminal && path.slice(0, -1).includes(p.terminal)) return null;
+        const stops = path.length - 1;
+        // 상태: 0 진입 · 1 도착 · 2 출발 · 3 전역 출발
+        const eta = stops * STOP_SEC - (p.status === 2 ? 30 : p.status === 0 ? -30 : 0);
+        return { trainNo: p.trainNo, updn, terminal: p.terminal, msg: `${stops}정거장 전`, code: 99, sec: 0, eta, express: false, last: false } as Arrival;
+      })
+      .filter((a): a is Arrival => !!a);
+  }
+  const seen = new Set<string>();
+  const all = [...base, ...extra]
+    .filter((a) => !seen.has(a.trainNo) && seen.add(a.trainNo))
+    .sort((a, b) => (a.eta ?? 9e9) - (b.eta ?? 9e9));
+  const departed = all.filter((a) => a.eta != null && a.eta < 0).slice(-1);
+  return [...departed, ...all.filter((a) => a.eta == null || a.eta >= 0).slice(0, maxNext)];
+}
+
+export type TrainPos = { trainNo: string; station: string; status: number; terminal: string; at: string; updn: string };
 
 /** 노선 전체 열차 위치(열차번호별). 정거장 안내용. */
 export async function trainPositions(line: string): Promise<TrainPos[]> {
@@ -137,5 +183,6 @@ export async function trainPositions(line: string): Promise<TrainPos[]> {
     status: Number(r.trainSttus ?? 0),
     terminal: byId.get(str(r.statnTid)) ?? str(r.statnTnm),
     at: str(r.recptnDt),
+    updn: updnOf(r.updnLine),
   }));
 }

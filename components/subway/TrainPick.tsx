@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LineId } from "@/lib/subway";
 import { MIN_LEAD_SEC, etaLabel, planTrains, type TimedTrain, type TrainChance } from "@/lib/trainTiming";
 import { api, useT } from "../ui";
@@ -13,7 +13,7 @@ const mins = (s: number) => `${Math.max(1, Math.round(s / 60))}분`;
 
 /**
  * ① 들어오는 열차 고르기(2026-11-12 사용자 지시: 지하철 앉아가기 재구성).
- * 선로 그림 오른쪽 끝이 내 역, 들어오는 열차 3대가 도착 순으로 왼쪽에서 다가온다(멀수록 왼쪽).
+ * 선로 그림 오른쪽 끝이 내 역, 들어오는 열차(뒤따라오는 열차까지 최대 6대)가 도착 순으로 왼쪽에서 다가온다(멀수록 왼쪽).
  * 열차 사이에 앞차 간격('↔ 2분 · 붙어옴' 초록 / '↔ 7분 · 붐빔' 코랄), 앉을 확률이 가장 높은 열차는 노선 색 + [추천],
  * 2분 안에 오는 열차는 흐리게(놓칠 수 있음). 누르면 그 열차를 고르고(onSelect) 오늘 탄 열차로 저장(같은 열차 매칭).
  * 실시간 정보가 없는 노선이면 아무것도 그리지 않는다.
@@ -24,6 +24,7 @@ export default function TrainPick({ line, station, next, best, onSelect, onLoade
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [sel, setSel] = useState("");
+  const trackRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -52,6 +53,12 @@ export default function TrainPick({ line, station, next, best, onSelect, onLoade
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosenKey]);
 
+  // 새로 불러오면 선로를 내 역(오른쪽 끝) 쪽으로
+  useEffect(() => {
+    const el = trackRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [data]);
+
   const pick = async (tr: TrainChance) => {
     setSel(tr.trainNo);
     const r = await api<{ mine: Mine; same: number }>("/api/seat/train", "POST", { line, trainNo: tr.trainNo, terminal: tr.terminal, station });
@@ -62,8 +69,10 @@ export default function TrainPick({ line, station, next, best, onSelect, onLoade
   if (!data.supported) return null;
 
   const list = plan.list;
-  // 선로 위 위치: 도착 순서대로 내 역(오른쪽)에서 왼쪽으로 고르게(시각이 붙어 있어도 겹치지 않게).
-  const slots = [70, 43, 16];
+  // 선로 위 위치: 도착 순서대로 내 역(오른쪽)에서 왼쪽으로 84px씩(시각이 붙어 있어도 겹치지 않게).
+  // 뒤따라오는 열차까지 최대 6대라 좁은 화면에선 선로를 가로로 밀어 본다(처음엔 내 역 쪽 끝을 보여 줌).
+  const STEP = 84;
+  const trackW = 72 + list.length * STEP;
   const mine = data.mine && data.mine.line === line ? data.mine : null;
 
   return (
@@ -80,7 +89,8 @@ export default function TrainPick({ line, station, next, best, onSelect, onLoade
         <p className="rounded-2xl bg-bg px-4 py-3 text-[13px] text-sub">{t("지금 들어오는 열차 정보가 없어요. 잠시 뒤 새로고침을 눌러 주세요.")}</p>
       ) : (
         <div className="rounded-2xl border border-line bg-white px-3 pb-3 pt-2">
-          <div className="relative h-[124px]" role="radiogroup" aria-label={t("들어오는 열차")}>
+          <div ref={trackRef} className="-mx-1 overflow-x-auto px-1">
+          <div className="relative h-[124px]" style={{ minWidth: trackW }} role="radiogroup" aria-label={t("들어오는 열차")}>
             {/* 선로 */}
             <div className="absolute left-2 right-10 top-[54px] h-1.5 rounded-full bg-lcSoft" aria-hidden />
             {/* 내 역 */}
@@ -90,6 +100,8 @@ export default function TrainPick({ line, station, next, best, onSelect, onLoade
             </div>
             {list.map((x, idx) => {
               const isBest = plan.best?.trainNo === x.trainNo;
+              // 앞차에 바짝 붙어오는 열차도 추천(2026-11-19 사용자 지시)
+              const isRec = !isBest && plan.recs.includes(x.trainNo);
               const on = chosen?.trainNo === x.trainNo;
               const miss = x.eta < MIN_LEAD_SEC;
               return (
@@ -100,10 +112,10 @@ export default function TrainPick({ line, station, next, best, onSelect, onLoade
                   aria-checked={on}
                   aria-label={`${etaLabel(x.eta)} ${x.terminal}${t("행")} ${x.trainNo} ${t("앉을 확률")} ${Math.round(x.prob * 100)}%`}
                   onClick={() => pick(x)}
-                  className="absolute top-[22px] flex -translate-x-1/2 flex-col items-center"
-                  style={{ left: `${slots[idx] ?? 16}%`, opacity: miss ? 0.45 : 1 }}
+                  className="absolute top-[22px] flex translate-x-1/2 flex-col items-center"
+                  style={{ right: 64 + idx * STEP, opacity: miss ? 0.45 : 1 }}
                 >
-                  <span className={`mb-1 h-[18px] whitespace-nowrap rounded-md px-1.5 text-[11px] font-bold leading-[18px] ${isBest ? "bg-brand text-white" : "invisible"}`}>{t("추천")}</span>
+                  <span className={`mb-1 h-[18px] whitespace-nowrap rounded-md px-1.5 text-[11px] font-bold leading-[18px] ${isBest ? "bg-brand text-white" : isRec ? "bg-mint text-white" : "invisible"}`}>{t("추천")}</span>
                   <span
                     className={`num grid h-9 min-w-[52px] place-items-center rounded-[10px] border-2 px-1.5 text-[12px] font-bold ${on ? "border-lc bg-lc text-lcInk" : "border-[#C9CED8] bg-white text-sub"}`}
                     style={on ? { boxShadow: "0 0 0 4px var(--lc-soft, #EEF0F5)" } : undefined}
@@ -116,6 +128,7 @@ export default function TrainPick({ line, station, next, best, onSelect, onLoade
               );
             })}
           </div>
+          </div>
           {/* 앞차 간격 */}
           <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-line pt-2 text-[11.5px] font-semibold">
             {list.map((x, i) =>
@@ -126,7 +139,7 @@ export default function TrainPick({ line, station, next, best, onSelect, onLoade
               ),
             )}
           </div>
-          <p className="mt-1.5 text-[11.5px] leading-relaxed text-sub">{t("앞차에 바짝 붙어오는 열차일수록 승강장에 기다린 사람이 적어 앉기 쉬워요. 흐린 열차는 놓칠 수 있어요.")}</p>
+          <p className="mt-1.5 text-[11.5px] leading-relaxed text-sub">{t("남색 [추천]은 앉을 확률이 가장 높은 열차, 초록 [추천]은 앞차에 바짝 붙어와 승강장에 기다린 사람이 적은 열차예요. 흐린 열차는 놓칠 수 있어요.")}{list.length > 3 ? ` ${t("선로를 옆으로 밀면 뒤따라오는 열차도 보여요.")}` : ""}</p>
         </div>
       )}
 

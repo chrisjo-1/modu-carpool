@@ -55,7 +55,7 @@ const median = (xs: number[]) => {
  * 들어오는 열차 최대 n대의 간격·확률과 추천 열차.
  * base = 칸 안내 1순위 칸-문의 앉을 확률(0~1).
  */
-export function planTrains(trains: TimedTrain[], base: number, n = 3): { list: TrainChance[]; best: TrainChance | null; typicalGap: number } {
+export function planTrains(trains: TimedTrain[], base: number, n = 6): { list: TrainChance[]; best: TrainChance | null; typicalGap: number; recs: string[] } {
   const sorted = [...trains].sort((a, b) => a.eta - b.eta);
   const gaps: (number | null)[] = sorted.map((t, i) => (i === 0 ? null : Math.max(0, t.eta - sorted[i - 1].eta)));
   const known = gaps.filter((g): g is number => g != null && g > 0);
@@ -70,7 +70,9 @@ export function planTrains(trains: TimedTrain[], base: number, n = 3): { list: T
   });
   const pool = list.filter((t) => t.eta >= MIN_LEAD_SEC);
   const best = pool.reduce<TrainChance | null>((b, t) => (!b || t.prob > b.prob + 0.001 ? t : b), null);
-  return { list, best, typicalGap };
+  // 추천: 확률 1위 + 앞차에 바짝 붙어오는(평소 간격의 70% 이하) 열차도 (2026-11-19 사용자 지시 '간격이 짧은 차량도 추천')
+  const recs = pool.filter((t) => t === best || (t.gap != null && t.gap <= typicalGap * 0.7)).map((t) => t.trainNo);
+  return { list, best, typicalGap, recs };
 }
 
 /** "5분 뒤", "곧 도착", "막 출발" */
