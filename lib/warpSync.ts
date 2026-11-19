@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { reviveRejoined } from "./legacy";
 import { campaignQuietNow, warpPostedMail } from "./mail";
+import { taxiFare } from "./fare";
 import { db } from "./server";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular } from "./time";
 import { geocodeAddress, shortPlace } from "./warpPool";
@@ -71,7 +72,13 @@ export async function runWarpSync(budgetMs = 25_000) {
     // 정기카풀은 다음 평일 출근 시각을 출발 시각으로 둔다(앱의 정기카풀과 같은 방식)
     const departAt = regular ? new Date(nextOccurrence(days, timeGo || "08:00")) : it.depart_at ? new Date(it.depart_at) : new Date();
     const allowed = regular ? priceAllowedRegular(days, timeGo || "08:00", timeBack) : priceAllowedAt(departAt.getTime());
-    const rawPrice = Number(it.price) || 0;
+    // 금액이 비었는데 태그에 '택시50%'처럼 있으면 예상 택시비(직선 거리 × 1.3, 낮 거리 요금)의 그 비율로 (2026-11-19 사용자 지시)
+    const taxiPct = Number(/택시\s*비?\s*(\d{1,3})\s*%/.exec(String(it.tags ?? ""))?.[1] ?? 0);
+    let rawPrice = Number(it.price) || 0;
+    if (rawPrice < 500 && taxiPct > 0 && taxiPct <= 100 && h && w) {
+      const km = roadKm(h, w);
+      rawPrice = Math.round((taxiFare(km * 1000, 0, departAt.getTime()).low * taxiPct) / 100);
+    }
     const fixed = allowed && rawPrice >= 500;
     const price = fixed ? Math.min(MAX_PRICE, Math.round(rawPrice / 100) * 100) : 0;
     const tags = String(it.tags ?? "").split(/[,·]/).map((x) => x.trim()).filter((x) => x && !/\d+\s*원|%/.test(x)).slice(0, 5);
@@ -134,6 +141,14 @@ export async function runWarpSync(budgetMs = 25_000) {
     }
   }
   return out;
+}
+
+/** 두 지점 직선 거리 × 1.3(도로 보정), km */
+function roadKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const r = Math.PI / 180;
+  const x = (b.lng - a.lng) * r * Math.cos(((a.lat + b.lat) / 2) * r);
+  const y = (b.lat - a.lat) * r;
+  return Math.sqrt(x * x + y * y) * 6371 * 1.3;
 }
 
 let lastTry = 0;

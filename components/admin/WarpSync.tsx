@@ -114,7 +114,7 @@ export default function WarpSync() {
 
         <div className="mt-3">
           <label className="text-sm font-semibold">여러 건 붙여넣기 (한 줄에 한 건)</label>
-          <p className="mt-0.5 text-xs text-sub">순서: 고유번호 | 운전자·탑승자 | 출발 주소 | 도착 주소 | 출발 일시(정기카풀은 07:00/19:00) | 상태(대기·시간경과·완료) | 금액 | 등록 일시. 칸은 | 또는 탭으로 나눠요.</p>
+          <p className="mt-0.5 text-xs text-sub">순서: 고유번호 | 운전자·탑승자 | 출발 주소 | 도착 주소 | 출발 일시(정기카풀은 07:00/19:00) | 상태(대기·시간경과·완료) | 금액 | 등록 일시 | 태그(선택, 예: 택시50%·현금협의). 칸은 | 또는 탭으로 나눠요. 금액이 비고 태그에 '택시50%'처럼 있으면 거리로 예상 택시비의 그 비율을 금액으로 넣어요(평일 출퇴근 시간 글만).</p>
           <textarea data-block-id="F440" value={text} onChange={(e) => setText(e.target.value)} rows={4}
             placeholder={"예) 0247737X|운전자|충남 천안시 동남구 신방동 920|인천 영종구 운서동 2868|2026-10-31 14:00|시간경과||2026-10-31 07:53"}
             className="mt-1 w-full rounded-xl border border-line bg-white p-3 text-[15px] outline-none focus:border-accent" />

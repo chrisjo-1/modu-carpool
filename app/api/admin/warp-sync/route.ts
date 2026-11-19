@@ -77,7 +77,7 @@ export async function POST(req: Request) {
       for (const raw of lines) {
         const line = raw.trim();
         if (!line) continue;
-        // 한 줄: 고유번호 | 운전자·탑승자 | 출발 주소 | 도착 주소 | 출발 일시(2026-11-05 08:00) | 상태(대기·시간경과·완료) | 금액 | 등록 일시
+        // 한 줄: 고유번호 | 운전자·탑승자 | 출발 주소 | 도착 주소 | 출발 일시(2026-11-05 08:00) | 상태(대기·시간경과·완료) | 금액 | 등록 일시 | 태그(선택)
         const c = line.split(/\t|\|/).map((x) => x.trim());
         const id = (c[0] ?? "").toUpperCase();
         const role = ROLE(c[1] ?? "");
@@ -89,6 +89,8 @@ export async function POST(req: Request) {
         const state = STATE(c[5] ?? "");
         const price = Number(String(c[6] ?? "").replace(/[^\d]/g, "")) || 0;
         const reg = kst(c[7] ?? "");
+        // 9번째 칸: 태그(예: 택시50%·현금협의) — 금액이 비면 '택시N%'로 금액을 셈(lib/warpSync.ts)
+        const tags = String(c[8] ?? "").slice(0, 120);
         if (!WARP_ID.test(id) || !role || !home || !work || (!depart && !reg2)) {
           bad.push(line.slice(0, 60));
           continue;
@@ -96,17 +98,17 @@ export async function POST(req: Request) {
         if (reg2) {
           const go = `${reg2[1].padStart(2, "0")}:${reg2[2]}`;
           const back = reg2[3] ? `${reg2[4].padStart(2, "0")}:${reg2[5]}` : "";
-          await sql`insert into warp_sync_items (warp_id, kind, role, home, work, time_go, time_back, reg_date, reg_at, warp_state, price, status, updated_at)
+          await sql`insert into warp_sync_items (warp_id, kind, role, home, work, time_go, time_back, reg_date, reg_at, warp_state, price, tags, status, updated_at)
             values (${id}, 'regular', ${role}, ${home.slice(0, 120)}, ${work.slice(0, 120)}, ${go}, ${back}, ${reg ? reg.toISOString().slice(0, 10) : ""},
-                    ${reg ? reg.toISOString() : null}, 'open', ${price}, 'new', now())
+                    ${reg ? reg.toISOString() : null}, 'open', ${price}, ${tags}, 'new', now())
             on conflict (warp_id) where kind = 'regular' do nothing`;
           saved += 1;
           continue;
         }
         if (!depart) continue;
-        await sql`insert into warp_sync_items (warp_id, role, home, work, time_go, reg_date, depart_at, reg_at, warp_state, price, status, updated_at)
+        await sql`insert into warp_sync_items (warp_id, role, home, work, time_go, reg_date, depart_at, reg_at, warp_state, price, tags, status, updated_at)
           values (${id}, ${role}, ${home.slice(0, 120)}, ${work.slice(0, 120)}, '', ${reg ? reg.toISOString().slice(0, 10) : ""},
-                  ${depart.toISOString()}, ${reg ? reg.toISOString() : null}, ${state}, ${price}, 'new', now())
+                  ${depart.toISOString()}, ${reg ? reg.toISOString() : null}, ${state}, ${price}, ${tags}, 'new', now())
           on conflict (warp_id, depart_at) do nothing`;
         saved += 1;
       }
