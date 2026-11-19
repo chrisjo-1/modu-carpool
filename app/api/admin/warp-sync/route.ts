@@ -89,7 +89,7 @@ export async function POST(req: Request) {
         const state = STATE(c[5] ?? "");
         const price = Number(String(c[6] ?? "").replace(/[^\d]/g, "")) || 0;
         const reg = kst(c[7] ?? "");
-        // 9번째 칸: 태그(예: 택시50%·현금협의) — 금액이 비면 '택시N%'로 금액을 셈(lib/warpSync.ts)
+        // 9번째 칸: 태그(예: 택시50%·현금협의) — 모두의카풀 키워드와 같은 이름은 글 키워드로(lib/warpSync.ts)
         const tags = String(c[8] ?? "").slice(0, 120);
         if (!WARP_ID.test(id) || !role || !home || !work || (!depart && !reg2)) {
           bad.push(line.slice(0, 60));

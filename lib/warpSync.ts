@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { reviveRejoined } from "./legacy";
 import { campaignQuietNow, warpPostedMail } from "./mail";
-import { taxiFare } from "./fare";
+import { getKeywords, type Keywords } from "./keywords";
 import { db } from "./server";
 import { MAX_PRICE, nextOccurrence, priceAllowedAt, priceAllowedRegular } from "./time";
 import { geocodeAddress, shortPlace } from "./warpPool";
@@ -17,6 +17,7 @@ import { geocodeAddress, shortPlace } from "./warpPool";
  */
 export async function runWarpSync(budgetMs = 25_000) {
   const sql = db();
+  kwCacheRun = null;
   const t0 = Date.now();
   const out = { posted: 0, queued: 0, mailed: 0, skipped: 0 };
   await sql`delete from warp_sync_items where stage = 'queued' and queued_at < now() - interval '30 days'`;
@@ -72,16 +73,13 @@ export async function runWarpSync(budgetMs = 25_000) {
     // 정기카풀은 다음 평일 출근 시각을 출발 시각으로 둔다(앱의 정기카풀과 같은 방식)
     const departAt = regular ? new Date(nextOccurrence(days, timeGo || "08:00")) : it.depart_at ? new Date(it.depart_at) : new Date();
     const allowed = regular ? priceAllowedRegular(days, timeGo || "08:00", timeBack) : priceAllowedAt(departAt.getTime());
-    // 금액이 비었는데 태그에 '택시50%'처럼 있으면 예상 택시비(직선 거리 × 1.3, 낮 거리 요금)의 그 비율로 (2026-11-19 사용자 지시)
-    const taxiPct = Number(/택시\s*비?\s*(\d{1,3})\s*%/.exec(String(it.tags ?? ""))?.[1] ?? 0);
-    let rawPrice = Number(it.price) || 0;
-    if (rawPrice < 500 && taxiPct > 0 && taxiPct <= 100 && h && w) {
-      const km = roadKm(h, w);
-      rawPrice = Math.round((taxiFare(km * 1000, 0, departAt.getTime()).low * taxiPct) / 100);
-    }
+    const rawPrice = Number(it.price) || 0;
     const fixed = allowed && rawPrice >= 500;
     const price = fixed ? Math.min(MAX_PRICE, Math.round(rawPrice / 100) * 100) : 0;
-    const tags = String(it.tags ?? "").split(/[,·]/).map((x) => x.trim()).filter((x) => x && !/\d+\s*원|%/.test(x)).slice(0, 5);
+    // 워프 태그 중 모두의카풀 키워드와 이름이 같은 것은 글 키워드로 붙이고(띄어쓰기 무시, 역할 키워드 + 무료 글이면 감사 표시), 나머지는 메모로 (2026-11-19 사용자 지시)
+    const role = String(it.role) === "driver" ? "driver" : "rider";
+    const { ids: kwIds, rest } = matchKeywords(await kwOnce(), String(it.tags ?? ""), role, fixed ? "fixed" : "free");
+    const tags = rest.filter((x) => !/\d+\s*원/.test(x)).slice(0, 5);
     const note = ["워프와 동기화된 카풀이에요.", tags.length ? tags.join(" · ") : ""].filter(Boolean).join(" ").slice(0, 300);
     const origin = (String(it.home_name || "") || shortPlace(home)).slice(0, 60);
     const dest = (String(it.work_name || "") || shortPlace(work)).slice(0, 60);
@@ -102,15 +100,15 @@ export async function runWarpSync(budgetMs = 25_000) {
     const post = regular
       ? await sql`insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note,
           origin_lat, origin_lng, dest_lat, dest_lng, regular, days, time_go, time_back, tags, source, warp_code, status, created_at)
-        values (${userId}, ${String(it.role) === "driver" ? "driver" : "rider"}, 'commute', ${fixed ? "fixed" : "free"}, ${price},
+        values (${userId}, ${role}, 'commute', ${fixed ? "fixed" : "free"}, ${price},
           ${origin}, ${dest}, ${departAt.toISOString()}, 1, ${note},
-          ${h?.lat ?? null}, ${h?.lng ?? null}, ${w?.lat ?? null}, ${w?.lng ?? null}, true, ${days}, ${timeGo || "08:00"}, ${timeBack}, '{}'::text[], 'warp', ${warpId}, 'open', ${created})
+          ${h?.lat ?? null}, ${h?.lng ?? null}, ${w?.lat ?? null}, ${w?.lng ?? null}, true, ${days}, ${timeGo || "08:00"}, ${timeBack}, ${kwIds}::text[], 'warp', ${warpId}, 'open', ${created})
         returning id`
       : await sql`insert into posts (user_id, role, kind, cost, price, origin, dest, depart_at, seats, note,
           origin_lat, origin_lng, dest_lat, dest_lng, tags, source, warp_code, status, created_at)
-        values (${userId}, ${String(it.role) === "driver" ? "driver" : "rider"}, ${allowed ? "commute" : "trip"}, ${fixed ? "fixed" : "free"}, ${price},
+        values (${userId}, ${role}, ${allowed ? "commute" : "trip"}, ${fixed ? "fixed" : "free"}, ${price},
           ${origin}, ${dest}, ${departAt.toISOString()}, 1, ${note},
-          ${h?.lat ?? null}, ${h?.lng ?? null}, ${w?.lat ?? null}, ${w?.lng ?? null}, '{}'::text[], 'warp', ${warpId}, ${status}, ${created})
+          ${h?.lat ?? null}, ${h?.lng ?? null}, ${w?.lat ?? null}, ${w?.lng ?? null}, ${kwIds}::text[], 'warp', ${warpId}, ${status}, ${created})
         returning id`;
     // 정기카풀이면 '정기 매칭' 목록의 같은 회원 행에도 올린 글을 이어 둔다(관리자가 다시 올려 중복되지 않게)
     if (regular) await sql`update warp_pools set post_id = ${post[0].id} where upper(warp_id) = ${warpId} and post_id is null`;
@@ -143,12 +141,21 @@ export async function runWarpSync(budgetMs = 25_000) {
   return out;
 }
 
-/** 두 지점 직선 거리 × 1.3(도로 보정), km */
-function roadKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const r = Math.PI / 180;
-  const x = (b.lng - a.lng) * r * Math.cos(((a.lat + b.lat) / 2) * r);
-  const y = (b.lat - a.lat) * r;
-  return Math.sqrt(x * x + y * y) * 6371 * 1.3;
+const norm = (x: string) => x.replace(/\s+/g, "").toLowerCase();
+let kwCacheRun: Keywords | null = null;
+async function kwOnce() {
+  return (kwCacheRun ??= await getKeywords());
+}
+/** 워프 태그("택시50%·현금협의")를 모두의카풀 키워드 id와 나머지 글자로 나눈다. 붙일 수 있는 키워드만(앱의 allowedTags와 같은 규칙). */
+function matchKeywords(kw: Keywords, raw: string, role: "driver" | "rider", cost: "free" | "fixed") {
+  const pool = [...(role === "rider" ? kw.rider : kw.driver), ...(cost === "free" ? kw.gift : [])];
+  const ids: string[] = [];
+  const rest: string[] = [];
+  for (const t of raw.split(/[,·]/).map((x) => x.trim()).filter(Boolean)) {
+    const k = pool.find((x) => norm(x.label) === norm(t));
+    if (k) { if (!ids.includes(k.id)) ids.push(k.id); } else rest.push(t);
+  }
+  return { ids: ids.slice(0, 8), rest };
 }
 
 let lastTry = 0;
