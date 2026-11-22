@@ -3,6 +3,7 @@ import { SITE_URL } from "@/lib/site";
 import { db, ensureSchema, hasDb } from "@/lib/server";
 import { keyStations, SEO_LINES } from "@/lib/seoSubway";
 import { AREA_MIN_POSTS, areaCounts, areaSlug } from "@/lib/seoArea";
+import { listPublishedSeoPages } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +34,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       order by p.created_at desc limit 1000`;
     // 지역 카풀 페이지(글 3건 이상인 구만, 색인 대상과 같게)
     const areas = (await areaCounts().catch(() => [])).filter((x) => x.n >= AREA_MIN_POSTS);
+    // 관리자 'SEO 키워드' 탭에서 공개한 키워드 안내 페이지
+    const guides = await listPublishedSeoPages().catch(() => []);
     return [
       ...base,
+      ...guides.map((g) => ({ url: `${SITE_URL}/guide/${g.slug}`, lastModified: new Date(g.updatedAt), changeFrequency: "weekly" as const, priority: 0.8 })),
       ...areas.map((x) => ({ url: `${SITE_URL}/carpool/${encodeURIComponent(areaSlug(x.key))}`, lastModified: now, changeFrequency: "daily" as const, priority: 0.7 })),
       ...rows.map((r) => ({ url: `${SITE_URL}/post/${String(r.id)}`, lastModified: new Date(r.created_at as string), changeFrequency: "daily" as const, priority: 0.6 })),
     ];

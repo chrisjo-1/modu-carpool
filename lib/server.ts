@@ -468,6 +468,12 @@ async function buildSchema(sql: ReturnType<typeof db>) {
     hits int not null default 1, hours int not null default 0, first_at timestamptz not null default now(), last_at timestamptz not null default now(),
     primary key (day, vid))`;
   await sql`create index if not exists site_visits_user_idx on site_visits (user_id, day)`;
+  // 관리자 'SEO 키워드' 탭(2026-11-22 사용자 지시): 키워드 안내 페이지(/guide/<slug>). 홈 제목·설명·키워드는 settings seo_home.
+  await sql`create table if not exists seo_pages (
+    slug text primary key, keyword text not null default '', title text not null default '', description text not null default '',
+    h1 text not null default '', body text not null default '', faq jsonb not null default '[]'::jsonb,
+    published boolean not null default false, published_at timestamptz,
+    created_at timestamptz not null default now(), updated_at timestamptz not null default now())`;
   // 워프 메일로 로그인이 안 돼 새 메일로 가입하며 적은 워프 고유번호(크레딧 이관 신청 창에 미리 채움, 2026-11-17)
   await sql`alter table users add column if not exists warp_claim text not null default ''`;
   // 로그인 메일 바꾸기(2026-11-17): 새 주소로 보낸 확인 링크, 바꾼 기록(회원 본인·관리자)

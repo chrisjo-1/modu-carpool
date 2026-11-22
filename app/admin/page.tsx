@@ -23,6 +23,7 @@ const lastSeenText = (ms: number) => {
 
 const AdminOpsLog = dynamic(() => import("@/components/admin/OpsLog"), { ssr: false });
 const AdminVisits = dynamic(() => import("@/components/admin/Visits"), { ssr: false });
+const AdminSeo = dynamic(() => import("@/components/admin/Seo"), { ssr: false });
 const AdminSafety = dynamic(() => import("@/components/admin/Safety"), { ssr: false });
 const Legacy = dynamic(() => import("@/components/admin/Legacy"), { ssr: false });
 const Credits = dynamic(() => import("@/components/admin/Credits"), { ssr: false });
@@ -82,7 +83,7 @@ function memberType(u: { is_warp: boolean; is_new_warp: boolean; pw_reset_requir
 }
 
 const NO_FILTER: UserFilter = { gen: "", role: "", status: "", origin: "", from: "", to: "", seen: "", has: "", withTest: false };
-type TabId = "visits" | "oplog" | "safety" | "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate" | "counsel" | "chats" | "pools" | "warpsync";
+type TabId = "seo" | "visits" | "oplog" | "safety" | "stats" | "posts" | "users" | "requests" | "flags" | "legacy" | "credits" | "notices" | "keywords" | "feedback" | "docs" | "radius" | "calls" | "site" | "demo" | "help" | "mail" | "send" | "subway" | "flows" | "simulate" | "counsel" | "chats" | "pools" | "warpsync";
 
 /** 관리자 탭 묶음(이름표·색). 새 탭을 만들면 알맞은 묶음에 넣는다. */
 const TAB_GROUPS: { label: string; text: string; soft: string; on: string; tabs: [TabId, string][] }[] = [
@@ -91,7 +92,7 @@ const TAB_GROUPS: { label: string; text: string; soft: string; on: string; tabs:
   { label: "카풀", text: "text-sky-700", soft: "bg-sky-50", on: "bg-sky-700 border-sky-700", tabs: [["posts", "카풀 글"], ["requests", "신청·매칭"], ["pools", "정기 매칭"], ["warpsync", "워프동기화"], ["calls", "CALL"], ["demo", "임시글"], ["keywords", "키워드"], ["radius", "반경"]] },
   { label: "안전", text: "text-warn", soft: "bg-warnSoft", on: "bg-warn border-warn", tabs: [["chats", "채팅"], ["safety", "안심동행"], ["flags", "신고·차단"], ["feedback", "의견"], ["counsel", "상담"]] },
   { label: "소통", text: "text-violet", soft: "bg-violetSoft", on: "bg-violet border-violet", tabs: [["notices", "공지"], ["mail", "메일"], ["send", "발송"], ["help", "도움말"]] },
-  { label: "설정", text: "text-sub", soft: "bg-bg", on: "bg-ink border-ink", tabs: [["site", "사이트"], ["docs", "약관"], ["subway", "지하철"], ["simulate", "앉아가기 시뮬레이션"]] },
+  { label: "설정", text: "text-sub", soft: "bg-bg", on: "bg-ink border-ink", tabs: [["site", "사이트"], ["seo", "SEO 키워드"], ["docs", "약관"], ["subway", "지하철"], ["simulate", "앉아가기 시뮬레이션"]] },
 ];
 const REASON: Record<string, string> = { noshow: "노쇼", rude: "비매너", photo: "타인 사진", promo: "홍보성", illegal: "불법", etc: "기타" };
 const TIER_NAME: Record<string, string> = { bronze: "브론즈", silver: "실버", gold: "골드" };
@@ -556,6 +557,7 @@ export default function Admin() {
       {tab === "safety" && <AdminSafety />}
       {tab === "oplog" && <AdminOpsLog />}
       {tab === "visits" && <AdminVisits />}
+      {tab === "seo" && <AdminSeo />}
       {tab === "pools" && <AdminWarpPools />}
       {tab === "warpsync" && <AdminWarpSync />}
       {notifyUser && <NotifyModal target={{ userId: String(notifyUser.id), label: `${notifyUser.name || "-"} · ${notifyUser.email}` }} onClose={() => setNotifyUser(null)} />}
