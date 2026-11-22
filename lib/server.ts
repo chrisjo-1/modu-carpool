@@ -101,6 +101,17 @@ async function buildSchema(sql: ReturnType<typeof db>) {
   await sql`create unique index if not exists credit_subway_uniq on credit_ledger (user_id) where reason = 'subway'`;
   await sql`create unique index if not exists credit_karrot_uniq on credit_ledger (user_id) where reason = 'karrot'`;
   await sql`create unique index if not exists credit_spot_uniq on credit_ledger (user_id, day) where reason = 'spot'`;
+  // 손편지매칭 연결: 회원이 받은 6자리 연결 코드(해시, 10분)와 손편지매칭에서 쓴 크레딧(ref로 중복·환불 확인)
+  await sql`create table if not exists penpal_links (
+    user_id uuid primary key references users(id) on delete cascade,
+    pin_hash text not null,
+    expires_at timestamptz not null)`;
+  await sql`create table if not exists penpal_spends (
+    ref text primary key,
+    user_id uuid not null references users(id) on delete cascade,
+    amount integer not null,
+    refunded boolean not null default false,
+    created_at timestamptz not null default now())`;
   // 나의 당근함: 회원이 당근마켓 상품을 소개하는 진열(로그인 회원에게만 보임, 거래는 당근마켓에서)
   await sql`create table if not exists karrot_items (
     id uuid primary key default gen_random_uuid(),

@@ -1,3 +1,4 @@
+import { createHash, randomInt } from "node:crypto";
 import { REASON_LABEL, getRules, grant, grantLegacy, kstDay } from "@/lib/credits";
 import { getCallCost } from "@/lib/call";
 import { maskEmail } from "@/lib/legacy";
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
   if (!me) return needLogin();
   const b = await body(req);
   if (b.action === "claimWarp") return claimWarp(me, b.code);
+  if (b.action === "penpalCode") return penpalCode(me);
   if (b.action === "warpNo") {
     try {
       await ensureSchema();
@@ -76,6 +78,23 @@ export async function POST(req: Request) {
     if (!added) return json({ error: "오늘은 이미 출석했어요. 내일 다시 와 주세요." }, 409);
     const u = await db()`select credits from users where id = ${me}`;
     return json({ ok: true, added, balance: Number(u[0].credits) });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** 손편지매칭 연결 코드: 6자리, 10분 동안 한 번만. 손편지매칭에서 고유코드와 함께 입력하면 계정이 이어진다. */
+async function penpalCode(me: string) {
+  try {
+    await ensureSchema();
+    const sql = db();
+    const u = await sql`select member_code from users where id = ${me}`;
+    if (!u.length || !u[0].member_code) return json({ error: "회원 정보를 찾을 수 없어요." }, 404);
+    const pin = String(randomInt(0, 1_000_000)).padStart(6, "0");
+    const hash = createHash("sha256").update(`penpal:${me}:${pin}`).digest("hex");
+    await sql`insert into penpal_links (user_id, pin_hash, expires_at) values (${me}, ${hash}, now() + interval '10 minutes')
+      on conflict (user_id) do update set pin_hash = excluded.pin_hash, expires_at = excluded.expires_at`;
+    return json({ ok: true, code: String(u[0].member_code), pin, expiresAt: Date.now() + 10 * 60_000 });
   } catch (e) {
     return fail(e);
   }

@@ -23,6 +23,7 @@ export const REASON_LABEL: Record<string, string> = {
   refund: "환불",
   call: "주변 호출",
   match: "매칭 회원 열람",
+  penpal: "손편지매칭에서 사용",
 };
 
 export async function getRules(): Promise<Rules> {

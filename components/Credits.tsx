@@ -27,6 +27,16 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
   const [warpBusy, setWarpBusy] = useState(false);
   // '예'를 누르면 고유번호 입력칸을 펼친다.
   const [warpOpen, setWarpOpen] = useState(false);
+  // 손편지매칭 연결 코드(6자리, 10분)
+  const [penpal, setPenpal] = useState<{ code: string; pin: string; expiresAt: number } | null>(null);
+  const [penpalBusy, setPenpalBusy] = useState(false);
+  const penpalCode = async () => {
+    setPenpalBusy(true);
+    const r = await api<{ code: string; pin: string; expiresAt: number }>("/api/credits", "POST", { action: "penpalCode" });
+    setPenpalBusy(false);
+    if (r.ok) setPenpal(r.data);
+    else toast(r.error);
+  };
   const loadHistory = async (reset: boolean) => {
     setLoading(true);
     const before = !reset && items.length ? `&before=${items[items.length - 1].id}` : "";
@@ -198,6 +208,28 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
             )}
           </div>
         )}
+        <div data-block-id="C059" data-block-name="손편지매칭 연결" className="rounded-2xl bg-bg p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[14px] font-semibold">{t("손편지매칭에서 크레딧 쓰기")}</p>
+            <button type="button" data-block-id="B059" data-block-name="손편지매칭 연결 코드 받기" disabled={penpalBusy} onClick={penpalCode} className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-semibold text-white disabled:bg-bg disabled:text-sub">
+              {penpal ? t("새 코드 받기") : t("연결 코드 받기")}
+            </button>
+          </div>
+          {penpal ? (
+            <p className="mt-2 text-[13px] leading-relaxed text-sub">
+              {t("손편지매칭 내 사서함 → 크레딧에 아래 두 가지를 입력해 주세요. 연결 코드는 10분 동안 한 번만 쓸 수 있어요.")}
+              <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[15px] text-ink">
+                <span>{t("고유코드")} <b className="num font-mono">{penpal.code}</b></span>
+                <span>{t("연결 코드")} <b className="num font-mono tracking-widest">{penpal.pin}</b></span>
+              </span>
+            </p>
+          ) : (
+            <p className="mt-1 text-[13px] leading-relaxed text-sub">
+              {t("손편지매칭과 계정을 이으면 모두의카풀 크레딧으로 펜팔 다시 신청을 할 수 있어요.")}{" "}
+              <a href="https://maeryeok-daehak.vercel.app/post/me#credits" target="_blank" rel="noopener" className="underline">{t("손편지매칭 열기")}</a>
+            </p>
+          )}
+        </div>
         {d.historyCount > 0 && (
           <div>
             <button data-block-id="B210" data-block-name="크레딧 내역 보기" aria-expanded={open} aria-controls="credit-history" onClick={toggle} className="flex w-full items-center justify-between rounded-xl border border-line px-4 text-[15px]">
