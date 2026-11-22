@@ -41,7 +41,7 @@ export async function GET() {
       const status = String(r.status);
       const label = stage === "mailed" ? "등록 · 메일 보냄"
         : stage === "posted" ? (r.mailed_at ? "등록 · 메일 못 보냄" : "등록 · 메일 대기")
-        : stage === "queued" ? "대기(명단에 없음)"
+        : stage === "queued" ? (hasAccount ? "대기 · 명단 올라옴(곧 등록)" : "대기(명단에 없음)")
         : stage === "skip" ? "건너뜀"
         : status === "go" ? "처리 중"
         : gone ? "탈퇴·정지" : hasAccount ? "계정 있음" : "계정 없음";

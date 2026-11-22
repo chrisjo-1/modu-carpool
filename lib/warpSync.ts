@@ -164,8 +164,11 @@ export async function maybeRunWarpSync() {
   if (Date.now() - lastTry < 60_000) return;
   lastTry = Date.now();
   const sql = db();
-  const work = await sql`select 1 from warp_sync_items where status = 'go'
-    and (stage = '' or (stage = 'queued' and updated_at < now() - interval '6 hours') or (stage = 'posted' and mailed_at is null)) limit 1`;
+  // 대기 글은 6시간이 지났거나, 그 사이 명단에 고유번호·이메일이 올라왔으면 바로(runWarpSync와 같은 조건 — 2026-11-22: 명단을 올렸는데 6시간 동안 '명단 없음'으로 남던 문제)
+  const work = await sql`select 1 from warp_sync_items w where status = 'go'
+    and (stage = '' or (stage = 'queued' and (updated_at < now() - interval '6 hours'
+      or exists (select 1 from legacy_members l where upper(l.warp_id) = upper(w.warp_id) and coalesce(l.email_norm, '') <> '')))
+      or (stage = 'posted' and mailed_at is null)) limit 1`;
   if (!work.length) return;
   const claim = await sql`insert into settings (key, value) values ('warp_sync_at', ${String(Date.now())})
     on conflict (key) do update set value = excluded.value
