@@ -33,7 +33,11 @@ export type SeatPlanRow = {
   timeGo: string;
   boardCar: string;
   boardGate: string;
+  /** 출근(go) 이용. false면 퇴근만. */
+  go: boolean;
   back: boolean;
+  /** 환승역(노선이 다를 때). 자리 매칭은 같은 노선 구간만 본다: 출근 = 탑승역→환승역, 퇴근 = 퇴근 승차역→환승역. */
+  transfer: string;
   timeBack: string;
   backCar: string;
   backGate: string;
@@ -48,15 +52,20 @@ export type SeatPlanRow = {
  * 반대 방향 정보가 없으면 null. 매칭 규칙은 이 행을 그대로 받아 같은 방향끼리만 맞춘다.
  */
 export function tripView(p: SeatPlanRow, trip: Trip): SeatPlanRow | null {
-  if (trip === "go") return { ...p, trip: "go" };
+  // 환승하면 같은 노선 구간만: 출근 = 탑승역→환승역(탑승 노선), 퇴근 = 퇴근 승차역→환승역(하차 노선)
+  const cross = p.boardLine !== p.alightLine && !!p.transfer;
+  if (trip === "go") {
+    if (p.go === false) return null;
+    return cross ? { ...p, trip: "go", alightLine: p.boardLine, alightStation: p.transfer } : { ...p, trip: "go" };
+  }
   if (!p.back || !p.timeBack) return null;
   return {
     ...p,
     trip: "back",
     boardLine: p.alightLine,
     boardStation: p.alightStation,
-    alightLine: p.boardLine,
-    alightStation: p.boardStation,
+    alightLine: cross ? p.alightLine : p.boardLine,
+    alightStation: cross ? p.transfer : p.boardStation,
     timeGo: p.timeBack,
     boardCar: p.backCar || p.boardCar,
     boardGate: p.backGate || p.boardGate,

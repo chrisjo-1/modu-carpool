@@ -39,6 +39,9 @@ async function buildSeatSchema(sql: ReturnType<typeof seatSql>) {
   // 한 회원은 활성 등록을 하나만 가진다.
   await sql`create unique index if not exists seat_plans_active_uniq on seat_plans (user_id) where status = 'active'`;
   await sql`create index if not exists seat_plans_match_idx on seat_plans (board_line, alight_line) where status = 'active'`;
+  // 2026-11-23: 출근·퇴근·둘 다 선택(go), 환승역(transfer)
+  await sql`alter table seat_plans add column if not exists go boolean not null default true`;
+  await sql`alter table seat_plans add column if not exists transfer text not null default ''`;
   await sql`create table if not exists seat_requests (
     id uuid primary key default gen_random_uuid(),
     from_user text not null,
@@ -173,7 +176,9 @@ export function toRow(r: Raw): SeatPlanRow {
     timeGo: String(r.time_go),
     boardCar: String(r.board_car),
     boardGate: String(r.board_gate),
+    go: r.go === undefined || r.go === null ? true : Boolean(r.go),
     back: Boolean(r.back),
+    transfer: String(r.transfer ?? ""),
     timeBack: String(r.time_back),
     backCar: String(r.back_car),
     backGate: String(r.back_gate),
@@ -192,7 +197,9 @@ export function toSubwayPlan(p: SeatPlanRow): SubwayPlan {
     timeGo: p.timeGo,
     car: p.boardCar,
     gate: p.boardGate,
+    go: p.go,
     back: p.back,
+    transfer: p.transfer,
     timeBack: p.timeBack,
     carBack: p.backCar,
     gateBack: p.backGate,
@@ -211,17 +218,20 @@ export async function getMyPlan(userId: string): Promise<SeatPlanRow | null> {
 export async function upsertPlan(userId: string, days: string, p: SubwayPlan): Promise<SeatPlanRow> {
   await ensureSeatSchema();
   const back = p.back;
+  const go = p.go !== false;
+  const transfer = p.boardLine !== p.alightLine ? p.transfer : "";
   const rows = await seatSql()`insert into seat_plans
       (user_id, days, board_line, board_station, time_go, board_car, board_gate,
-       alight_line, alight_station, back, time_back, back_car, back_gate, board_next, back_next, status, updated_at)
+       alight_line, alight_station, back, time_back, back_car, back_gate, board_next, back_next, go, transfer, status, updated_at)
     values (${userId}, ${days}, ${p.boardLine}, ${p.board}, ${p.timeGo}, ${p.car}, ${p.gate},
-       ${p.alightLine}, ${p.alight}, ${back}, ${back ? p.timeBack : ""}, ${back ? p.carBack : ""}, ${back ? p.gateBack : ""}, ${p.boardNext}, ${back ? p.backNext : ""}, 'active', now())
+       ${p.alightLine}, ${p.alight}, ${back}, ${back ? p.timeBack : ""}, ${back ? p.carBack : ""}, ${back ? p.gateBack : ""}, ${p.boardNext}, ${back ? p.backNext : ""}, ${go}, ${transfer}, 'active', now())
     on conflict (user_id) where status = 'active' do update set
       days = excluded.days, board_line = excluded.board_line, board_station = excluded.board_station,
       time_go = excluded.time_go, board_car = excluded.board_car, board_gate = excluded.board_gate,
       alight_line = excluded.alight_line, alight_station = excluded.alight_station,
       back = excluded.back, time_back = excluded.time_back, back_car = excluded.back_car,
-      back_gate = excluded.back_gate, board_next = excluded.board_next, back_next = excluded.back_next, updated_at = now()
+      back_gate = excluded.back_gate, board_next = excluded.board_next, back_next = excluded.back_next,
+      go = excluded.go, transfer = excluded.transfer, updated_at = now()
     returning *`;
   return toRow(rows[0] as Raw);
 }
@@ -236,7 +246,7 @@ export async function closePlan(userId: string): Promise<void> {
 export async function listCandidates(me: SeatPlanRow): Promise<Candidate[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select * from seat_plans
-    where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.boardLine} and user_id <> ${me.userId}`;
+    where status = 'active' and (board_line = ${me.boardLine} or alight_line = ${me.boardLine}) and user_id <> ${me.userId}`;
   return rankCandidates(me, rows.flatMap((r) => tripViews(toRow(r as Raw))));
 }
 
@@ -278,7 +288,7 @@ export async function todayPlan(userId: string, trip: Trip = "go", ride: TodayRi
 export async function listBefore(me: SeatPlanRow): Promise<Candidate[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select * from seat_plans
-    where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.boardLine} and user_id <> ${me.userId}`;
+    where status = 'active' and (board_line = ${me.boardLine} or alight_line = ${me.boardLine}) and user_id <> ${me.userId}`;
   return rankBefore(me, rows.flatMap((r) => tripViews(toRow(r as Raw))));
 }
 
@@ -286,7 +296,7 @@ export async function listBefore(me: SeatPlanRow): Promise<Candidate[]> {
 export async function listAhead(me: SeatPlanRow): Promise<Candidate[]> {
   await ensureSeatSchema();
   const rows = await seatSql()`select * from seat_plans
-    where status = 'active' and board_line = ${me.boardLine} and alight_line = ${me.boardLine} and user_id <> ${me.userId}`;
+    where status = 'active' and (board_line = ${me.boardLine} or alight_line = ${me.boardLine}) and user_id <> ${me.userId}`;
   return rankAhead(me, rows.flatMap((r) => tripViews(toRow(r as Raw))));
 }
 

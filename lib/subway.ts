@@ -163,8 +163,12 @@ export type SubwayPlan = {
   timeGo: string;
   car: string;
   gate: string;
+  /** 출근(탑승역→하차역) 이용. false면 퇴근만(2026-11-23 사용자 지시 '출근·퇴근·둘 다 중 선택'). 예전 등록은 true. */
+  go: boolean;
   /** 퇴근도 함께 등록(반대 방향 자동) */
   back: boolean;
+  /** 환승역(탑승 노선과 하차 노선이 다를 때 갈아타는 역, 두 노선에 모두 있는 역). 없으면 "". */
+  transfer: string;
   timeBack: string;
   carBack: string;
   gateBack: string;
@@ -182,7 +186,9 @@ export const EMPTY_PLAN: SubwayPlan = {
   timeGo: "07:30",
   car: "",
   gate: "",
-  back: false,
+  go: true,
+  back: true,
+  transfer: "",
   timeBack: "18:30",
   carBack: "",
   gateBack: "",
@@ -196,10 +202,16 @@ export const isClock = (v: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
 
 export function planProblem(p: SubwayPlan, pilot: LineId[] = DEFAULT_PILOT_LINES): string | null {
   if (!pilot.includes(p.boardLine) || !pilot.includes(p.alightLine)) return "지금은 열린 노선만 등록할 수 있어요.";
-  if (!p.board) return "탑승역을 골라 주세요.";
-  if (!p.alight) return "하차역을 골라 주세요.";
-  if (p.board === p.alight && p.boardLine === p.alightLine) return "탑승역과 하차역이 같아요.";
-  if (!isClock(p.timeGo)) return "출근 탑승 시각을 정해 주세요.";
+  if (!p.board) return "출근 승차역을 골라 주세요.";
+  if (!p.alight) return "퇴근 승차역을 골라 주세요.";
+  if (p.board === p.alight && p.boardLine === p.alightLine) return "출근·퇴근 승차역이 같아요.";
+  if (p.boardLine !== p.alightLine) {
+    if (!p.transfer) return "환승역을 골라 주세요.";
+    if (!(LINE_STATIONS[p.boardLine] ?? []).includes(p.transfer) || !(LINE_STATIONS[p.alightLine] ?? []).includes(p.transfer)) return "환승역은 두 노선에 모두 있는 역이어야 해요.";
+    if (p.transfer === p.board || p.transfer === p.alight) return "환승역이 승차역과 같아요.";
+  }
+  if (p.go === false && !p.back) return "출근·퇴근 중 하나는 골라 주세요.";
+  if (p.go !== false && !isClock(p.timeGo)) return "출근 탑승 시각을 정해 주세요.";
   if (p.back && !isClock(p.timeBack)) return "퇴근 탑승 시각을 정해 주세요.";
   return null;
 }

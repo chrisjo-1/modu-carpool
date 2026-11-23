@@ -70,7 +70,7 @@ function RegisterContact({ onGoProfile }: { onGoProfile?: () => void }) {
 /** onSubway: 지하철 메뉴의 화면(매칭·앉을 칸 찾기)으로 이동, onSubwaySetup: 출퇴근 정보 창(지하철 칸)을 연다. */
 type SubwayGo = { onSubway?: (view: "seat" | "match" | "edit") => void; onSubwaySetup?: () => void };
 
-type SubwayPlanLite = { boardLine: string; board: string; alightLine: string; alight: string; back?: boolean };
+type SubwayPlanLite = { boardLine: string; board: string; alightLine: string; alight: string; back?: boolean; go?: boolean; transfer?: string };
 type SubwayRide = { trip: "go" | "back"; line: string; board: string; alight: string; time: string };
 
 /**
@@ -80,8 +80,9 @@ function rideNow(p: SubwayPlanLite): SubwayRide {
   const now = new Date(Date.now() + 9 * 3600_000);
   const time = now.toISOString().slice(11, 16);
   const date = now.toISOString().slice(0, 10);
-  const trip: "go" | "back" = p.back && now.getUTCHours() >= 14 ? "back" : "go";
-  const base = trip === "go" ? { line: p.boardLine, board: p.board, alight: p.alight } : { line: p.alightLine, board: p.alight, alight: p.board };
+  const trip: "go" | "back" = p.go === false ? "back" : p.back && now.getUTCHours() >= 14 ? "back" : "go";
+  const via = p.transfer && p.boardLine !== p.alightLine ? p.transfer : "";
+  const base = trip === "go" ? { line: p.boardLine, board: p.board, alight: via || p.alight } : { line: p.alightLine, board: p.alight, alight: via || p.board };
   try {
     const v = JSON.parse(localStorage.getItem("modu.subwayToday") ?? "null") as { date?: string; kind?: string; line?: string; board?: string; alight?: string } | null;
     if (v && v.date === date && v.kind === trip && v.line && v.board && v.alight) return { trip, line: v.line, board: v.board, alight: v.alight, time };

@@ -4,7 +4,7 @@ import { closePlan, getMyPlan, listCandidates, seatDbReady, toSubwayPlan, upsert
 import { grant } from "@/lib/credits";
 import { seatPush } from "@/lib/seatNotify";
 import { planProblem, type SubwayPlan } from "@/lib/subway";
-import { toMinutes } from "@/lib/seatMatch";
+import { toMinutes, tripViews } from "@/lib/seatMatch";
 import { headingsAt } from "@/lib/subwayRoute";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,9 @@ export async function PUT(req: Request) {
     timeGo: text(b.timeGo, 5),
     car: text(b.car, 2),
     gate: text(b.gate, 8),
+    go: b.go !== false,
     back: b.back === true,
+    transfer: text(b.transfer, 20),
     timeBack: text(b.timeBack, 5),
     carBack: text(b.carBack, 2),
     gateBack: text(b.gateBack, 8),
@@ -63,10 +65,11 @@ export async function PUT(req: Request) {
     // 처음 등록하면 크레딧을 한 번 지급한다(이미 받았으면 0).
     const credit = await ensureSchema().then(() => grant(uid, "subway")).catch(() => 0);
     // 새로 등록했거나 경로·시각·요일이 바뀌었으면, 자리를 나눌 수 있는 상대에게 자동으로 알린다.
-    const changed = !before || before.boardStation !== saved.boardStation || before.alightStation !== saved.alightStation || before.timeGo !== saved.timeGo || before.days !== saved.days;
+    const changed = !before || before.boardStation !== saved.boardStation || before.alightStation !== saved.alightStation || before.timeGo !== saved.timeGo || before.days !== saved.days || before.go !== saved.go || before.back !== saved.back || before.transfer !== saved.transfer || before.timeBack !== saved.timeBack;
     let matches = 0;
     if (changed) {
-      const cands = await listCandidates(saved);
+      // 출근·퇴근(고른 것만), 환승하면 같은 노선 구간으로 본다
+      const cands = (await Promise.all(tripViews(saved).map((v) => listCandidates(v)))).flat();
       const users = [...new Set(cands.map((c) => c.userId))];
       matches = users.length;
       await Promise.all(users.map((u) => seatPush(u, "자리를 나눌 수 있는 분이 등록했어요", "1~3정거장 안에서 자리를 나눌 수 있어요. 지하철 메뉴에서 확인해 주세요.", "seat-new")));

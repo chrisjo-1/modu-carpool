@@ -44,12 +44,14 @@ const toMin = (hm: string) => {
  * 반대 방면을 등록하지 않았으면 항상 내 방면, 등록했으면 오후 2시 전 → 내 방면, 이후 → 반대 방면.
  */
 function autoKind(plan: SubwayPlan, hm: string): Kind {
+  if (plan.go === false) return "back";
   if (!plan.back) return "go";
   return toMin(hm) < 14 * 60 ? "go" : "back";
 }
 
 const stationOf = (p: SubwayPlan, k: Kind) => (k === "go" ? p.board : p.alight);
-const alightOf = (p: SubwayPlan, k: Kind) => (k === "go" ? p.alight : p.board);
+// 환승하면 같은 노선에서 내리는 역은 환승역(출근: 탑승역→환승역, 퇴근: 퇴근 승차역→환승역)
+const alightOf = (p: SubwayPlan, k: Kind) => (p.transfer && p.boardLine !== p.alightLine ? p.transfer : k === "go" ? p.alight : p.board);
 const lineOf = (p: SubwayPlan, k: Kind): LineId => (k === "go" ? p.boardLine : p.alightLine);
 
 function readToday(): Today | null {
@@ -234,7 +236,7 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
         <>
           {/* 오늘 탑승: 노선 색 역 표지판 + 방면·하차역까지 정거장 + 오늘만 노선·역 바꾸기 */}
           <div data-block-id="C130" data-block-name="오늘 탑승" className="space-y-3 rounded-2xl border border-line bg-white p-3.5 shadow-card">
-            {plan.back ? (
+            {plan.back && plan.go !== false ? (
               <Segment
                 compact
                 label={t("방면")}
@@ -242,8 +244,8 @@ export default function SubwayTab({ user, onSettings, start }: { user: User | nu
                 onChange={switchKind}
                 accents={{ go: "line", back: "line" }}
                 options={[
-                  ["go", `${plan.board} → ${plan.alight}`],
-                  ["back", `${plan.alight} → ${plan.board}`],
+                  ["go", `${plan.board} → ${alightOf(plan, "go")}`],
+                  ["back", `${plan.alight} → ${alightOf(plan, "back")}`],
                 ]}
               />
             ) : null}
