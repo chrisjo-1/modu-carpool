@@ -1,6 +1,7 @@
 "use client";
 import { needPush } from "@/lib/pushGate";
 const MatchButton = dynamic(() => import("./MatchSheet").then((m) => m.MatchButton), { ssr: false });
+const AdminMatchButton = dynamic(() => import("./AdminMatch").then((m) => m.AdminMatchButton), { ssr: false });
 import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,7 +13,7 @@ import { SITE_URL } from "@/lib/site";
 import { matchesFor, type PostMatch } from "@/lib/postMatch";
 import { HIDDEN_TEXT, METER_URL, SHOW_METER, defaultRoleFor, type Post, type Thread, type User } from "@/lib/types";
 import { FloatingCall, IncomingCall, IncomingTaxiCall } from "./CallSheet";
-import { Bubble, useHintTap, RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnGhost, btnPrimary, btnRole, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
+import { Bubble, useHintTap, useAdminMember, RoleTag, Avatar, TierBadge, Card, Icon, Sheet, Tag, api, btnGhost, btnPrimary, btnRole, distanceKm, field, kmText, money, scheduleText, useLang, useT, when } from "./ui";
 
 const PostMap = dynamic(() => import("./PostMap"), { ssr: false, loading: () => <div className="h-[420px] animate-pulse rounded-3xl bg-white" aria-hidden /> });
 
@@ -599,6 +600,11 @@ function MyMatches({ matches, onOpen }: { matches: PostMatch[]; onOpen: (p: Post
   );
 }
 
+/** 관리자 메일 회원에게만(그 밖엔 관리자 화면 조각을 불러오지 않음) */
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  return useAdminMember() ? <>{children}</> : null;
+}
+
 export function PostDetail({
   post,
   user,
@@ -836,6 +842,7 @@ export function PostDetail({
           )
         )}
 
+        {user && !sample && <AdminOnly><AdminMatchButton post={post} toast={toast} /></AdminOnly>}
         <button data-block-id="B013" data-block-name="공유" className="w-full text-[15px] text-sub underline" onClick={share}>{t("이 카풀 공유하기")}</button>
         {user && !sample && !post.mine && post.ownerId && (
           <button data-block-id="B016" data-block-name="회원 차단" disabled={busy} className="w-full text-[14px] text-sub underline" onClick={() => onBlock(post.ownerId as string, post.owner)}>{t("이 회원 차단")}</button>

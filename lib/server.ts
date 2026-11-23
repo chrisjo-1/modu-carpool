@@ -928,6 +928,16 @@ export async function isAdmin(): Promise<boolean> {
   return !!p && p.role === "admin";
 }
 
+/** 관리자 메일(Vercel 환경변수 ADMIN_EMAILS)로 로그인한 회원이거나 관리자 화면에 로그인했는지(앱 안 관리자 기능, 2026-11-23) */
+export async function isAdminMember(userId: string | null): Promise<boolean> {
+  if (await isAdmin()) return true;
+  if (!userId) return false;
+  const list = (process.env.ADMIN_EMAILS ?? "").split(",").map((v) => v.trim().toLowerCase()).filter(Boolean);
+  if (!list.length) return false;
+  const r = await db()`select lower(email) as email from users where id = ${userId}`;
+  return !!r.length && list.includes(String(r[0].email));
+}
+
 export function checkAdminPassword(input: string): boolean {
   const real = process.env.ADMIN_PASSWORD;
   if (!real || !process.env.SESSION_SECRET) return false;

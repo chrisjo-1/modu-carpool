@@ -22,6 +22,7 @@ type P = {
   origin: string; dest: string; oArea: string; dArea: string; code: string; photoV: number;
   homeLat: number; homeLng: number; workLat: number | null; workLng: number | null;
   warp?: boolean;
+  /** 워프 정기카풀의 워프 고유번호(관리자 연락처 찾기용, 화면에 그대로 보내지 않음) */ warpId?: string;
   /** 대학(원)생의 학교 열쇠·캠퍼스(lib/schools.ts). 화면에 보내지 않고 같은 학교인지만 본다 */
   schoolKey?: string; campus?: string;
 };
@@ -30,6 +31,7 @@ export type Match = {
   origin: string; dest: string; oArea: string; dArea: string; departAt: number; days: string; timeGo: string;
   chance: number; homeKm: number; workKm: number; onRoute: boolean; timeDiff: number | null;
   /** 워프 정기카풀(앱 가입 전, 글 없음) */ warp: boolean;
+  /** 워프 정기카풀의 워프 고유번호(관리자만 씀) */ warpId: string;
   /** 요일이 겹치는지(알 수 없으면 null) */ dayOk: boolean | null;
   /** 요일이 맞고 시각 차 30분 이내 */ timeFit: boolean;
   /** 둘 다 대학(원)생이고 같은 학교(학교 이름은 보내지 않음) */ sameSchool: boolean;
@@ -85,7 +87,7 @@ function dayOk(a: P, b: P): boolean | null {
  */
 async function warpPoints(me: string, lat: number, lng: number): Promise<P[]> {
   const dLat = 0.17, dLng = 0.21;
-  const rows = await db()`select w.code, w.role, w.home, w.work, w.home_lat, w.home_lng, w.work_lat, w.work_lng, w.time_go, w.time_back
+  const rows = await db()`select w.code, w.warp_id, w.role, w.home, w.work, w.home_lat, w.home_lng, w.work_lat, w.work_lng, w.time_go, w.time_back
     from warp_pools w
     where w.active and w.post_id is null and w.home_lat is not null and w.work_lat is not null and w.work <> ''
       and ((w.home_lat between ${lat - dLat} and ${lat + dLat} and w.home_lng between ${lng - dLng} and ${lng + dLng})
@@ -96,7 +98,7 @@ async function warpPoints(me: string, lat: number, lng: number): Promise<P[]> {
   for (const r of rows) {
     const home = String(r.home), work = String(r.work);
     if (sameAddr(home, work)) continue;
-    const base = { userId: "", role: (r.role === "driver" ? "driver" : "rider") as P["role"], regular: true, days: "12345", departAt: 0, code: "", photoV: 0, warp: true };
+    const base = { userId: "", role: (r.role === "driver" ? "driver" : "rider") as P["role"], regular: true, days: "12345", departAt: 0, code: "", photoV: 0, warp: true, warpId: String(r.warp_id ?? "").toUpperCase() };
     const hLat = Number(r.home_lat), hLng = Number(r.home_lng), wLat = Number(r.work_lat), wLng = Number(r.work_lng);
     out.push({ ...base, id: `w-${r.code}-go`, timeGo: String(r.time_go ?? ""), origin: shortPlace(home), dest: shortPlace(work),
       oArea: regionOf(home).label, dArea: regionOf(work).label, homeLat: hLat, homeLng: hLng, workLat: wLat, workLng: wLng });
@@ -159,7 +161,7 @@ export async function matchesFor(postId: string): Promise<{ mine: P | null; item
     const m: Match = {
       postId: o.warp ? "" : o.id, userId: o.userId, code: o.code, photoV: o.photoV, role: o.role, regular: o.regular,
       origin: o.origin, dest: o.dest, oArea: o.oArea, dArea: o.dArea, departAt: o.departAt, days: o.days, timeGo: o.timeGo,
-      ...s, timeDiff: td, warp: !!o.warp, dayOk: dk, timeFit: td != null && td <= TIME_FIT_MIN && dk !== false,
+      ...s, timeDiff: td, warp: !!o.warp, warpId: o.warpId ?? "", dayOk: dk, timeFit: td != null && td <= TIME_FIT_MIN && dk !== false,
       sameSchool: !o.warp && sameSchool({ key: mine.schoolKey ?? "", campus: mine.campus ?? "" }, { key: o.schoolKey ?? "", campus: o.campus ?? "" }),
       oLat: o.homeLat, oLng: o.homeLng, dLat: o.workLat, dLng: o.workLng,
     };

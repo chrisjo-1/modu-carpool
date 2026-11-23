@@ -78,6 +78,10 @@ export function setPhotoZoom(v: boolean) {
   photoZoomAllowed = v;
   photoZoomSubs.forEach((f) => f());
 }
+/** 관리자 메일 회원인지(앱 안 관리자 기능 표시용, 서버가 다시 확인) */
+export function useAdminMember() {
+  return usePhotoZoom();
+}
 function usePhotoZoom() {
   return useSyncExternalStore(
     (f) => {

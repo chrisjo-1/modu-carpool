@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     if (!paid) return json({ locked: true, cost, count: items.length, needDest: mine.workLat == null });
     return json({
       locked: false, cost, count: items.length, needDest: mine.workLat == null,
-      items: items.map(({ userId, photoV, oLat, oLng, dLat, dLng, ...m }) => ({ ...m, photo: photoUrl(userId, photoV) })),
+      items: items.map(({ userId, photoV, oLat, oLng, dLat, dLng, warpId: _w, ...m }) => ({ ...m, photo: photoUrl(userId, photoV) })),
     });
   } catch (e) {
     return fail(e);
