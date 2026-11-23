@@ -256,6 +256,8 @@ export async function POST(req: Request) {
     if (v.role === "rider") await notifyDrivers(String(rows[0].id));
     // 새 글 주소를 검색엔진에 알린다(응답 뒤, 실패해도 무시).
     after(() => pingIndexNow([`/post/${rows[0].id}`]).catch(() => {}));
+    // 목록에서 안 고른 장소는 좌표가 비어 있으니 바로 이름·주소로 찾아 채운다(다음 목록 조회까지 기다리지 않게)
+    after(() => fillPostCoords(2).then(() => fillPostAreas()).catch(() => {}));
     return json({ id: rows[0].id, credit });
   } catch (e) {
     return fail(e);
@@ -353,6 +355,7 @@ export async function PUT(req: Request) {
     } else {
       await sql`update posts set status = 'closed' where user_id = ${me} and regular and leg = 'back' and status <> 'closed'`;
     }
+    after(() => fillPostCoords(2).then(() => fillPostAreas()).catch(() => {}));
     return json({ id, updated, credit, both: goOn && backOn, legs });
   } catch (e) {
     return fail(e);
@@ -379,6 +382,7 @@ export async function PATCH(req: Request) {
           origin_lat = ${v.oLat}, origin_lng = ${v.oLng}, dest_lat = ${v.dLat}, dest_lng = ${v.dLng}, geo_tried_at = null
         where id = ${b.id} and user_id = ${me} and not regular returning id`;
       if (!rows.length) return json({ error: "권한이 없습니다." }, 403);
+      after(() => fillPostCoords(2).then(() => fillPostAreas()).catch(() => {}));
       return json({ ok: true });
     }
     // 다시 올리기 하루 전 알림 켜기·끄기 {id, remind}

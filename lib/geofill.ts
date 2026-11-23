@@ -1,5 +1,6 @@
 import { CITY_WORD, searchPlaces, type Item } from "./placeSearch";
 import { db } from "./server";
+import { geocodeAddress } from "./warpPool";
 
 /**
  * 위치(좌표) 없이 이름만 저장된 글을 서버가 이름으로 찾아 채운다(2026-10-29 사용자 지시).
@@ -30,11 +31,22 @@ export function pickMatch(name: string, items: Item[]): Item | null {
   return null;
 }
 
+/** 도로명(…로 12, …길 3-4)·지번(…동 123) 주소처럼 보이는 글자 */
+export const looksLikeAddress = (s: string) => /(로|길)\s*\d|\d+-\d+|(동|리|가)\s+\d/.test(s);
+
 export async function geocodeName(name: string): Promise<Item | null> {
   const q = name.trim();
   if (q.length < 2) return null;
   const items = await searchPlaces(q, "ko").catch(() => [] as Item[]);
-  return pickMatch(q, items);
+  const hit = pickMatch(q, items);
+  if (hit) return hit;
+  // 목록에서 안 고르고 주소를 그대로 적은 글(예: "경기 김포 풍년로 46-2")은 이름 검색으로는 안 맞아 위치가 비었다
+  // → 주소 검색(카카오 → Photon → OSM)으로 다시 찾는다(2026-11-23 사용자 지적: 지역 글씨·예상 택시비가 안 뜸)
+  if (looksLikeAddress(q)) {
+    const g = await geocodeAddress(q, Date.now() + 15_000).catch(() => null);
+    if (g && g !== "late") return { name: q, address: q, lat: g.lat, lng: g.lng };
+  }
+  return null;
 }
 
 export async function fillPostCoords(limit = 3) {

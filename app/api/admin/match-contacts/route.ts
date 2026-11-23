@@ -123,8 +123,8 @@ export async function POST(req: Request) {
     const chance = Math.max(0, Math.min(100, Math.round(Number(b.chance) || 0)));
     const count = Math.max(0, Math.round(Number(b.count) || 0));
     const text = b.who === "owner"
-      ? `[모두의카풀] 안녕하세요, 워프 후속 플랫폼 모두의카풀입니다. 회원님이 올리신 카풀(${route})과 같은 길로 다니는 회원이 ${count ? `${count}명` : "있어"}요. 아래 링크로 들어와 확인하고 답해 주세요. 가입·이용은 무료예요.\n${link}\n원치 않으시면 '거부'라고 답장 주세요.`
-      : `[모두의카풀] 안녕하세요, 워프 후속 플랫폼 모두의카풀입니다. 회원님 출퇴근 길과 같은 방향의 ${roleWord(String(p[0].role))} 카풀이 있어요(${route}${chance ? `, 매칭 ${chance}%` : ""}). 아래 링크로 들어와 확인하고 신청해 보세요. 가입·이용은 무료예요.\n${link}\n원치 않으시면 '거부'라고 답장 주세요.`;
+      ? `[모두의카풀] 안녕하세요, 워프 후속 플랫폼 모두의카풀입니다. 회원님이 올리신 카풀(${route})과 같은 길로 다니는 회원이 ${count ? `${count}명 ` : ""}있어요. 아래 링크로 들어와 확인하고 답해 보세요. \n${link}`
+      : `[모두의카풀] 안녕하세요, 워프 후속 플랫폼 모두의카풀입니다. 회원님 출퇴근 길과 같은 방향의 ${roleWord(String(p[0].role))}가 있어요(${route}${chance ? `, 매칭 ${chance}%` : ""}). 아래 링크로 들어와 확인하고 신청해 보세요. \n${link}`;
     return json({ ok: true, link, text });
   } catch (e) {
     return fail(e);
