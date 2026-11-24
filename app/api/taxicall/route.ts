@@ -34,6 +34,8 @@ export async function POST(req: Request) {
   const b = await body(req);
   try {
     await ensureSchema();
+    // 새 택시동승 호출은 준비 중(2026-11-24 사용자 지시). 이미 받은 호출 수락은 그대로 둔다.
+    if (b.action !== "accept") return json({ error: "택시동승 호출은 현재 준비 중이에요." }, 403);
     if (!(await hasPhoto(me))) return json({ error: PHOTO_REQUIRED }, 403);
     if (b.action === "accept") {
       if (!isUuid(b.callId)) return json({ error: "잘못된 요청입니다." }, 400);

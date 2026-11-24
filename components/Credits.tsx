@@ -140,7 +140,7 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
     [t("카풀 게시 (하루 1번)"), `+${creditText(d.rules.post, lang)}`],
     [t("채팅에서 메일로 알리기"), `−${creditText(d.rules.nudge, lang)}`],
     [t("CALL 호출 (글 1건)"), d.callCost ? `−${creditText(d.callCost, lang)}` : t("무료")],
-    [t("택시동승 호출"), t("무료")],
+    [t("택시동승 호출"), t("준비 중")],
     [t("차량 등록 축하"), `+${creditText(d.rules.car ?? 0, lang)}`],
     [t("프로필 사진 등록 (최초 1회)"), `+${creditText(d.rules.photo ?? 0, lang)}`],
     [t("첫 카풀 등록 (최초 1회)"), `+${creditText(d.rules.firstpost ?? 0, lang)}`],

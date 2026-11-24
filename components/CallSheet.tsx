@@ -202,7 +202,8 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
     if (list.length === 0) setStep("quick");
   };
 
-  const taxi = () => setStep("taxi");
+  // 택시동승 호출은 당분간 막는다(2026-11-24 사용자 지시 "현재 준비 중이라고 하고 막아줘")
+  const taxi = () => toast(t("택시동승 호출은 현재 준비 중이에요."));
 
   /** 호출하는 순간의 현재 위치를 받는다. 위치를 못 받으면 호출하지 않는다(크레딧도 차감되지 않는다). */
   const locate = () =>
@@ -260,7 +261,7 @@ function CallSheet({ onClose, toast, onGoProfile, onSubway, onSubwaySetup }: { o
     <Sheet title="CALL" blockId="S011" onClose={onClose}>
       {step === "choose" && (
         <div className="space-y-3">
-          <button type="button" data-block-id="B218" data-block-name="택시동승 호출" className={btnGhost} onClick={taxi}>{t("택시동승 호출")}</button>
+          <button type="button" data-block-id="B218" data-block-name="택시동승 호출" className={`${btnGhost} opacity-60`} aria-disabled="true" onClick={taxi}>{t("택시동승 호출")} <span className="text-[13px] font-normal text-sub">· {t("준비 중")}</span></button>
           <div className="space-y-1.5">
             <button type="button" data-block-id="B222" data-block-name="지하철 앉아가기 호출" className="w-full rounded-xl border border-violet bg-violetSoft px-4 py-3 text-[16px] font-semibold text-violet disabled:opacity-70" disabled={subwayBusy} onClick={subway}>
               {subwayBusy ? t("확인 중…") : t("지하철 앉아가기")}
