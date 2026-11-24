@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clearNotifications } from "@/lib/notifyClear";
 import { sendVisit } from "@/lib/visitClient";
 import dynamic from "next/dynamic";
@@ -89,6 +89,8 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
   const [user, setUser] = useState<User | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
+  // 내가 신청한 글 → 신청 상태(홈 목록 카드에 '신청함·수락됨' 표시)
+  const myReqs = useMemo(() => Object.fromEntries(threads.filter((th) => !th.iAmOwner).map((th) => [th.postId, th.status])), [threads]);
   const [open, setOpen] = useState<Post | null>(null);
   /** 글 하나를 앱 안에서 연다(매칭 목록·알림함·?p= 링크). 목록에 없으면 서버에서 그 글만 받는다. */
   const openPostById = useCallback(async (id: string) => {
@@ -667,7 +669,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
 
         <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-2">
           {tab === "home" &&
-            (loaded ? <Home posts={posts} sample={sample} driverMode={!!user && defaultRoleFor(user) === "driver"} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} onSubway={(v) => { setSubwayStart({ view: v, n: Date.now() }); setTab("subway"); }} onSubwaySetup={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
+            (loaded ? <Home posts={posts} sample={sample} myReqs={myReqs} driverMode={!!user && defaultRoleFor(user) === "driver"} onOpen={setOpen} toast={setToastMsg} onRefresh={refresh} onGoProfile={() => { setOpen(null); setTab("me"); }} onPost={() => setTab("post")} onSubway={(v) => { setSubwayStart({ view: v, n: Date.now() }); setTab("subway"); }} onSubwaySetup={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} /> : <div className="h-72 animate-pulse rounded-3xl bg-white" aria-hidden />)}
           {tab === "home" && seo}
           {tab === "post" && <PostForm key={repostFrom?.id ?? "new"} copy={repostFrom ?? undefined} onCopy={(p) => setRepostFrom(p)} user={user} enabled={enabled} goLogin={goLogin} toast={setToastMsg} onRegular={openRegular} onDone={async (id) => { setRepostFrom(null); await refresh(); setTab("home"); if (!id) return; const r = await api<{ posts: Post[] }>("/api/posts?mine=1"); const made = r.ok && r.data.posts.find((p) => p.id === id); if (made) setOpen(made); }} />}
           {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} start={subwayStart} onSettings={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} />}

@@ -37,6 +37,14 @@ export function KeywordChips({ post, max }: { post: Post; max?: number }) {
   );
 }
 
+/** 내가 이미 신청한 글: 목록 카드에서 바로 알아보게(2026-11-25 사용자 지시 '클릭하지 않아도 알아보도록') */
+function MyReqTag({ status }: { status: string }) {
+  const t = useT();
+  if (status === "accepted") return <Tag tone="mint">✓ {t("수락됨")}</Tag>;
+  if (status === "declined") return <Tag>{t("거절됨")}</Tag>;
+  return <Tag tone="accent">✓ {t("신청함")}</Tag>;
+}
+
 function PostTags({ post }: { post: Post }) {
   const t = useT();
   const lang = useLang();
@@ -166,7 +174,7 @@ const REGION_KEY = "modu.regions";
 /** 지역 필터 켜기(2026-11-06 사용자 지시: 회원이 적은 동안은 끄고, 누르면 '준비 중입니다' 팝업). 회원이 늘면 true로 */
 const REGION_FILTER_ON = false;
 
-export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost, onSubway, onSubwaySetup, driverMode }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; driverMode?: boolean; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void; onSubway?: (view: "seat" | "match" | "edit") => void; onSubwaySetup?: () => void }) {
+export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost, onSubway, onSubwaySetup, driverMode, myReqs }: { posts: Post[]; sample: boolean; onOpen: (p: Post) => void; toast: (m: string) => void; driverMode?: boolean; myReqs?: Record<string, string>; onRefresh?: () => void; onGoProfile?: () => void; onPost?: () => void; onSubway?: (view: "seat" | "match" | "edit") => void; onSubwaySetup?: () => void }) {
   const t = useT();
   const lang = useLang();
   const hintTap = useHintTap();
@@ -530,10 +538,10 @@ export default function Home({ posts, sample, onOpen, toast, onGoProfile, onPost
           {list.slice(0, shown).map((p) => (
             <li key={p.id}>
               <button data-block-id="C001" data-block-name="카풀 카드" onClick={() => onOpen(p)} className={`block w-full text-left ${p.ended || p.status === "closed" ? "opacity-60" : ""}`}>
-                <Card className="space-y-3 p-5">
+                <Card className={`space-y-3 p-5 ${!p.mine && myReqs?.[p.id] && myReqs[p.id] !== "declined" ? "ring-2 ring-accent/40" : ""}`}>
                   <div className="flex items-center justify-between gap-2">
                     <PostTags post={p} />
-                    <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "closed" && <Tag>{t("마감")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.call && <Tag tone="mint">{p.call.count > 1 ? `CALL ${p.call.count}` : "CALL"}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}</span>
+                    <span className="flex shrink-0 gap-1.5">{p.ended && <Tag>{t("종료")}</Tag>}{!p.ended && p.status === "closed" && <Tag>{t("마감")}</Tag>}{!p.ended && p.status === "progress" && <Tag tone="accent">{t("카풀 진행 중")}</Tag>}{p.call && <Tag tone="mint">{p.call.count > 1 ? `CALL ${p.call.count}` : "CALL"}</Tag>}{p.mine && <Tag>{t("내 글")}</Tag>}{!p.mine && myReqs?.[p.id] && <MyReqTag status={myReqs[p.id]} />}</span>
                   </div>
                   <Route origin={p.origin} dest={p.dest} originArea={p.originArea} destArea={p.destArea} />
                   <KeywordChips post={p} max={2} />
