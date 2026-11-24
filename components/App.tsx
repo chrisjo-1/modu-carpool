@@ -675,10 +675,11 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
           {tab === "subway" && seatVisible && <SubwayTab user={user ?? null} toast={setToastMsg} start={subwayStart} onSettings={() => setCommute({ post: null, onboarding: false, startMode: "subway" })} />}
           {tab === "chat" && <Chat user={user} enabled={enabled} threads={threads} onChanged={loadThreads} goLogin={goLogin} openChat={openChat} openPost={async (postId) => {
             // 받은 신청: 내 글 목록에서 찾아 글 상세(수락·거절 버튼)를 연다.
+            // 보낸 신청(남의 글)은 내 글 목록에 없으니 그 글 하나를 받아 연다(2026-11-25 '그런 글이 없다고 나와' 수정).
             const r = await api<{ posts: Post[] }>("/api/posts?mine=1");
             const hit = r.ok ? r.data.posts.find((p) => p.id === postId) : undefined;
             if (hit) setOpen(hit);
-            else setToastMsg(t("글을 찾을 수 없어요."));
+            else await openPostById(postId);
           }} push={push} toast={setToastMsg} />}
           {tab === "me" && <Me user={user} enabled={enabled} setUser={(u) => { setUser(u); if (!u) { setPreview(false); setTab("home"); } }} setLang={setLang} onOpen={setOpen} version={version} toast={setToastMsg} onCommute={(post, onboarding) => setCommute({ post, onboarding })} onChanged={refresh} onProfile={setMember} feedbackFirst={feedbackFirst} onEdit={(p) => (p.regular ? setCommute({ post: p, onboarding: false }) : setEditing(p))} onRepost={repostOn ? startRepost : undefined} push={push} onCounsel={() => setCounselOpen(true)} />}
         </main>
