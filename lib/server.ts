@@ -1,6 +1,8 @@
 import { neon } from "@neondatabase/serverless";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { after } from "next/server";
+import { alertDbDown, dbFatalKind } from "./dbAlert";
 import { timingSafeEqual } from "crypto";
 import { REASONS } from "./types";
 import { isUniqueViolation, makeMemberCode } from "./memberCode";
@@ -960,6 +962,14 @@ export const isUuid = (v: unknown): v is string =>
 /** 서버 로그에 원인을 남기고 사용자에게는 일반 안내만 보낸다. */
 export const fail = (e?: unknown) => {
   if (e) console.error("[api]", e);
+  // DB 한도 초과·연결 불가 같은 전체 장애면 관리자에게 경고 메일(2026-11-25 사용자 지시)
+  if (e && dbFatalKind(e)) {
+    try {
+      after(() => alertDbDown(e, "api").then(() => undefined));
+    } catch {
+      void alertDbDown(e, "api");
+    }
+  }
   return json({ error: "일시적인 오류입니다. 잠시 후 다시 시도해 주세요." }, 500);
 };
 export const needLogin = () => json({ error: "로그인이 필요합니다." }, 401);

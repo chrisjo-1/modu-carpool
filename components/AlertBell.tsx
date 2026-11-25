@@ -7,7 +7,7 @@ const AlertsSheet = dynamic(() => import("./AlertsSheet"), { ssr: false });
 
 /**
  * 헤더의 알림함 종(2026-11-06 사용자 지시: "알림 내역이 쌓이고 확인하는 버튼이 없네").
- * 안 읽은 수만 가볍게 묻는다(처음 + 화면이 보일 때 1분마다). 목록은 누를 때 불러온다.
+ * 안 읽은 수만 가볍게 묻는다(처음 + 화면이 보일 때 3분마다 — 2026-11-25 DB 사용량 줄이기). 목록은 누를 때 불러온다.
  */
 export default function AlertBell({ toast }: { toast: (m: string) => void }) {
   const t = useT();
@@ -20,7 +20,7 @@ export default function AlertBell({ toast }: { toast: (m: string) => void }) {
       api<{ unread: number }>("/api/inbox?count=1").then((r) => { if (alive && r.ok) setUnread(r.data.unread); });
     };
     const first = setTimeout(load, 1500); // 첫 화면을 막지 않게 조금 뒤에
-    const id = setInterval(load, 60_000);
+    const id = setInterval(load, 180_000);
     document.addEventListener("visibilitychange", load);
     return () => { alive = false; clearTimeout(first); clearInterval(id); document.removeEventListener("visibilitychange", load); };
   }, []);

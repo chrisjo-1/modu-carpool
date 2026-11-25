@@ -490,7 +490,7 @@ export default function App({ seo }: { seo?: React.ReactNode } = {}) {
     }
     loadThreads();
     loadPosts();
-    const id = setInterval(() => document.visibilityState === "visible" && loadThreads(), 30000);
+    const id = setInterval(() => document.visibilityState === "visible" && loadThreads(), 60000); // 2026-11-25 DB 사용량 줄이기: 30초 → 1분
     return () => clearInterval(id);
   }, [user, loadThreads, loadPosts]);
 

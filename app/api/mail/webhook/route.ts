@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db, ensureSchema, hasDb } from "@/lib/server";
 import { suppress } from "@/lib/unsub";
+import { alertDbDown } from "@/lib/dbAlert";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
       else await sql`update mail_log set clicked_at = coalesce(clicked_at, now()), opened_at = coalesce(opened_at, now()) where provider_id = ${eid} and provider_id <> ''`;
     } catch (e) {
       console.error("[mail-webhook]", e);
+      await alertDbDown(e, "mail webhook");
       return new Response("error", { status: 500 });
     }
     return Response.json({ ok: true });
