@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { PENPAL_LINK_OPEN } from "@/lib/penpal";
 import { spend } from "@/lib/credits";
 import { db, ensureSchema, fail, isUuid, json, overLimit, recordAttempt } from "@/lib/server";
 
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
     await ensureSchema();
     const sql = db();
     if (b.action === "link") {
+      if (!PENPAL_LINK_OPEN) return json({ ok: false, error: "paused" });
       const code = String(b.code ?? "").trim().toUpperCase();
       const pin = String(b.link ?? "").trim();
       if (!/^[0-9]{7}[A-Z]$/.test(code) || !/^\d{6}$/.test(pin)) return json({ ok: false, error: "bad_code" });

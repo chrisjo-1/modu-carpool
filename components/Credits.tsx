@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { PENPAL_LINK_OPEN } from "@/lib/penpal";
 import { Card, Icon, api, useLang, useT } from "./ui";
 
 type Rules = { signup: number; attend: number; post: number; nudge: number; legacy: number; car: number; photo?: number; firstpost?: number; karrot?: number };
@@ -211,11 +212,17 @@ export default function CreditCard({ toast, version }: { toast: (m: string) => v
         <div data-block-id="C059" data-block-name="손편지매칭 연결" className="rounded-2xl bg-bg p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[14px] font-semibold">{t("손편지매칭에서 크레딧 쓰기")}</p>
-            <button type="button" data-block-id="B059" data-block-name="손편지매칭 연결 코드 받기" disabled={penpalBusy} onClick={penpalCode} className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-semibold text-white disabled:bg-bg disabled:text-sub">
-              {penpal ? t("새 코드 받기") : t("연결 코드 받기")}
-            </button>
+            {PENPAL_LINK_OPEN ? (
+              <button type="button" data-block-id="B059" data-block-name="손편지매칭 연결 코드 받기" disabled={penpalBusy} onClick={penpalCode} className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-semibold text-white disabled:bg-bg disabled:text-sub">
+                {penpal ? t("새 코드 받기") : t("연결 코드 받기")}
+              </button>
+            ) : (
+              <span className="shrink-0 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-semibold text-sub">{t("준비 중")}</span>
+            )}
           </div>
-          {penpal ? (
+          {!PENPAL_LINK_OPEN ? (
+            <p className="mt-1 text-[13px] leading-relaxed text-sub">{t("손편지매칭 연결은 준비 중이에요. 손편지매칭을 더 다듬은 뒤 다시 열어 드릴게요.")}</p>
+          ) : penpal ? (
             <p className="mt-2 text-[13px] leading-relaxed text-sub">
               {t("손편지매칭 내 사서함 → 크레딧에 아래 두 가지를 입력해 주세요. 연결 코드는 10분 동안 한 번만 쓸 수 있어요.")}
               <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[15px] text-ink">

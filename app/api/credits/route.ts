@@ -1,4 +1,5 @@
 import { createHash, randomInt } from "node:crypto";
+import { PENPAL_LINK_OPEN } from "@/lib/penpal";
 import { REASON_LABEL, getRules, grant, grantLegacy, kstDay } from "@/lib/credits";
 import { getCallCost } from "@/lib/call";
 import { maskEmail } from "@/lib/legacy";
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
   if (!me) return needLogin();
   const b = await body(req);
   if (b.action === "claimWarp") return claimWarp(me, b.code);
-  if (b.action === "penpalCode") return penpalCode(me);
+  if (b.action === "penpalCode") return PENPAL_LINK_OPEN ? penpalCode(me) : json({ error: "손편지매칭 연결은 준비 중이에요." }, 403);
   if (b.action === "warpNo") {
     try {
       await ensureSchema();
