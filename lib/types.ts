@@ -21,6 +21,8 @@ export type Post = {
   regular?: boolean;
   /** 정기카풀 한 쌍의 출근(go)·퇴근(back) 글 */
   leg?: "go" | "back";
+  /** 같은 회원의 퇴근 글이 따로 있는 출근 글(화면엔 출근 시각만) */
+  pairedBack?: boolean;
   days?: string;
   timeGo?: string;
   timeBack?: string;
@@ -72,6 +74,7 @@ export type Thread = {
   days?: string;
   timeGo?: string;
   timeBack?: string;
+  pairedBack?: boolean;
   otherId?: string;
   otherPhoto?: string;
   /** 상대가 운전자일 때 상대의 운전자 등급 */

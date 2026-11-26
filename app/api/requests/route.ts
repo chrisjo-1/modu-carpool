@@ -17,7 +17,7 @@ export async function GET() {
     await ensureSchema();
     const rows = await db()`
       select r.id, r.status, r.message, r.created_at, r.user_id as req_id,
-             p.id as post_id, p.role as post_role, p.origin, p.dest, p.origin_area, p.dest_area, p.depart_at, p.cost, p.price, p.regular, p.days, p.time_go, p.time_back, p.user_id as owner_id,
+             p.id as post_id, p.role as post_role, p.origin, p.dest, p.origin_area, p.dest_area, p.depart_at, p.cost, p.price, p.regular, p.days, p.time_go, p.time_back, (p.regular and p.leg <> 'back' and exists (select 1 from posts b where b.user_id = p.user_id and b.regular and b.leg = 'back' and b.status <> 'closed')) as paired_back, p.user_id as owner_id,
              ou.photo_v as owner_pv, ru.photo_v as req_pv, ou.car_no as owner_car, ou.car_v as owner_cv, ru.car_no as req_car, ru.car_v as req_cv, ou.tier_set as owner_ts, ru.tier_set as req_ts,
              ou.name as owner_name, ou.contact as owner_contact, ou.contact_type as owner_ctype,
              ru.name as req_name, ru.contact as req_contact, ru.contact_type as req_ctype, ru.bio as req_bio,
@@ -52,6 +52,7 @@ export async function GET() {
           days: r.days,
           timeGo: r.time_go,
           timeBack: r.time_back,
+          pairedBack: r.paired_back === true,
           otherId: iAmOwner ? r.req_id : r.owner_id,
           otherPhoto: iAmOwner ? photoUrl(r.req_id, r.req_pv) : photoUrl(r.owner_id, r.owner_pv),
           // 상대가 운전자일 때만 등급 배지를 보여 준다

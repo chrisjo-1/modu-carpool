@@ -23,10 +23,12 @@ export const money = (n: number, lang: Lang) => (lang === "ko" ? `${n.toLocaleSt
 
 /** 정기카풀이면 "평일 07:30 / 18:30", 아니면 출발 일시 */
 /** 출발 시각 표기. 등록 시각과 헷갈리지 않도록 뒤에 '출발'을 붙인다. */
-export function scheduleText(p: { regular?: boolean; days?: string; timeGo?: string; timeBack?: string; departAt: number }, lang: Lang) {
+export function scheduleText(p: { regular?: boolean; days?: string; timeGo?: string; timeBack?: string; pairedBack?: boolean; departAt: number }, lang: Lang) {
   const dep = translate(lang, "출발");
   if (!p.regular) return `${when(p.departAt, lang)} ${dep}`;
-  return `${dayLabel(lang, p.days ?? "")} ${p.timeGo ?? ""} ${dep}${p.timeBack ? ` / ${p.timeBack} ${dep}` : ""}`;
+  // 퇴근 글이 따로 있으면 출근 글에는 출근 시각만(2026-11-26 사용자 지시)
+  const back = p.timeBack && !p.pairedBack ? p.timeBack : "";
+  return `${dayLabel(lang, p.days ?? "")} ${p.timeGo ?? ""} ${dep}${back ? ` / ${back} ${dep}` : ""}`;
 }
 
 const PLACEHOLDER_BG = ["#DCE8FF", "#D9F5EA", "#FFF1D6", "#F3E1FF", "#FFE1E1", "#E0F4FF"];

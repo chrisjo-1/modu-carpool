@@ -135,6 +135,11 @@ export async function GET(req: Request) {
                     (p.source = 'warp' and coalesce(p.warp_code, '') ~ '^[A-Z]{6,12}$'), p.created_at desc, p.id limit 300 offset ${offset}`;
     const now = Date.now();
     const kw = await getKeywords();
+    // 출근·퇴근 글이 따로 있는 정기카풀(2026-11-26 사용자 지시): 출근 글에는 출근 시각만 보이게, 퇴근 시각은 퇴근 글에서
+    const goOwners = [...new Set(rows.filter((r) => r.regular && r.leg !== "back" && r.time_back).map((r) => String(r.user_id)))];
+    const paired = new Set(goOwners.length
+      ? (await sql`select distinct user_id from posts where regular and leg = 'back' and status <> 'closed' and user_id = any(${goOwners}::uuid[])`).map((x) => String(x.user_id))
+      : []);
     const posts = rows.map((r) => ({
       tagIds: (r.tags as string[]) ?? [],
       tags: tagLabels(kw, r.tags),
@@ -158,6 +163,7 @@ export async function GET(req: Request) {
       days: r.days,
       timeGo: r.time_go,
       timeBack: r.time_back,
+      pairedBack: r.regular && r.leg !== "back" && paired.has(String(r.user_id)),
       origin: r.origin,
       dest: r.dest,
       originArea: r.origin_area ?? "",

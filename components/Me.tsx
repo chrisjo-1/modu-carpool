@@ -384,7 +384,7 @@ export default function Me({
                 {regular ? (
                   <div>
                     <p className="font-semibold">{regular.status === "hidden" ? `${regular.dest} → ${regular.origin}` : `${regular.origin} → ${regular.dest}`}</p>
-                    <p className="num text-[14px] text-sub">{regular.status === "hidden" ? `${t("퇴근만")} · ${scheduleText({ ...regular, timeGo: regular.timeBack, timeBack: "" }, lang)}` : scheduleText(regular, lang)}</p>
+                    <p className="num text-[14px] text-sub">{regular.status === "hidden" ? `${t("퇴근만")} · ${scheduleText({ ...regular, timeGo: regular.timeBack, timeBack: "" }, lang)}` : scheduleText({ ...regular, pairedBack: false }, lang)}</p>
                   </div>
                 ) : (
                   <p className="text-[15px] text-sub">{t("아직 출퇴근 정보를 입력하지 않았어요.")}</p>
