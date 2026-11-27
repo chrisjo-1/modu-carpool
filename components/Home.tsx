@@ -2,6 +2,7 @@
 import { needPush } from "@/lib/pushGate";
 const MatchButton = dynamic(() => import("./MatchSheet").then((m) => m.MatchButton), { ssr: false });
 const AdminMatchButton = dynamic(() => import("./AdminMatch").then((m) => m.AdminMatchButton), { ssr: false });
+const WithMe = dynamic(() => import("./WithMe"), { ssr: false });
 import dynamic from "next/dynamic";
 import FareCard from "./Fare";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -724,6 +725,9 @@ export function PostDetail({
         ) : (
           <p className="rounded-2xl bg-bg px-4 py-3 text-[14px] text-sub">{t("무료 운행입니다. 금전을 요구하거나 주고받지 않습니다.")}</p>
         )}
+
+        {/* 남의 글: 나와의 매칭률·겹치는 경로 지도(2026-11-27 사용자 지시) */}
+        {!post.mine && user && !sample && !post.demo && <WithMe postId={post.id} />}
 
         {post.mine ? (
           <div className="space-y-3">

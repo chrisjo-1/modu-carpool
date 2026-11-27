@@ -1,6 +1,7 @@
 import { spend } from "@/lib/credits";
 import { matchViewCost, matchesFor, routeInsights } from "@/lib/matchServer";
 import { body, currentUserId, db, ensureSchema, fail, json, needLogin, photoUrl } from "@/lib/server";
+import { withMe } from "@/lib/withMe";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,18 @@ async function own(me: string, postId: string) {
 export async function GET(req: Request) {
   const me = await currentUserId();
   if (!me) return needLogin();
+  // 남의 글 상세 '나와의 매칭'(2026-11-27): ?with=글ID → 내 글(없으면 출퇴근 정보)과의 매칭률·경로 좌표
+  const withId = new URL(req.url).searchParams.get("with") ?? "";
+  if (withId) {
+    if (!/^[0-9a-f-]{36}$/i.test(withId)) return json({ error: "잘못된 요청입니다." }, 400);
+    try {
+      await ensureSchema();
+      const r = await withMe(me, withId);
+      return json(r ?? { skip: true });
+    } catch (e) {
+      return fail(e);
+    }
+  }
   const postId = new URL(req.url).searchParams.get("post") ?? "";
   if (!/^[0-9a-f-]{36}$/i.test(postId)) return json({ error: "잘못된 요청입니다." }, 400);
   try {
