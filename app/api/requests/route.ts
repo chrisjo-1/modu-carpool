@@ -2,7 +2,7 @@ import { driverTier } from "@/lib/types";
 import { notify, warpRequestMail } from "@/lib/mail";
 import { pushText, sendPush } from "@/lib/push";
 import { PHOTO_REQUIRED, hasPhoto, isVerified } from "@/lib/verify";
-import { body, currentUserId, db, ensureSchema, fail, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
+import { body, currentUserId, db, ensureSchema, fail, isAdminMember, isUuid, json, needLogin, carPhotoUrl, photoUrl, text } from "@/lib/server";
 import { nextOccurrence } from "@/lib/time";
 import { notifyUnreachableRequest } from "@/lib/unreachableNotify";
 import { after } from "next/server";
@@ -85,6 +85,9 @@ export async function GET() {
   }
 }
 
+/** 하루 카풀 신청 한도(한국 날짜) */
+const DAILY_REQUEST_LIMIT = 5;
+
 /** 카풀 신청 */
 export async function POST(req: Request) {
   const me = await currentUserId();
@@ -96,6 +99,12 @@ export async function POST(req: Request) {
     const sql = db();
     if (!(await isVerified(me))) return json({ error: "이메일 인증을 마치면 카풀을 신청할 수 있어요. 메일함을 확인해 주세요." }, 403);
     if (!(await hasPhoto(me))) return json({ error: PHOTO_REQUIRED }, 403);
+    // 하루 카풀 신청 5건(한국 날짜 기준, 2026-11-28 사용자 지시 '하루에 너무 많은 신청 — 5건으로 제한'). 관리자 회원은 제외
+    if (!(await isAdminMember(me))) {
+      const [{ n }] = await sql`select count(*)::int as n from requests where user_id = ${me}
+        and created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')`;
+      if (Number(n) >= DAILY_REQUEST_LIMIT) return json({ error: `카풀 신청은 하루 ${DAILY_REQUEST_LIMIT}건까지 할 수 있어요. 내일 다시 신청해 주세요.` }, 429);
+    }
     const post = await sql`select user_id, status, origin, dest, demo, source, (not regular and depart_at <= now()) as ended from posts where id = ${b.postId}`;
     if (post.length && post[0].demo) return json({ error: "예시 글에는 신청할 수 없어요." }, 400);
     if (post.length && post[0].ended) return json({ error: "출발 시각이 지나 종료된 카풀입니다." }, 409);
